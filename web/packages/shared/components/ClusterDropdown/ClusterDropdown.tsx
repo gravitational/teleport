@@ -129,7 +129,8 @@ export function ClusterDropdown({
     setAnchorEl(null);
   };
 
-  if (options.length < 1) {
+  // If only a single cluster is available, hide the dropdown
+  if (options.length < 2) {
     return null;
   }
 

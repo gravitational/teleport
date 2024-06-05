@@ -76,10 +76,10 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	// create remote clusters
 	gotRC, err := presenceBackend.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	gotSRC, err := presenceBackend.CreateRemoteCluster(ctx, src)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// get remote cluster make sure it's correct
 	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
@@ -103,14 +103,14 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	rc.SetMetadata(meta)
 	gotRC, err = presenceBackend.UpdateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	src = gotSRC
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	src.SetLastHeartbeat(clock.Now())
 	gotSRC, err = presenceBackend.UpdateRemoteCluster(ctx, src)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// get remote cluster make sure it's correct
 	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
@@ -178,7 +178,7 @@ func TestPresenceService_PatchRemoteCluster(t *testing.T) {
 		cmp.Diff(
 			rc,
 			fetchedRC,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
 		),
 	)
@@ -386,7 +386,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	servers := types.AppServers(out)
 	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
@@ -396,7 +396,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Upsert server with TTL.
 	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -404,7 +404,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{
 		Type:      types.KeepAlive_APP,
-		LeaseID:   lease.LeaseID,
 		Name:      serverA.GetName(),
 		Namespace: serverA.GetNamespace(),
 		HostID:    serverA.GetHostID(),
@@ -471,7 +470,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Check again, expect a single server to be found.
 	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
@@ -499,7 +498,6 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{
 		Type:      types.KeepAlive_DATABASE,
-		LeaseID:   lease.LeaseID,
 		Name:      server.GetName(),
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
@@ -557,7 +555,7 @@ func TestNodeCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, nodes, 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNodes should fail if namespace isn't provided
 			_, err = presence.GetNodes(ctx, "")
@@ -569,7 +567,7 @@ func TestNodeCRUD(t *testing.T) {
 			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNode should fail if node name isn't provided
 			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
@@ -820,6 +818,25 @@ func TestListResources(t *testing.T) {
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
 				return presence.DeleteAllWindowsDesktopServices(ctx)
+			},
+		},
+		"WindowsDesktop": {
+			resourceType: types.KindWindowsDesktop,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				desktop, err := types.NewWindowsDesktopV3(name, labels, types.WindowsDesktopSpecV3{
+					Addr: "localhost:1234",
+				})
+				if err != nil {
+					return err
+				}
+
+				err = desktopService.UpsertWindowsDesktop(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				return desktopService.DeleteAllWindowsDesktops(ctx)
 			},
 		},
 	}
@@ -1506,15 +1523,15 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	_, err = presence.GetServerInfo(ctx, "nonexistant")
 	require.True(t, trace.IsNotFound(err))
@@ -1524,7 +1541,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Update server info.
 	serverInfoB.SetStaticLabels(map[string]string{
@@ -1535,7 +1552,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete all server infos.
 	require.NoError(t, presence.DeleteAllServerInfos(ctx))

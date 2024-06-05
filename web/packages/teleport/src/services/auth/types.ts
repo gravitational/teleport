@@ -50,6 +50,7 @@ export type ChangedUserAuthn = {
   recovery: RecoveryCodes;
 };
 
+/** A Web API request data for the New Credentials call. */
 export type NewCredentialRequest = {
   tokenId: string;
   password?: string;
@@ -70,6 +71,7 @@ export type ResetPasswordReqWithEvent = {
 
 export type ResetPasswordWithWebauthnReqWithEvent = {
   req: NewCredentialRequest;
+  credential?: Credential;
   eventMeta?: EventMeta;
 };
 
@@ -86,3 +88,11 @@ export type ChangePasswordReq = {
   secondFactorToken: string;
   credential?: Credential;
 };
+
+export type CreateNewHardwareDeviceRequest = {
+  tokenId: string;
+  deviceUsage?: DeviceUsage;
+};
+
+/** The intended usage of the device (as an MFA method or a passkey). */
+export type DeviceUsage = 'passwordless' | 'mfa';

@@ -115,7 +115,7 @@ pool user `test@example.com` with a permissions to browse GCP project resources.
 
 ```
 gcloud projects add-iam-policy-binding GCP_PROJECT_ID \
- --role=”roles/browser”  \
+ --role="roles/browser"  \
  --member="principal://iam.googleapis.com/locations/global/workforcePools/<pool id>/subject/test@example.com"
 ```
 
@@ -178,8 +178,8 @@ Next, an IAM policy must be created referencing GCP group.
 
 ```
 gcloud projects add-iam-policy-binding <GCP_Project_ID> \
- --role=”roles/browser”  \
- --member=”principalSet://iam.googleapis.com/locations/global/workforcePools/<pool id>/group/gcp-dev”
+ --role="roles/browser"  \
+ --member="principalSet://iam.googleapis.com/locations/global/workforcePools/<pool id>/group/gcp-dev"
 ```
 
 Since Teleport role was mapped as a GCP group with attribute mapping, the policy will grant
@@ -249,10 +249,8 @@ Save the spec as **pool_provider_name.yaml** file. And create the saml service p
 $ tctl create pool_provider_name.yaml
 ```
 
-## Step 3/3: Create IAM policy
+## Step 3/3: Create GCP IAM policy
 
-This step is similar to Step 3 in the guided configuration flow. You wil need to create GCP IAM policy representing
-workforce principal.
-
-
+This step is similar to Step 3 in the guided configuration flow.
+You will need to create a GCP IAM policy representing the workforce principal.
 

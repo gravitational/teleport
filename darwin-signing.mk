@@ -60,7 +60,7 @@ TSH_SKELETON_build_prod = tsh
 
 TEAMID_promote = $(TEAMID_build_prod)
 DEVELOPER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_build_prod)
-INSTALLER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_build_prod)
+INSTALLER_KEY_NAME_promote = $(INSTALLER_KEY_NAME_build_prod)
 TELEPORT_BUNDLEID_promote = $(TELEPORT_BUNDLEID_build_prod)
 TSH_BUNDLEID_promote = $(TSH_BUNDLEID_build_prod)
 TSH_SKELETON_promote = $(TSH_SKELETON_build_prod)
@@ -75,7 +75,7 @@ TSH_SKELETON_build_stage = tshdev
 
 TEAMID_build = $(TEAMID_build_stage)
 DEVELOPER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_build_stage)
-INSTALLER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_build_stage)
+INSTALLER_KEY_NAME_build = $(INSTALLER_KEY_NAME_build_stage)
 TELEPORT_BUNDLEID_build = $(TELEPORT_BUNDLEID_build_stage)
 TSH_BUNDLEID_build = $(TSH_BUNDLEID_build_stage)
 TSH_SKELETON_build = $(TSH_SKELETON_build_stage)

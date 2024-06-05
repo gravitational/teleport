@@ -33,6 +33,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state?.username;
   }
 
+  getPasswordState() {
+    return this.state.passwordState;
+  }
+
   getClusterId() {
     return this.state.cluster.clusterId;
   }
@@ -139,6 +143,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getAccessRequestAccess() {
     return this.state.acl.accessRequests;
+  }
+
+  getAccessMonitoringRuleAccess() {
+    return this.state.acl.accessMonitoringRule;
   }
 
   getAccessGraphAccess() {

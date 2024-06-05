@@ -25,8 +25,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -46,9 +46,13 @@ type storedDevice struct {
 	enrollToken string // stored separately from the device
 }
 
-type storedWebToken struct {
-	expectedDeviceID string
-	id, token        string
+// storedDeviceAuthnAttempt is the underlying entity behind
+// [devicepb.DeviceWebToken] and [devicepb.DeviceConfirmationToken].
+type storedDeviceAuthnAttempt struct {
+	id                     string
+	webSessionID           string
+	expectedDeviceID       string
+	webToken, confirmToken string
 }
 
 type FakeDeviceService struct {
@@ -56,47 +60,75 @@ type FakeDeviceService struct {
 
 	autoCreateDevice bool
 
-	// mu guards devices and devicesLimitReached.
+	// mu guards the fields below it.
 	// As a rule of thumb we lock entire methods, so we can work with pointers to
 	// the contents of devices without worry.
 	mu                  sync.Mutex
 	devices             []storedDevice
 	devicesLimitReached bool
-	deviceWebTokens     []storedWebToken
+	deviceAuthnAttempts []*storedDeviceAuthnAttempt
 }
 
 func newFakeDeviceService() *FakeDeviceService {
 	return &FakeDeviceService{}
 }
 
+// CreateDeviceWebTokenParams are the parameters for
+// [CreateDeviceWebTokenForTesting].
+type CreateDeviceWebTokenParams struct {
+	ExpectedDeviceID string
+	WebSessionID     string
+}
+
 // CreateDeviceWebTokenForTesting creates a fake [devicepb.DeviceWebToken] for
 // testing.
 // The returned token can be used for a successful [AuthenticateDevice] call.
-func (s *FakeDeviceService) CreateDeviceWebTokenForTesting(expectedDeviceID string) (*devicepb.DeviceWebToken, error) {
+func (s *FakeDeviceService) CreateDeviceWebTokenForTesting(params CreateDeviceWebTokenParams) (*devicepb.DeviceWebToken, error) {
 	// "True" device web token creation requires quite a bit more and calculates
 	// the expected device itself.
 	// For the purposes of this fake this is good enough to give us confidence
 	// that the client-side ceremony is passing all the right inputs.
-	if expectedDeviceID == "" {
-		return nil, trace.BadParameter("expectedDeviceID required")
+	switch {
+	case params.ExpectedDeviceID == "":
+		return nil, trace.BadParameter("param ExpectedDeviceID required")
+	case params.WebSessionID == "":
+		return nil, trace.BadParameter("param WebSessionID required")
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	id := uuid.NewString()
-	token := uuid.NewString()
+	webToken := uuid.NewString()
 
-	s.deviceWebTokens = append(s.deviceWebTokens, storedWebToken{
-		expectedDeviceID: expectedDeviceID,
+	s.deviceAuthnAttempts = append(s.deviceAuthnAttempts, &storedDeviceAuthnAttempt{
 		id:               id,
-		token:            token,
+		expectedDeviceID: params.ExpectedDeviceID,
+		webSessionID:     params.WebSessionID,
+		webToken:         webToken,
 	})
 
 	return &devicepb.DeviceWebToken{
 		Id:    id,
-		Token: token,
+		Token: webToken,
 	}, nil
+}
+
+// VerifyConfirmationToken verifies that the token is valid within this
+// FakeDeviceService.
+//
+// This is a test support method, it doesn't spend the token.
+func (s *FakeDeviceService) VerifyConfirmationToken(token *devicepb.DeviceConfirmationToken) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, attempt := range s.deviceAuthnAttempts {
+		if attempt.id == token.Id && attempt.confirmToken == token.Token {
+			return nil
+		}
+	}
+
+	return errors.New("token not issued by FakeDeviceService")
 }
 
 // SetDevicesLimitReached simulates a server where the devices limit was already
@@ -484,12 +516,13 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	}
 
 	// Validate/spent the device web token, if present.
-	hasWebToken := false
+	var confirmToken *devicepb.DeviceConfirmationToken
 	if webToken := initReq.DeviceWebToken; webToken != nil {
-		if err := s.spendDeviceWebToken(webToken, dev); err != nil {
+		var err error
+		confirmToken, err = s.spendDeviceWebToken(webToken, dev)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		hasWebToken = true
 	}
 
 	switch dev.pb.OsType {
@@ -504,44 +537,59 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 		return trace.Wrap(err)
 	}
 
-	newCerts := &devicepb.UserCertificates{}
-	if !hasWebToken {
-		newCerts.X509Der = []byte("<insert augmented X.509 cert here")
-		newCerts.SshAuthorizedKey = []byte("<insert augmented SSH cert here")
+	// Standalone device authentication.
+	if confirmToken == nil {
+		return trace.Wrap(stream.Send(&devicepb.AuthenticateDeviceResponse{
+			Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
+				UserCertificates: &devicepb.UserCertificates{
+					X509Der:          []byte("<insert augmented X.509 cert here"),
+					SshAuthorizedKey: []byte("<insert augmented SSH cert here"),
+				},
+			},
+		}))
 	}
 
-	err = stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-			UserCertificates: newCerts,
+	// Web authentication.
+	return trace.Wrap(stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_ConfirmationToken{
+			ConfirmationToken: confirmToken,
 		},
-	})
-	return trace.Wrap(err)
+	}))
 }
 
-func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToken, dev *storedDevice) error {
+func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToken, dev *storedDevice) (*devicepb.DeviceConfirmationToken, error) {
 	const invalidWebTokenMessage = "invalid device web token"
 
-	for i, token := range s.deviceWebTokens {
-		if token.id != webToken.Id {
+	for _, attempt := range s.deviceAuthnAttempts {
+		if attempt.id != webToken.Id {
 			continue
 		}
 
-		// Spend token regardless of outcome.
-		s.deviceWebTokens = slices.Delete(s.deviceWebTokens, i, i+1)
+		storedToken := attempt.webToken
 
-		// Validate token info.
+		// Spend token regardless of outcome.
+		attempt.webToken = ""
+
 		switch {
-		case token.token != webToken.Token:
-			return trace.AccessDenied(invalidWebTokenMessage)
-		case token.expectedDeviceID != dev.pb.Id:
-			return trace.AccessDenied(invalidWebTokenMessage)
+		case storedToken == "": // Invalid attempt state or token already spent.
+			return nil, trace.AccessDenied(invalidWebTokenMessage)
+		case storedToken != webToken.Token: // Bad token
+			return nil, trace.AccessDenied(invalidWebTokenMessage)
+		case attempt.expectedDeviceID != dev.pb.Id: // Failed expected device check.
+			return nil, trace.AccessDenied(invalidWebTokenMessage)
 		}
 
-		return nil // Valid token.
+		// Issue a new confirmation token.
+		attempt.confirmToken = uuid.NewString()
+
+		return &devicepb.DeviceConfirmationToken{
+			Id:    attempt.id,
+			Token: attempt.confirmToken,
+		}, nil
 	}
 
 	// Token ID not found.
-	return trace.AccessDenied(invalidWebTokenMessage)
+	return nil, trace.AccessDenied(invalidWebTokenMessage)
 }
 
 func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {

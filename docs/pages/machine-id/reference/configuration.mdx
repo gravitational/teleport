@@ -127,6 +127,14 @@ outputs:
     destination:
       type: directory
       path: /opt/machine-id
+
+# services specify which `tbot` sub-services should be enabled and how they
+# should be configured.
+#
+# See the full list of supported services and their configuration options
+# under the Services section of this reference page.
+services:
+  - type: example
 ```
 
 If no configuration file is provided, a simple configuration is used based
@@ -300,6 +308,146 @@ principals:
   - host.example.com
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+#### `spiffe-svid`
+
+The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
+to a configured destination.
+
+The output generates the following artifacts:
+- `svid.pem`: the X509 SVID.
+- `svid.key`: the private key associated with the X509 SVID.
+- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
+
+See [Workload Identity](../workload-identity.mdx) for more information on how
+to use SPIFFE SVIDs.
+
+```yaml
+# type specifies the type of the output. For the SPIFFE SVID output, this will
+# always be `spiffe-svid`.
+type: spiffe-svid
+# svid specifies the properties of the SPIFFE SVID that should be requested.
+svid:
+  # path specifies what the path element should be requested for the SPIFFE ID.
+  path: /svc/foo
+  # sans specifies optional Subject Alternative Names (SANs) to include in the
+  # generated X509 SVID. If omitted, no SANs are included.
+  sans:
+    # dns specifies the DNS SANs. If omitted, no DNS SANs are included.
+    dns:
+      - foo.svc.example.com
+    # ip specifies the IP SANs. If omitted, no IP SANs are included.
+    ip:
+      - 10.0.0.1
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+### Services
+
+Services are configurable long-lived components that run within `tbot`. Unlike
+Outputs, they may not necessarily generate artifacts. Typically, services
+provide supporting functionality for machine to machine access, for example,
+opening tunnels or providing APIs.
+
+#### `spiffe-workload-api`
+
+The `spiffe-workload-api` service opens a listener for a service that implements
+the SPIFFE Workload API. This service is used to provide SPIFFE SVIDs to
+workloads.
+
+See [Workload Identity](../workload-identity.mdx) for more information on the
+SPIFFE Workload API.
+
+```yaml
+# type specifies the type of the service. For the SPIFFE Workload API service,
+# this will always be `spiffe-workload-api`.
+type: spiffe-workload-api
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: unix:///opt/machine-id/workload.sock
+# svids specifies the SPIFFE SVIDs that the Workload API should provide.
+svids:
+    # path specifies what the path element should be requested for the SPIFFE
+    # ID.
+  - path: /svc/foo
+    # hint is a free-form string which can be used to help workloads determine
+    # which SVID to select when multiple are available. If omitted, no hint is
+    # included.
+    hint: my-hint
+    # sans specifies optional Subject Alternative Names (SANs) to include in the
+    # generated X509 SVID. If omitted, no SANs are included.
+    sans:
+      # dns specifies the DNS SANs. If omitted, no DNS SANs are included.
+      dns:
+        - foo.svc.example.com
+      # ip specifies the IP SANs. If omitted, no IP SANs are included.
+      ip:
+        - 10.0.0.1
+    # rules specifies a list of workload attestation rules. At least one of
+    # these rules must be satisfied by the workload in order for it to receive
+    # this SVID.
+    #
+    # If no rules are specified, the SVID will be issued to all workloads that
+    # connect to this service.
+    rules:
+        # unix is a group of workload attestation criteria that are available
+        # when the workload is running on the same host, and is connected to
+        # the Workload API using a Unix socket.
+        #
+        # If any of the criteria in this group are specified, then workloads
+        # that do not connect using a Unix socket will not receive this SVID.
+      - unix:
+          # uid is the ID of the user that the workload process must be running
+          # as to receive this SVID.
+          #
+          # If unspecified, the UID is not checked.
+          uid: 1000
+          # pid is the ID that the workload process must have to receive this
+          # SVID.
+          #
+          # If unspecified, the PID is not checked.
+          pid: 1234
+          # gid is the ID of the primary group that the workload process must be
+          # running as to receive this SVID.
+          #
+          # If unspecified, the GID is not checked.
+          gid: 50
+```
+
+#### `database-tunnel`
+
+The `database-tunnel` service opens a listener for a service that tunnels
+connections to a database server.
+
+The tunnel authenticates connections for the client, meaning that any
+application which can connect to the listener will be able to connect to the
+database as the specified user. For this reason, we heavily recommend using the
+Unix socket listener type and configuring the permissions of the socket to
+ensure that only the intended applications can connect.
+
+```yaml
+# type specifies the type of the service. For the database tunnel service, this
+# will always be `database-tunnel`.
+type: database-tunnel
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: tcp://127.0.0.1:25432
+# service is the name of the database server, as configured in Teleport, that
+# the service should open a tunnel to.
+service: postgres-docker
+# database is the name of the specific database on the specified database
+# service.
+database: postgres
+# username is the name of the user on the specified database server to open a
+# tunnel for.
+username: postgres
 ```
 
 ### Destinations

@@ -93,6 +93,13 @@ func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, e
 	return adapter.resource, trace.Wrap(err)
 }
 
+// ConditionalUpdateResource updates an existing resource if the provided
+// resource and the existing resource have matching revisions.
+func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
+	return adapter.resource, trace.Wrap(err)
+}
+
 // CreateResource creates a new resource.
 func (s ServiceWrapper[T]) CreateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.CreateResource(ctx, newResourceMetadataAdapter(resource))
@@ -119,6 +126,23 @@ func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
 // ListResources returns a paginated list of resources.
 func (s ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	adapters, nextToken, err := s.service.ListResources(ctx, pageSize, pageToken)
+	out := make([]T, 0, len(adapters))
+	for _, adapter := range adapters {
+		out = append(out, adapter.resource)
+	}
+	return out, nextToken, trace.Wrap(err)
+}
+
+// ListResourcesWithFilter returns a paginated list of resources that match the provided filter.
+func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	adapters, nextToken, err := s.service.ListResourcesWithFilter(
+		ctx,
+		pageSize,
+		pageToken,
+		func(rma resourceMetadataAdapter[T]) bool {
+			return matcher(rma.resource)
+		})
+
 	out := make([]T, 0, len(adapters))
 	for _, adapter := range adapters {
 		out = append(out, adapter.resource)

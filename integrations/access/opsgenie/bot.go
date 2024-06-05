@@ -105,6 +105,11 @@ func (b *Bot) PostReviewReply(ctx context.Context, _ string, alertID string, rev
 	return trace.Wrap(b.client.PostReviewNote(ctx, alertID, review))
 }
 
+// NotifyUser will send users a direct message with the access request status
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
+}
+
 // UpdateMessages add notes to the alert containing updates to status.
 // This will also resolve alerts based on the resolution tag.
 func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, alertData accessrequest.SentMessages, reviews []types.AccessReview) error {

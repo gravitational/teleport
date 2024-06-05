@@ -25,12 +25,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateServiceWithTaskDefinition(t *testing.T) {
@@ -152,7 +152,7 @@ func TestUpdateDeployServices(t *testing.T) {
 	integrationName := "my-integration"
 	ownershipTags := defaultResourceCreationTags(clusterName, integrationName)
 	teleportVersion := teleport.Version
-	log := logrus.WithField("test", t.Name())
+	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {
 		m := &mockDeployServiceClient{

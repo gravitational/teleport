@@ -32,25 +32,25 @@ export function ConnectionItem(props: {
   index: number;
   item: ExtendedTrackedConnection;
   showClusterName: boolean;
-  onActivate(): void;
-  onRemove(): void;
-  onDisconnect(): void;
+  activate(): void;
+  remove(): void;
+  disconnect(): void;
 }) {
   const offline = !props.item.connected;
   const { isActive, scrollIntoViewIfActive } = useKeyboardArrowsNavigation({
     index: props.index,
-    onRun: props.onActivate,
+    onRun: props.activate,
   });
 
   const actionIcons = {
     disconnect: {
-      title: 'Disconnect',
-      action: props.onDisconnect,
+      title: `Disconnect ${props.item.title}`,
+      action: props.disconnect,
       Icon: Unlink,
     },
     remove: {
-      title: 'Remove',
-      action: props.onRemove,
+      title: `Remove ${props.item.title}`,
+      action: props.remove,
       Icon: Trash,
     },
   };
@@ -64,7 +64,7 @@ export function ConnectionItem(props: {
 
   return (
     <ListItem
-      onClick={props.onActivate}
+      onClick={props.activate}
       isActive={isActive}
       ref={ref}
       $showClusterName={props.showClusterName}

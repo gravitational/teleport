@@ -37,6 +37,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	PluginService_CreatePlugin_FullMethodName                  = "/teleport.plugins.v1.PluginService/CreatePlugin"
 	PluginService_GetPlugin_FullMethodName                     = "/teleport.plugins.v1.PluginService/GetPlugin"
+	PluginService_UpdatePlugin_FullMethodName                  = "/teleport.plugins.v1.PluginService/UpdatePlugin"
 	PluginService_DeletePlugin_FullMethodName                  = "/teleport.plugins.v1.PluginService/DeletePlugin"
 	PluginService_ListPlugins_FullMethodName                   = "/teleport.plugins.v1.PluginService/ListPlugins"
 	PluginService_SetPluginCredentials_FullMethodName          = "/teleport.plugins.v1.PluginService/SetPluginCredentials"
@@ -55,6 +56,8 @@ type PluginServiceClient interface {
 	CreatePlugin(ctx context.Context, in *CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetPlugin returns a plugin instance by name.
 	GetPlugin(ctx context.Context, in *GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
+	// UpdatePlugin updates a plugin instance.
+	UpdatePlugin(ctx context.Context, in *UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
 	// DeletePlugin removes the specified plugin instance.
 	DeletePlugin(ctx context.Context, in *DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListPlugins returns a paginated view of plugin instances.
@@ -97,6 +100,15 @@ func (c *pluginServiceClient) CreatePlugin(ctx context.Context, in *CreatePlugin
 func (c *pluginServiceClient) GetPlugin(ctx context.Context, in *GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
 	out := new(types.PluginV1)
 	err := c.cc.Invoke(ctx, PluginService_GetPlugin_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pluginServiceClient) UpdatePlugin(ctx context.Context, in *UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
+	out := new(types.PluginV1)
+	err := c.cc.Invoke(ctx, PluginService_UpdatePlugin_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +195,8 @@ type PluginServiceServer interface {
 	CreatePlugin(context.Context, *CreatePluginRequest) (*emptypb.Empty, error)
 	// GetPlugin returns a plugin instance by name.
 	GetPlugin(context.Context, *GetPluginRequest) (*types.PluginV1, error)
+	// UpdatePlugin updates a plugin instance.
+	UpdatePlugin(context.Context, *UpdatePluginRequest) (*types.PluginV1, error)
 	// DeletePlugin removes the specified plugin instance.
 	DeletePlugin(context.Context, *DeletePluginRequest) (*emptypb.Empty, error)
 	// ListPlugins returns a paginated view of plugin instances.
@@ -215,6 +229,9 @@ func (UnimplementedPluginServiceServer) CreatePlugin(context.Context, *CreatePlu
 }
 func (UnimplementedPluginServiceServer) GetPlugin(context.Context, *GetPluginRequest) (*types.PluginV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPlugin not implemented")
+}
+func (UnimplementedPluginServiceServer) UpdatePlugin(context.Context, *UpdatePluginRequest) (*types.PluginV1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdatePlugin not implemented")
 }
 func (UnimplementedPluginServiceServer) DeletePlugin(context.Context, *DeletePluginRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePlugin not implemented")
@@ -285,6 +302,24 @@ func _PluginService_GetPlugin_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PluginServiceServer).GetPlugin(ctx, req.(*GetPluginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PluginService_UpdatePlugin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePluginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).UpdatePlugin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginService_UpdatePlugin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).UpdatePlugin(ctx, req.(*UpdatePluginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -447,6 +482,10 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPlugin",
 			Handler:    _PluginService_GetPlugin_Handler,
+		},
+		{
+			MethodName: "UpdatePlugin",
+			Handler:    _PluginService_UpdatePlugin_Handler,
 		},
 		{
 			MethodName: "DeletePlugin",

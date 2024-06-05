@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -45,7 +44,7 @@ func NewTraceChannel(ch ssh.Channel, opts ...tracing.Option) *Channel {
 // SendRequest sends a global request, and returns the
 // reply. If tracing is enabled, the provided payload
 // is wrapped in an Envelope to forward any tracing context.
-func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, error) {
+func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (_ bool, err error) {
 	config := tracing.NewConfig(c.opts)
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 
@@ -59,15 +58,11 @@ func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, 
 			semconv.RPCSystemKey.String("ssh"),
 		),
 	)
-	defer span.End()
+	defer func() { tracing.EndSpan(span, err) }()
 
-	ok, err := c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.tracingSupported, config.TextMapPropagator, payload))
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
-
-	return ok, err
+	return c.Channel.SendRequest(
+		name, wantReply, wrapPayload(ctx, c.tracingSupported, config.TextMapPropagator, payload),
+	)
 }
 
 // NewChannel is a wrapper around ssh.NewChannel that allows an

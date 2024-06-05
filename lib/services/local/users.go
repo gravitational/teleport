@@ -255,7 +255,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 			continue
 		}
 		u, err := services.UnmarshalUser(
-			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -303,6 +303,16 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
+	// In a typical case, we create users without passwords. However, it is
+	// technically possible to create a user along with a password using a direct
+	// RPC call or `tctl create`, so we need to support this case, too.
+	auth := user.GetLocalAuth()
+	if auth != nil && len(auth.PasswordHash) > 0 {
+		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	} else {
+		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+	}
+
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,7 +329,7 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if auth := user.GetLocalAuth(); auth != nil {
+	if auth != nil {
 		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -349,7 +359,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
@@ -362,7 +371,6 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -381,7 +389,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Backend.ConditionalUpdate(ctx, item)
@@ -394,7 +401,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		}
 	}
 	user.SetRevision(lease.Revision)
-	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -447,7 +453,6 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
-		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -558,7 +563,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 	}
 
 	u, err := services.UnmarshalUser(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -589,8 +594,7 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user string, auth types.LocalAuthSecrets) error {
 	if len(auth.PasswordHash) > 0 {
-		err := s.UpsertPasswordHash(user, auth.PasswordHash)
-		if err != nil {
+		if err := s.upsertPasswordHash(user, auth.PasswordHash); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -670,8 +674,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertPasswordHash upserts user password hash
-func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error {
+func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
 	userPrototype, err := types.NewUser(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -802,7 +805,9 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 	return nil
 }
 
-// UpsertPassword upserts new password hash into a backend.
+// UpsertPassword upserts a new password. It also sets the user's
+// `PasswordState` status flag accordingly. Returns an error if the user doesn't
+// exist.
 func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	if user == "" {
 		return trace.BadParameter("missing username")
@@ -816,12 +821,61 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertPasswordHash(user, hash)
-	if err != nil {
+	if err := s.upsertPasswordHash(user, hash); err != nil {
 		return trace.Wrap(err)
 	}
 
+	_, err = s.UpdateAndSwapUser(
+		context.TODO(),
+		user,
+		false, /*withSecrets*/
+		func(u types.User) (bool, error) {
+			u.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+			return true, nil
+		})
+	if err != nil {
+		// Don't let the password state flag change fail the entire operation.
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
+	}
+
 	return nil
+}
+
+// DeletePassword deletes user's password and sets the `PasswordState` status
+// flag accordingly.
+func (s *IdentityService) DeletePassword(ctx context.Context, user string) error {
+	if user == "" {
+		return trace.BadParameter("missing username")
+	}
+
+	delErr := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
+	// Don't bail out just yet if the error is "not found"; the password state
+	// flag may still be unspecified, and we want to make it UNSET.
+	if delErr != nil && !trace.IsNotFound(delErr) {
+		return trace.Wrap(delErr)
+	}
+
+	if _, err := s.UpdateAndSwapUser(
+		context.TODO(),
+		user,
+		false, /*withSecrets*/
+		func(u types.User) (bool, error) {
+			u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
+			return true, nil
+		},
+	); err != nil {
+		// Don't let the password state flag change fail the entire operation.
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
+	}
+
+	// Now is the time to return the delete operation, if any.
+	return trace.Wrap(delErr)
 }
 
 func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
@@ -1201,7 +1255,6 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1222,7 +1275,6 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1242,7 +1294,6 @@ func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1385,7 +1436,6 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1590,7 +1640,6 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1614,7 +1663,6 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
-		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1638,7 +1686,6 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {

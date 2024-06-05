@@ -125,7 +125,7 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
 	case TypeRDPConnectionInitialized:
-		return decodeConnectionInitialized(in)
+		return decodeConnectionActivated(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -366,20 +366,24 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ConnectionInitialized is sent to the browser when an RDP session is fully initialized.
+// ConnectionActivated is sent to the browser when an RDP session is fully activated.
+// This includes after the RDP connection is first initialized, or after executing a
+// Deactivation-Reactivation Sequence.
+//
 // It contains data that the browser needs in order to correctly handle the session.
 //
 // See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+// Also see 1.3.1.3 Deactivation-Reactivation Sequence: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
 //
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-type ConnectionInitialized struct {
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+type ConnectionActivated struct {
 	IOChannelID   uint16
 	UserChannelID uint16
 	ScreenWidth   uint16
 	ScreenHeight  uint16
 }
 
-func (c ConnectionInitialized) Encode() ([]byte, error) {
+func (c ConnectionActivated) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRDPConnectionInitialized))
 	writeUint16(buf, c.IOChannelID)
@@ -389,8 +393,8 @@ func (c ConnectionInitialized) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeConnectionInitialized(in byteReader) (ConnectionInitialized, error) {
-	var ids ConnectionInitialized
+func decodeConnectionActivated(in byteReader) (ConnectionActivated, error) {
+	var ids ConnectionActivated
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
 }

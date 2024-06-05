@@ -32,7 +32,7 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -42,7 +42,7 @@ import (
 type ClusterClient struct {
 	tc          *TeleportClient
 	ProxyClient *proxyclient.Client
-	AuthClient  auth.ClientI
+	AuthClient  authclient.ClientI
 	Tracer      oteltrace.Tracer
 	cluster     string
 	root        string
@@ -66,7 +66,7 @@ func (c *ClusterClient) RootClusterName() string {
 // CurrentCluster returns an authenticated auth server client for the local cluster.
 // The returned auth server client does not need to be closed, it will be closed
 // when the ClusterClient is closed.
-func (c *ClusterClient) CurrentCluster() auth.ClientI {
+func (c *ClusterClient) CurrentCluster() authclient.ClientI {
 	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
 	// being able to close the client. The auth.ClientI is only to be closed
 	// when the ClusterClient is closed.
@@ -75,13 +75,13 @@ func (c *ClusterClient) CurrentCluster() auth.ClientI {
 
 // ConnectToRootCluster connects to the auth server of the root cluster
 // via proxy. It returns connected and authenticated auth server client.
-func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
+func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (authclient.ClientI, error) {
 	root, err := c.ConnectToCluster(ctx, c.root)
 	return root, trace.Wrap(err)
 }
 
 // ConnectToCluster connects to the auth server of the given cluster via proxy. It returns connected and authenticated auth server client
-func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if c.cluster == clusterName {
 		return c.CurrentCluster(), nil
 	}
@@ -91,7 +91,7 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	authClient, err := auth.NewClient(clientConfig)
+	authClient, err := authclient.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
 }
 
@@ -280,7 +280,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			return nil, trace.Wrap(err)
 		}
 
-		authClient, err := auth.NewClient(cfg)
+		authClient, err := authclient.NewClient(cfg)
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -593,7 +593,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		// TODO(Joerger): CreateAuthenticateChallenge should return
 		// this error directly instead of an empty challenge, without
 		// regressing https://github.com/gravitational/teleport/issues/36482.
-		return nil, nil, auth.ErrNoMFADevices
+		return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
 	// Prompt user for solution (eg, security key touch).
@@ -645,6 +645,12 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 				key.WindowsDesktopCerts = make(map[string][]byte)
 			}
 			key.WindowsDesktopCerts[certsReq.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
+
+		case proto.UserCertsRequest_App:
+			if key.AppTLSCerts == nil {
+				key.AppTLSCerts = make(map[string][]byte)
+			}
+			key.AppTLSCerts[certsReq.RouteToApp.Name] = newCerts.TLS
 
 		default:
 			return nil, nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)

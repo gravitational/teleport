@@ -18,10 +18,8 @@
 
 import React, { useRef } from 'react';
 import { Flex } from 'design';
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { AccessRequestCheckout } from 'e-teleterm/ui/AccessRequestCheckout';
 
+import { AccessRequestCheckout } from 'teleterm/ui/AccessRequestCheckout';
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
 import { StatusBar } from 'teleterm/ui/StatusBar';

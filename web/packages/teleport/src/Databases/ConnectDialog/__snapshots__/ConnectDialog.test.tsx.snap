@@ -308,7 +308,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
                 $
               </div>
               <div>
-                tsh db connect aurora --db-user=&lt;user&gt;  --db-name=&lt;name&gt;
+                tsh db connect aurora --db-user=&lt;user&gt; --db-name=&lt;name&gt;
               </div>
             </div>
             <button
@@ -660,7 +660,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                   $
                 </div>
                 <div>
-                  tsh db connect aurora --db-user=&lt;user&gt;  --db-name=&lt;name&gt;
+                  tsh db connect aurora --db-user=&lt;user&gt; --db-name=&lt;name&gt;
                 </div>
               </div>
               <button

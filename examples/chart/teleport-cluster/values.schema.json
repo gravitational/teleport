@@ -6,6 +6,7 @@
         "authentication",
         "enterprise",
         "operator",
+        "global",
         "podSecurityPolicy",
         "labels",
         "chartMode",
@@ -288,6 +289,20 @@
         "installCRDs": {
             "$id": "#/properties/installCRDs",
             "type": "boolean"
+        },
+        "global": {
+            "$id": "#/properties/global",
+            "type": "object",
+            "required": [
+                "clusterDomain"
+            ],
+            "properties": {
+                "clusterDomain": {
+                    "$id": "#/properties/global/properties/clusterDomain",
+                    "type": "string",
+                    "default": "cluster.local"
+                }
+            }
         },
         "operator": {
             "$id": "#/properties/operator",
@@ -940,6 +955,11 @@
         },
         "resources": {
             "$id": "#/properties/resources",
+            "type": "object",
+            "default": {}
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
             "type": "object",
             "default": {}
         },

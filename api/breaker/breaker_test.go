@@ -259,7 +259,7 @@ func TestCircuitBreaker_success(t *testing.T) {
 			cb.state = tt.initialState
 
 			generation, state := cb.currentState(clock.Now())
-			cb.success(tt.successState, clock.Now())
+			cb.successLocked(tt.successState, clock.Now())
 			require.Equal(t, tt.expectedState, cb.state)
 			if tt.expectedState != state {
 				require.NotEqual(t, generation, cb.generation)
@@ -341,7 +341,7 @@ func TestCircuitBreaker_failure(t *testing.T) {
 			cb.state = tt.initialState
 
 			generation, state := cb.currentState(clock.Now())
-			cb.failure(tt.failureState, clock.Now())
+			cb.failureLocked(tt.failureState, clock.Now())
 			require.Equal(t, tt.expectedState, cb.state)
 			if tt.expectedState != state {
 				require.NotEqual(t, generation, cb.generation)

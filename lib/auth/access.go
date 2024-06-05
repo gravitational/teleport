@@ -213,6 +213,9 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 			UpdatedBy: um.User,
 		},
 		Target: lock.Target(),
+		Lock: apievents.LockMetadata{
+			Target: lock.Target(),
+		},
 	}); err != nil {
 		log.WithError(err).Warning("Failed to emit lock create event.")
 	}
@@ -221,6 +224,10 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 
 // DeleteLock deletes a lock and emits a related audit event.
 func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
+	lock, err := a.Services.GetLock(ctx, lockName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.DeleteLock(ctx, lockName); err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,6 +240,9 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: lockName,
+		},
+		Lock: apievents.LockMetadata{
+			Target: lock.Target(),
 		},
 	}); err != nil {
 		log.WithError(err).Warning("Failed to emit lock delete event.")

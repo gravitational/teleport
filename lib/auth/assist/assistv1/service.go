@@ -374,7 +374,7 @@ func assembleSearchResponse(ctx context.Context, a *Service, documents []*ai.Doc
 		resources = append(resources, resource)
 	}
 
-	paginated, err := services.MakePaginatedResources(types.KindUnifiedResource, resources)
+	paginated, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, resources, nil /* requestable map */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

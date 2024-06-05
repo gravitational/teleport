@@ -153,7 +153,6 @@ function createDefaultConfig() {
         teleterm: path.join(__dirname, '/../../teleterm/src'),
         teleport: path.join(__dirname, '/../../teleport/src'),
         'e-teleport': path.join(__dirname, '/../../../../e/web/teleport/src'),
-        'e-teleterm': path.join(__dirname, '/../../../../e/web/teleterm/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
         'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),

@@ -52,7 +52,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -90,7 +90,6 @@ type Server struct {
 	hostname  string
 
 	srv         *sshutils.Server
-	shell       string
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
 	reg         *srv.SessionRegistry
@@ -109,7 +108,7 @@ type Server struct {
 
 	proxyMode        bool
 	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint auth.ReadProxyAccessPoint
+	proxyAccessPoint authclient.ReadProxyAccessPoint
 	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
@@ -206,9 +205,6 @@ type Server struct {
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
-	// nodeWatcher is the server's node watcher.
-	nodeWatcher *services.NodeWatcher
-
 	// createHostUser configures whether a host should allow host user
 	// creation
 	createHostUser bool
@@ -240,8 +236,6 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
-	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
-	caGetter CertAuthorityGetter
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
@@ -251,6 +245,7 @@ type Server struct {
 // TargetMetadata returns metadata about the server.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
@@ -457,17 +452,8 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	}
 }
 
-// SetShell sets default shell that will be executed for interactive
-// sessions
-func SetShell(shell string) ServerOption {
-	return func(s *Server) error {
-		s.shell = shell
-		return nil
-	}
-}
-
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -653,14 +639,6 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
-// SetNodeWatcher sets the server's node watcher.
-func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
-	return func(s *Server) error {
-		s.nodeWatcher = nodeWatcher
-		return nil
-	}
-}
-
 // SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
@@ -719,14 +697,6 @@ func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	}
 }
 
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
-		return nil
-	}
-}
-
 // SetPublicAddrs sets the server's public addresses
 func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	return func(s *Server) error {
@@ -740,12 +710,12 @@ func New(
 	ctx context.Context,
 	addr utils.NetAddr,
 	hostname string,
-	signers []ssh.Signer,
+	getHostSigners sshutils.GetHostSignersFunc,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
 	proxyPublicAddr utils.NetAddr,
-	auth auth.ClientI,
+	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
@@ -861,7 +831,8 @@ func New(
 
 	server, err := sshutils.NewServer(
 		component,
-		addr, s, signers,
+		addr, s,
+		getHostSigners,
 		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
@@ -888,14 +859,14 @@ func New(
 
 	var heartbeat srv.HeartbeatI
 	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
-		s.Logger.Info("debug -> starting control-stream based heartbeat.")
-		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
+		s.Logger.Debug("starting control-stream based heartbeat.")
+		heartbeat, err = srv.NewSSHServerHeartbeat(srv.HeartbeatV2Config[*types.ServerV2]{
 			InventoryHandle: s.inventoryHandle,
-			GetServer:       s.getServerInfo,
+			GetResource:     s.getServerInfo,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
-		s.Logger.Info("debug -> starting legacy heartbeat.")
+		s.Logger.Debug("starting legacy heartbeat.")
 		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 			Mode:            heartbeatMode,
 			Context:         ctx,
@@ -1411,6 +1382,13 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 			}
 		}
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := r.Reply(true, nil); err != nil {
+			s.Logger.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1502,6 +1480,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
 					ServerMetadata: apievents.ServerMetadata{
+						ServerVersion:   teleport.Version,
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},

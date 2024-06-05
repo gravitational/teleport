@@ -27,6 +27,9 @@ import dbCU from './dbCU.yaml?raw';
 import integrationRWE from './integrationRWE.yaml?raw';
 import integrationRWEAndDbCU from './integrationRWEAndDbCU.yaml?raw';
 import integrationRWEAndNodeRWE from './integrationRWEAndNodeRWE.yaml?raw';
+import integrationAndAppRW from './integrationAndAppRW.yaml?raw';
+import awsAppAccessRW from './awsAppAccessRW.yaml?raw';
+import awsAppAccessRO from './awsAppAccessRO.yaml?raw';
 
 export {
   nodeAccessRO,
@@ -40,4 +43,7 @@ export {
   integrationRWE,
   integrationRWEAndDbCU,
   integrationRWEAndNodeRWE,
+  integrationAndAppRW,
+  awsAppAccessRW,
+  awsAppAccessRO,
 };

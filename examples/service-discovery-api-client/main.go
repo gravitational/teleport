@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	dtypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/strslice"
@@ -90,7 +89,7 @@ func (t *tokenDemoApp) listRegisteredAppURLs(ctx context.Context) (map[string]ty
 }
 
 func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (map[string]struct{}, error) {
-	c, err := t.dockerClient.ContainerList(ctx, dtypes.ContainerListOptions{
+	c, err := t.dockerClient.ContainerList(ctx, container.ListOptions{
 		Filters: filters.NewArgs(filters.KeyValuePair{
 			Key:   "ancestor",
 			Value: image,
@@ -185,7 +184,7 @@ func (t *tokenDemoApp) startApplicationServiceContainer(
 	err = t.dockerClient.ContainerStart(
 		ctx,
 		resp.ID,
-		dtypes.ContainerStartOptions{},
+		container.StartOptions{},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -211,7 +210,7 @@ func (t *tokenDemoApp) pruneAppServiceInstance(ctx context.Context, p types.AppS
 	// Don't check errors when removing the container, since it may already
 	// have been removed.
 	t.dockerClient.ContainerStop(ctx, host, container.StopOptions{})
-	t.dockerClient.ContainerRemove(ctx, host, dtypes.ContainerRemoveOptions{})
+	t.dockerClient.ContainerRemove(ctx, host, container.RemoveOptions{})
 
 	fmt.Println("Deleted unnecessary Application Service container:", host)
 	return nil

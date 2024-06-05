@@ -83,7 +83,6 @@ type ClusterConfiguration interface {
 	// UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
 	UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
 	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
 	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 	DeleteClusterAuditConfig(ctx context.Context) error

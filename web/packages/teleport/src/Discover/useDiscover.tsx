@@ -28,6 +28,7 @@ import {
   DiscoverServiceDeployMethod,
   DiscoverServiceDeploy,
   DiscoverServiceDeployType,
+  DiscoverDiscoveryConfigMethod,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import { DiscoveryConfig } from 'teleport/services/discovery';
@@ -42,6 +43,7 @@ import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
+import type { App } from 'teleport/services/apps';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { ResourceLabel } from 'teleport/services/agents';
@@ -83,6 +85,7 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 type DiscoverProviderProps = {
@@ -146,6 +149,15 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
@@ -154,6 +166,7 @@ export function DiscoverProvider({
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });
@@ -499,7 +512,7 @@ type BaseMeta = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource
@@ -522,10 +535,20 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-// KubeMeta describes the fields for a kube resource
-// that needs to be preserved throughout the flow.
+/**
+ * EksMeta describes the fields for a kube resource
+ * that needs to be preserved throughout the flow.
+ */
 export type EksMeta = BaseMeta & {
   kube: Kube;
+};
+
+/**
+ * AppMeta describes the fields for a app resource
+ * that needs to be preserved throughout the flow.
+ */
+export type AppMeta = BaseMeta & {
+  app: App;
 };
 
 // SamlMeta describes the fields for SAML IdP
@@ -543,6 +566,12 @@ export type SamlGcpWorkforceMeta = {
   poolProviderName: string;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlMeta;
+export type AgentMeta =
+  | DbMeta
+  | NodeMeta
+  | KubeMeta
+  | EksMeta
+  | SamlMeta
+  | AppMeta;
 
 export type State = ReturnType<typeof useDiscover>;

@@ -28,7 +28,11 @@ using a self-hosted GitLab instance, your Teleport Auth Server must be able to
 connect to your GitLab instance and your GitLab instance must be configured with
 a valid TLS certificate.**
 
-## Step 1/4. Create a join token
+## Step 1/4. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 2/4. Create a join token
 
 To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
 to create a join token. A GitLab join token contains allow rules that describe
@@ -55,7 +59,7 @@ spec:
   roles: [Bot]
   join_method: gitlab
   # The bot_name indicates which bot user this token grants access to. This
-  # should match the name of the bot that you create in step 2.
+  # should match the name of the bot that you created in step 1.
   bot_name: example
   gitlab:
     # domain should be the domain of your GitLab instance. If you are using
@@ -78,14 +82,6 @@ Apply this to your Teleport cluster using `tctl`:
 
 ```code
 $ tctl create -f bot-token.yaml
-```
-
-## Step 2/4. Create a Machine ID bot
-
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --token=example-bot
 ```
 
 ## Step 3/4. Configure a GitLab Pipeline
@@ -167,7 +163,7 @@ Commit and push these two files to the repository.
 Check your GitLab CI status, and examine the log results from the commit for
 failure.
 
-### Step 4/4. Configure outputs
+## Step 4/4. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -65,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -356,25 +359,25 @@ func TestInstaller(t *testing.T) {
 	for _, tc := range []struct {
 		roles           []string
 		assert          require.ErrorAssertionFunc
-		installerAction func(*Client) error
+		installerAction func(*authclient.Client) error
 	}{{
 		roles:  []string{"test-empty"},
 		assert: require.Error,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
@@ -382,7 +385,7 @@ func TestInstaller(t *testing.T) {
 	}, {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
-		installerAction: func(c *Client) error {
+		installerAction: func(c *authclient.Client) error {
 			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
@@ -1263,6 +1266,142 @@ func TestAuthPreferenceRBAC(t *testing.T) {
 	})
 }
 
+func TestClusterNetworkingCloudUpdates(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+	_, err := srv.Auth().UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(srv.Auth(), "username", []string{}, []types.Rule{
+		{
+			Resources: []string{
+				types.KindClusterNetworkingConfig,
+			},
+			Verbs: services.RW(),
+		},
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		cloud                   bool
+		identity                TestIdentity
+		expectSetErr            string
+		clusterNetworkingConfig types.ClusterNetworkingConfig
+		name                    string
+	}{
+		{
+			name:                    "non admin user can set existing values to the same value",
+			cloud:                   true,
+			identity:                TestUser(user.GetName()),
+			clusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		},
+		{
+			name:         "non admin user cannot set keep_alive_interval",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "keep_alive_interval",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 20),
+			}),
+		},
+		{
+			name:         "non admin user cannot set tunnel_strategy",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "tunnel_strategy",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				TunnelStrategy: &types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				},
+			}),
+		},
+		{
+			name:         "non admin user cannot set proxy_listener_mode",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "proxy_listener_mode",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			}),
+		},
+		{
+			name:         "non admin user cannot set keep_alive_count_max",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "keep_alive_count_max",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveCountMax: 55,
+			}),
+		},
+		{
+			name:     "non admin user can set client_idle_timeout",
+			cloud:    true,
+			identity: TestUser(user.GetName()),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				ClientIdleTimeout: types.Duration(time.Second * 67),
+			}),
+		},
+		{
+			name:     "admin user can set keep_alive_interval",
+			cloud:    true,
+			identity: TestAdmin(),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 67),
+			}),
+		},
+		{
+			name:     "non admin user can set keep_alive_interval on non cloud cluster",
+			cloud:    false,
+			identity: TestUser(user.GetName()),
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveInterval: types.Duration(time.Second * 67),
+			}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
+			client, err := srv.NewClient(tc.identity)
+			require.NoError(t, err)
+
+			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
+			if tc.expectSetErr != "" {
+				assert.ErrorContains(t, err, tc.expectSetErr)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			_, err = client.UpsertClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig)
+			if tc.expectSetErr != "" {
+				assert.ErrorContains(t, err, tc.expectSetErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func newClusterNetworkingConf(t *testing.T, spec types.ClusterNetworkingConfigSpecV2) *types.ClusterNetworkingConfigV2 {
+	c := &types.ClusterNetworkingConfigV2{
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginDynamic,
+			},
+		},
+		Spec: spec,
+	}
+	err := c.CheckAndSetDefaults()
+	require.NoError(t, err)
+	return c
+}
+
 func TestClusterNetworkingConfigRBAC(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1664,11 +1803,13 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
-	case <-time.After(1 * time.Second):
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	case <-time.After(5 * time.Second):
 		require.FailNow(t, "expected access denied error but stream succeeded")
 	}
 }
@@ -1677,7 +1818,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -1712,7 +1854,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestStreamSessionEvents_Builtin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	identity := TestBuiltin(types.RoleProxy)
@@ -1913,33 +2056,33 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	db, err := devClt.GetDatabase(ctx, devDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin can get both databases.
 	db, err = adminClt.GetDatabase(ctx, adminDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(adminDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	db, err = adminClt.GetDatabase(ctx, devDatabase.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devDatabase, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// When listing databases, dev should only see one.
 	dbs, err := devClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Dev shouldn't be able to delete dev database...
@@ -2026,14 +2169,14 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	})
 }
 
-func mustGetDatabases(t *testing.T, client *Client, wantDatabases []types.Database) {
+func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []types.Database) {
 	t.Helper()
 
 	actualDatabases, err := client.GetDatabases(context.Background())
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.EquateEmpty(),
 	))
 }
@@ -2046,7 +2189,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := services.NewKubeClusterFromAWSEKS(
+	eksCluster, err := common.NewKubeClusterFromAWSEKS(
 		"eks-cluster1",
 		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
 		nil,
@@ -2066,7 +2209,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(
+	clusterWithDynamicLabels, err := common.NewKubeClusterFromAWSEKS(
 		"eks-cluster2",
 		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
 		nil,
@@ -2088,7 +2231,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
@@ -2710,33 +2853,33 @@ func TestApps(t *testing.T) {
 	app, err := devClt.GetApp(ctx, devApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin can get both apps.
 	app, err = adminClt.GetApp(ctx, adminApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(adminApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	app, err = adminClt.GetApp(ctx, devApp.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(devApp, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// When listing apps, dev should only see one.
 	apps, err := devClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{devApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should see both.
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp, devApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Dev shouldn't be able to delete dev app...
@@ -2761,7 +2904,7 @@ func TestApps(t *testing.T) {
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{adminApp}, apps,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Admin should be able to delete all.
@@ -3449,7 +3592,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                   string
-		clt                    *Client
+		clt                    *authclient.Client
 		requestOpt             func(*proto.ListResourcesRequest)
 		expectNodes            []string
 		expectSearchEvent      bool
@@ -3490,8 +3633,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			// this tests the case where the request includes UseSearchAsRoles
-			// and UsePreviewAsRoles, but the user has none, so there should be
-			// no audit event.
+			// and UsePreviewAsRoles, but the user has none
 			desc: "no extra roles",
 			clt:  adminClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
@@ -3502,11 +3644,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Overwrite the auth server emitter to capture all events emitted
-			// during this test case.
-			emitter := eventstest.NewChannelEmitter(1)
-			srv.AuthServer.AuthServer.emitter = emitter
-
 			req := proto.ListResourcesRequest{
 				ResourceType: types.KindNode,
 				Limit:        int32(len(testNodes)),
@@ -3522,14 +3659,6 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 				gotNodes = append(gotNodes, node.GetName())
 			}
 			require.ElementsMatch(t, tc.expectNodes, gotNodes)
-
-			if len(tc.expectSearchEventRoles) > 0 {
-				searchEvent := <-emitter.C()
-				require.ElementsMatch(t, tc.expectSearchEventRoles, searchEvent.(*apievents.AccessRequestResourceSearch).SearchAsRoles)
-			} else {
-				// expect no event to have been emitted
-				require.Empty(t, emitter.C())
-			}
 		})
 	}
 }
@@ -3988,7 +4117,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		slices.SortFunc(userGroups, func(a, b types.UserGroup) int {
 			return strings.Compare(a.GetName(), b.GetName())
 		})
-		require.Empty(t, cmp.Diff([]types.UserGroup{testUg2, testUg3, testUg1}, userGroups, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		require.Empty(t, cmp.Diff([]types.UserGroup{testUg2, testUg3, testUg1}, userGroups, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 
 	t.Run("start keys", func(t *testing.T) {
@@ -4058,7 +4187,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	t.Cleanup(func() { srv.Close() })
 
 	// Generates a new user client.
-	userClient := func(username string) *Client {
+	userClient := func(username string) *authclient.Client {
 		user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
 		require.NoError(t, err)
 		identity := TestUser(user.GetName())
@@ -4613,6 +4742,113 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		}
 
 		require.Empty(t, resource.Logins)
+	}
+}
+
+func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test nodes.
+	const numTestNodes = 3
+	for i := 0; i < numTestNodes; i++ {
+		name := fmt.Sprintf("node%d", i)
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, numTestNodes)
+
+	// create user and client
+	requester, role, err := CreateUserAndRole(srv.Auth(), "requester", []string{"requester"}, nil)
+	require.NoError(t, err)
+
+	// only allow user to see first node
+	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
+
+	// create a new role which can see second node
+	searchAsRole := services.RoleForUser(requester)
+	searchAsRole.SetName("test_search_role")
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	requesterClt, err := srv.NewClient(TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	type expected struct {
+		name        string
+		requestable bool
+	}
+
+	for _, tc := range []struct {
+		desc              string
+		clt               *authclient.Client
+		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		expectedResources []expected
+	}{
+		{
+			desc:              "no search",
+			clt:               requesterClt,
+			expectedResources: []expected{{name: testNodes[0].GetName(), requestable: false}},
+		},
+		{
+			desc: "search as roles without requestable",
+			clt:  requesterClt,
+			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
+				req.UseSearchAsRoles = true
+			},
+			expectedResources: []expected{
+				{name: testNodes[0].GetName(), requestable: false},
+				{name: testNodes[1].GetName(), requestable: false},
+			},
+		},
+		{
+			desc: "search as roles with requestable",
+			clt:  requesterClt,
+			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
+				req.IncludeRequestable = true
+				req.UseSearchAsRoles = true
+			},
+			expectedResources: []expected{
+				{name: testNodes[0].GetName(), requestable: false},
+				{name: testNodes[1].GetName(), requestable: true},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req := proto.ListUnifiedResourcesRequest{
+				SortBy: types.SortBy{Field: "name", IsDesc: false},
+				Limit:  int32(len(testNodes)),
+			}
+			if tc.requestOpt != nil {
+				tc.requestOpt(&req)
+			}
+			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, len(tc.expectedResources))
+			var resources []expected
+			for _, resource := range resp.Resources {
+				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+			}
+			require.ElementsMatch(t, tc.expectedResources, resources)
+		})
 	}
 }
 
@@ -5455,9 +5691,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
-		// RoleMDM services don't create events by themselves, instead they rely on
+		// RoleMDM and AccessGraphPlugin services don't create events by themselves, instead they rely on
 		// Auth to issue events.
-		if role == types.RoleAuth || role == types.RoleMDM {
+		if role == types.RoleAuth || role == types.RoleMDM || role == types.RoleAccessGraphPlugin {
 			continue
 		}
 
@@ -5481,7 +5717,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			}
 
 			t.Run("GetSessionTracker", func(t *testing.T) {
-				sid := session.ID("test-session")
+				sid := session.NewID()
 				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
 					ResourceHeader: types.ResourceHeader{
 						Metadata: types.Metadata{
@@ -6306,6 +6542,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 
 				challenge, err := client.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
+					},
 				})
 				require.NoError(t, err)
 
@@ -6628,7 +6867,7 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 		},
 		"as session user": {
 			identity:  TestUser(alice),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		"as other user": {
 			identity:  TestUser(bob),
@@ -6636,7 +6875,7 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 		},
 		"as admin user": {
 			identity:  TestUser(admin),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 	}
 	for name, test := range tests {
@@ -6664,11 +6903,8 @@ func TestGetSAMLIdPSession(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	// setup a session to get, for user "alice".
-	aliceClient, err := srv.NewClient(TestUser(alice))
-	require.NoError(t, err)
 
-	sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+	sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
 		SessionID:   "test",
 		Username:    alice,
 		SAMLSession: &types.SAMLSessionData{},
@@ -6685,7 +6921,7 @@ func TestGetSAMLIdPSession(t *testing.T) {
 		},
 		"as session user": {
 			identity:  TestUser(alice),
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		"as other user": {
 			identity:  TestUser(bob),
@@ -6776,15 +7012,13 @@ func TestDeleteSAMLIdPSession(t *testing.T) {
 		},
 	}
 
-	aliceClient, err := srv.NewClient(TestUser(alice))
-	require.NoError(t, err)
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+			sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
 				SessionID:   uuid.NewString(),
 				Username:    alice,
 				SAMLSession: &types.SAMLSessionData{},
@@ -7013,9 +7247,432 @@ func TestCreateAccessRequest(t *testing.T) {
 			// We have to ignore the name here, as it's auto-generated by the underlying access request
 			// logic.
 			require.Empty(t, cmp.Diff(test.expected, accessRequests[0],
-				cmpopts.IgnoreFields(types.Metadata{}, "Name", "ID", "Revision"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Name", "Revision"),
 				cmpopts.IgnoreFields(types.AccessRequestSpecV3{}),
 			))
+		})
+	}
+}
+
+func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
+	t.Parallel()
+
+	userTraits := map[string][]string{
+		"email": {"tester@example.com"},
+	}
+
+	paymentsRequester, err := types.NewRole("payments-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services":     {"payments"},
+					"requesting":   {"role"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"payments-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	paymentsResourceRequester, err := types.NewRole("payments-resource-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services":     {"payments"},
+					"requesting":   {"resources"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				SearchAsRoles: []string{"payments-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	paymentsAccess, err := types.NewRole("payments-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"service": []string{"payments"}},
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"never-get-this": {"true"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	identityRequester, err := types.NewRole("identity-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services":     {"identity"},
+					"requesting":   {"role"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"identity-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	identityResourceRequester, err := types.NewRole("identity-resource-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services":     {"identity"},
+					"requesting":   {"resources"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				SearchAsRoles: []string{"identity-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	identityAccess, err := types.NewRole("identity-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"service": []string{"identity"}},
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"never-get-this": {"true"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	anyResourceRequester, err := types.NewRole("any-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"any-requester": {"true"},
+					"requested-by":  {"{{email.local(external.email)}}"},
+				},
+				SearchAsRoles: []string{"identity-access", "payments-access"},
+				Roles:         []string{"identity-access", "payments-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	globRequester, err := types.NewRole("glob-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"glob-requester": {"true"},
+					"requested-by":   {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	reRequester, err := types.NewRole("re-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"re-requester": {"true"},
+					"requested-by": {"{{email.local(external.email)}}"},
+				},
+				Roles: []string{"identity-*", "^payments-acces.$"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// This role denies the services: identity annotation
+	denyIdentityService, err := types.NewRole("deny-identity-service", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"services": {"identity"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// This role allows roles and annotations based on claims.
+	claimsRequester, err := types.NewRole("claims-requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				ClaimsToRoles: []types.ClaimMapping{
+					{
+						Claim: "email",
+						Value: "tester@example.com",
+						Roles: []string{"identity-access"},
+					},
+				},
+				Annotations: map[string][]string{
+					"services":           {"identity"},
+					"requested-by":       {"{{email.local(external.email)}}"},
+					"should-be-excluded": {"true"},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Annotations: map[string][]string{
+					"should-be-excluded": {"true"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	roles := []types.Role{
+		paymentsRequester, paymentsResourceRequester, paymentsAccess,
+		identityRequester, identityResourceRequester, identityAccess,
+		anyResourceRequester, globRequester, reRequester,
+		denyIdentityService, claimsRequester,
+	}
+
+	paymentsServer, err := types.NewServer("server-payments", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	paymentsServer.SetStaticLabels(map[string]string{"service": "payments"})
+
+	idServer, err := types.NewServer("server-identity", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	idServer.SetStaticLabels(map[string]string{"service": "payments"})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	for _, role := range roles {
+		_, err := srv.Auth().CreateRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	for _, server := range []types.Server{paymentsServer, idServer} {
+		_, err := srv.Auth().UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	for _, tc := range []struct {
+		name                 string
+		roles                []string
+		requestedRoles       []string
+		requestedResourceIDs []string
+		expectedAnnotations  map[string][]string
+		errfn                require.ErrorAssertionFunc
+	}{
+		{
+			name:           "payments-requester requests role, receives payment annotations",
+			roles:          []string{"payments-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"payments"},
+				"requesting":   {"role"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:                 "payments-resource-requester requests resource, receives payment annotations",
+			roles:                []string{"payments-resource-requester"},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"payments"},
+				"requesting":   {"resources"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "payments-requester requests identity role, receives error",
+			roles:          []string{"payments-requester"},
+			requestedRoles: []string{"identity-access"},
+			errfn:          require.Error,
+		},
+		{
+			name:                 "payments-resource-requester requests identity resource, receives error",
+			roles:                []string{"payments-resource-requester"},
+			requestedRoles:       []string{"identity-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			errfn:                require.Error,
+		},
+		{
+			name:           "identity-requester requests role, receives identity annotations",
+			roles:          []string{"identity-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"identity"},
+				"requesting":   {"role"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:                 "identity-resource-requester requests resource, receives identity annotations",
+			roles:                []string{"identity-resource-requester"},
+			requestedRoles:       []string{"identity-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"identity"},
+				"requesting":   {"resources"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "identity-requester requests paymen role, receives error",
+			roles:          []string{"identity-requester"},
+			requestedRoles: []string{"payments-access"},
+			errfn:          require.Error,
+		},
+		{
+			name:                 "identity-resource-requester requests payment resource, receives error",
+			roles:                []string{"identity-resource-requester"},
+			requestedRoles:       []string{"payment-access"},
+			requestedResourceIDs: []string{"server-identity"},
+			errfn:                require.Error,
+		},
+		{
+			name:           "any-requester requests role, receives annotations",
+			roles:          []string{"any-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
+			},
+		},
+		{
+			name:                 "any-requester requests role, receives annotations",
+			roles:                []string{"any-requester"},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
+			},
+		},
+		{
+			name:           "both payments and identity-requester requests payments role, receives payments annotations",
+			roles:          []string{"identity-requester", "payments-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting":   {"role"},
+				"services":     {"payments"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name: "all requester roles, requests payments role, receives payments and any annotations",
+			roles: []string{
+				"identity-requester", "payments-requester",
+				"identity-resource-requester", "payments-resource-requester",
+				"any-requester",
+			},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting":    {"role"},
+				"services":      {"payments"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
+			},
+		},
+		{
+			name: "all requester roles, requests payments resource, receives payments and any annotations",
+			roles: []string{
+				"identity-requester", "payments-requester",
+				"identity-resource-requester", "payments-resource-requester",
+				"any-requester",
+			},
+			requestedRoles:       []string{"payments-access"},
+			requestedResourceIDs: []string{"server-payments"},
+			expectedAnnotations: map[string][]string{
+				"requesting":    {"resources"},
+				"services":      {"payments"},
+				"any-requester": {"true"},
+				"requested-by":  {"tester"},
+			},
+		},
+		{
+			name:           "glob-requester requests payments role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+				"requested-by":   {"tester"},
+			},
+		},
+		{
+			name:           "glob-requester requests identity role, receives annotations",
+			roles:          []string{"glob-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"glob-requester": {"true"},
+				"requested-by":   {"tester"},
+			},
+		},
+		{
+			name:           "re-requester requests both roles, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"identity-access", "payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "re-requester requests payments role, receives annotations",
+			roles:          []string{"re-requester"},
+			requestedRoles: []string{"payments-access"},
+			expectedAnnotations: map[string][]string{
+				"re-requester": {"true"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "deny identity services annotation",
+			roles:          []string{"identity-requester", "payments-requester", "deny-identity-service"},
+			requestedRoles: []string{"identity-access", "payments-access"},
+			expectedAnnotations: map[string][]string{
+				"requesting":   {"role"},
+				"services":     {"payments"},
+				"requested-by": {"tester"},
+			},
+		},
+		{
+			name:           "annotations based on claims",
+			roles:          []string{"claims-requester"},
+			requestedRoles: []string{"identity-access"},
+			expectedAnnotations: map[string][]string{
+				"services":     {"identity"},
+				"requested-by": {"tester"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user, err := types.NewUser("requester")
+			require.NoError(t, err)
+			user.SetRoles(tc.roles)
+			user.SetTraits(userTraits)
+			_, err = srv.Auth().UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			var req types.AccessRequest
+			if len(tc.requestedResourceIDs) == 0 {
+				req, err = types.NewAccessRequest(uuid.NewString(), user.GetName(), tc.requestedRoles...)
+			} else {
+				var resourceIds []types.ResourceID
+				for _, id := range tc.requestedResourceIDs {
+					resourceIds = append(resourceIds, types.ResourceID{
+						ClusterName: srv.ClusterName(),
+						Kind:        types.KindNode,
+						Name:        id,
+					})
+				}
+				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, resourceIds)
+			}
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+			res, err := client.CreateAccessRequestV2(ctx, req)
+			if tc.errfn == nil {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedAnnotations, res.GetSystemAnnotations())
+			} else {
+				tc.errfn(t, err)
+			}
 		})
 	}
 }

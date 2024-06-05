@@ -20,15 +20,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestConvertAuditEvent(t *testing.T) {
+	anonymizer, err := utils.NewHMACAnonymizer("anon-key-or-cluster-id")
+	require.NoError(t, err)
+
 	cases := []struct {
-		desc     string
-		event    apievents.AuditEvent
-		expected Anonymizable
+		desc               string
+		event              apievents.AuditEvent
+		expected           Anonymizable
+		expectedAnonymized *prehogv1a.SubmitEventRequest
 	}{
 		{
 			desc: "ValidateMFAAuthResponse",
@@ -48,6 +55,16 @@ func TestConvertAuditEvent(t *testing.T) {
 				DeviceType:        "TOTP",
 				MfaChallengeScope: "CHALLENGE_SCOPE_LOGIN",
 			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_MfaAuthenticationEvent{
+					MfaAuthenticationEvent: &prehogv1a.MFAAuthenticationEvent{
+						UserName:          anonymizer.AnonymizeString("some-user"),
+						DeviceId:          anonymizer.AnonymizeString("dev-id"),
+						DeviceType:        "TOTP",
+						MfaChallengeScope: "CHALLENGE_SCOPE_LOGIN",
+					},
+				},
+			},
 		},
 		{
 			desc: "ValidateMFAAuthResponse without MFADevice",
@@ -63,6 +80,107 @@ func TestConvertAuditEvent(t *testing.T) {
 				DeviceType:        "",
 				MfaChallengeScope: "CHALLENGE_SCOPE_LOGIN",
 			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_MfaAuthenticationEvent{
+					MfaAuthenticationEvent: &prehogv1a.MFAAuthenticationEvent{
+						UserName:          anonymizer.AnonymizeString("some-user"),
+						DeviceId:          anonymizer.AnonymizeString(""),
+						DeviceType:        "",
+						MfaChallengeScope: "CHALLENGE_SCOPE_LOGIN",
+					},
+				},
+			},
+		},
+		{
+			desc: "DatabaseUserCreate",
+			event: &apievents.DatabaseUserCreate{
+				UserMetadata: apievents.UserMetadata{
+					User: "alice",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "postgres-local",
+					DatabaseProtocol: "postgres",
+					DatabaseName:     "postgres",
+					DatabaseUser:     "alice",
+					DatabaseType:     "self-hosted",
+					DatabaseOrigin:   "config-file",
+					DatabaseRoles:    []string{"reader", "writer", "admin"},
+				},
+			},
+			expected: &DatabaseUserCreatedEvent{
+				Database: &prehogv1a.SessionStartDatabaseMetadata{
+					DbType:     "self-hosted",
+					DbProtocol: "postgres",
+					DbOrigin:   "config-file",
+				},
+				UserName: "alice",
+				NumRoles: 3,
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_DatabaseUserCreated{
+					DatabaseUserCreated: &prehogv1a.DatabaseUserCreatedEvent{
+						Database: &prehogv1a.SessionStartDatabaseMetadata{
+							DbType:     "self-hosted",
+							DbProtocol: "postgres",
+							DbOrigin:   "config-file",
+						},
+						UserName: anonymizer.AnonymizeString("alice"),
+						NumRoles: 3,
+					},
+				},
+			},
+		},
+		{
+			desc: "DatabasePermissionUpdate",
+			event: &apievents.DatabasePermissionUpdate{
+				UserMetadata: apievents.UserMetadata{
+					User: "alice",
+				},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "postgres-local",
+					DatabaseProtocol: "postgres",
+					DatabaseName:     "postgres",
+					DatabaseUser:     "alice",
+					DatabaseType:     "self-hosted",
+					DatabaseOrigin:   "config-file",
+					DatabaseRoles:    []string{"reader", "writer", "admin"},
+				},
+				PermissionSummary: []apievents.DatabasePermissionEntry{
+					{
+						Permission: "SELECT",
+						Counts:     map[string]int32{"table": 3},
+					},
+					{
+						Permission: "UPDATE",
+						Counts:     map[string]int32{"table": 6},
+					},
+				},
+				AffectedObjectCounts: map[string]int32{"table": 7},
+			},
+			expected: &DatabaseUserPermissionsUpdateEvent{
+				Database: &prehogv1a.SessionStartDatabaseMetadata{
+					DbType:     "self-hosted",
+					DbProtocol: "postgres",
+					DbOrigin:   "config-file",
+				},
+				UserName:             "alice",
+				NumTables:            7,
+				NumTablesPermissions: 9,
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_DatabaseUserPermissionsUpdated{
+					DatabaseUserPermissionsUpdated: &prehogv1a.DatabaseUserPermissionsUpdateEvent{
+						Database: &prehogv1a.SessionStartDatabaseMetadata{
+							DbType:     "self-hosted",
+							DbProtocol: "postgres",
+							DbOrigin:   "config-file",
+						},
+						UserName:             anonymizer.AnonymizeString("alice"),
+						NumTables:            7,
+						NumTablesPermissions: 9,
+					},
+				},
+			},
 		},
 	}
 
@@ -70,6 +188,8 @@ func TestConvertAuditEvent(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			actual := ConvertAuditEvent(tt.event)
 			assert.Equal(t, tt.expected, actual)
+			actualAnonymized := actual.Anonymize(anonymizer)
+			assert.Equal(t, tt.expectedAnonymized, &actualAnonymized)
 		})
 	}
 }

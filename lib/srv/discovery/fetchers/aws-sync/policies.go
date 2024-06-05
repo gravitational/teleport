@@ -71,7 +71,7 @@ func (a *awsFetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.A
 		return nil, trace.Wrap(err)
 	}
 	eGroup, ctx := errgroup.WithContext(ctx)
-	eGroup.SetLimit(10)
+	eGroup.SetLimit(5)
 	pageSize := int64(20)
 	err = iamClient.ListPoliciesPagesWithContext(
 		ctx,

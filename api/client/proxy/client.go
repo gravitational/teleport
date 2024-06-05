@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -228,11 +227,9 @@ type clusterCredentials struct {
 	clusterName *clusterName
 }
 
-var (
-	// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
-	// origin teleport cluster name into certificates.
-	teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
-)
+// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+// origin teleport cluster name into certificates.
+var teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
 
 // ClientHandshake performs the handshake with the wrapped [credentials.TransportCredentials] and
 // then inspects the provided cert for the [teleportClusterASN1ExtensionOID] to determine
@@ -390,27 +387,19 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 			DialOpts:                   c.cfg.DialOpts,
+			InsecureAddressDiscovery:   c.cfg.InsecureSkipVerify,
+			DialInBackground:           true,
 		}, nil
 	}
 
 	return client.Config{
-		Context:              ctx,
-		Credentials:          []client.Credentials{creds},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		DialInBackground:     true,
+		Context:                  ctx,
+		Credentials:              []client.Credentials{creds},
+		CircuitBreakerConfig:     breaker.NoopBreakerConfig(),
+		DialInBackground:         true,
+		InsecureAddressDiscovery: c.cfg.InsecureSkipVerify,
 		Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
-			// Don't dial if the context has timed out.
-			select {
-			case <-dialCtx.Done():
-				return nil, dialCtx.Err()
-			default:
-			}
-
-			// Intentionally not using the dial context because it is only valid
-			// for the lifetime of the dial. Using it causes the stream to be terminated
-			// immediately after the dial completes.
-			connContext := tracing.WithPropagationContext(context.Background(), tracing.PropagationContextFromContext(dialCtx))
-			conn, err := c.transport.DialCluster(connContext, cluster, nil)
+			conn, err := c.transport.DialCluster(dialCtx, cluster, nil)
 			return conn, trace.Wrap(err)
 		}),
 		DialOpts: c.cfg.DialOpts,

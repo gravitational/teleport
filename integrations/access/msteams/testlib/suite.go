@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-// MsTeamsSuite is the Slack access plugin test suite.
+// MsTeamsBaseSuite is the Slack access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type MsTeamsSuite struct {
+type MsTeamsBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig             *msteams.Config
 	raceNumber            int
@@ -53,7 +53,7 @@ type MsTeamsSuite struct {
 
 // SetupTest starts a fake Slack, generates the plugin configuration, and loads
 // the fixtures in Slack. It runs for each test.
-func (s *MsTeamsSuite) SetupTest() {
+func (s *MsTeamsBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -81,16 +81,36 @@ func (s *MsTeamsSuite) SetupTest() {
 }
 
 // startApp starts the Slack plugin, waits for it to become ready and returns.
-func (s *MsTeamsSuite) startApp() {
+func (s *MsTeamsBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app, err := msteams.NewApp(*s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
-func (s *MsTeamsSuite) TestMessagePosting() {
+// MsTeamsSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type MsTeamsSuiteOSS struct {
+	MsTeamsBaseSuite
+}
+
+// MsTeamsSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type MsTeamsSuiteEnterprise struct {
+	MsTeamsBaseSuite
+}
+
+// SetupTest overrides MsTeamsBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *MsTeamsSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.MsTeamsBaseSuite.SetupTest()
+}
+
+func (s *MsTeamsSuiteOSS) TestMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -120,7 +140,7 @@ func (s *MsTeamsSuite) TestMessagePosting() {
 	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
 }
 
-func (s *MsTeamsSuite) TestRecipientsConfig() {
+func (s *MsTeamsSuiteOSS) TestRecipientsConfig() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -153,7 +173,7 @@ func (s *MsTeamsSuite) TestRecipientsConfig() {
 	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
 }
 
-func (s *MsTeamsSuite) TestApproval() {
+func (s *MsTeamsSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -181,7 +201,7 @@ func (s *MsTeamsSuite) TestApproval() {
 	body.checkStatusApproved(t, reason)
 }
 
-func (s *MsTeamsSuite) TestDenial() {
+func (s *MsTeamsSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -209,14 +229,10 @@ func (s *MsTeamsSuite) TestDenial() {
 	body.checkStatusDenied(t, reason)
 }
 
-func (s *MsTeamsSuite) TestReviewReplies() {
+func (s *MsTeamsSuiteEnterprise) TestReviewReplies() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -263,14 +279,10 @@ func (s *MsTeamsSuite) TestReviewReplies() {
 	body.checkReview(t, 1, false /* approved */, "not okay", integration.Reviewer2UserName)
 }
 
-func (s *MsTeamsSuite) TestApprovalByReview() {
+func (s *MsTeamsSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -318,14 +330,10 @@ func (s *MsTeamsSuite) TestApprovalByReview() {
 	body.checkStatusApproved(t, "finally okay")
 }
 
-func (s *MsTeamsSuite) TestDenialByReview() {
+func (s *MsTeamsSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -373,7 +381,7 @@ func (s *MsTeamsSuite) TestDenialByReview() {
 	body.checkStatusDenied(t, "finally not okay")
 }
 
-func (s *MsTeamsSuite) TestExpiration() {
+func (s *MsTeamsSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -401,14 +409,10 @@ func (s *MsTeamsSuite) TestExpiration() {
 	require.NoError(t, json.Unmarshal([]byte(msgUpdate.Body), &body))
 	body.checkStatusExpired(t)
 }
-func (s *MsTeamsSuite) TestRace() {
+func (s *MsTeamsSuiteEnterprise) TestRace() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)

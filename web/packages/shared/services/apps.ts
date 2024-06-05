@@ -20,4 +20,5 @@ export type AwsRole = {
   name: string;
   arn: string;
   display: string;
+  accountId: string;
 };

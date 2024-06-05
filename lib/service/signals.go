@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -67,21 +66,21 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	}
 }
 
+// teleportSignals contains all the signals that
+// [TeleportProcess.WaitForSignals] cares about.
+var teleportSignals = []os.Signal{
+	// Note: SIGKILL can't be trapped.
+	syscall.SIGQUIT, // graceful shutdown
+	syscall.SIGTERM, // fast shutdown
+	syscall.SIGINT,  // fast shutdown
+	syscall.SIGUSR1, // log process diagnostic info
+	syscall.SIGUSR2, // initiate process restart procedure
+	syscall.SIGHUP,  // graceful restart procedure
+}
+
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
-func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-	sigC := make(chan os.Signal, 1024)
-	// Note: SIGKILL can't be trapped.
-	signal.Notify(sigC,
-		syscall.SIGQUIT, // graceful shutdown
-		syscall.SIGTERM, // fast shutdown
-		syscall.SIGINT,  // fast shutdown
-		syscall.SIGUSR1, // log process diagnostic info
-		syscall.SIGUSR2, // initiate process restart procedure
-		syscall.SIGHUP,  // graceful restart procedure
-	)
-	defer signal.Stop(sigC)
-
+func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan os.Signal) error {
 	serviceErrorsC := make(chan Event, 10)
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -156,16 +155,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
 		case <-process.ReloadContext().Done():
-			// it's fine to signal.Stop the same channel multiple times, and
-			// after the function returns we're guaranteed to have restored the
-			// default handlers for the signals and that no more signals are
-			// pushed into the channel
-			signal.Stop(sigC)
-			if len(sigC) > 0 {
-				// exhaust all signals before the internal reload, so we don't
-				// miss signals to exit or to graceful restart instead
-				continue
-			}
 			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
@@ -312,7 +301,17 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
-	listener, err := net.Listen("tcp", address)
+	// When the process exists, the socket files are left behind (to cover
+	// forking scenarios). To guarantee there won't be errors like "address
+	// already in use", delete the file before starting the listener.
+	if typ.Network() == "unix" {
+		process.logger.DebugContext(process.ExitContext(), "Deleting socket file", "path", address)
+		if err := trace.ConvertSystemError(os.Remove(address)); !trace.IsNotFound(err) {
+			warnOnErr(process.ExitContext(), err, process.logger)
+		}
+	}
+
+	listener, err := net.Listen(typ.Network(), address)
 	if err != nil {
 		process.Lock()
 		listener, ok := process.getListenerNeedsLock(typ, address)
@@ -323,6 +322,15 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	// The default behavior for unix listeners is to delete the file when the
+	// listener closes (unlinking). However, if the process forks, the file
+	// descriptor will be gone when its parent process exists, causing the new
+	// listener to have no socket file.
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+
 	process.Lock()
 	defer process.Unlock()
 	// check this again in case we stopped allowing new listeners halfway

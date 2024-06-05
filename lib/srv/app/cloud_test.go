@@ -19,6 +19,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
@@ -152,13 +154,12 @@ func TestCloudGetFederationDuration(t *testing.T) {
 		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+			awsSession := &awssession.Session{Config: &aws.Config{
+				Credentials: credentials.NewCredentials(&mockCredentialsProvider{}),
+			}}
 			c, err := NewCloud(CloudConfig{
-				Session: &awssession.Session{
-					Config: &aws.Config{
-						Credentials: credentials.NewCredentials(&mockCredentialsProvider{}),
-					},
-				},
-				Clock: clockwork.NewFakeClockAt(now),
+				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
+				Clock:         clockwork.NewFakeClockAt(now),
 			})
 			require.NoError(t, err)
 
@@ -186,7 +187,16 @@ func TestCloudGetFederationDuration(t *testing.T) {
 	}
 }
 
+func TestCheckAndSetDefaults(t *testing.T) {
+	t.Run("session getter is required", func(t *testing.T) {
+		err := (&CloudConfig{}).CheckAndSetDefaults()
+		require.True(t, trace.IsBadParameter(err))
+	})
+}
+
 func TestCloudGetAWSSigninToken(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
 		name                    string
 		sessionCredentials      *credentials.Credentials
@@ -256,13 +266,14 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			mockFedurationServer := httptest.NewServer(test.federationServerHandler)
 			t.Cleanup(mockFedurationServer.Close)
 
-			c, err := NewCloud(CloudConfig{
-				Session: &awssession.Session{
-					Config: &aws.Config{
-						Credentials: test.sessionCredentials,
-						Endpoint:    aws.String("http://localhost"),
-					},
+			awsSession := &awssession.Session{
+				Config: &aws.Config{
+					Credentials: test.sessionCredentials,
+					Endpoint:    aws.String("http://localhost"),
 				},
+			}
+			c, err := NewCloud(CloudConfig{
+				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
 			})
 			require.NoError(t, err)
 
@@ -279,7 +290,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				Issuer: "test",
 			}
 
-			actualToken, err := cloud.getAWSSigninToken(req, mockFedurationServer.URL, mockProviderClient)
+			actualToken, err := cloud.getAWSSigninToken(ctx, req, mockFedurationServer.URL, mockProviderClient)
 			if test.expectedErrorIs != nil {
 				require.True(t, test.expectedErrorIs(err))
 			} else if test.expectedError {

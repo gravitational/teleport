@@ -18,10 +18,17 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { style } from 'styled-system';
 import PropTypes from 'prop-types';
 
 import { space, color, width } from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
+
+const linkColor = style({
+  prop: 'linkColor',
+  cssProperty: 'color',
+  key: 'colors',
+});
 
 const kind = props => {
   const { kind, theme } = props;
@@ -97,6 +104,7 @@ const Alert = styled.div`
 
   a {
     color: ${({ theme }) => theme.colors.light};
+    ${linkColor}
   }
 `;
 

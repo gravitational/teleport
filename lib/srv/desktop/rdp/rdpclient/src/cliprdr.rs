@@ -21,7 +21,7 @@ use ironrdp_cliprdr::pdu::{
     ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
     FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
 };
-use ironrdp_cliprdr::{Client as ClientRole, Cliprdr, CliprdrSvcMessages};
+use ironrdp_cliprdr::{Client, CliprdrClient as Cliprdr, CliprdrSvcMessages};
 use ironrdp_pdu::PduResult;
 use ironrdp_svc::impl_as_any;
 use log::{debug, error, info, trace, warn};
@@ -57,7 +57,7 @@ impl TeleportCliprdrBackend {
 
     fn send<F>(&self, name: &'static str, f: F)
     where
-        F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> + Send + 'static,
+        F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
     {
         let res = self
             .client_handle
@@ -189,24 +189,21 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 impl_as_any!(TeleportCliprdrBackend);
 
 pub trait ClipboardFn: Send + Debug + 'static {
-    fn call(&self, cliprdr: &Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>>;
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>>;
 }
 
 impl<F> ClipboardFn for F
 where
-    F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>>
-        + Send
-        + Debug
-        + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + Debug + 'static,
 {
-    fn call(&self, cliprdr: &Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> {
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
         (self)(cliprdr)
     }
 }
 
 struct ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> + Send + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     name: &'static str,
     closure: F,
@@ -214,7 +211,7 @@ where
 
 impl<F> ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> + Send + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     fn new(name: &'static str, closure: F) -> Self {
         Self { name, closure }
@@ -223,7 +220,7 @@ where
 
 impl<F> Debug for ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> + Send + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &self.name)
@@ -232,9 +229,9 @@ where
 
 impl<F> ClipboardFn for ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> + Send + 'static,
+    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
-    fn call(&self, cliprdr: &Cliprdr<ClientRole>) -> PduResult<CliprdrSvcMessages<ClientRole>> {
+    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
         (self.closure)(cliprdr)
     }
 }

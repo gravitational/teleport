@@ -141,6 +141,9 @@ message ServerMetadata {
 
   // ServerSubKind is the sub kind of the server the session occurred on.
   string ServerSubKind = 7 [(gogoproto.jsontag) = "server_sub_kind,omitempty"];
+
+  // ServerVersion is the component version the session occurred on.
+  string ServerVersion = 8 [(gogoproto.jsontag) = "server_version,omitempty"];
 }
 
 // Connection contains connection info
@@ -300,6 +303,15 @@ message AccessListReviewMetadata {
 
   // RemovedMembers are the members that were removed as part of the review.
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
+}
+
+// LockMetadata contains common metadata for lock resource events.
+message LockMetadata {
+  // Target describes the set of interactions that the lock applies to
+  types.LockTarget Target = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "target"
+  ];
 }
 
 // SessionStart is a session start event
@@ -2467,6 +2479,9 @@ message SAMLConnectorCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the new SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorUpdate fires when SAML connector is updated.
@@ -2491,6 +2506,9 @@ message SAMLConnectorUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Connector is the updated SAML connector
+  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorDelete fires when SAML connector is deleted.
@@ -3087,6 +3105,11 @@ message DatabasePermissionUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "permission_summary"
   ];
+  // AffectedObjectCounts counts how many distinct objects of each kind were affected.
+  map<string, int32> AffectedObjectCounts = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "affected_object_counts"
+  ];
 }
 
 // DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
@@ -3562,9 +3585,17 @@ message LockCreate {
   ];
 
   // Target describes the set of interactions that the lock applies to
+  // Deprecated: use Lock instead.
   types.LockTarget Target = 4 [
+    deprecated = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "target"
+  ];
+
+  // Lock is a common lock event metadata
+  LockMetadata Lock = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "lock"
   ];
 }
 
@@ -3589,6 +3620,12 @@ message LockDelete {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Lock is a common lock event metadata
+  LockMetadata Lock = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "lock"
   ];
 }
 
@@ -3750,6 +3787,12 @@ message BotJoin {
   ];
   // UserName is the name of the user associated with the bot which has joined.
   string UserName = 7 [(gogoproto.jsontag) = "user_name,omitempty"];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // InstanceJoin records an instance join event.
@@ -3788,6 +3831,12 @@ message InstanceJoin {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "token_expires"
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
 
@@ -3855,7 +3904,7 @@ message DeviceMetadata {
   // Only present in "device.authenticate" type events.
   bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
   // Web Session ID associated with the device.
-  // Only present if web_authentication is true.
+  // Present in events related to device web authentication.
   string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
 }
 
@@ -4071,6 +4120,8 @@ message OneOf {
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
+    events.AccessPathChanged AccessPathChanged = 157;
+    events.SpannerRPC SpannerRPC = 158;
   }
 }
 
@@ -4198,6 +4249,9 @@ message Identity {
   // BotName indicates the name of the Machine ID bot this identity was issued
   // to, if any.
   string BotName = 27 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // DeviceExtensions holds the device trust device extensions for the identity,
+  // if any.
+  DeviceExtensions DeviceExtensions = 28 [(gogoproto.jsontag) = "device_extensions,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -4230,6 +4284,20 @@ message RouteToDatabase {
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
   // Roles is an optional list of database roles to embed.
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
+}
+
+// DeviceExtensions holds certificate extensions (X.509 and SSH) for device
+// trust.
+//
+// Mimics tlsca.DeviceExtensions.
+message DeviceExtensions {
+  // DeviceID is the trusted device identifier.
+  string device_id = 1 [(gogoproto.jsontag) = "device_id,omitempty"];
+  // AssetTag is the device inventory identifier.
+  string asset_tag = 2 [(gogoproto.jsontag) = "asset_tag,omitempty"];
+  // CredentialID is the identifier for the credential used by the device to
+  // authenticate itself.
+  string credential_id = 3 [(gogoproto.jsontag) = "credential_id,omitempty"];
 }
 
 // AccessRequestResourceSearch is emitted when a user searches for resources as
@@ -5154,6 +5222,18 @@ message SSMRun {
 
   // Region is the AWS region the command was ran in.
   string Region = 7 [(gogoproto.jsontag) = "region"];
+
+  // StandardOutput contains the stdout of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardOutput = 8 [(gogoproto.jsontag) = "stdout"];
+
+  // StandardError contains the stderr of the executed command.
+  // Only the first 24000 chars are returned.
+  string StandardError = 9 [(gogoproto.jsontag) = "stderr"];
+
+  // InvocationURL is a link to AWS Web Console for this invocation.
+  // An invocation is the execution of a Command in an Instance.
+  string InvocationURL = 10 [(gogoproto.jsontag) = "invocation_url"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends
@@ -6140,5 +6220,68 @@ message SessionRecordingConfigUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+// AccessPathChanged is emitted when access graph detects a change in a access path.
+message AccessPathChanged {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ChangeID is the id of the change.
+  string ChangeID = 2 [(gogoproto.jsontag) = "change_id"];
+
+  // AffectedResourceID is the name of the affected resource.
+  string AffectedResourceName = 3 [(gogoproto.jsontag) = "affected_resource_name"];
+
+  // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+  string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
+
+  // AffectedResourceType is the type of the affected resource, ex: user, role, etc.
+  string AffectedResourceType = 5 [(gogoproto.jsontag) = "affected_resource_type"];
+}
+
+// SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.
+message SpannerRPC {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the RPC was successfully sent to the database.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Procedure is the name of the remote procedure.
+  string Procedure = 6 [(gogoproto.jsontag) = "procedure,omitempty"];
+  // Args are the RPC arguments.
+  google.protobuf.Struct Args = 7 [
+    (gogoproto.jsontag) = "args,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }

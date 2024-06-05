@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -62,6 +64,8 @@ func TestAuthTokens(t *testing.T) {
 		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
 		withMemoryDBRedis("redis-memorydb-correct-token", memorydbToken, "7.0"),
 		withMemoryDBRedis("redis-memorydb-incorrect-token", "qwe123", "7.0"),
+		withSpanner("spanner-correct-token", cloudSpannerAuthToken),
+		withSpanner("spanner-incorrect-token", "xyz123"),
 	}
 	databases := make([]types.Database, 0, len(withDBs))
 	for _, withDB := range withDBs {
@@ -186,6 +190,17 @@ func TestAuthTokens(t *testing.T) {
 			// Make sure we print a user-friendly IAM auth error.
 			err: "Make sure that IAM auth is enabled",
 		},
+		{
+			desc:     "correct Spanner auth token",
+			service:  "spanner-correct-token",
+			protocol: defaults.ProtocolSpanner,
+		},
+		{
+			desc:     "incorrect Spanner auth token",
+			service:  "spanner-incorrect-token",
+			protocol: defaults.ProtocolSpanner,
+			err:      "invalid RPC auth token",
+		},
 	}
 
 	for _, test := range tests {
@@ -217,6 +232,23 @@ func TestAuthTokens(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close())
+				}
+			case defaults.ProtocolSpanner:
+				clt, localProxy, err := testCtx.spannerClient(ctx, "alice", test.service, "admin", "somedb")
+				// Teleport doesn't actually try to fetch a token until an RPC
+				// is received, so it shouldn't fail after connecting.
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					// Disconnect.
+					clt.Close()
+					_ = localProxy.Close()
+				})
+				_, err = pingSpanner(ctx, clt, 123)
+				if test.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
+				} else {
+					require.NoError(t, err)
 				}
 			default:
 				t.Fatalf("unrecognized database protocol in test: %q", test.protocol)
@@ -256,6 +288,8 @@ const (
 	cloudSQLAuthToken = "cloudsql-auth-token"
 	// cloudSQLPassword is a mock Cloud SQL user password.
 	cloudSQLPassword = "cloudsql-password"
+	// cloudSpannerAuthToken is a mock Cloud Spanner IAM auth token.
+	cloudSpannerAuthToken = "cloud-spanner-auth-token"
 	// azureAccessToken is a mock Azure access token.
 	azureAccessToken = "azure-access-token"
 	// azureRedisToken is a mock Azure Redis token.
@@ -271,6 +305,21 @@ const (
 	// atlasAuthSessionToken is a mock Mongo Atlas IAM auth session token.
 	atlasAuthSessionToken = "atlas-session-token"
 )
+
+type fakeTokenSource struct {
+	logrus.FieldLogger
+
+	token string
+	exp   time.Time
+}
+
+func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
+	f.Infof("Generating Cloud Spanner auth token source")
+	return &oauth2.Token{
+		Expiry:      f.exp,
+		AccessToken: f.token,
+	}, nil
+}
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
 func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
@@ -300,6 +349,14 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *common.Sess
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
 	return cloudSQLAuthToken, nil
+}
+
+// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+func (a *testAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *common.Session) (oauth2.TokenSource, error) {
+	return &fakeTokenSource{
+		token:       cloudSpannerAuthToken,
+		FieldLogger: a.WithField("session", sessionCtx),
+	}, nil
 }
 
 // GetCloudSQLPassword generates Cloud SQL user password.

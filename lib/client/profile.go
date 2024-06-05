@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -374,8 +373,8 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 }
 
 // IsExpired returns true if profile is not expired yet
-func (p *ProfileStatus) IsExpired(clock clockwork.Clock) bool {
-	return p.ValidUntil.Sub(clock.Now()) <= 0
+func (p *ProfileStatus) IsExpired(now time.Time) bool {
+	return p.ValidUntil.Sub(now) <= 0
 }
 
 // virtualPathWarnOnce is used to ensure warnings about missing virtual path
@@ -489,20 +488,26 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
-func (p *ProfileStatus) AppCertPath(name string) string {
+func (p *ProfileStatus) AppCertPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
 	if path, ok := p.virtualPathFromEnv(VirtualPathApp, VirtualPathAppParams(name)); ok {
 		return path
 	}
 
-	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // AppLocalCAPath returns the specified app's self-signed localhost CA path for
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
-func (p *ProfileStatus) AppLocalCAPath(name string) string {
-	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+func (p *ProfileStatus) AppLocalCAPath(cluster, name string) string {
+	if cluster == "" {
+		cluster = p.Cluster
+	}
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
@@ -557,6 +562,27 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		return nil, trace.Wrap(err)
 	}
 	return findActiveDatabases(key)
+}
+
+// AppsForCluster returns a list of apps for this profile, for the
+// specified cluster name.
+func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, error) {
+	if clusterName == "" || clusterName == p.Cluster {
+		return p.Apps, nil
+	}
+
+	idx := KeyIndex{
+		ProxyHost:   p.Name,
+		Username:    p.Username,
+		ClusterName: clusterName,
+	}
+
+	store := NewFSKeyStore(p.Dir)
+	key, err := store.GetKey(idx, WithAppCerts{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return findActiveApps(key)
 }
 
 // AppNames returns a list of app names this profile is logged into.

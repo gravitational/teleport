@@ -70,9 +70,10 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	awsRoles := []*api.AWSRole{}
 	for _, role := range clusterApp.AWSRoles {
 		awsRoles = append(awsRoles, &api.AWSRole{
-			Name:    role.Name,
-			Display: role.Display,
-			Arn:     role.ARN,
+			Name:      role.Name,
+			Display:   role.Display,
+			Arn:       role.ARN,
+			AccountId: role.AccountID,
 		})
 	}
 

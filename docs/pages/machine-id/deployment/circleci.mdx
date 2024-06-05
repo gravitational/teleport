@@ -60,9 +60,13 @@ https://app.circleci.com/settings/organization/github/gravitational/contexts/000
 In this case, the context ID is: `00000000-0000-0000-0000-000000000000`.
 
 Note this value down and substitute `$CONTEXT_ID` in configuration examples
-with this.
+with this
 
-## Step 2/5. Create the join token for CircleCI
+## Step 2/5. Create the Machine ID bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create the join token for CircleCI
 
 In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
@@ -108,14 +112,6 @@ Apply this to your Teleport cluster using `tctl`:
 
 ```code
 $ tctl create -f bot-token.yaml
-```
-
-## Step 3/5. Create the Machine ID bot
-
-Create the bot, specifying the token that you have created:
-
-```code
-$ tctl bots add example --token=example-bot
 ```
 
 ## Step 4/5. Configure a CircleCI workflow

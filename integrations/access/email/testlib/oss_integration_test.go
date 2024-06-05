@@ -27,9 +27,11 @@ import (
 )
 
 func TestEmailPluginOSS(t *testing.T) {
-	emailSuite := &EmailSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	emailSuite := &EmailSuiteOSS{
+		EmailBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, emailSuite)

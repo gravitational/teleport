@@ -147,11 +147,16 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		if dev.GetU2F() != nil {
 			continue
 		}
-		// Skip resident/non-resident keys depending on whether it's a passwordless
-		// registration.
-		// Letting users have both allows them to "swap" between key types in the
-		// same device.
-		if webDev := dev.GetWebauthn(); webDev != nil && webDev.ResidentKey != passwordless {
+
+		// Let authenticator "upgrades" from non-resident (MFA) to resident
+		// (passwordless) happen, but prevent "downgrades" from resident to
+		// non-resident.
+		//
+		// Modern passkey implementations will "disobey" our MFA registrations and
+		// actually create passkeys, silently replacing the old passkey with the new
+		// "MFA" key, which can make Teleport confused (for example, by letting the
+		// "MFA" key be deleted because Teleport thinks the passkey still exists).
+		if webDev := dev.GetWebauthn(); webDev != nil && !webDev.ResidentKey && passwordless {
 			continue
 		}
 

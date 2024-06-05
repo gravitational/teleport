@@ -1051,6 +1051,48 @@ func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// DatabaseUserCreatedEvent is an event that is emitted after database service performs automatic user provisioning.
+type DatabaseUserCreatedEvent prehogv1a.DatabaseUserCreatedEvent
+
+// Anonymize anonymizes the event.
+func (u *DatabaseUserCreatedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	event := &prehogv1a.DatabaseUserCreatedEvent{
+		UserName: a.AnonymizeString(u.UserName),
+		NumRoles: u.NumRoles,
+	}
+
+	if u.Database != nil {
+		event.Database = &prehogv1a.SessionStartDatabaseMetadata{
+			DbType:     u.Database.DbType,
+			DbProtocol: u.Database.DbProtocol,
+			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
+
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DatabaseUserCreated{
+			DatabaseUserCreated: event,
+		},
+	}
+}
+
+// DatabaseUserPermissionsUpdateEvent is an event that is emitted after database service updates the permissions for the database user.
+type DatabaseUserPermissionsUpdateEvent prehogv1a.DatabaseUserPermissionsUpdateEvent
+
+// Anonymize anonymizes the event.
+func (u *DatabaseUserPermissionsUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DatabaseUserPermissionsUpdated{
+			DatabaseUserPermissionsUpdated: &prehogv1a.DatabaseUserPermissionsUpdateEvent{
+				UserName:             a.AnonymizeString(u.UserName),
+				NumTables:            u.NumTables,
+				NumTablesPermissions: u.NumTablesPermissions,
+				Database:             u.Database,
+			},
+		},
+	}
+}
+
 // SPIFFESVIDIssuedEvent is an event emitted when a SPIFFE SVID has been
 // issued.
 type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
@@ -1201,6 +1243,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverKubeEksEnrollEvent:
+		ret := &UIDiscoverKubeEKSEnrollEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverKubeEksEnrollEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverKubeEksEnrollEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverKubeEksEnrollEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
 		return &UICallToActionClickEvent{
 			UserName: userMD.Username,
@@ -1214,6 +1267,18 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Status:       discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
 			DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DeployMethod(e.UiDiscoverDeployServiceEvent.DeployMethod),
 			DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DeployType(e.UiDiscoverDeployServiceEvent.DeployType),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateDiscoveryConfig:
+		ret := &UIDiscoverCreateDiscoveryConfigEvent{
+			Metadata:     discoverMetadataToPrehog(e.UiDiscoverCreateDiscoveryConfig.Metadata, userMD),
+			Resource:     discoverResourceToPrehog(e.UiDiscoverCreateDiscoveryConfig.Resource),
+			Status:       discoverStatusToPrehog(e.UiDiscoverCreateDiscoveryConfig.Status),
+			ConfigMethod: prehogv1a.UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod(e.UiDiscoverCreateDiscoveryConfig.ConfigMethod),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

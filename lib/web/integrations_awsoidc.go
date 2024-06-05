@@ -39,13 +39,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -324,6 +325,92 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCConfigureAppAccessIAM returns a script that configures the required IAM permissions to enable App Access
+// using the AWS OIDC Credentials.
+// Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
+// It receives the IAM Role from a query param "role".
+// The script is returned using the Content-Type "text/x-shellscript". No Content-Disposition header is set.
+func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure aws-app-access
+	argsList := []string{
+		"integration", "configure", "aws-app-access-iam",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to use AWS App Access.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+
+	_, err = fmt.Fprint(w, script)
+	return nil, trace.Wrap(err)
+}
+
+// awsOIDCConfigureEC2SSMIAM returns a script that configures AWS IAM Policies and creates an SSM Document
+// to enable EC2 Auto Discover Script mode, using the AWS OIDC Credentials.
+// It receives the IAM Role, AWS Region and SSM Document Name from query params ("role", "awsRegion" and "ssmDocument").
+//
+// The script is returned using the Content-Type "text/x-shellscript".
+// No Content-Disposition header is set.
+func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	region := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(region); err != nil {
+		return nil, trace.BadParameter("invalid region %q", region)
+	}
+
+	ssmDocumentName := queryParams.Get("ssmDocument")
+	if ssmDocumentName == "" {
+		return nil, trace.BadParameter("missing ssmDocument query param")
+	}
+	// PublicProxyAddr() might return tenant.teleport.sh
+	// However, the expected format for --proxy-public-url includes the protocol `https://`
+	proxyPublicURL := h.PublicProxyAddr()
+	if !strings.HasPrefix(proxyPublicURL, "https://") {
+		proxyPublicURL = "https://" + proxyPublicURL
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure ec2-ssm-iam
+	argsList := []string{
+		"integration", "configure", "ec2-ssm-iam",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(region)),
+		fmt.Sprintf("--ssm-document-name=%s", shsprintf.EscapeDefaultContext(ssmDocumentName)),
+		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to finish the EC2 auto discover set up.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+
+	_, err = fmt.Fprint(w, script)
+	return nil, trace.Wrap(err)
+}
+
 // awsOIDCConfigureEKSIAM returns a script that configures the required IAM permissions to enroll EKS clusters into Teleport.
 func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
@@ -494,7 +581,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 			return nil, trace.Wrap(err)
 		}
 
-		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins))
+		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
 	}
 
 	return ui.AWSOIDCListEC2Response{
@@ -611,7 +698,7 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 	return resp, nil
 }
 
-func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
+func awsOIDCListAllDatabases(ctx context.Context, clt authclient.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
 	nextToken := ""
 	var fetchedRDSs []*types.DatabaseV3
 
@@ -661,7 +748,7 @@ func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration,
 	return fetchedRDSs, nil
 }
 
-func awsOIDCRequiredVPCSHelper(ctx context.Context, clt auth.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
 	nextToken := ""
 	fetchedDbSvcs := []types.DatabaseService{}
@@ -836,6 +923,65 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		Name:      createResp.Name,
 		Endpoints: respEndpoints,
 	}, nil
+}
+
+// awsOIDCDeployC2ICE creates an AppServer that uses an AWS OIDC Integration for proxying access.
+func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ig.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("only aws oidc integrations are supported")
+	}
+
+	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
+
+	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
+
+	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(appServer.GetApp())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRolesLookup := map[string][]string{
+		appServer.GetName(): allowedAWSRoles,
+	}
+
+	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
+		LocalClusterName:      h.auth.clusterName,
+		LocalProxyDNSName:     h.proxyDNSName(),
+		AppClusterName:        site.GetName(),
+		AllowedAWSRolesLookup: allowedAWSRolesLookup,
+		UserGroupLookup:       getUserGroupLookup(),
+		Logger:                h.log,
+	}), nil
 }
 
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration

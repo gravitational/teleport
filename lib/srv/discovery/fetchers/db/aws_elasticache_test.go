@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -106,16 +105,16 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
-	extraLabels := services.ExtraElastiCacheLabels(cluster, tags, nil, nil)
+	extraLabels := common.ExtraElastiCacheLabels(cluster, tags, nil, nil)
 
 	if aws.BoolValue(cluster.ClusterEnabled) {
-		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+		database, err := common.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
 		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
 		return cluster, types.Databases{database}, tags
 	}
 
-	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+	databases, err := common.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
 	for _, database := range databases {
 		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)

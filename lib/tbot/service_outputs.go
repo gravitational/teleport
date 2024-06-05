@@ -21,6 +21,7 @@ package tbot
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"slices"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
@@ -41,7 +41,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,11 +58,12 @@ const renewalRetryLimit = 5
 // service. Before that can happen, a more global cache needs to be built for
 // common API calls that output generation will complete.
 type outputsService struct {
-	log               logrus.FieldLogger
+	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	proxyPingCache    *proxyPingCache
 	authPingCache     *authPingCache
-	botClient         *auth.Client
+	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
+	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
@@ -73,12 +74,12 @@ func (s *outputsService) String() string {
 }
 
 func (s *outputsService) OneShot(ctx context.Context) error {
-	s.log.Info("Generating outputs.")
+	s.log.InfoContext(ctx, "Generating outputs.")
 	err := trace.Wrap(s.renewOutputs(ctx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Info("Generated outputs. One-shot mode is enabled so finishing.")
+	s.log.InfoContext(ctx, "Generated outputs. One-shot mode is enabled so finishing.")
 	return nil
 }
 
@@ -92,10 +93,11 @@ func (s *outputsService) renewOutputs(
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		proxyPingCache: s.proxyPingCache,
-		authPingCache:  s.authPingCache,
-		client:         s.botClient,
-		cfg:            s.cfg,
+		proxyPingCache:   s.proxyPingCache,
+		authPingCache:    s.authPingCache,
+		alpnUpgradeCache: s.alpnUpgradeCache,
+		client:           s.botClient,
+		cfg:              s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -103,15 +105,13 @@ func (s *outputsService) renewOutputs(
 	// should all match bot-$name)
 	defaultRoles, err := fetchDefaultRoles(ctx, s.botClient, s.getBotIdentity())
 	if err != nil {
-		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+		s.log.WarnContext(ctx, "Unable to determine default roles, no roles will be requested if unspecified", "error", err)
 		defaultRoles = []string{}
 	}
 
 	// Next, generate impersonated certs
 	for _, output := range s.cfg.Outputs {
-		s.log.WithFields(logrus.Fields{
-			"output": output,
-		}).Info("Generating output.")
+		s.log.InfoContext(ctx, "Generating output.", "output", output)
 
 		dest := output.GetDestination()
 		// Check the ACLs. We can't fix them, but we can warn if they're
@@ -137,10 +137,12 @@ func (s *outputsService) renewOutputs(
 		}
 		defer impersonatedClient.Close()
 
-		s.log.WithFields(logrus.Fields{
-			"identity": describeTLSIdentity(s.log, impersonatedIdentity),
-			"output":   output,
-		}).Debug("Fetched identity for output.")
+		s.log.DebugContext(
+			ctx,
+			"Fetched identity for output",
+			"identity", describeTLSIdentity(ctx, s.log, impersonatedIdentity),
+			"output", output,
+		)
 
 		// Create a destination provider to bundle up all the dependencies that
 		// a destination template might need to render.
@@ -150,13 +152,11 @@ func (s *outputsService) renewOutputs(
 		}
 
 		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
-			s.log.WithError(err).Warnf("Failed to render output %s", output)
+			s.log.WarnContext(ctx, "Failed to render output", "output", output, "error", err)
 			return trace.Wrap(err, "rendering output: %s", output)
 		}
 
-		s.log.WithFields(logrus.Fields{
-			"output": output,
-		}).Info("Generated output.")
+		s.log.InfoContext(ctx, "Generated output", "output", output)
 	}
 
 	return nil
@@ -169,10 +169,11 @@ func (s *outputsService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
-	s.log.Infof(
-		"Beginning output renewal loop: ttl=%s interval=%s",
-		s.cfg.CertificateTTL,
-		s.cfg.RenewalInterval,
+	s.log.InfoContext(
+		ctx,
+		"Beginning output renewal loop",
+		"ttl", s.cfg.CertificateTTL,
+		"interval", s.cfg.RenewalInterval,
 	)
 
 	ticker := time.NewTicker(s.cfg.RenewalInterval)
@@ -181,10 +182,11 @@ func (s *outputsService) Run(ctx context.Context) error {
 	for {
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			s.log.Infof(
-				"Renewing outputs. Attempt %d of %d.",
-				attempt,
-				renewalRetryLimit,
+			s.log.InfoContext(
+				ctx,
+				"Attempting to renew outputs",
+				"attempt", attempt,
+				"retry_limit", renewalRetryLimit,
 			)
 			err = s.renewOutputs(ctx)
 			if err == nil {
@@ -195,11 +197,13 @@ func (s *outputsService) Run(ctx context.Context) error {
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
-				s.log.WithError(err).Warnf(
-					"Output renewal attempt %d of %d failed. Retrying after %s.",
-					attempt,
-					renewalRetryLimit,
-					backoffTime,
+				s.log.WarnContext(
+					ctx,
+					"Output renewal attempt failed. Waiting to retry",
+					"attempt", attempt,
+					"retry_limit", renewalRetryLimit,
+					"backoff", backoffTime,
+					"error", err,
 				)
 				select {
 				case <-ctx.Done():
@@ -209,9 +213,18 @@ func (s *outputsService) Run(ctx context.Context) error {
 			}
 		}
 		if err != nil {
-			s.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, s.cfg.RenewalInterval)
+			s.log.WarnContext(
+				ctx,
+				"All retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle",
+				"retry_limit", renewalRetryLimit,
+				"interval", s.cfg.RenewalInterval,
+			)
 		} else {
-			s.log.Infof("Renewed outputs. Next output renewal in approximately %s.", s.cfg.RenewalInterval)
+			s.log.InfoContext(
+				ctx,
+				"Renewed outputs. Waiting for next output renewal",
+				"interval", s.cfg.RenewalInterval,
+			)
 		}
 
 		select {
@@ -247,17 +260,17 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 
 // describeTLSIdentity generates an informational message about the given
 // TLS identity, appropriate for user-facing log messages.
-func describeTLSIdentity(log logrus.FieldLogger, ident *identity.Identity) string {
+func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) string {
 	failedToDescribe := "failed-to-describe"
 	cert := ident.X509Cert
 	if cert == nil {
-		log.Warn("Attempted to describe TLS identity without TLS credentials.")
+		log.WarnContext(ctx, "Attempted to describe TLS identity without TLS credentials.")
 		return failedToDescribe
 	}
 
 	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
-		log.WithError(err).Warn("Bot TLS certificate can not be parsed as an identity")
+		log.WarnContext(ctx, "Bot TLS certificate can not be parsed as an identity", "error", err)
 		return failedToDescribe
 	}
 
@@ -294,7 +307,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *auth.Client,
+	client *authclient.Client,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,
@@ -378,7 +391,7 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
-func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -402,7 +415,7 @@ func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
@@ -429,7 +442,7 @@ func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *auth.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
@@ -438,27 +451,19 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	// TODO: AWS?
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		ClusterName: botIdentity.ClusterName,
-		Username:    botIdentity.X509Cert.Subject.CommonName,
-		PublicAddr:  app.GetPublicAddr(),
-	})
-	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
-	}
-
-	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
-	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
-	}
-
-	return proto.RouteToApp{
+	routeToApp := proto.RouteToApp{
 		Name:        app.GetName(),
-		SessionID:   ws.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: botIdentity.ClusterName,
-	}, nil
+	}
+
+	// TODO (Joerger): DELETE IN v17.0.0
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	return routeToApp, nil
 }
 
 // generateImpersonatedIdentity generates an impersonated identity for a given
@@ -466,17 +471,21 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 // impersonated identity.
 func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient *auth.Client,
+	botClient *authclient.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
 	roles := output.GetRoles()
 	if len(roles) == 0 {
-		s.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
+		s.log.DebugContext(
+			ctx,
+			"Output specified no roles, defaults will be requested.",
+			"default_roles", defaultRoles,
+		)
 		roles = defaultRoles
 	}
 
@@ -555,7 +564,11 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		s.log.Infof("Generated identity for database %q", output.Service)
+		s.log.InfoContext(
+			ctx,
+			"Generated identity for database",
+			"db_service", output.Service,
+		)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.KubernetesOutput:
@@ -583,7 +596,12 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		s.log.Infof("Generated identity for Kubernetes cluster %q", output.KubernetesCluster)
+		s.log.InfoContext(
+			ctx,
+			"Generated identity for Kubernetes cluster",
+			"kubernetes_cluster",
+			output.KubernetesCluster,
+		)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.ApplicationOutput:
@@ -606,7 +624,11 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		s.log.Infof("Generated identity for app %q", output.AppName)
+		s.log.InfoContext(
+			ctx,
+			"Generated identity for app",
+			"app_name", output.AppName,
+		)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.SSHHostOutput:
@@ -637,10 +659,11 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client         *auth.Client
-	cfg            *config.BotConfig
-	proxyPingCache *proxyPingCache
-	authPingCache  *authPingCache
+	client           *authclient.Client
+	cfg              *config.BotConfig
+	proxyPingCache   *proxyPingCache
+	authPingCache    *authPingCache
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
@@ -695,6 +718,18 @@ func (orc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingRe
 	return res, nil
 }
 
+// IsALPNConnUpgradeRequired returns a (possibly cached) test of whether ALPN
+// routing is required.
+func (orc *outputRenewalCache) IsALPNConnUpgradeRequired(
+	ctx context.Context, addr string, insecure bool,
+) (bool, error) {
+	res, err := orc.alpnUpgradeCache.isUpgradeRequired(ctx, addr, insecure)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return res, nil
+}
+
 // Config returns the bots config.
 func (orc *outputRenewalCache) Config() *config.BotConfig {
 	return orc.cfg
@@ -710,7 +745,7 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient *auth.Client
+	impersonatedClient *authclient.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.

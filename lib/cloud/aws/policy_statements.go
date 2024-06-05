@@ -23,6 +23,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var wildcard = "*"
@@ -134,6 +136,39 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 			"ec2-instance-connect:OpenTunnel",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementForEC2SSMAutoDiscover returns the required statement to enable EC2 Auto Discover using SSM.
+func StatementForEC2SSMAutoDiscover() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ssm:DescribeInstanceInformation",
+			"ssm:GetCommandInvocation",
+			"ssm:ListCommandInvocations",
+			"ssm:SendCommand",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSAppAccess returns the statement that allows AWS App Access.
+// Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
+func StatementForAWSAppAccess() *Statement {
+	requiredTag := types.TeleportNamespace + "/integration"
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"sts:AssumeRole",
+		},
+		Resources: allResources,
+		Conditions: map[string]map[string]SliceOrString{
+			"StringEquals": {
+				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
+			},
+		},
 	}
 }
 
@@ -351,6 +386,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"eks:ListAccessEntries",
 			"eks:ListAccessPolicies",
 			"eks:ListAssociatedAccessPolicies",
+			"eks:DescribeAccessEntry",
 
 			// RDS IAM
 			"rds:DescribeDBInstances",
@@ -388,6 +424,10 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListRolePolicies",
 			"iam:ListAttachedRolePolicies",
 			"iam:GetRolePolicy",
+			"iam:ListSAMLProviders",
+			"iam:GetSAMLProvider",
+			"iam:ListOpenIDConnectProviders",
+			"iam:GetOpenIDConnectProvider",
 		},
 		Resources: allResources,
 	}

@@ -88,6 +88,14 @@ func (c *Session) WithUser(user string) *Session {
 	return &copy
 }
 
+// WithDatabase returns a shallow copy of the session with overridden
+// database name.
+func (c *Session) WithDatabase(defaultDatabase string) *Session {
+	copy := *c
+	copy.DatabaseName = defaultDatabase
+	return &copy
+}
+
 // WithUserAndDatabase returns a shallow copy of the session with overridden
 // database user and overridden database name.
 func (c *Session) WithUserAndDatabase(user string, defaultDatabase string) *Session {

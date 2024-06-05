@@ -83,3 +83,28 @@ export function isWebApp(app: App): boolean {
     app.endpointUri.startsWith('https://')
   );
 }
+
+/**
+ * Returns address with protocol which is an app protocol + a public address.
+ * If the public address is empty, it falls back to the endpoint URI.
+ *
+ * Always empty for SAML applications.
+ */
+export function getAppAddrWithProtocol(source: App): string {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return addrWithProtocol;
+}

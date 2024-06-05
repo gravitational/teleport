@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"sort"
 	"strings"
@@ -29,8 +30,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/vulcand/predicate"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -52,7 +54,7 @@ const (
 	// granted for.
 	MaxAccessDuration = 14 * day
 
-	// requestTTL is the the TTL for an access request, i.e. the amount of time that
+	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
 )
@@ -319,33 +321,33 @@ type DynamicAccessExt interface {
 // which represents the incoming review during review threshold
 // filter evaluation.
 type reviewParamsContext struct {
-	Reason      string              `json:"reason"`
-	Annotations map[string][]string `json:"annotations"`
+	reason      string
+	annotations map[string][]string
 }
 
 // reviewAuthorContext is a simplified view of a user
 // resource which represents the author of a review during
 // review threshold filter evaluation.
 type reviewAuthorContext struct {
-	Roles  []string            `json:"roles"`
-	Traits map[string][]string `json:"traits"`
+	roles  []string
+	traits map[string][]string
 }
 
 // reviewRequestContext is a simplified view of an access request
 // resource which represents the request parameters which are in-scope
 // during review threshold filter evaluation.
 type reviewRequestContext struct {
-	Roles             []string            `json:"roles"`
-	Reason            string              `json:"reason"`
-	SystemAnnotations map[string][]string `json:"system_annotations"`
+	roles             []string
+	reason            string
+	systemAnnotations map[string][]string
 }
 
 // thresholdFilterContext is the top-level context used to evaluate
 // review threshold filters.
 type thresholdFilterContext struct {
-	Reviewer reviewAuthorContext  `json:"reviewer"`
-	Review   reviewParamsContext  `json:"review"`
-	Request  reviewRequestContext `json:"request"`
+	reviewer reviewAuthorContext
+	review   reviewParamsContext
+	request  reviewRequestContext
 }
 
 // reviewPermissionContext is the top-level context used to evaluate
@@ -355,8 +357,8 @@ type thresholdFilterContext struct {
 // a user is allowed to see, and therefore needs to be calculable prior
 // to construction of review parameters.
 type reviewPermissionContext struct {
-	Reviewer reviewAuthorContext  `json:"reviewer"`
-	Request  reviewRequestContext `json:"request"`
+	reviewer reviewAuthorContext
+	request  reviewRequestContext
 }
 
 // ValidateAccessPredicates checks request & review permission predicates for
@@ -367,11 +369,6 @@ type reviewPermissionContext struct {
 // backwards compatibility with older nodes/proxies (which never need to evaluate
 // these predicates).
 func ValidateAccessPredicates(role types.Role) error {
-	tp, err := NewJSONBoolParser(thresholdFilterContext{})
-	if err != nil {
-		return trace.Wrap(err, "failed to build empty threshold predicate parser (this is a bug)")
-	}
-
 	if len(role.GetAccessRequestConditions(types.Deny).Thresholds) != 0 {
 		// deny blocks never contain thresholds.  a threshold which happens to describe a *denial condition* is
 		// still part of the "allow" block.  thresholds are not part of deny blocks because thresholds describe the
@@ -384,24 +381,19 @@ func ValidateAccessPredicates(role types.Role) error {
 		if t.Filter == "" {
 			continue
 		}
-		if _, err := tp.EvalBoolPredicate(t.Filter); err != nil {
+		if _, err := parseThresholdFilterExpression(t.Filter); err != nil {
 			return trace.BadParameter("invalid threshold predicate: %q, %v", t.Filter, err)
 		}
 	}
 
-	rp, err := NewJSONBoolParser(reviewPermissionContext{})
-	if err != nil {
-		return trace.Wrap(err, "failed to build empty review predicate parser (this is a bug)")
-	}
-
 	if w := role.GetAccessReviewConditions(types.Deny).Where; w != "" {
-		if _, err := rp.EvalBoolPredicate(w); err != nil {
+		if _, err := parseReviewPermissionExpression(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
 	}
 
 	if w := role.GetAccessReviewConditions(types.Allow).Where; w != "" {
-		if _, err := rp.EvalBoolPredicate(w); err != nil {
+		if _, err := parseReviewPermissionExpression(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
 	}
@@ -535,15 +527,10 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 // collectReviewThresholdIndexes aggregates the indexes of all thresholds whose filters match
 // the supplied review (part of review application logic).
 func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author UserState) ([]uint32, error) {
-	parser, err := newThresholdFilterParser(req, rev, author)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var tids []uint32
-
+	ctx := newThresholdFilterContext(req, rev, author)
 	for i, t := range req.GetThresholds() {
-		match, err := accessReviewThresholdMatchesFilter(t, parser)
+		match, err := accessReviewThresholdMatchesFilter(t, ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -566,39 +553,35 @@ func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessRevi
 
 // accessReviewThresholdMatchesFilter returns true if Filter rule matches
 // Empty Filter block always matches
-func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser predicate.Parser) (bool, error) {
+func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, ctx thresholdFilterContext) (bool, error) {
 	if t.Filter == "" {
 		return true, nil
 	}
-	ifn, err := parser.Parse(t.Filter)
+	expr, err := parseThresholdFilterExpression(t.Filter)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
-	}
-	return fn(), nil
+	return expr.Evaluate(ctx)
 }
 
-// newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
+// newThresholdFilterContext creates a custom parser context which exposes a simplified view of the review author
 // and the request for evaluation of review threshold filters.
-func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author UserState) (BoolPredicateParser, error) {
-	return NewJSONBoolParser(thresholdFilterContext{
-		Reviewer: reviewAuthorContext{
-			Roles:  author.GetRoles(),
-			Traits: author.GetTraits(),
+func newThresholdFilterContext(req types.AccessRequest, rev types.AccessReview, author UserState) thresholdFilterContext {
+	return thresholdFilterContext{
+		reviewer: reviewAuthorContext{
+			roles:  author.GetRoles(),
+			traits: author.GetTraits(),
 		},
-		Review: reviewParamsContext{
-			Reason:      rev.Reason,
-			Annotations: rev.Annotations,
+		review: reviewParamsContext{
+			reason:      rev.Reason,
+			annotations: rev.Annotations,
 		},
-		Request: reviewRequestContext{
-			Roles:             req.GetOriginalRoles(),
-			Reason:            req.GetRequestReason(),
-			SystemAnnotations: req.GetSystemAnnotations(),
+		request: reviewRequestContext{
+			roles:             req.GetOriginalRoles(),
+			reason:            req.GetRequestReason(),
+			systemAnnotations: req.GetSystemAnnotations(),
 		},
-	})
+	}
 }
 
 // requestResolution describes a request state-transition from
@@ -797,30 +780,6 @@ func appendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.Cl
 	return append(matchers, ms...), nil
 }
 
-// insertAnnotations constructs all annotations for a given
-// AccessRequestConditions instance and adds them to the
-// supplied annotations mapping.
-func insertAnnotations(annotations map[string][]string, conditions types.AccessRequestConditions, traits map[string][]string) {
-	for key, vals := range conditions.Annotations {
-		// get any previous values at key
-		allVals := annotations[key]
-
-		// iterate through all new values and expand any
-		// variable interpolation syntax they contain.
-	ApplyTraits:
-		for _, v := range vals {
-			applied, err := ApplyValueTraits(v, traits)
-			if err != nil {
-				// skip values that failed variable expansion
-				continue ApplyTraits
-			}
-			allVals = append(allVals, applied...)
-		}
-
-		annotations[key] = allVals
-	}
-}
-
 // ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
@@ -860,26 +819,27 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	// called, so get the role list once in advance.
 	requestedRoles := req.GetOriginalRoles()
 
-	parser, err := NewJSONBoolParser(reviewPermissionContext{
-		Reviewer: reviewAuthorContext{
-			Roles:  c.UserState.GetRoles(),
-			Traits: c.UserState.GetTraits(),
+	rpc := reviewPermissionContext{
+		reviewer: reviewAuthorContext{
+			roles:  c.UserState.GetRoles(),
+			traits: c.UserState.GetTraits(),
 		},
-		Request: reviewRequestContext{
-			Roles:             requestedRoles,
-			Reason:            req.GetRequestReason(),
-			SystemAnnotations: req.GetSystemAnnotations(),
+		request: reviewRequestContext{
+			roles:             requestedRoles,
+			reason:            req.GetRequestReason(),
+			systemAnnotations: req.GetSystemAnnotations(),
 		},
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
 	}
 
 	// check all denial rules first.
 	for expr, denyMatchers := range c.Roles.DenyReview {
 		// if predicate is non-empty, it must match
 		if expr != "" {
-			match, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseReviewPermissionExpression(expr)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			match, err := parsed.Evaluate(rpc)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -908,7 +868,11 @@ Outer:
 	for expr, allowMatchers := range c.Roles.AllowReview {
 		// if predicate is non-empty, it must match.
 		if expr != "" {
-			match, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseReviewPermissionExpression(expr)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			match, err := parsed.Evaluate(rpc)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -1070,7 +1034,12 @@ type RequestValidator struct {
 		AllowSearch, DenySearch   []string
 	}
 	Annotations struct {
-		Allow, Deny map[string][]string
+		// Allowed annotations are not greedy, the role that defines the annotation must allow requesting one
+		// of the roles that are being requested in order for the annotation to be applied.
+		Allow map[singleAnnotation]annotationMatcher
+		// Denied annotations match greedily, if a user has any role that denies a specific annotation it will
+		// always be denied.
+		Deny map[singleAnnotation]struct{}
 	}
 	ThresholdMatchers []struct {
 		Matchers   []parse.Matcher
@@ -1081,6 +1050,7 @@ type RequestValidator struct {
 		Matchers    []parse.Matcher
 		MaxDuration time.Duration
 	}
+	logger *slog.Logger
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1094,6 +1064,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		clock:     clock,
 		getter:    getter,
 		userState: uls,
+		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1102,8 +1073,8 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		m.Annotations.Allow = make(map[string][]string)
-		m.Annotations.Deny = make(map[string][]string)
+		m.Annotations.Allow = make(map[singleAnnotation]annotationMatcher)
+		m.Annotations.Deny = make(map[singleAnnotation]struct{})
 	}
 
 	// load all statically assigned roles for the user and
@@ -1113,7 +1084,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
-		if err := m.push(role); err != nil {
+		if err := m.push(ctx, role); err != nil {
 			return RequestValidator{}, trace.Wrap(err)
 		}
 	}
@@ -1209,7 +1180,11 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// incoming requests must have system annotations attached
 		// before being inserted into the backend. this is how the
 		// RBAC system propagates sideband information to plugins.
-		req.SetSystemAnnotations(m.SystemAnnotations())
+		systemAnnotations, err := m.SystemAnnotations(req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetSystemAnnotations(systemAnnotations)
 
 		// if no suggested reviewers were provided by the user, then
 		// use the defaults suggested by the user's static roles.
@@ -1497,7 +1472,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 // push compiles a role's configuration into the request validator.
 // All of the requesting user's statically assigned roles must be pushed
 // before validation begins.
-func (m *RequestValidator) push(role types.Role) error {
+func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
@@ -1513,8 +1488,7 @@ func (m *RequestValidator) push(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	// record what will be the starting index of the allow
-	// matchers for this role, if it applies any.
+	// record what will be the starting index of the allow and deny matchers for this role, if it applies any.
 	astart := len(m.Roles.AllowRequest)
 
 	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
@@ -1527,18 +1501,21 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
-		// between its matchers and its thresholds.  this information is used later to calculate
+		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newMatchers := m.Roles.AllowRequest[astart:]
-		for _, searchAsRoleName := range allow.SearchAsRoles {
-			newMatchers = append(newMatchers, literalMatcher{searchAsRoleName})
-		}
-		if len(newMatchers) > 0 {
+		newAllowRequestMatchers := m.Roles.AllowRequest[astart:]
+		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+
+		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
+		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
+		allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
+
+		if len(allNewAllowMatchers) > 0 {
 			m.ThresholdMatchers = append(m.ThresholdMatchers, struct {
 				Matchers   []parse.Matcher
 				Thresholds []types.AccessReviewThreshold
 			}{
-				Matchers:   newMatchers,
+				Matchers:   allNewAllowMatchers,
 				Thresholds: allow.Thresholds,
 			})
 		}
@@ -1548,7 +1525,7 @@ func (m *RequestValidator) push(role types.Role) error {
 				Matchers    []parse.Matcher
 				MaxDuration time.Duration
 			}{
-				Matchers:    newMatchers,
+				Matchers:    allNewAllowMatchers,
 				MaxDuration: allow.MaxDuration.Duration(),
 			})
 		}
@@ -1556,8 +1533,8 @@ func (m *RequestValidator) push(role types.Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.userState.GetTraits())
-		insertAnnotations(m.Annotations.Allow, allow, m.userState.GetTraits())
+		m.insertAllowedAnnotations(ctx, allow, newAllowRequestMatchers, newAllowSearchMatchers)
+		m.insertDeniedAnnotations(ctx, deny)
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
@@ -1711,23 +1688,111 @@ Outer:
 	return sets, nil
 }
 
-// SystemAnnotations calculates the system annotations for a pending
-// access request.
-func (m *RequestValidator) SystemAnnotations() map[string][]string {
-	annotations := make(map[string][]string)
-	for k, va := range m.Annotations.Allow {
-		var filtered []string
-		for _, v := range va {
-			if !slices.Contains(m.Annotations.Deny[k], v) {
-				filtered = append(filtered, v)
+// singleAnnotation holds a single annotation key/value pair. The value must already have been expanded with
+// ApplyValueTraits.
+type singleAnnotation struct {
+	key, value string
+}
+
+// annotationsMatcher holds a set of role matchers used to decide if an annotations should be added to an
+// access request when one of the requested roles matches.
+type annotationMatcher struct {
+	roleRequestMatchers     []parse.Matcher
+	resourceRequestMatchers []parse.Matcher
+}
+
+// matchesRequest returns true if either:
+// - req is a role access request and one of [m.roleRequestMatchers] matches one of the requested roles
+// - req is a resource access request and one of [m.resourceRequestMatchers] matches one of the requested roles
+func (m *annotationMatcher) matchesRequest(req types.AccessRequest) bool {
+	matchers := m.roleRequestMatchers
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		matchers = m.resourceRequestMatchers
+	}
+	for _, matcher := range matchers {
+		for _, role := range req.GetRoles() {
+			if matcher.Match(role) {
+				return true
 			}
 		}
-		if len(filtered) == 0 {
+	}
+	return false
+}
+
+// insertAllowedAnnotations constructs all allowed annotations for a given AccessRequestConditions instance
+// from one of the users current roles and adds them to the annotation matchers mapping.
+//
+// Annotations are only applied to access requests requests when one of the requested roles matches one of the
+// role matchers.
+func (m *RequestValidator) insertAllowedAnnotations(ctx context.Context, conditions types.AccessRequestConditions, roleRequestMatchers, resourceRequestMatchers []parse.Matcher) {
+	for annotationKey, annotationValueTemplates := range conditions.Annotations {
+		// iterate through all new values and expand any
+		// variable interpolation syntax they contain.
+		for _, template := range annotationValueTemplates {
+			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			if err != nil {
+				// skip values that failed variable expansion
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
+			}
+			for _, expanded := range expandedValues {
+				annotation := singleAnnotation{annotationKey, expanded}
+				matchers := m.Annotations.Allow[annotation]
+				matchers.roleRequestMatchers = append(matchers.roleRequestMatchers, roleRequestMatchers...)
+				matchers.resourceRequestMatchers = append(matchers.resourceRequestMatchers, resourceRequestMatchers...)
+				m.Annotations.Allow[annotation] = matchers
+			}
+		}
+	}
+}
+
+// insertDeniedAnnotations constructs all denied annotations for a given AccessRequestConditions instance
+// from one of the users current roles and adds them to the denied annotations set.
+func (m *RequestValidator) insertDeniedAnnotations(ctx context.Context, conditions types.AccessRequestConditions) {
+	for annotationKey, annotationValueTemplates := range conditions.Annotations {
+		// iterate through all new values and expand any
+		// variable interpolation syntax they contain.
+		for _, template := range annotationValueTemplates {
+			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			if err != nil {
+				// skip values that failed variable expansion
+				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
+					"key", annotationKey, "template", template, "error", err)
+				continue
+			}
+			for _, expanded := range expandedValues {
+				annotation := singleAnnotation{annotationKey, expanded}
+				m.Annotations.Deny[annotation] = struct{}{}
+			}
+		}
+	}
+}
+
+// SystemAnnotations calculates the system annotations for a pending
+// access request.
+func (m *RequestValidator) SystemAnnotations(req types.AccessRequest) (map[string][]string, error) {
+	annotations := make(map[string][]string)
+
+	for annotation, allowMatchers := range m.Annotations.Allow {
+		if _, denied := m.Annotations.Deny[annotation]; denied {
+			// Deny matches are greedy, if any of the users roles denies this annotation it is filtered out.
 			continue
 		}
-		annotations[k] = filtered
+		if !allowMatchers.matchesRequest(req) {
+			// Annotations are filtered out unless this request matches one of the role matchers for this
+			// annotation.
+			continue
+		}
+		annotations[annotation.key] = append(annotations[annotation.key], annotation.value)
 	}
-	return annotations
+
+	// Sort and deduplicate.
+	for k := range annotations {
+		slices.Sort(annotations[k])
+		annotations[k] = slices.Compact(annotations[k])
+	}
+	return annotations, nil
 }
 
 type ValidateRequestOption func(*RequestValidator)
@@ -1767,9 +1832,6 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.ID != 0 {
-		req.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		req.SetRevision(cfg.Revision)
 	}
@@ -1792,7 +1854,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
@@ -2056,4 +2118,126 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 		}
 	}
 	return kubernetesResources, nil
+}
+
+func newReviewPermissionParser() (*typical.Parser[reviewPermissionContext, bool], error) {
+	return typical.NewParser[reviewPermissionContext, bool](typical.ParserSpec[reviewPermissionContext]{
+		Variables: map[string]typical.Variable{
+			"reviewer.roles": typical.DynamicVariable(func(ctx reviewPermissionContext) ([]string, error) {
+				return ctx.reviewer.roles, nil
+			}),
+			"reviewer.traits": typical.DynamicVariable(func(ctx reviewPermissionContext) (map[string][]string, error) {
+				return ctx.reviewer.traits, nil
+			}),
+			"request.roles": typical.DynamicVariable(func(ctx reviewPermissionContext) ([]string, error) {
+				return ctx.request.roles, nil
+			}),
+			"request.reason": typical.DynamicVariable(func(ctx reviewPermissionContext) (string, error) {
+				return ctx.request.reason, nil
+			}),
+			"request.system_annotations": typical.DynamicVariable(func(ctx reviewPermissionContext) (map[string][]string, error) {
+				return ctx.request.systemAnnotations, nil
+			}),
+		},
+		Functions: map[string]typical.Function{
+			"equals":       typical.BinaryFunction[reviewPermissionContext](equalsFunc),
+			"contains":     typical.BinaryFunction[reviewPermissionContext](containsFunc),
+			"regexp.match": typical.BinaryFunction[reviewPermissionContext](regexpMatchFunc),
+		},
+	})
+}
+
+func mustNewReviewPermissionParser() *typical.Parser[reviewPermissionContext, bool] {
+	parser, err := newReviewPermissionParser()
+	if err != nil {
+		panic(err)
+	}
+	return parser
+}
+
+var (
+	reviewPermissionParser = mustNewReviewPermissionParser()
+)
+
+func parseReviewPermissionExpression(expr string) (typical.Expression[reviewPermissionContext, bool], error) {
+	parsed, err := reviewPermissionParser.Parse(expr)
+	return parsed, trace.Wrap(err, "parsing review.where expression")
+}
+
+func newThresholdFilterParser() (*typical.Parser[thresholdFilterContext, bool], error) {
+	return typical.NewParser[thresholdFilterContext, bool](typical.ParserSpec[thresholdFilterContext]{
+		Variables: map[string]typical.Variable{
+			"reviewer.roles": typical.DynamicVariable(func(ctx thresholdFilterContext) ([]string, error) {
+				return ctx.reviewer.roles, nil
+			}),
+			"reviewer.traits": typical.DynamicVariable(func(ctx thresholdFilterContext) (map[string][]string, error) {
+				return ctx.reviewer.traits, nil
+			}),
+			"review.reason": typical.DynamicVariable(func(ctx thresholdFilterContext) (string, error) {
+				return ctx.review.reason, nil
+			}),
+			"review.annotations": typical.DynamicVariable(func(ctx thresholdFilterContext) (map[string][]string, error) {
+				return ctx.review.annotations, nil
+			}),
+			"request.roles": typical.DynamicVariable(func(ctx thresholdFilterContext) ([]string, error) {
+				return ctx.request.roles, nil
+			}),
+			"request.reason": typical.DynamicVariable(func(ctx thresholdFilterContext) (string, error) {
+				return ctx.request.reason, nil
+			}),
+			"request.system_annotations": typical.DynamicVariable(func(ctx thresholdFilterContext) (map[string][]string, error) {
+				return ctx.request.systemAnnotations, nil
+			}),
+		},
+		Functions: map[string]typical.Function{
+			"equals":       typical.BinaryFunction[thresholdFilterContext](equalsFunc),
+			"contains":     typical.BinaryFunction[thresholdFilterContext](containsFunc),
+			"regexp.match": typical.BinaryFunction[thresholdFilterContext](regexpMatchFunc),
+		},
+	})
+}
+
+func mustNewThresholdFilterParser() *typical.Parser[thresholdFilterContext, bool] {
+	parser, err := newThresholdFilterParser()
+	if err != nil {
+		panic(err)
+	}
+	return parser
+}
+
+var (
+	thresholdFilterParser = mustNewThresholdFilterParser()
+)
+
+func parseThresholdFilterExpression(expr string) (typical.Expression[thresholdFilterContext, bool], error) {
+	parsed, err := thresholdFilterParser.Parse(expr)
+	return parsed, trace.Wrap(err, "parsing threshold filter expression")
+}
+
+func equalsFunc(a, b any) (bool, error) {
+	switch aval := a.(type) {
+	case string:
+		bval, ok := b.(string)
+		if ok {
+			return aval == bval, nil
+		}
+	case []string:
+		bval, ok := b.([]string)
+		if ok {
+			return slices.Equal(aval, bval), nil
+		}
+	}
+	return false, trace.BadParameter("parameter types must match and be string or []string, got (%T, %T)", a, b)
+}
+
+func containsFunc(s []string, v string) (bool, error) {
+	return slices.Contains(s, v), nil
+}
+
+func regexpMatchFunc(list []string, re string) (bool, error) {
+	match, err := utils.RegexMatchesAny(list, re)
+	if err != nil {
+		return false, trace.Wrap(err, "invalid regular expression %q", re)
+	}
+	return match, nil
 }

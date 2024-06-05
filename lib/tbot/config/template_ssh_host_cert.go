@@ -182,7 +182,11 @@ func (c *templateSSHHostCert) render(
 
 	files = append(files, userCAPath)
 
-	log.Debugf("Wrote OpenSSH host cert files: %+v", files)
+	log.DebugContext(
+		ctx,
+		"Wrote OpenSSH host cert files",
+		"files", files,
+	)
 
 	return nil
 }

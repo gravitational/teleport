@@ -32,11 +32,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
@@ -93,7 +95,11 @@ func New(cfg Config) (*Service, error) {
 	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
 	// shows an MFA prompt in Connect.
 	// At the level of Storage.ResolveClusterFunc we don't have access to it.
-	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	service.clientCache, err = cfg.CreateClientCacheFunc(service.NewClusterClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return service, nil
 }
 
@@ -126,15 +132,15 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	return nil
 }
 
-// retryWithRelogin tries the given function. If the function returns an error that appears to be
+// RetryWithRelogin tries the given function. If the function returns an error that appears to be
 // resolvable with relogin, then it requests relogin and tries the function a second time.
 //
-// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// RetryWithRelogin is reserved for cases where the retryable request does not originate from the
 // Electron app, for example when the request is made a long-running goroutine such as a gateway.
 // When the request originates from the Electron app and daemon.Service is merely an intermediary,
 // the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
 // client.RetryWithRelogin with the same name.
-func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
+func (s *Service) RetryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -154,14 +160,17 @@ func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginR
 	return trace.Wrap(err)
 }
 
+// ListProfileNames lists profile names from storage. It's a lightweight alternative to
+// ListRootClusters, which also reads all profiles beyond their names and initializes clients.
+func (s *Service) ListProfileNames() ([]string, error) {
+	pfNames, err := s.cfg.Storage.ListProfileNames()
+	return pfNames, trace.Wrap(err)
+}
+
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusters, nil
+	clusters, err := s.cfg.Storage.ListRootClusters()
+	return clusters, trace.Wrap(err)
 }
 
 // ListLeafClusters returns a list of leaf clusters
@@ -171,7 +180,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -181,7 +190,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 		return nil, nil
 	}
 
-	leaves, err := cluster.GetLeafClusters(ctx, proxyClient)
+	leaves, err := cluster.GetLeafClusters(ctx, clusterClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,6 +226,14 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	}
 
 	return nil
+}
+
+// NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
+// s.cfg.CreateClientCacheFunc.
+func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	_, clusterClient, err := s.ResolveClusterURI(uri)
+	return clusterClient, trace.Wrap(err)
 }
 
 // ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
@@ -263,7 +280,7 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster(), s.cfg.ClusterIDCache)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -317,7 +334,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
+	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,7 +347,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
-		ProxyClient:           proxyClient,
+		ClusterClient:         clusterClient,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -370,12 +387,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			return trace.Wrap(err)
 		}
 
-		proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		cert, err = cluster.ReissueGatewayCerts(ctx, proxyClient, g)
+		cert, err = cluster.ReissueGatewayCerts(ctx, clusterClient, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -388,8 +405,8 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
-		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
+	if err := s.RetryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
+		notifyErr := s.NotifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: g.URI().String(),
@@ -863,8 +880,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	return nil
 }
 
-// notifyApp sends a notification (usually an error) to the Electron App.
-func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
+// NotifyApp sends a notification (usually an error) to the Electron App.
+func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
 
@@ -1024,7 +1041,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {
@@ -1057,7 +1074,7 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		rootAuthClient := rootProxyClient.CurrentCluster()
 
-		var leafAuthClient auth.ClientI
+		var leafAuthClient authclient.ClientI
 		if clusterURI.IsLeaf() {
 			leafProxyClient, err := s.GetCachedClient(ctx, clusterURI.GetClusterURI())
 			if err != nil {
@@ -1072,6 +1089,28 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	})
 
 	return preferences, trace.Wrap(err)
+}
+
+// AuthenticateWebDevice is used to upgrade a web session (identified by a DeviceWebToken) to include device trust extensions.
+func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.ResourceURI, req *api.AuthenticateWebDeviceRequest) (*api.AuthenticateWebDeviceResponse, error) {
+	proxyClient, err := s.GetCachedClient(ctx, rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	devicesClient := proxyClient.CurrentCluster().DevicesClient()
+
+	ceremony := dtauthn.NewCeremony()
+	confirmationToken, err := ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
+		Id:    req.DeviceWebToken.Id,
+		Token: req.DeviceWebToken.Token,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.AuthenticateWebDeviceResponse{
+		ConfirmationToken: confirmationToken,
+	}, nil
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
@@ -1094,15 +1133,18 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
-	clt, err := s.clientCache.Get(ctx, clusterURI)
+func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ClusterClient, error) {
+	profileName := resourceURI.GetProfileName()
+	leafClusterName := resourceURI.GetLeafClusterName()
+	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
+	profileName := clusterURI.GetProfileName()
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // Service is the daemon service

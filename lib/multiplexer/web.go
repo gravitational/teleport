@@ -137,7 +137,7 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 		return
 	}
 
-	if err := conn.Handshake(); err != nil {
+	if err := conn.HandshakeContext(l.context); err != nil {
 		if !errors.Is(trace.Unwrap(err), io.EOF) {
 			l.log.WithFields(logrus.Fields{
 				"src_addr": conn.RemoteAddr(),

@@ -21,6 +21,7 @@ package embeddedtbot
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -73,7 +74,7 @@ func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 // It allows us to fail fast and validate if something is broken before starting the manager.
 func (b *EmbeddedBot) Preflight(ctx context.Context) (*proto.PingResponse, error) {
 	b.cfg.Oneshot = true
-	bot := tbot.New(b.cfg, log.StandardLogger())
+	bot := tbot.New(b.cfg, slog.Default())
 	err := bot.Run(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +96,7 @@ func (b *EmbeddedBot) start(ctx context.Context) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	b.cfg.Oneshot = false
-	bot := tbot.New(b.cfg, log.StandardLogger())
+	bot := tbot.New(b.cfg, slog.Default())
 
 	botCtx, cancel := context.WithCancel(ctx)
 	b.cancelCtx = cancel

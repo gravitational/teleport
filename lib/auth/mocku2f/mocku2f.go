@@ -50,6 +50,11 @@ type Key struct {
 	// Cert is the Key attestation certificate.
 	Cert []byte
 
+	// UserHandle is the WebAuthn User ID.
+	// Saved from passwordless registrations and set on passwordless assertions.
+	// Requires a passwordless-configured Key (see [Key.SetPasswordless]).
+	UserHandle []byte
+
 	// PreferRPID instructs the Key to use favor using the RPID for Webauthn
 	// ceremonies, even if the U2F App ID extension is present.
 	PreferRPID bool

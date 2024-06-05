@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -940,10 +941,10 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 type adminActionTestSuite struct {
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
-	userClientWithMFA *auth.Client
+	userClientWithMFA *authclient.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA  *auth.Client
-	localAdminClient *auth.Client
+	userClientNoMFA  *authclient.Client
+	localAdminClient *authclient.Client
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
@@ -1039,7 +1040,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := auth.NewClient(client.Config{
+	userClientNoMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1053,7 +1054,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := auth.NewClient(client.Config{
+	userClientWithMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1064,9 +1065,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
 	require.NoError(t, err)
-	localAdmin, err := auth.ReadLocalIdentity(
+	localAdmin, err := state.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
-		auth.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)
@@ -1125,7 +1126,7 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	})
 }
 
-func runTestCase(t *testing.T, ctx context.Context, client *auth.Client, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {
@@ -1173,7 +1174,7 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -1186,8 +1187,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	})
 	require.NoError(t, err)
 	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
-
-	userWebID := res.GetWebauthn().PublicKey.User.Id
 
 	ccr, err := device.SignCredentialCreation(origin, cc)
 	require.NoError(t, err)
@@ -1206,7 +1205,6 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 		if err != nil {
 			return nil, "", err
 		}
-		car.AssertionResponse.UserHandle = userWebID
 
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{

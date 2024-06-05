@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -60,7 +61,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err := a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(wantRC, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(wantRC, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Create several tunnel connections.
 	lastHeartbeat := a.clock.Now().UTC()
@@ -91,7 +92,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetLastHeartbeat(tc2.GetLastHeartbeat())
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the latest connection.
 	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
@@ -104,7 +105,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the remaining connection
 	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
@@ -116,7 +117,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err = a.GetRemoteCluster(ctx, rc.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestRefreshRemoteClusters(t *testing.T) {
@@ -194,7 +195,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			var updated int
 			for _, cluster := range clusters {
 				old := allClusters[cluster.GetName()]
-				if cmp.Diff(old, cluster, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")) != "" {
+				if cmp.Diff(old, cluster, cmpopts.IgnoreFields(types.Metadata{}, "Revision")) != "" {
 					updated++
 				}
 			}
@@ -228,7 +229,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("invalid cluster token", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
 			CAs:   []types.CertAuthority{},
 		})
@@ -237,7 +238,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("missing CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs:   []types.CertAuthority{},
 		})
@@ -246,7 +247,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("more than one CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, "rc1"),
@@ -258,7 +259,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("wrong CA type", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.UserCA, "rc3"),
@@ -269,7 +270,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("wrong CA name", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, localClusterName),
@@ -288,7 +289,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
 
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
 				suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
@@ -300,7 +301,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
 			TeleportVersion: teleport.Version,
@@ -367,33 +368,17 @@ func TestValidateTrustedCluster(t *testing.T) {
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		resp, err := a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
 			TeleportVersion: "",
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 3)
+		require.Len(t, resp.CAs, 4)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
-		)
-	})
-
-	t.Run("OpenSSH CA not returned for pre v12", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token:           validToken,
-			CAs:             []types.CertAuthority{leafClusterCA},
-			TeleportVersion: "11.0.0",
-		})
-		require.NoError(t, err)
-
-		require.Len(t, resp.CAs, 3)
-		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType(), resp.CAs[3].GetType()},
 		)
 	})
 
@@ -402,7 +387,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 			TestFeatures: modules.Features{Cloud: true},
 		})
 
-		req := &ValidateTrustedClusterRequest{
+		req := &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
 			CAs:   []types.CertAuthority{},
 		}
@@ -486,7 +471,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
-	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+	_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 		Token:           validToken,
 		CAs:             []types.CertAuthority{leafClusterCA},
 		TeleportVersion: teleport.Version,

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { screen } from '@testing-library/react';
 
-import { render, fireEvent } from 'design/utils/testing';
+import { render, userEvent } from 'design/utils/testing';
 
-import SlideTabs from './SlideTabs';
+import { SlideTabs } from './SlideTabs';
 
 describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(3)', () => {
@@ -29,6 +29,7 @@ describe('design/SlideTabs', () => {
       <SlideTabs
         tabs={['aws', 'automatically', 'manually']}
         onChange={() => {}}
+        activeIndex={0}
       />
     );
 
@@ -44,6 +45,7 @@ describe('design/SlideTabs', () => {
       <SlideTabs
         tabs={['aws', 'automatically', 'manually', 'apple', 'purple']}
         onChange={() => {}}
+        activeIndex={0}
       />
     );
 
@@ -62,6 +64,7 @@ describe('design/SlideTabs', () => {
         name="pineapple"
         tabs={['aws', 'automatically', 'manually']}
         onChange={() => {}}
+        activeIndex={0}
       />
     );
 
@@ -69,72 +72,30 @@ describe('design/SlideTabs', () => {
     expect(container.querySelectorAll('input[name=pineapple]')).toHaveLength(3);
   });
 
-  it('calls the onChange handler when the tab is changed', () => {
-    const cb = jest.fn();
-    render(
-      <SlideTabs onChange={cb} tabs={['aws', 'automatically', 'manually']} />
-    );
-    fireEvent.click(screen.getByText('manually'));
+  test('onChange highlights the tab clicked', async () => {
+    render(<Component />);
 
-    // The reason there are two calls to the callback is because when the
-    // component is initially rendered it selects the first tab which is in
-    // index 0 and calls the callback as such.
-    expect(cb).toHaveBeenNthCalledWith(1, 0);
-    expect(cb).toHaveBeenNthCalledWith(2, 2);
-  });
+    // First tab is selected by default.
+    expect(screen.getByRole('tab', { name: 'first' })).toHaveClass('selected');
 
-  it('supports a square xlarge appearance (default)', () => {
-    const { container } = render(
-      <SlideTabs
-        tabs={['aws', 'automatically', 'manually']}
-        onChange={() => {}}
-      />
-    );
-    expect(container).toMatchSnapshot();
-  });
+    // Select the second tab.
+    await userEvent.click(screen.getByText('second'));
+    expect(screen.getByRole('tab', { name: 'second' })).toHaveClass('selected');
 
-  it('supports a round xlarge appearance', () => {
-    const { container } = render(
-      <SlideTabs
-        appearance="round"
-        tabs={['aws', 'automatically', 'manually']}
-        onChange={() => {}}
-      />
+    expect(screen.getByRole('tab', { name: 'first' })).not.toHaveClass(
+      'selected'
     );
-    expect(container).toMatchSnapshot();
-  });
-
-  it('supports a square medium size', () => {
-    const { container } = render(
-      <SlideTabs
-        size="medium"
-        tabs={['aws', 'automatically', 'manually']}
-        onChange={() => {}}
-      />
-    );
-    expect(container).toMatchSnapshot();
-  });
-
-  it('supports a round medium size', () => {
-    const { container } = render(
-      <SlideTabs
-        size="medium"
-        appearance="round"
-        tabs={['aws', 'automatically', 'manually']}
-        onChange={() => {}}
-      />
-    );
-    expect(container).toMatchSnapshot();
-  });
-
-  it('supports passing in a selected index', () => {
-    const { container } = render(
-      <SlideTabs
-        initialSelected={1}
-        tabs={['aws', 'automatically', 'manually']}
-        onChange={() => {}}
-      />
-    );
-    expect(container).toMatchSnapshot();
   });
 });
+
+const Component = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  return (
+    <SlideTabs
+      onChange={setActiveIndex}
+      tabs={['first', 'second']}
+      activeIndex={activeIndex}
+    />
+  );
+};

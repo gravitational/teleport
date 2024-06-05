@@ -21,7 +21,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -560,45 +559,6 @@ func TestStringsSet(t *testing.T) {
 	out := StringsSet(nil)
 	require.Empty(t, out)
 	require.NotNil(t, out)
-}
-
-// TestRepeatReader tests repeat reader
-func TestRepeatReader(t *testing.T) {
-	t.Parallel()
-
-	type tc struct {
-		name     string
-		repeat   byte
-		count    int
-		expected string
-	}
-	tcs := []tc{
-		{
-			name:     "repeat once",
-			repeat:   byte('a'),
-			count:    1,
-			expected: "a",
-		},
-		{
-			name:     "repeat zero times",
-			repeat:   byte('a'),
-			count:    0,
-			expected: "",
-		},
-		{
-			name:     "repeat multiple times",
-			repeat:   byte('a'),
-			count:    3,
-			expected: "aaa",
-		},
-	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, string(data))
-		})
-	}
 }
 
 func TestReadAtMost(t *testing.T) {

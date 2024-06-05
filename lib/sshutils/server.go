@@ -75,6 +75,7 @@ type Server struct {
 	newChanHandler NewChanHandler
 	reqHandler     RequestHandler
 	newConnHandler NewConnHandler
+	getHostSigners GetHostSignersFunc
 
 	cfg     ssh.ServerConfig
 	limiter *limiter.Limiter
@@ -193,7 +194,7 @@ func NewServer(
 	component string,
 	a utils.NetAddr,
 	h NewChanHandler,
-	hostSigners []ssh.Signer,
+	getHostSigners GetHostSignersFunc,
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
@@ -209,6 +210,7 @@ func NewServer(
 		}),
 		addr:           a,
 		newChanHandler: h,
+		getHostSigners: getHostSigners,
 		component:      component,
 		closeContext:   closeContext,
 		closeFunc:      cancel,
@@ -231,14 +233,11 @@ func NewServer(
 		s.tracerProvider = tracing.DefaultProvider()
 	}
 
-	err = s.checkArguments(a, h, hostSigners, ah)
+	err = s.checkArguments(a, h, getHostSigners, ah)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, signer := range hostSigners {
-		(&s.cfg).AddHostKey(signer)
-	}
 	s.cfg.PublicKeyCallback = ah.PublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
@@ -486,10 +485,21 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
 
-	cfg := &s.cfg
+	hostSigners := s.getHostSigners()
+	if err := s.validateHostSigners(hostSigners); err != nil {
+		s.log.
+			WithError(err).
+			WithField("remote_addr", conn.RemoteAddr()).
+			Error("Error during server setup for a new SSH connection (this is a bug).")
+		conn.Close()
+		return
+	}
+
+	cfg := s.cfg
+	for _, signer := range hostSigners {
+		cfg.AddHostKey(signer)
+	}
 	if v := serverVersionOverrideFromConn(conn); v != "" && v != cfg.ServerVersion {
-		cfg = new(ssh.ServerConfig)
-		*cfg = s.cfg
 		cfg.ServerVersion = v
 	}
 
@@ -499,7 +509,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// transmitted and received over the connection.
 	conn = utils.NewTrackingConn(conn)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(conn, cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(conn, &cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
@@ -704,7 +714,20 @@ type AuthMethods struct {
 	NoClient  bool
 }
 
-func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
+// GetHostSignersFunc is an infallible function that returns host signers for
+// use with a new SSH connection. It should not block, as it's called while the
+// SSH client is already connected and waiting for the SSH handshake.
+type GetHostSignersFunc = func() []ssh.Signer
+
+// StaticHostSigners returns a [GetHostSignersFunc] that always returns the
+// given host signers.
+func StaticHostSigners(hostSigners ...ssh.Signer) GetHostSignersFunc {
+	return func() []ssh.Signer {
+		return hostSigners
+	}
+}
+
+func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, getHostSigners GetHostSignersFunc, ah AuthMethods) error {
 	// If the server is not in tunnel mode, an address must be specified.
 	if s.listener != nil {
 		if a.Addr == "" || a.AddrNetwork == "" {
@@ -715,22 +738,29 @@ func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners [
 	if h == nil {
 		return trace.BadParameter("missing NewChanHandler")
 	}
-	if len(hostSigners) == 0 {
-		return trace.BadParameter("need at least one signer")
+	if getHostSigners == nil {
+		return trace.BadParameter("missing GetHostSignersFunc")
 	}
+	if err := s.validateHostSigners(getHostSigners()); err != nil {
+		return trace.Wrap(err)
+	}
+	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
+		return trace.BadParameter("need at least one auth method")
+	}
+	return nil
+}
+
+func (s *Server) validateHostSigners(hostSigners []ssh.Signer) error {
 	for _, signer := range hostSigners {
 		if signer == nil {
 			return trace.BadParameter("host signer can not be nil")
 		}
-		if !s.insecureSkipHostValidation {
-			err := validateHostSigner(s.fips, signer)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		if s.insecureSkipHostValidation {
+			continue
 		}
-	}
-	if ah.PublicKey == nil && ah.Password == nil && !ah.NoClient {
-		return trace.BadParameter("need at least one auth method")
+		if err := validateHostSigner(s.fips, signer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }

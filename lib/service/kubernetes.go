@@ -47,7 +47,7 @@ func (process *TeleportProcess) initKubernetes() {
 		if conn == nil {
 			return trace.Wrap(err)
 		}
-		if !process.getClusterFeatures().Kubernetes {
+		if !process.GetClusterFeatures().Kubernetes {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
 			return nil
 		}
@@ -224,7 +224,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
-			ClusterFeatures:               process.getClusterFeatures,
+			ClusterFeatures:               process.GetClusterFeatures,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,

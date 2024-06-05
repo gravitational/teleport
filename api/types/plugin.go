@@ -39,6 +39,8 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
+	PluginTypeEntraID,
+	PluginTypeSCIM,
 }
 
 const (
@@ -64,6 +66,12 @@ const (
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
+	// PluginTypeGitlab indicates the Gitlab access plugin
+	PluginTypeGitlab = "gitlab"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
+	// PluginTypeSCIM indicates a generic SCIM integration
+	PluginTypeSCIM = "scim"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -76,6 +84,11 @@ const (
 	PluginSubkindMDM = "mdm"
 	// PluginSubkindAccess represents access request plugins collectively
 	PluginSubkindAccess = "access"
+	// PluginSubkindAccessGraph represents access graph plugins collectively
+	PluginSubkindAccessGraph = "accessgraph"
+	// PluginSubkindProvisioning represents plugins that create and manage
+	// Teleport users and/or other resources from an external source
+	PluginSubkindProvisioning = "provisioning"
 )
 
 // Plugin represents a plugin instance
@@ -278,9 +291,34 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
 		}
+	case *PluginSpecV1_Gitlab:
+		if settings.Gitlab == nil {
+			return trace.BadParameter("missing Gitlab settings")
+		}
+		if err := settings.Gitlab.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
 
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
+		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Scim:
+		if settings.Scim == nil {
+			return trace.BadParameter("Must be used with SCIM settings")
+		}
+		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
-		return trace.BadParameter("settings are not set or have an unknown type")
+		return nil
 	}
 
 	return nil
@@ -325,16 +363,6 @@ func (p *PluginV1) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (p *PluginV1) SetSubKind(s string) {
 	p.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (p *PluginV1) GetResourceID() int64 {
-	return p.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (p *PluginV1) SetResourceID(id int64) {
-	p.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -442,6 +470,13 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeDiscord
 	case *PluginSpecV1_ServiceNow:
 		return PluginTypeServiceNow
+	case *PluginSpecV1_Gitlab:
+		return PluginTypeGitlab
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
+	case *PluginSpecV1_Scim:
+		return PluginTypeSCIM
+
 	default:
 		return PluginTypeUnknown
 	}
@@ -592,7 +627,42 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *PluginEntraIDSettings) Validate() error {
+	if c.SyncSettings == nil {
+		return trace.BadParameter("sync_settings must be set")
+	}
+	if len(c.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("sync_settings.default_owners must be set")
+	}
+	if c.SyncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("sync_settings.sso_connector_id must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
+	if c.DefaultRole == "" {
+		return trace.BadParameter("default_role must be set")
+	}
+
+	if c.SamlConnectorName == "" {
+		return trace.BadParameter("saml_connector_name must be set")
+	}
+
+	return nil
+}
+
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
+func (c *PluginGitlabSettings) Validate() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("API endpoint must be set")
+	}
+
+	return nil
 }

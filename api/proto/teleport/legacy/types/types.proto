@@ -27,12 +27,13 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 message KeepAlive {
+  reserved 3; // LeaseID
+  reserved "LeaseID";
+
   // Name of the resource to keep alive.
   string Name = 1 [(gogoproto.jsontag) = "server_name"];
   // Namespace is the namespace of the resource.
   string Namespace = 2 [(gogoproto.jsontag) = "namespace"];
-  // LeaseID is ID of the lease.
-  int64 LeaseID = 3 [(gogoproto.jsontag) = "lease_id"];
   // Expires is set to update expiry time of the resource.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.stdtime) = true,
@@ -69,6 +70,9 @@ message KeepAlive {
 
 // Metadata is resource metadata
 message Metadata {
+  reserved 7; // ID
+  reserved "ID";
+
   // Name is an object name
   string Name = 1 [(gogoproto.jsontag) = "name"];
   // Namespace is object namespace. The field should be called "namespace"
@@ -84,12 +88,6 @@ message Metadata {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
-  ];
-  // ID is a record ID.
-  // Deprecated: Use revision instead.
-  int64 ID = 7 [
-    deprecated = true,
-    (gogoproto.jsontag) = "id,omitempty"
   ];
   // Revision is an opaque identifier which tracks the versions of a resource
   // over time. Clients should ignore and not alter its value but must return
@@ -1203,7 +1201,7 @@ message TokenRule {
   // AWSRegions is used for the EC2 join method and is a list of AWS regions a
   // node is allowed to join from.
   repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
-  // AWSRole is used for the EC2 join method and is the the ARN of the AWS
+  // AWSRole is used for the EC2 join method and is the ARN of the AWS
   // role that the auth server will assume in order to call the ec2 API.
   string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
@@ -1276,25 +1274,25 @@ message ProvisionTokenSpecV2 {
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2TPM {
   message Rule {
+    reserved 2, 3;
+    reserved "EKPubHash", "EKCertSerial";
     // Description is a human-readable description of the rule. It has no
     // bearing on whether or not a TPM is allowed to join, but can be used
     // to associate a rule with a specific host (e.g the asset tag of the server
     // in which the TPM resides).
     // Example: "build-server-100"
     string Description = 1 [(gogoproto.jsontag) = "description,omitempty"];
-    oneof Identifier {
-      // EKPubHash is the SHA256 hash of the EKPub marshaled in PKIX format
-      // and encoded in hexadecimal. This value will also be checked when a TPM
-      // has submitted an EKCert, and the public key in the EKCert will be used
-      // for this check.
-      // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
-      string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
-      // EKCertSerial is the serial number of the EKCert in hexadecimal with
-      // colon separated nibbles. This value will not be checked when a TPM
-      // does not have an EKCert configured.
-      // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
-      string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
-    }
+    // EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format
+    // and encoded in hexadecimal. This value will also be checked when a TPM
+    // has submitted an EKCert, and the public key in the EKCert will be used
+    // for this check.
+    // Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+    string EKPublicHash = 4 [(gogoproto.jsontag) = "ek_public_hash,omitempty"];
+    // EKCertificateSerial is the serial number of the EKCert in hexadecimal
+    // with colon separated nibbles. This value will not be checked when a TPM
+    // does not have an EKCert configured.
+    // Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+    string EKCertificateSerial = 5 [(gogoproto.jsontag) = "ek_certificate_serial,omitempty"];
   }
   // Allow is a list of Rules, the presented delegated identity must match one
   // allow rule to permit joining.
@@ -2635,6 +2633,8 @@ message PluginDataUpdateParams {
 message RoleFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemRoles filters out teleport system roles from the results.
+  bool SkipSystemRoles = 2 [(gogoproto.jsontag) = "skip_system_roles,omitempty"];
 }
 
 // RoleV6 represents role resource specification
@@ -3376,6 +3376,30 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  UserStatusV2 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// UserStatusV2 is a dynamic state of UserV2.
+message UserStatusV2 {
+  // password_state reflects what the system knows about the user's password.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED
+  // for users who were created before this property was introduced and didn't
+  // perform any password-related activity since then. See RFD 0159 for
+  // details. Do NOT use this value for authentication purposes!
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+}
+
+// PasswordState indicates what is known about existence of user's password.
+enum PasswordState {
+  // Unable to tell whether the password has been configured.
+  PASSWORD_STATE_UNSPECIFIED = 0;
+  // Password is known to be not configured.
+  PASSWORD_STATE_UNSET = 1;
+  // Password is known to be configured.
+  PASSWORD_STATE_SET = 2;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -4335,6 +4359,9 @@ message OIDCConnectorSpecV3 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4344,6 +4371,13 @@ message MaxAge {
     (gogoproto.jsontag) = "max_age",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// SSOClientRedirectSettings contains settings to define which additional client
+// redirect URLs should be allowed for non-browser SSO logins.
+message SSOClientRedirectSettings {
+  // a list of hostnames allowed for https client redirect URLs
+  repeated string allowed_https_hostnames = 1;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4489,6 +4523,9 @@ message SAMLConnectorSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "allow_idp_initiated,omitempty"
   ];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -4627,6 +4664,9 @@ message GithubConnectorSpecV3 {
   // APIEndpointURL is the URL of the API endpoint of the Github instance
   // this connector is for.
   string APIEndpointURL = 8 [(gogoproto.jsontag) = "api_endpoint_url"];
+  // ClientRedirectSettings defines which client redirect URLs are allowed for
+  // non-browser SSO logins other than the standard localhost ones.
+  SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -5291,8 +5331,8 @@ message SessionTrackerSpecV1 {
   // purpose.
   string Reason = 7 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // Invited is a list of invited users, this field is interpreted by different
-  // clients on a best-effort basis and used for delivering notifications to invited users.
+  // Invited is a list of invited users, this field can be used by
+  // clients to deliver notifications to invited users.
   repeated string Invited = 8 [(gogoproto.jsontag) = "invited,omitempty"];
 
   // Hostname identifies the target this session is connected to.
@@ -5399,7 +5439,15 @@ message UIConfigV1 {
 
 // UIConfigSpecV1 is the specification for a UIConfig
 message UIConfigSpecV1 {
+  // ScrollbackLines is the max number of lines the UI terminal can display in its history.
   int32 ScrollbackLines = 1 [(gogoproto.jsontag) = "scrollback_lines"];
+  // ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+  // which means resources the user has access to and resources they can request will be shown in the
+  // resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+  string ShowResources = 2 [
+    (gogoproto.jsontag) = "show_resources,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.ShowResources"
+  ];
 }
 
 // InstallerV1 represents an installer script resource. Used to
@@ -5753,10 +5801,16 @@ message PluginSpecV1 {
     PluginDiscordSettings discord = 9;
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
+    // Settings for the Gitlab plugin.
+    PluginGitlabSettings gitlab = 12;
+    // Settings for the Entra ID plugin
+    PluginEntraIDSettings entra_id = 13;
+    // Settings for the SCIM plugin
+    PluginSCIMSettings scim = 14;
   }
 
   // generation contains a unique ID that should:
-  // - Be created by the backed on plugin creation.
+  // - Be created by the backend on plugin creation.
   // - Be updated by the backend if the plugin is updated in any way.
   //
   // For older plugins, it's possible for this to be empty.
@@ -5767,6 +5821,13 @@ message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginGitlabSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Gitlab API.
+  string api_endpoint = 1;
 }
 
 message PluginOpsgenieAccessSettings {
@@ -5929,6 +5990,66 @@ message PluginDiscordSettings {
   // channel IDs that will receive notifications and requests regarding that
   // that Role.
   map<string, DiscordChannels> role_to_recipients = 1;
+}
+
+// PluginEntraIDSettings defines settings for the Entra ID sync plugin
+message PluginEntraIDSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncSettings controls the user and access list sync settings for EntraID.
+  PluginEntraIDSyncSettings sync_settings = 1;
+
+  // AccessGraphSettings controls settings for syncing access graph specific data.
+  // When this is null, Entra ID integration with Access Graph is disabled.
+  PluginEntraIDAccessGraphSettings access_graph_settings = 2;
+}
+
+// Defines settings for syncing users and access lists from Entra ID.
+message PluginEntraIDSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  string sso_connector_id = 2;
+}
+
+// AccessGraphSettings controls settings for syncing access graph specific data.
+message PluginEntraIDAccessGraphSettings {
+  option (gogoproto.equal) = true;
+
+  // AppSsoSettingsCache is an array of single sign-on settings for Entra enterprise applications.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  repeated PluginEntraIDAppSSOSettings app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // AppID is the `AppID` property of Entra application.
+  string app_id = 1;
+
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes federated_sso_v2 = 2;
+}
+
+// PluginSCIMSettings defines the settings for a SCIM integration plugin
+message PluginSCIMSettings {
+  option (gogoproto.equal) = true;
+
+  // SamlConnectorName is the name of the SAML Connector that users provisioned
+  // by this SCIM plugin will use to log in to Teleport.
+  string saml_connector_name = 1;
+
+  // DefaultRole is the default role assigned to users provisioned by this
+  // plugin.
+  string default_role = 2;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -6387,6 +6508,8 @@ message IntegrationSpecV1 {
   oneof SubKindSpec {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+    // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
+    AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   }
 }
 
@@ -6403,6 +6526,17 @@ message AWSOIDCIntegrationSpecV1 {
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
   string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+}
+
+// AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
+message AzureOIDCIntegrationSpecV1 {
+  // TenantID specifies the ID of Entra Tenant (Directory)
+  // that this plugin integrates with.
+  string TenantID = 1 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+
+  // ClientID specifies the ID of Azure enterprise application (client)
+  // that corresponds to this plugin.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
@@ -6543,16 +6677,26 @@ message JamfSpecV1 {
   // Jamf API username.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
   // Jamf API password.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
+  // Jamf API client ID.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
+  // Jamf API client secret.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
@@ -6646,6 +6790,10 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
+  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // This value should match the IAM identity that Teleport Kubernetes Service uses.
+  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -6678,6 +6826,23 @@ message InstallerParams {
   string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
   // Azure is the set of Azure-specific installation parameters.
   AzureInstallerParams Azure = 7 [(gogoproto.jsontag) = "azure,omitempty"];
+  // EnrollMode indicates the enrollment mode to be used when adding a node.
+  // Valid values:
+  // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
+  // 1: uses script mode
+  // 2: uses eice mode
+  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+}
+
+// InstallParamEnrollMode is the mode used to enroll the node into the cluster.
+enum InstallParamEnrollMode {
+  // INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED uses the EICE mode for EC2 Matchers with an Integration and SCRIPT mode otherwise.
+  INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED = 0;
+  // INSTALL_PARAM_ENROLL_MODE_SCRIPT runs a script on the target host.
+  INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
+  // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
+  // Only available for AWS EC2 instances.
+  INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 
 // AWSSSM provides options to use when executing SSM documents

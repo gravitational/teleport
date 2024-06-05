@@ -24,7 +24,7 @@ to create a certificate for PostgreSQL, the command looks like this:
 
 ```bash
 # Export Teleport's certificate authority and a generate certificate/key pair
-# for host db.example.com with a 1-year validity period.
+# for host db.example.com with a 3-month validity period.
 
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
@@ -35,12 +35,12 @@ Service can reach the PostgreSQL server.
 Each database uses a different format. You can check your database guide for more
 details and examples:
 
-- [PostgreSQL](./guides/postgres-self-hosted.mdx#step-25-create-a-certificatekey-pair)
-- [MySQL/MariaDB](./guides/mysql-self-hosted.mdx#step-24-create-a-certificatekey-pair)
-- [MongoDB](./guides/mongodb-self-hosted.mdx#set-up-mutual-tls)
-- [CockroachDB](./guides/cockroachdb-self-hosted.mdx#set-up-mutual-tls)
-- [Redis](./guides/redis.mdx#step-45-set-up-mutual-tls)
-- [Redis Cluster](./guides/redis-cluster.mdx#step-46-set-up-mutual-tls)
+- [PostgreSQL](./enroll-self-hosted-databases/postgres-self-hosted.mdx#step-25-create-a-certificatekey-pair)
+- [MySQL/MariaDB](./enroll-self-hosted-databases/mysql-self-hosted.mdx#step-24-create-a-certificatekey-pair)
+- [MongoDB](./enroll-self-hosted-databases/mongodb-self-hosted.mdx#set-up-mutual-tls)
+- [CockroachDB](./enroll-self-hosted-databases/cockroachdb-self-hosted.mdx#set-up-mutual-tls)
+- [Redis](./enroll-self-hosted-databases/redis.mdx#step-45-set-up-mutual-tls)
+- [Redis Cluster](./enroll-self-hosted-databases/redis-cluster.mdx#step-46-set-up-mutual-tls)
 
 After the new certificate is issued, update your database to make it take effect.
 

@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/slack"
 )
 
-func (s *SlackSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
+func (s *SlackBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
@@ -114,12 +114,12 @@ func matchByThreadTs(matchAgainst, newMsg slack.Message) bool {
 // checkMsgTestFn is a test function to run on a new message after it has been matched.
 type checkMsgTestFn func(*testing.T, slack.Message)
 
-func (s *SlackSuite) checkNewMessages(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns ...checkMsgTestFn) []slack.Message {
+func (s *SlackBaseSuite) checkNewMessages(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns ...checkMsgTestFn) []slack.Message {
 	t.Helper()
 	return s.matchAndCallFn(t, ctx, matchMessages, matchBy, testFns, s.fakeSlack.CheckNewMessage)
 }
 
-func (s *SlackSuite) checkNewMessageUpdateByAPI(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns ...checkMsgTestFn) []slack.Message {
+func (s *SlackBaseSuite) checkNewMessageUpdateByAPI(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns ...checkMsgTestFn) []slack.Message {
 	t.Helper()
 	return s.matchAndCallFn(t, ctx, matchMessages, matchBy, testFns, s.fakeSlack.CheckMessageUpdateByAPI)
 }
@@ -134,7 +134,7 @@ func channelsToMessages(channels ...string) (messages []slack.Message) {
 
 type slackCheckMessage func(context.Context) (slack.Message, error)
 
-func (s *SlackSuite) matchAndCallFn(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns []checkMsgTestFn, slackCall slackCheckMessage) []slack.Message {
+func (s *SlackBaseSuite) matchAndCallFn(t *testing.T, ctx context.Context, matchMessages []slack.Message, matchBy matchFn, testFns []checkMsgTestFn, slackCall slackCheckMessage) []slack.Message {
 	matchingTimestamps := map[string]slack.Message{}
 
 	for _, matchMessage := range matchMessages {

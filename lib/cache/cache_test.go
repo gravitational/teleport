@@ -42,6 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -60,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -117,6 +121,9 @@ type testPack struct {
 	accessLists             services.AccessLists
 	kubeWaitingContainers   services.KubeWaitingContainer
 	notifications           services.Notifications
+	accessMonitoringRules   services.AccessMonitoringRules
+	crownJewels             services.CrownJewels
+	databaseObjects         services.DatabaseObjects
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -275,7 +282,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.okta = oktaSvc
 
-	igSvc, err := local.NewIntegrationsService(p.backend)
+	igSvc, err := local.NewIntegrationsService(p.backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,6 +311,23 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.accessLists = accessListsSvc
+	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.accessMonitoringRules = accessMonitoringRuleService
+
+	crownJewelsSvc, err := local.NewCrownJewelsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.crownJewels = crownJewelsSvc
+
+	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.databaseObjects = databaseObjectsSvc
 
 	kubeWaitingContSvc, err := local.NewKubeWaitingContainerService(p.backend)
 	if err != nil {
@@ -359,6 +383,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -397,7 +424,7 @@ func TestCA(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
@@ -759,6 +786,9 @@ func TestCompletenessInit(t *testing.T) {
 			AccessLists:             p.accessLists,
 			KubeWaitingContainers:   p.kubeWaitingContainers,
 			Notifications:           p.notifications,
+			AccessMonitoringRules:   p.accessMonitoringRules,
+			CrownJewels:             p.crownJewels,
+			DatabaseObjects:         p.databaseObjects,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -833,6 +863,9 @@ func TestCompletenessReset(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1019,6 +1052,9 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1104,6 +1140,9 @@ func initStrategy(t *testing.T) {
 		AccessLists:             p.accessLists,
 		KubeWaitingContainers:   p.kubeWaitingContainers,
 		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1132,7 +1171,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1146,8 +1185,7 @@ func initStrategy(t *testing.T) {
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Equal(t, out.GetResourceID(), out2.GetResourceID())
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1164,7 +1202,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1208,7 +1246,7 @@ func TestRecovery(t *testing.T) {
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestTokens tests static and dynamic tokens
@@ -1242,7 +1280,7 @@ func TestTokens(t *testing.T) {
 
 	out, err := p.cache.GetStaticTokens()
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
 	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
@@ -1260,7 +1298,7 @@ func TestTokens(t *testing.T) {
 
 	tout, err := p.cache.GetToken(ctx, token.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.provisionerS.DeleteToken(ctx, token.GetName())
 	require.NoError(t, err)
@@ -1302,7 +1340,7 @@ func TestAuthPreference(t *testing.T) {
 	outAuthPref, err := p.cache.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterNetworkingConfig(t *testing.T) {
@@ -1331,7 +1369,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestSessionRecordingConfig(t *testing.T) {
@@ -1360,7 +1398,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterAuditConfig(t *testing.T) {
@@ -1388,7 +1426,7 @@ func TestClusterAuditConfig(t *testing.T) {
 	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestClusterName(t *testing.T) {
@@ -1415,7 +1453,7 @@ func TestClusterName(t *testing.T) {
 	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestNamespaces tests caching of namespaces
@@ -1443,7 +1481,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err := p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// update namespace metadata
 	ns.Metadata.Labels = map[string]string{"a": "b"}
@@ -1463,7 +1501,7 @@ func TestNamespaces(t *testing.T) {
 
 	out, err = p.cache.GetNamespace(ns.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = p.presenceS.DeleteNamespace(ns.GetName())
 	require.NoError(t, err)
@@ -2218,7 +2256,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	})
 }
 
-// TestAccessListRules tests that CRUD operations on access list rule resources are
+// TestAuditQuery tests that CRUD operations on access list rule resources are
 // replicated from the backend to the cache.
 func TestAuditQuery(t *testing.T) {
 	t.Parallel()
@@ -2499,6 +2537,85 @@ func TestUserNotifications(t *testing.T) {
 	})
 }
 
+// TestCrownJewel tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestCrownJewel(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*crownjewelv1.CrownJewel]{
+		newResource: func(name string) (*crownjewelv1.CrownJewel, error) {
+			return newCrownJewel(t, name), nil
+		},
+		create: func(ctx context.Context, item *crownjewelv1.CrownJewel) error {
+			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
+			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
+			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.crownJewels.DeleteAllCrownJewels,
+	})
+}
+
+func TestDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
+			return newDatabaseObject(t, name), nil
+		},
+		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
+			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
+			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			token := ""
+			var objects []*dbobjectv1.DatabaseObject
+
+			for {
+				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
+				if err != nil {
+					return err
+				}
+
+				objects = append(objects, resp...)
+
+				if nextToken == "" {
+					break
+				}
+				token = nextToken
+			}
+
+			for _, object := range objects {
+				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	})
+}
+
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
 // replicated from the backend to the cache.
 func TestGlobalNotifications(t *testing.T) {
@@ -2540,8 +2657,8 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
 
 	// Check that the resource is now in the backend.
@@ -2615,7 +2732,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 
@@ -2927,7 +3044,6 @@ func TestSetupConfigFns(t *testing.T) {
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
 		"ForRemoteProxy":    ForRemoteProxy,
-		"ForOldRemoteProxy": ForOldRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
 		"ForApps":           ForApps,
@@ -3034,15 +3150,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	cases := map[string]Config{
-		"ForAuth":           ForAuth(Config{}),
-		"ForProxy":          ForProxy(Config{}),
-		"ForRemoteProxy":    ForRemoteProxy(Config{}),
-		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
-		"ForNode":           ForNode(Config{}),
-		"ForKubernetes":     ForKubernetes(Config{}),
-		"ForApps":           ForApps(Config{}),
-		"ForDatabases":      ForDatabases(Config{}),
-		"ForOkta":           ForOkta(Config{}),
+		"ForAuth":        ForAuth(Config{}),
+		"ForProxy":       ForProxy(Config{}),
+		"ForRemoteProxy": ForRemoteProxy(Config{}),
+		"ForNode":        ForNode(Config{}),
+		"ForKubernetes":  ForKubernetes(Config{}),
+		"ForApps":        ForApps(Config{}),
+		"ForDatabases":   ForDatabases(Config{}),
+		"ForOkta":        ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -3099,6 +3214,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3228,9 +3346,8 @@ func TestInvalidDatabases(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	generateInvalidDB := func(t *testing.T, resourceID int64, name string) types.Database {
+	generateInvalidDB := func(t *testing.T, name string) types.Database {
 		db := &types.DatabaseV3{Metadata: types.Metadata{
-			ID:   resourceID,
 			Name: name,
 		}, Spec: types.DatabaseSpecV3{
 			Protocol: "invalid-protocol",
@@ -3247,14 +3364,13 @@ func TestInvalidDatabases(t *testing.T) {
 	}{
 		"CreateDatabase": {
 			storeFunc: func(t *testing.T, b *backend.Wrapper, _ *Cache) {
-				db := generateInvalidDB(t, 0, "invalid-db")
+				db := generateInvalidDB(t, "invalid-db")
 				value, err := services.MarshalDatabase(db)
 				require.NoError(t, err)
 				_, err = b.Create(ctx, backend.Item{
 					Key:     backend.Key("db", db.GetName()),
 					Value:   value,
 					Expires: db.Expiry(),
-					ID:      db.GetResourceID(),
 				})
 				require.NoError(t, err)
 			},
@@ -3277,7 +3393,6 @@ func TestInvalidDatabases(t *testing.T) {
 					Key:     backend.Key("db", validDB.GetName()),
 					Value:   marshalledDB,
 					Expires: validDB.Expiry(),
-					ID:      validDB.GetResourceID(),
 				})
 				require.NoError(t, err)
 
@@ -3291,14 +3406,13 @@ func TestInvalidDatabases(t *testing.T) {
 				cacheDB, err := c.GetDatabase(ctx, dbName)
 				require.NoError(t, err)
 
-				invalidDB := generateInvalidDB(t, cacheDB.GetResourceID(), cacheDB.GetName())
+				invalidDB := generateInvalidDB(t, cacheDB.GetName())
 				value, err := services.MarshalDatabase(invalidDB)
 				require.NoError(t, err)
 				_, err = b.Update(ctx, backend.Item{
 					Key:     backend.Key("db", cacheDB.GetName()),
 					Value:   value,
 					Expires: invalidDB.Expiry(),
-					ID:      cacheDB.GetResourceID(),
 				})
 				require.NoError(t, err)
 			},
@@ -3550,6 +3664,31 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 	return types.Resource153ToLegacy(waitingCont)
 }
 
+func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
+	t.Helper()
+
+	crownJewel := &crownjewelv1.CrownJewel{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return crownJewel
+}
+
+func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
+	t.Helper()
+
+	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+		Name:                name,
+		Protocol:            "postgres",
+		DatabaseServiceName: "pg",
+		ObjectKind:          "table",
+	})
+	require.NoError(t, err)
+	return r
+}
+
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
 	t.Helper()
 
@@ -3559,14 +3698,14 @@ func newUserNotification(t *testing.T, name string) *notificationsv1.Notificatio
 			Username: name,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": "test-description"},
+			Labels: map[string]string{types.NotificationTitleLabel: "test-title"},
 		},
 	}
 
 	return notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := &notificationsv1.GlobalNotification{
@@ -3578,12 +3717,22 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{types.NotificationTitleLabel: title},
 				},
 			},
 		},
 	}
 
+	return notification
+}
+
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+	t.Helper()
+	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Notification: &accessmonitoringrulesv1.Notification{},
+		},
+	}
 	return notification
 }
 

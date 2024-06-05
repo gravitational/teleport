@@ -89,8 +89,9 @@ $ tsh clusters --quiet
 
 ## tsh config
 
-Generates OpenSSH configuration to use currently logged in teleport
-as a bastion host.
+Print OpenSSH configuration details to allow using an SSH
+client with credentials managed by Teleport to connect to
+hosts in your cluster.
 
 ```code
 $ tsh config
@@ -620,18 +621,7 @@ $ tsh proxy azure [<flags>]
 The command will print the address of the local proxy server along with `export`
 commands for environment variables required to connect:
 
-```text
-Started Azure proxy on http://127.0.0.1:54330.
-To avoid port randomization, you can choose the listening port using the --port flag.
-
-Use the following credentials and HTTPS proxy setting to connect to the proxy:
-
-  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
-  export HTTPS_PROXY=http://127.0.0.1:54330
-  export HTTP_PROXY=http://127.0.0.1:54330
-  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
-  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
-```
+(!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
 <Notice type="tip">
 

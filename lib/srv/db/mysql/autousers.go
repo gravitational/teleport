@@ -520,11 +520,11 @@ func doTransaction(conn *clientConn, do func() error) error {
 }
 
 func readDeleteUserResult(res *mysql.Result) string {
-	if len(res.Values) != 1 && len(res.Values[0]) != 1 {
+	if res == nil || res.Resultset == nil ||
+		len(res.Resultset.Values) != 1 || len(res.Resultset.Values[0]) != 1 {
 		return ""
 	}
-
-	return string(res.Values[0][0].AsString())
+	return string(res.Resultset.Values[0][0].AsString())
 }
 
 func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, bool) {

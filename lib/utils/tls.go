@@ -36,7 +36,7 @@ func TLSConfig(cipherSuites []uint16) *tls.Config {
 
 // SetupTLSConfig sets up cipher suites in existing TLS config
 func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
-	// If ciphers suites were passed in, use them. Otherwise use the the
+	// If ciphers suites were passed in, use them. Otherwise use the
 	// Go defaults.
 	if len(cipherSuites) > 0 {
 		config.CipherSuites = cipherSuites

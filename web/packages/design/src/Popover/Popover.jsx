@@ -321,7 +321,7 @@ export default class Popover extends React.Component {
       <Modal
         container={container}
         open={open}
-        BackdropProps={{ invisible: true }}
+        BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
       >
         <Transition onEntering={this.handleEntering}>

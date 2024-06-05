@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Box } from 'design';
 
 type Status = 'on' | 'off' | 'error';
@@ -27,33 +26,51 @@ export const ConnectionStatusIndicator = (props: {
   [key: string]: any;
 }) => {
   const { status, ...styles } = props;
-  return <StyledStatus $status={status} {...styles} />;
+
+  return <StyledStatus {...styles} $status={status} />;
 };
 
 const StyledStatus = styled(Box)`
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   ${(props: { $status: Status; [key: string]: any }) => {
     const { $status, theme } = props;
-    let backgroundColor: string;
 
     switch ($status) {
-      case 'on':
-        backgroundColor = theme.colors.success.main;
-        break;
-      case 'off':
-        backgroundColor = theme.colors.grey[300];
-        break;
-      case 'error':
-        // TODO(ravicious): Don't depend on color alone, add an exclamation mark.
-        backgroundColor = theme.colors.error.main;
-        break;
-      default:
+      case 'on': {
+        return { backgroundColor: theme.colors.success.main };
+      }
+      case 'off': {
+        return { border: `1px solid ${theme.colors.grey[300]}` };
+      }
+      case 'error': {
+        // Using text instead of an icon because any icon used here would be smaller than the
+        // rounded divs used to represent on and off states.
+        //
+        // A red circle was not used to avoid differentiating states only by color.
+        //
+        // The spacing has been painstakingly adjusted so that the cross is rendered pretty much at
+        // the same spot as a rounded div would have been.
+        //
+        // To verify that the position of the cross is correct, move the &:after pseudoselector
+        // outside of this switch to StyledStatus.
+        return css`
+          color: ${theme.colors.error.main};
+          &:after {
+            content: '𐄂';
+            position: absolute;
+            top: -3px;
+            left: -1px;
+            line-height: 8px;
+            font-size: 19px;
+          }
+        `;
+      }
+      default: {
         $status satisfies never;
+      }
     }
-    return {
-      backgroundColor,
-    };
   }}
 `;

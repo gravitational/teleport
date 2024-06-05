@@ -324,7 +324,6 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 				Key:      trimPrefix(r.FullPath),
 				Value:    r.Value,
 				Expires:  expires,
-				ID:       r.ID,
 				Revision: r.Revision,
 			},
 		}, nil

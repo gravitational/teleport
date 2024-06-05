@@ -80,6 +80,10 @@ type FileConfig struct {
 	// that defines the metrics service configuration
 	Metrics Metrics `yaml:"metrics_service,omitempty"`
 
+	// Debug is the "debug_service" section that defines the configuration for
+	// the Debug service.
+	Debug DebugService `yaml:"debug_service,omitempty"`
+
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
@@ -326,13 +330,6 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		s.Commands = []CommandLabel{
-			{
-				Name:    defaults.HostnameLabel,
-				Command: []string{"hostname"},
-				Period:  time.Minute,
-			},
-		}
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
@@ -466,6 +463,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
 	conf.Okta.defaultEnabled = false
+	conf.Debug.defaultEnabled = true
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -1497,6 +1495,7 @@ type Discovery struct {
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
@@ -1692,6 +1691,8 @@ type AWSMatcher struct {
 	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
 	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
+	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+	SetupAccessForARN string `yaml:"setup_access_for_arn"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -1711,7 +1712,18 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 	// Azure is te set of installation parameters specific to Azure.
 	Azure *AzureInstallParams `yaml:"azure,omitempty"`
+	// EnrollMode indicates the mode used to enroll the node into Teleport.
+	// Valid values: script, eice.
+	// Optional.
+	EnrollMode string `yaml:"enroll_mode"`
 }
+
+const (
+	installEnrollModeEICE   = "eice"
+	installEnrollModeScript = "script"
+)
+
+var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
 func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
@@ -1720,6 +1732,18 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		ScriptName:      ip.ScriptName,
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
+		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+	}
+
+	switch ip.EnrollMode {
+	case installEnrollModeEICE:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+	case installEnrollModeScript:
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+	case "":
+		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
+	default:
+		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
 	}
 
 	if ip.InstallTeleport == "" {
@@ -2118,6 +2142,10 @@ type Proxy struct {
 type UIConfig struct {
 	// ScrollbackLines is the max number of lines the UI terminal can display in its history
 	ScrollbackLines int `yaml:"scrollback_lines,omitempty"`
+	// ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+	// which means resources the user has access to and resources they can request will be shown in the
+	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+	ShowResources constants.ShowResources `yaml:"show_resources,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -2291,6 +2319,12 @@ type Metrics struct {
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.
 func (m *Metrics) MTLSEnabled() bool {
 	return len(m.KeyPairs) > 0 && len(m.CACerts) > 0
+}
+
+// DebugService is a `debug_service` section of the config file.
+type DebugService struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
 }
 
 // WindowsDesktopService contains configuration for windows_desktop_service.
@@ -2533,9 +2567,14 @@ type JamfService struct {
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`
-	// PasswordFile is a file containing the  Jamf Pro API password.
+	// PasswordFile is a file containing the Jamf Pro API password.
 	// A single trailing newline is trimmed, anything else is taken literally.
 	PasswordFile string `yaml:"password_file,omitempty"`
+	// ClientID is the Jamf API Client ID.
+	ClientID string `yaml:"client_id,omitempty"`
+	// ClientSecretFile is a file containing the Jamf API client secret.
+	// A single trailing newline is trimmed, anything else is taken literally.
+	ClientSecretFile string `yaml:"client_secret_file,omitempty"`
 	// Inventory are the entries for inventory sync.
 	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
 }
@@ -2566,22 +2605,16 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		return nil, trace.BadParameter("jamf_service is nil")
 	case j.ListenAddress != "":
 		return nil, trace.BadParameter("jamf listen_addr not supported")
-	case j.PasswordFile == "":
-		return nil, trace.BadParameter("jamf password_file required")
 	}
 
-	// Read password from file.
-	pwdBytes, err := os.ReadFile(j.PasswordFile)
+	// Read secrets.
+	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
 	if err != nil {
-		return nil, trace.BadParameter("jamf password_file: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	pwd := string(pwdBytes)
-	if pwd == "" {
-		return nil, trace.BadParameter("jamf password_file is empty")
-	}
-	// Trim trailing \n?
-	if l := len(pwd); pwd[l-1] == '\n' {
-		pwd = pwd[:l-1]
+	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Assemble spec.
@@ -2596,13 +2629,15 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		}
 	}
 	spec := &types.JamfSpecV1{
-		Enabled:     j.Enabled(),
-		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
-		ApiEndpoint: j.APIEndpoint,
-		Username:    j.Username,
-		Password:    pwd,
-		Inventory:   inventory,
+		Enabled:      j.Enabled(),
+		Name:         j.Name,
+		SyncDelay:    types.Duration(j.SyncDelay),
+		ApiEndpoint:  j.APIEndpoint,
+		Username:     j.Username,
+		Password:     password,
+		Inventory:    inventory,
+		ClientId:     j.ClientID,
+		ClientSecret: clientSecret,
 	}
 
 	// Validate.
@@ -2611,4 +2646,25 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	return spec, nil
+}
+
+func readJamfPasswordFile(path, key string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	pwdBytes, err := os.ReadFile(path)
+	if err != nil {
+		return "", trace.BadParameter("jamf %v: %v", key, err)
+	}
+	pwd := string(pwdBytes)
+	if pwd == "" {
+		return "", trace.BadParameter("jamf %v is empty", key)
+	}
+	// Trim exactly one trailing \n, if present.
+	if l := len(pwd); pwd[l-1] == '\n' {
+		pwd = pwd[:l-1]
+	}
+
+	return pwd, nil
 }

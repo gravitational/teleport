@@ -467,6 +467,8 @@ const colors: ThemeColors = {
 
   link: '#009EFF',
 
+  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
+
   dataVisualisation: dataVisualisationColors,
 };
 

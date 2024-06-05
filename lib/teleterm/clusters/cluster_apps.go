@@ -26,9 +26,10 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,7 +66,7 @@ type AppOrSAMLIdPServiceProvider struct {
 }
 
 // GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
+func (c *Cluster) GetApps(ctx context.Context, authClient authclient.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
 		err  error
@@ -124,7 +125,7 @@ type GetAppsResponse struct {
 	TotalCount int
 }
 
-func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
+func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
@@ -147,13 +148,13 @@ func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName s
 	return app, trace.Wrap(err)
 }
 
-// reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyClient, app types.Application) (tls.Certificate, error) {
+// ReissueAppCert issue new certificates for the app and saves them to disk.
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
@@ -161,8 +162,8 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	request := &proto.CreateAppSessionRequest{
-		Username:          c.status.Username,
+	routeToApp := proto.RouteToApp{
+		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
 		ClusterName:       c.clusterClient.SiteName,
 		AWSRoleARN:        "",
@@ -170,40 +171,29 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 		GCPServiceAccount: "",
 	}
 
-	ws, err := proxyClient.CreateAppSession(ctx, request)
+	// TODO (Joerger): DELETE IN v17.0.0
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	defer rootClient.Close()
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		RouteToApp: proto.RouteToApp{
-			Name:              app.GetName(),
-			SessionID:         ws.GetName(),
-			PublicAddr:        app.GetPublicAddr(),
-			ClusterName:       c.clusterClient.SiteName,
-			AWSRoleARN:        "",
-			AzureIdentity:     "",
-			GCPServiceAccount: "",
-		},
+		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
-	})
+		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, err := c.clusterClient.LocalAgent().GetKey(c.clusterClient.SiteName, client.WithAppCerts{})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	cert, ok := key.AppTLSCerts[app.GetName()]
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("the user is not logged in into the application %v", app.GetName())
-	}
-
-	tlsCert, err := key.TLSCertificate(cert)
-	return tlsCert, trace.Wrap(err)
+	appCert, err := key.AppTLSCert(app.GetName())
+	return appCert, trace.Wrap(err)
 }
 
 // AssembleAppFQDN is a wrapper on top of [utils.AssembleAppFQDN] which encapsulates translation

@@ -9,7 +9,7 @@ exports[`auth2faType: off 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -204,7 +204,7 @@ exports[`auth2faType: off 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -294,7 +294,7 @@ exports[`auth2faType: optional rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -670,7 +670,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -834,7 +834,7 @@ exports[`auth2faType: otp rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -1216,7 +1216,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -1399,7 +1399,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -1775,7 +1775,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -1939,7 +1939,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -2395,7 +2395,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -2599,7 +2599,7 @@ exports[`no login enabled 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c1 {
@@ -2632,7 +2632,7 @@ exports[`no login enabled 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -2684,7 +2684,7 @@ exports[`server error rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c4 {
@@ -2879,7 +2879,7 @@ exports[`server error rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -2975,7 +2975,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -2988,7 +2988,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   padding-right: 24px;
 }
 
-.c8 {
+.c7 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3015,22 +3015,22 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   width: 100%;
 }
 
-.c8:hover,
-.c8:focus {
+.c7:hover,
+.c7:focus {
   background: #B29DFF;
 }
 
-.c8:active {
+.c7:active {
   background: #C5B6FF;
 }
 
-.c8:disabled {
+.c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c10 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3104,7 +3104,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   transition: transform 500ms ease;
 }
 
-.c9 {
+.c8 {
   background-color: #444444;
   display: block;
   width: 100%;
@@ -3115,17 +3115,17 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   box-sizing: border-box;
 }
 
-.c9:hover,
-.c9:focus {
+.c8:hover,
+.c8:focus {
   background: rgb(61,61,61);
   border: 1px solid rgb(142,142,142);
 }
 
-.c9 svg {
+.c8 svg {
   opacity: 0.87;
 }
 
-.c12 {
+.c11 {
   background-color: #dd4b39;
   display: block;
   width: 100%;
@@ -3136,17 +3136,17 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   box-sizing: border-box;
 }
 
-.c12:hover,
-.c12:focus {
+.c11:hover,
+.c11:focus {
   background: rgb(198,67,51);
   border: 1px solid rgb(234,147,136);
 }
 
-.c12 svg {
+.c11 svg {
   opacity: 0.87;
 }
 
-.c10 {
+.c9 {
   align-items: center;
   display: flex;
   justify-content: center;
@@ -3160,15 +3160,9 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   border-right: 1px solid rgba(0,0,0,0.12);
 }
 
-.c7 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -3189,19 +3183,19 @@ exports[`sso list still renders when local auth is disabled 1`] = `
           class="c5 c6"
         >
           <div
-            class="c3 c7"
+            class="c3 c6"
             data-testid="sso-list"
           >
             <button
-              class="c8 c9"
+              class="c7 c8"
               color="#444444"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-github"
+                  class="c10 icon icon-github"
                   color="white"
                   data-testid="icon"
                 >
@@ -3222,15 +3216,15 @@ exports[`sso list still renders when local auth is disabled 1`] = `
               github
             </button>
             <button
-              class="c8 c12"
+              class="c7 c11"
               color="#dd4b39"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-google"
+                  class="c10 icon icon-google"
                   color="white"
                   data-testid="icon"
                 >
@@ -3267,7 +3261,7 @@ exports[`sso providers rendering 1`] = `
   margin-bottom: 32px;
   padding-top: 24px;
   padding-bottom: 24px;
-  width: 650px;
+  width: 500px;
 }
 
 .c3 {
@@ -3280,7 +3274,7 @@ exports[`sso providers rendering 1`] = `
   padding-right: 24px;
 }
 
-.c16 {
+.c15 {
   box-sizing: border-box;
   margin-top: 16px;
   margin-bottom: 16px;
@@ -3288,13 +3282,13 @@ exports[`sso providers rendering 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c19 {
+.c18 {
   box-sizing: border-box;
   padding-top: 8px;
   padding-bottom: 8px;
 }
 
-.c8 {
+.c7 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3321,22 +3315,22 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
-.c8:hover,
-.c8:focus {
+.c7:hover,
+.c7:focus {
   background: #B29DFF;
 }
 
-.c8:active {
+.c7:active {
   background: #C5B6FF;
 }
 
-.c8:disabled {
+.c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c20 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -3363,22 +3357,22 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
-.c20:hover,
-.c20:focus {
+.c19:hover,
+.c19:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c20:active {
+.c19:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c20:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c10 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3408,7 +3402,7 @@ exports[`sso providers rendering 1`] = `
   gap: 16px;
 }
 
-.c17 {
+.c16 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3459,7 +3453,7 @@ exports[`sso providers rendering 1`] = `
   transition: transform 500ms ease;
 }
 
-.c9 {
+.c8 {
   background-color: #444444;
   display: block;
   width: 100%;
@@ -3470,18 +3464,39 @@ exports[`sso providers rendering 1`] = `
   box-sizing: border-box;
 }
 
-.c9:hover,
-.c9:focus {
+.c8:hover,
+.c8:focus {
   background: rgb(61,61,61);
   border: 1px solid rgb(142,142,142);
 }
 
-.c9 svg {
+.c8 svg {
+  opacity: 0.87;
+}
+
+.c11 {
+  background-color: #dd4b39;
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  color: white;
+  height: 40px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.c11:hover,
+.c11:focus {
+  background: rgb(198,67,51);
+  border: 1px solid rgb(234,147,136);
+}
+
+.c11 svg {
   opacity: 0.87;
 }
 
 .c12 {
-  background-color: #dd4b39;
+  background-color: #205081;
   display: block;
   width: 100%;
   border: 1px solid transparent;
@@ -3493,8 +3508,8 @@ exports[`sso providers rendering 1`] = `
 
 .c12:hover,
 .c12:focus {
-  background: rgb(198,67,51);
-  border: 1px solid rgb(234,147,136);
+  background: rgb(28,72,116);
+  border: 1px solid rgb(121,150,179);
 }
 
 .c12 svg {
@@ -3502,7 +3517,7 @@ exports[`sso providers rendering 1`] = `
 }
 
 .c13 {
-  background-color: #205081;
+  background-color: #f7931e;
   display: block;
   width: 100%;
   border: 1px solid transparent;
@@ -3514,8 +3529,8 @@ exports[`sso providers rendering 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: rgb(28,72,116);
-  border: 1px solid rgb(121,150,179);
+  background: rgb(222,132,27);
+  border: 1px solid rgb(250,190,120);
 }
 
 .c13 svg {
@@ -3523,7 +3538,7 @@ exports[`sso providers rendering 1`] = `
 }
 
 .c14 {
-  background-color: #f7931e;
+  background-color: #2672ec;
   display: block;
   width: 100%;
   border: 1px solid transparent;
@@ -3535,36 +3550,15 @@ exports[`sso providers rendering 1`] = `
 
 .c14:hover,
 .c14:focus {
-  background: rgb(222,132,27);
-  border: 1px solid rgb(250,190,120);
+  background: rgb(34,102,212);
+  border: 1px solid rgb(124,170,243);
 }
 
 .c14 svg {
   opacity: 0.87;
 }
 
-.c15 {
-  background-color: #2672ec;
-  display: block;
-  width: 100%;
-  border: 1px solid transparent;
-  color: white;
-  height: 40px;
-  position: relative;
-  box-sizing: border-box;
-}
-
-.c15:hover,
-.c15:focus {
-  background: rgb(34,102,212);
-  border: 1px solid rgb(124,170,243);
-}
-
-.c15 svg {
-  opacity: 0.87;
-}
-
-.c10 {
+.c9 {
   align-items: center;
   display: flex;
   justify-content: center;
@@ -3578,13 +3572,7 @@ exports[`sso providers rendering 1`] = `
   border-right: 1px solid rgba(0,0,0,0.12);
 }
 
-.c7 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.c18 {
+.c17 {
   background: #222C59;
   display: flex;
   align-items: center;
@@ -3599,7 +3587,7 @@ exports[`sso providers rendering 1`] = `
 
 <div
   class="c0 c1"
-  width="650"
+  width="500"
 >
   <div
     class="c2"
@@ -3620,19 +3608,19 @@ exports[`sso providers rendering 1`] = `
           class="c5 c6"
         >
           <div
-            class="c3 c7"
+            class="c3 c6"
             data-testid="sso-list"
           >
             <button
-              class="c8 c9"
+              class="c7 c8"
               color="#444444"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-github"
+                  class="c10 icon icon-github"
                   color="white"
                   data-testid="icon"
                 >
@@ -3653,15 +3641,15 @@ exports[`sso providers rendering 1`] = `
               github
             </button>
             <button
-              class="c8 c12"
+              class="c7 c11"
               color="#dd4b39"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-google"
+                  class="c10 icon icon-google"
                   color="white"
                   data-testid="icon"
                 >
@@ -3682,15 +3670,15 @@ exports[`sso providers rendering 1`] = `
               google
             </button>
             <button
-              class="c8 c13"
+              class="c7 c12"
               color="#205081"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-key"
+                  class="c10 icon icon-key"
                   color="white"
                   data-testid="icon"
                 >
@@ -3714,15 +3702,15 @@ exports[`sso providers rendering 1`] = `
               bitbucket
             </button>
             <button
-              class="c8 c14"
+              class="c7 c13"
               color="#f7931e"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-key"
+                  class="c10 icon icon-key"
                   color="white"
                   data-testid="icon"
                 >
@@ -3746,15 +3734,15 @@ exports[`sso providers rendering 1`] = `
               Mission Control
             </button>
             <button
-              class="c8 c15"
+              class="c7 c14"
               color="#2672ec"
               kind="primary"
             >
               <div
-                class="c10"
+                class="c9"
               >
                 <span
-                  class="c11 icon icon-windows"
+                  class="c10 icon icon-windows"
                   color="white"
                   data-testid="icon"
                 >
@@ -3791,19 +3779,19 @@ exports[`sso providers rendering 1`] = `
             </button>
           </div>
           <div
-            class="c16 c17"
+            class="c15 c16"
           >
             <div
-              class="c18"
+              class="c17"
             >
               Or
             </div>
           </div>
           <div
-            class="c19"
+            class="c18"
           >
             <button
-              class="c20"
+              class="c19"
               kind="secondary"
             >
               Sign in with username and password

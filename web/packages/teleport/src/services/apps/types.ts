@@ -33,6 +33,7 @@ export interface App {
   fqdn: string;
   awsRoles: AwsRole[];
   awsConsole: boolean;
+  requiresRequest?: boolean;
   isCloudOrTcpEndpoint?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
@@ -43,6 +44,9 @@ export interface App {
   samlApp: boolean;
   // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
   samlAppSsoUrl?: string;
+  // Integration is the integration name that must be used to access this Application.
+  // Only applicable to AWS App Access.
+  integration?: string;
 }
 
 export type UserGroupAndDescription = {

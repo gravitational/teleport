@@ -492,7 +492,8 @@ $ PORT=22
 Next, SSH in to your remote host:
 
 ```code
-$ ssh -p ${PORT?} -F ssh_config_teleport "${USER?}@${ADDR?}.${CLUSTER?}"
+$ ADDR_NODE=openssh-node
+$ ssh -p ${PORT?} -F ssh_config_teleport "${USER?}@${ADDR_NODE?}.${CLUSTER?}"
 ```
 
 This name does not need to be resolvable via DNS as the connection will be

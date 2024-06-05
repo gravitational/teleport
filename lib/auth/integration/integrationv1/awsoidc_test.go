@@ -26,9 +26,11 @@ import (
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,6 +73,42 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 		}},
 	}, localClient)
+
+	t.Run("requesting with an user should return access denied", func(t *testing.T) {
+		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+			Allow: types.RoleConditions{Rules: []types.Rule{
+				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
+			}},
+		}, localClient)
+
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
+	})
+
+	t.Run("auth, discovery and proxy can request tokens", func(t *testing.T) {
+		for _, allowedRole := range []types.SystemRole{types.RoleAuth, types.RoleDiscovery, types.RoleProxy} {
+			ctx = authz.ContextWithUser(ctx, authz.BuiltinRole{
+				Role:                  types.RoleInstance,
+				AdditionalSystemRoles: []types.SystemRole{allowedRole},
+				Username:              string(allowedRole),
+				Identity: tlsca.Identity{
+					Username: string(allowedRole),
+				},
+			})
+
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+			require.NoError(t, err)
+		}
+	})
+
+	ctx = authz.ContextWithUser(ctx, authz.BuiltinRole{
+		Role:                  types.RoleInstance,
+		AdditionalSystemRoles: []types.SystemRole{types.RoleDiscovery},
+		Username:              string(types.RoleDiscovery),
+		Identity: tlsca.Identity{
+			Username: string(types.RoleDiscovery),
+		},
+	})
 
 	// Get Public Key
 	require.NotEmpty(t, ca.GetActiveKeys().JWT)

@@ -59,11 +59,11 @@ const (
 	messageCountPerThread = newMessageCount + reviewMessageCount + resolveMessageCount
 )
 
-// EmailSuite implements the test suite for the email access plugin.
+// EmailBaseSuite implements the test suite for the email access plugin.
 // As some plugin features require Teleport Enterprise but the plugin code and
 // tests live in the Teleport OSS repo, the test suite can be run both from the
 // OSS and the enterprise repo.
-type EmailSuite struct {
+type EmailBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig   email.Config
 	mockMailgun *mockMailgunServer
@@ -72,7 +72,7 @@ type EmailSuite struct {
 
 // SetupTest starts a fake Mailgun, generates the plugin configuration, and
 // also starts the plugin. It runs for each test.
-func (s *EmailSuite) SetupTest() {
+func (s *EmailBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -101,18 +101,38 @@ func (s *EmailSuite) SetupTest() {
 }
 
 // startApp starts the email plugin, waits for it to become ready and returns.
-func (s *EmailSuite) startApp() {
+func (s *EmailBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app, err := email.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// EmailSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type EmailSuiteOSS struct {
+	EmailBaseSuite
+}
+
+// EmailSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type EmailSuiteEnterprise struct {
+	EmailBaseSuite
+}
+
+// SetupTest overrides EmailBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *EmailSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.EmailBaseSuite.SetupTest()
 }
 
 // TestNewThreads tests that the plugin starts new email threads when it
 // receives a new access request.
-func (s *EmailSuite) TestNewThreads() {
+func (s *EmailSuiteOSS) TestNewThreads() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -157,7 +177,7 @@ func (s *EmailSuite) TestNewThreads() {
 
 // TestApproval tests that when a request is approved, a followup email is sent
 // in the existing thread to notify that the request was approved.
-func (s *EmailSuite) TestApproval() {
+func (s *EmailSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -185,7 +205,7 @@ func (s *EmailSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, a followup email is sent
 // in the existing thread to notify that the request was approved.
-func (s *EmailSuite) TestDenial() {
+func (s *EmailSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -213,14 +233,10 @@ func (s *EmailSuite) TestDenial() {
 
 // TestReviewReplies tests that a followup email is sent after the access request
 // is reviewed.
-func (s *EmailSuite) TestReviewReplies() {
+func (s *EmailSuiteEnterprise) TestReviewReplies() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// Test setup: create an access request and wait for its emails
 	userName := integration.Requester1UserName
@@ -266,14 +282,10 @@ func (s *EmailSuite) TestReviewReplies() {
 
 // TestApprovalByReview tests that followup emails are sent when an access
 // request reaches its approval threshold.
-func (s *EmailSuite) TestApprovalByReview() {
+func (s *EmailSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// Test setup: create an access request and wait for its emails
 	userName := integration.Requester1UserName
@@ -313,14 +325,10 @@ func (s *EmailSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that followup emails are sent when an access
 // request reaches its denial threshold.
-func (s *EmailSuite) TestDenialByReview() {
+func (s *EmailSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// Test setup: create an access request and wait for its emails
 	userName := integration.Requester1UserName
@@ -360,7 +368,7 @@ func (s *EmailSuite) TestDenialByReview() {
 
 // TestExpiration tests that when a request expires, a followup email is sent
 // in the existing thread to notify that the request has expired.
-func (s *EmailSuite) TestExpiration() {
+func (s *EmailSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -386,14 +394,10 @@ func (s *EmailSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *EmailSuite) TestRace() {
+func (s *EmailSuiteEnterprise) TestRace() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)

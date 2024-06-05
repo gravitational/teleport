@@ -83,15 +83,16 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
-		log:          h.log,
-		clock:        h.c.Clock,
-		proxyClient:  h.c.ProxyClient,
-		accessPoint:  h.c.AccessPoint,
-		cipherSuites: h.c.CipherSuites,
-		identity:     identity,
-		servers:      servers,
-		ws:           ws,
-		clusterName:  h.clusterName,
+		log:                   h.log,
+		clock:                 h.c.Clock,
+		proxyClient:           h.c.ProxyClient,
+		accessPoint:           h.c.AccessPoint,
+		cipherSuites:          h.c.CipherSuites,
+		identity:              identity,
+		servers:               servers,
+		ws:                    ws,
+		clusterName:           h.clusterName,
+		integrationAppHandler: h.c.IntegrationAppHandler,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

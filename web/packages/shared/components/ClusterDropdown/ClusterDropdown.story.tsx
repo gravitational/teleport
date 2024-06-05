@@ -83,6 +83,14 @@ export const Dropdown = () => {
             onError={() => null}
           />
         </Box>
+        <Box mb={4}>
+          <Text>1 cluster (shouldn't be displayed)</Text>
+          <ClusterDropdown
+            clusterId="cluster-2"
+            clusterLoader={{ clusters: oneCluster, fetchClusters }}
+            onError={() => null}
+          />
+        </Box>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -96,6 +104,12 @@ const lotsOfClusters = new Array(500).fill(null).map(
       clusterId: `cluster-${i}`,
     }) as Cluster
 );
+
+const oneCluster = [
+  {
+    clusterId: `cluster-1`,
+  } as Cluster,
+];
 
 const twoClusters = new Array(2).fill(null).map(
   (_, i) =>

@@ -51,10 +51,10 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 	var errs []error
 	var mu sync.Mutex
 	eG, ctx := errgroup.WithContext(ctx)
-	// Set the limit to 10 to avoid too many concurrent requests.
+	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
 	// number of concurrent requests.
-	eG.SetLimit(10)
+	eG.SetLimit(5)
 	collect := func(s3 *accessgraphv1alpha.AWSS3BucketV1, err error) {
 		mu.Lock()
 		defer mu.Unlock()

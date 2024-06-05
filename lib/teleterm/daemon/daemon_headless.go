@@ -75,7 +75,7 @@ func (s *Service) StartHeadlessWatchers() error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	clusters, err := s.cfg.Storage.ReadAll()
+	clusters, err := s.cfg.Storage.ListRootClusters()
 	if err != nil {
 		return trace.Wrap(err)
 	}

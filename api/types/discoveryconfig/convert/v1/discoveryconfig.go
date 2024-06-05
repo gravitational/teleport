@@ -119,16 +119,6 @@ func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv
 		kubeMatchers = append(kubeMatchers, &m)
 	}
 
-	var lastSyncTime *timestamppb.Timestamp
-	if !discoveryConfig.Status.LastSyncTime.IsZero() {
-		lastSyncTime = timestamppb.New(discoveryConfig.Status.LastSyncTime)
-	}
-	status := &discoveryconfigv1.DiscoveryConfigStatus{
-		State:               discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[discoveryConfig.Status.State]),
-		ErrorMessage:        discoveryConfig.Status.ErrorMessage,
-		DiscoveredResources: discoveryConfig.Status.DiscoveredResources,
-		LastSyncTime:        lastSyncTime,
-	}
 	return &discoveryconfigv1.DiscoveryConfig{
 		Header: headerv1.ToResourceHeaderProto(discoveryConfig.ResourceHeader),
 		Spec: &discoveryconfigv1.DiscoveryConfigSpec{
@@ -139,6 +129,21 @@ func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv
 			Kube:           kubeMatchers,
 			AccessGraph:    discoveryConfig.Spec.AccessGraph,
 		},
-		Status: status,
+		Status: StatusToProto(discoveryConfig.Status),
+	}
+}
+
+// StatusToProto converts a discovery config status into the protobuf discovery config status object.
+func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryConfigStatus {
+	var lastSyncTime *timestamppb.Timestamp
+	if !status.LastSyncTime.IsZero() {
+		lastSyncTime = timestamppb.New(status.LastSyncTime)
+	}
+
+	return &discoveryconfigv1.DiscoveryConfigStatus{
+		State:               discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
+		ErrorMessage:        status.ErrorMessage,
+		DiscoveredResources: status.DiscoveredResources,
+		LastSyncTime:        lastSyncTime,
 	}
 }

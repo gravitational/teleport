@@ -385,7 +385,6 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c8 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -464,6 +463,7 @@ exports[`render DocumentNodes 1`] = `
                   >
                     <input
                       class="c16"
+                      data-testid="toggle"
                       type="checkbox"
                     />
                     <div

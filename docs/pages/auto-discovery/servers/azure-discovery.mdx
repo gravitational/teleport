@@ -105,7 +105,7 @@ resources:
     approach.
   </Admonition>
 
-  Go the the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
+  Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
   page of your Azure Active Directory and click on *New registration*:
 
   ![App registrations](../../../img/azure/app-registrations@2x.png)
@@ -236,13 +236,12 @@ In order to enable Azure instance discovery the `discovery_service.azure` sectio
 of `teleport.yaml` must include at least one entry:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  auth_servers:
-  - "teleport.example.com:3080"
+  proxy_server: "<Var name="teleport.example.com" />:443"
 auth_service:
   enabled: off
 proxy_service:

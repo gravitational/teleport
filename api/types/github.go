@@ -71,6 +71,8 @@ type GithubConnector interface {
 	GetEndpointURL() string
 	// GetAPIEndpointURL returns the API endpoint URL
 	GetAPIEndpointURL() string
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -105,16 +107,6 @@ func (c *GithubConnectorV3) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (c *GithubConnectorV3) SetSubKind(s string) {
 	c.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (c *GithubConnectorV3) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *GithubConnectorV3) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -286,6 +278,14 @@ func (c *GithubConnectorV3) GetEndpointURL() string {
 // GetEndpointURL returns the API endpoint URL
 func (c *GithubConnectorV3) GetAPIEndpointURL() string {
 	return GithubAPIURL
+}
+
+// GetClientRedirectSettings returns the client redirect settings.
+func (c *GithubConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.ClientRedirectSettings
 }
 
 // MapClaims returns a list of logins based on the provided claims,

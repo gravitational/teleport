@@ -145,7 +145,7 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	}
 
 	start := l.cfg.Clock.Now()
-	if err := conn.Handshake(); err != nil {
+	if err := conn.HandshakeContext(l.context); err != nil {
 		if !errors.Is(trace.Unwrap(err), io.EOF) {
 			l.log.WithFields(log.Fields{
 				"src_addr": conn.RemoteAddr(),

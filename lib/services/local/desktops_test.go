@@ -78,7 +78,7 @@ func TestListWindowsDesktops(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out.NextKey)
 	require.Empty(t, cmp.Diff([]types.WindowsDesktop{d1, d2, d3}, out.Desktops,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Test pagination.

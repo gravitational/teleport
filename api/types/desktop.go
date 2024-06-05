@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -29,6 +30,8 @@ const (
 	MaxRDPScreenWidth  = 8192
 	MaxRDPScreenHeight = 8192
 )
+
+var _ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)
 
 // WindowsDesktopService represents a Windows desktop service instance.
 type WindowsDesktopService interface {

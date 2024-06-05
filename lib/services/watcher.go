@@ -1775,6 +1775,22 @@ func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []ty
 	return matched
 }
 
+// GetNode allows callers to retrieve a node based on its name. The
+// returned server are a copy and can be safely modified.
+func (n *nodeCollector) GetNode(ctx context.Context, name string) (types.Server, error) {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	server, found := n.current[name]
+	if !found {
+		return nil, trace.NotFound("server does not exist")
+	}
+	return server.DeepCopy(), nil
+}
+
 // refreshStaleNodes attempts to reload nodes from the NodeGetter if
 // the collecter is stale. This ensures that no matter the health of
 // the collecter callers will be returned the most up to date node

@@ -124,6 +124,62 @@ To suspend automatic updates for an agent, annotate the agent deployment with
 `annotations.deployment` value in Helm, or by patching the deployment directly
 with `kubectl`.
 
+## GitOps
+
+Automatic updates are incompatible with some GitOps tools used for continuous deployment.
+The `teleport-kube-agent` Helm chart owns the version of the `teleport-agent` resource,
+so when the `teleport-agent-updater` modifies the image version of the `teleport-agent`
+resource, the GitOps tool will detect a drift or a diff in the `teleport-agent` resource.
+
+### ArgoCD deployments
+
+After an automatic update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
+As a workaround to this problem use a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
+to ignore the difference in image version. Here is an example deployment using the
+name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec
+  ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    name: teleport-agent
+    namespace: teleport
+    jqPathExpressions:
+    - .spec.template.spec.containers[] | select(.name == "teleport").image
+...
+```
+
+### FluxCD deployments
+
+After an automatic update, FluxCD reports a `DriftDetected` event. As a workaround
+to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
+configuration to ignore the difference in image version. Here is an example deployment
+using the name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/template/spec/containers/0/image"]
+      target:
+        kind: StatefulSet
+        name: teleport-agent
+        namespace: teleport
+...
+```
+
 ## Manually upgrading agents
 
 Run the following commands to upgrade Teleport agents running on Kubernetes.

@@ -36,6 +36,9 @@ func TestNewUserContext(t *testing.T) {
 		Metadata: types.Metadata{
 			Name: "root",
 		},
+		Status: types.UserStatusV2{
+			PasswordState: types.PasswordState_PASSWORD_STATE_SET,
+		},
 	}
 
 	// set some rules
@@ -55,6 +58,7 @@ func TestNewUserContext(t *testing.T) {
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
 	}))
+	require.Equal(t, types.PasswordState_PASSWORD_STATE_SET, userContext.PasswordSate)
 
 	// test local auth type
 	require.Equal(t, authLocal, userContext.AuthType)

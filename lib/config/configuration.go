@@ -214,6 +214,14 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
+	// `teleport integration configure aws-app-access-iam` command
+	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
+
+	// IntegrationConfEC2SSMIAMArguments contains the arguments of
+	// `teleport integration configure ec2-ssm-iam` command
+	IntegrationConfEC2SSMIAMArguments IntegrationConfEC2SSMIAM
+
 	// IntegrationConfEKSIAMArguments contains the arguments of
 	// `teleport integration configure eks-iam` command
 	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
@@ -234,9 +242,22 @@ type CommandLineFlags struct {
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
 
+	// IntegrationConfAzureOIDCArguments contains the arguments of
+	// `teleport integration configure azure-oidc` command
+	IntegrationConfAzureOIDCArguments IntegrationConfAzureOIDC
+
 	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
 	// `teleport integration configure samlidp gcp-workforce` command
 	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
+
+	// LogLevel is the new application's log level.
+	LogLevel string
+
+	// Profiles comma-separated list of pprof profiles to be collected.
+	Profiles string
+
+	// ProfileSeconds defines the time the pprof will be collected.
+	ProfileSeconds int
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -244,6 +265,22 @@ type CommandLineFlags struct {
 type IntegrationConfAccessGraphAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfAzureOIDC contains the arguments of
+// `teleport integration configure azure-oidc` command
+type IntegrationConfAzureOIDC struct {
+	// ProxyPublicAddr is the publicly-reachable URL of the Teleport Proxy.
+	// It is used as the OIDC issuer URL, as well as for SAML URIs.
+	ProxyPublicAddr string
+
+	// AuthConnectorName is the name of the SAML connector that will be created on Teleport side.
+	AuthConnectorName string
+
+	// AccessGraphEnabled is a flag indicating that access graph integration is requested.
+	// When this is true, the integration script will produce
+	// a cache file necessary for TAG synchronization.
+	AccessGraphEnabled bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -268,6 +305,29 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfAWSAppAccessIAM contains the arguments of
+// `teleport integration configure aws-app-access-iam` command
+type IntegrationConfAWSAppAccessIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+}
+
+// IntegrationConfEC2SSMIAM contains the arguments of
+// `teleport integration configure ec2-ssm-iam` command
+type IntegrationConfEC2SSMIAM struct {
+	// RoleName is the AWS Role associated with the Integration
+	RoleName string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// SSMDocumentName is the SSM Document to be created that will run the installer script.
+	SSMDocumentName string
+	// ProxyPublicURL is Proxy's Public URL.
+	// This is used fetch the installer script.
+	// No trailing / is expected.
+	// Eg https://tenant.teleport.sh
+	ProxyPublicURL string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -401,6 +461,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
+	}
+	if fc.Debug.Enabled() {
+		cfg.DebugService.Enabled = true
 	}
 
 	if fc.AccessGraph.Enabled {
@@ -1167,6 +1230,12 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+		switch cfg.Proxy.UI.ShowResources {
+		case constants.ShowResourcesaccessibleOnly,
+			constants.ShowResourcesRequestable:
+		default:
+			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
+		}
 	}
 
 	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
@@ -1542,14 +1611,15 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:            matcher.Types,
-			Regions:          matcher.Regions,
-			AssumeRole:       assumeRole,
-			Tags:             matcher.Tags,
-			Params:           installParams,
-			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
-			Integration:      matcher.Integration,
-			KubeAppDiscovery: matcher.KubeAppDiscovery,
+			Types:             matcher.Types,
+			Regions:           matcher.Regions,
+			AssumeRole:        assumeRole,
+			Tags:              matcher.Tags,
+			Params:            installParams,
+			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:       matcher.Integration,
+			KubeAppDiscovery:  matcher.KubeAppDiscovery,
+			SetupAccessForARN: matcher.SetupAccessForARN,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)

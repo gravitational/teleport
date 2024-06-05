@@ -48,3 +48,17 @@ func TestMergeResources(t *testing.T) {
 	}
 	require.Equal(t, &expected, result)
 }
+
+func TestCount(t *testing.T) {
+	_, users := generateUsers()
+	_, roles := generateRoles()
+	_, instances := generateEC2()
+	resources := Resources{
+		Users:     users,
+		Roles:     roles,
+		Instances: instances,
+	}
+
+	count := resources.count()
+	require.Equal(t, len(users)+len(roles)+len(instances), count)
+}

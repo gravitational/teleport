@@ -1415,17 +1415,18 @@ Spec is a provisioning token V2 spec
 | spacelift                      | object               |          | Spacelift allows the configuration of options specific to the "spacelift" join method.                                                                  |
 | suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                         |
 | suggested_labels               | map of string arrays |          |                                                                                                                                                         |
+| tpm                            | object               |          | TPM allows the configuration of options specific to the "tpm" join method.                                                                              |
 
 #### spec.allow
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|    Name     |       Type       | Required |                                                                Description                                                                |
-|-------------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                         |
-| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".            |
-| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                   |
-| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
+|    Name     |       Type       | Required |                                                              Description                                                              |
+|-------------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                     |
+| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".        |
+| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                               |
+| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
 
 #### spec.azure
 
@@ -1582,6 +1583,25 @@ Allow is a list of Rules, nodes using this token must match one allow rule to us
 | caller_type | string |          | CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.                                      |
 | scope       | string |          | Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes |
 | space_id    | string |          | SpaceID is the ID of the space in which the run that owns the token was executed.                                                         |
+
+#### spec.tpm
+
+TPM allows the configuration of options specific to the "tpm" join method.
+
+|        Name        |       Type       | Required |                                                                                                                                                               Description                                                                                                                                                                |
+|--------------------|------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow              | object           |          | Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.                                                                                                                                                                                                                                  |
+| ekcert_allowed_cas | array of strings |          | EKCertAllowedCAs is a list of CA certificates that will be used to validate TPM EKCerts. When specified, joining TPMs must present an EKCert signed by one of the specified CAs. TPMs that do not present an EKCert will be not permitted to join. When unspecified, TPMs will be allowed to join with either an EKCert or an EKPubHash. |
+
+##### spec.tpm.allow
+
+Allow is a list of Rules, the presented delegated identity must match one allow rule to permit joining.
+
+|         Name          |  Type  | Required |                                                                                                                                                  Description                                                                                                                                                  |
+|-----------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| description           | string |          | Description is a human-readable description of the rule. It has no bearing on whether or not a TPM is allowed to join, but can be used to associate a rule with a specific host (e.g the asset tag of the server in which the TPM resides). Example: "build-server-100"                                       |
+| ek_certificate_serial | string |          | EKCertificateSerial is the serial number of the EKCert in hexadecimal with colon separated nibbles. This value will not be checked when a TPM does not have an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4                                                                    |
+| ek_public_hash        | string |          | EKPublicHash is the SHA256 hash of the EKPub marshaled in PKIX format and encoded in hexadecimal. This value will also be checked when a TPM has submitted an EKCert, and the public key in the EKCert will be used for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6 |
 
 Example:
 
@@ -2564,6 +2584,7 @@ resource "teleport_trusted_device" "TESTDEVICE1" {
 |----------|--------|----------|------------------------------------------------------------------------------------|
 | metadata | object |          | Metadata is resource metadata                                                      |
 | spec     | object |          | Spec is a user specification                                                       |
+| status   | object |          |                                                                                    |
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                   |
 | version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v2`. |
 
@@ -2619,6 +2640,14 @@ SAMLIdentities lists associated SAML identities that let user log in using exter
 |--------------|--------|----------|---------------------------------------------------------------------------|
 | connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
 | username     | string |          | Username is username supplied by external identity provider               |
+
+### status
+
+
+
+|      Name      |  Type  | Required |                                                                                                                                                                         Description                                                                                                                                                                         |
+|----------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| password_state | number |          | password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes! |
 
 Example:
 

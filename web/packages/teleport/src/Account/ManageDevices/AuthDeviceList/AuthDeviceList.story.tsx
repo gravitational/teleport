@@ -20,7 +20,7 @@ import React from 'react';
 
 import * as Icon from 'design/Icon';
 
-import { ActionButton, Header } from 'teleport/Account/Header';
+import { ActionButtonSecondary, Header } from 'teleport/Account/Header';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
@@ -39,10 +39,10 @@ export function EmptyList() {
           description="Just some junk"
           icon={<Icon.ShieldCheck />}
           actions={
-            <ActionButton>
+            <ActionButtonSecondary>
               <Icon.Add />
               Add a new device
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       }
@@ -61,10 +61,10 @@ export function ListWithDevices() {
           description="These are very important devices, and I really need to provide a lengthy explanation for the reason why I'm listing them all here, just to make sure this text wraps to the new line, and ugh, I should have really just used some lorem ipsum."
           icon={<Icon.Key />}
           actions={
-            <ActionButton>
+            <ActionButtonSecondary>
               <Icon.Add />
               Add a new device
-            </ActionButton>
+            </ActionButtonSecondary>
           }
         />
       }

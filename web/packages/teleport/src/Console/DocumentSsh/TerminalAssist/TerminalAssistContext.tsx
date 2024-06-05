@@ -25,14 +25,15 @@ import React, {
   useState,
 } from 'react';
 
-import { Author, ServerMessage } from 'teleport/Assist/types';
 import { getHostName } from 'teleport/services/api';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
+  Author,
   ExplanationMessage,
   Message,
   MessageType,
+  ServerMessage,
   SuggestedCommandMessage,
   UserMessage,
 } from 'teleport/Console/DocumentSsh/TerminalAssist/types';

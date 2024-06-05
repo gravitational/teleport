@@ -758,6 +758,140 @@ Shows help:
 $ tctl help
 ```
 
+## tctl inventory list
+
+List Teleport instance inventory:
+
+```code
+$ tctl inventory list [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--older-than` | none | string | Filter for older teleport versions |
+| `--exact-version` | none | string | Filter output by teleport version |
+| `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
+| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |   
+
+### Global flags
+
+These flags are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+List inventory
+
+```code
+$ tctl inventory ls 
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+00c3a1f7-5f24-47f9-b866-14401fbb5685 teleport-proxy-77df88c69        Proxy                      (=teleport.version=)       none     none
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e teleport-auth-fb68b5df7         Auth,Discovery             (=teleport.version=)       none     none
+```
+
+List inventory for a specific service and version
+
+```code
+$ tctl inventory ls --services=node --exact-version=(=teleport.version=)
+Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
+------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
+065ab336-1ac2-4314-8b16-32fc06a172a7 server1                         Node                       (=teleport.version=)       unit     (=teleport.version=)
+a24d4ad4-ead8-4b15-9ea6-357a5350369e server2                         Node,App                   (=teleport.version=)       unit     (=teleport.version=)
+```
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
+
+## tctl inventory status
+
+Show inventory status summary:
+
+```code
+$ tctl inventory status [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |  
+        
+### Global flags
+
+These are available for all commands `--debug, --config` . Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+<Tabs>
+ <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=teleport.version=): 16
+Upgraders:
+  kube: 6
+  unit: 6
+  none: 4
+Services:
+  Discovery:      2
+  Auth:           2
+  Db:             2
+  Kube:           2
+  App:            2
+  Node:           2
+  Proxy:          2
+  WindowsDesktop: 2
+Total Instances: 16
+```
+
+List inventory status for locally connected instances summary. This
+allows seeing connected instances on a specific Auth service.
+
+```code
+$ tctl inventory status --connected
+Server ID                            Services               Version Upgrader 
+------------------------------------ ---------------------- ------- -------- 
+b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none     
+178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit     
+```
+
+ </TabItem>
+ <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
+
+List inventory status
+
+```code
+$ tctl inventory status
+Versions:
+  v(=cloud.version=): 19
+Upgraders:
+  kube: 1
+  unit: 1
+  none: 16
+Services:
+  App:            1
+  Node:           1
+  Proxy:          12
+  Discovery:      2
+  Auth:           2
+  Kube:           1
+Total Instances: 19
+```
+ </TabItem>
+ </Tabs>
+
+ Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
+ under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
+
 ## tctl login_rule test
 
 Test a Login Rule resource without installing it in the cluster.

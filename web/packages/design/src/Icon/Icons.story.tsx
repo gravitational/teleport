@@ -54,6 +54,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
+    <IconBox IconCmpt={Icon.BellRinging} text="BellRinging" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bots} text="Bots" />
     <IconBox IconCmpt={Icon.Broadcast} text="Broadcast" />
@@ -129,6 +130,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Integrations} text="Integrations" />
     <IconBox IconCmpt={Icon.Invoices} text="Invoices" />
     <IconBox IconCmpt={Icon.Key} text="Key" />
+    <IconBox IconCmpt={Icon.Keyboard} text="Keyboard" />
     <IconBox IconCmpt={Icon.Keypair} text="Keypair" />
     <IconBox IconCmpt={Icon.Kubernetes} text="Kubernetes" />
     <IconBox IconCmpt={Icon.Label} text="Label" />
@@ -165,6 +167,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
     <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
+    <IconBox IconCmpt={Icon.Printer} text="Printer" />
     <IconBox IconCmpt={Icon.Profile} text="Profile" />
     <IconBox IconCmpt={Icon.PushPin} text="PushPin" />
     <IconBox IconCmpt={Icon.PushPinFilled} text="PushPinFilled" />

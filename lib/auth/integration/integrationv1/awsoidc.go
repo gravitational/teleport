@@ -20,10 +20,10 @@ package integrationv1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
@@ -41,11 +42,13 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
-		return nil, trace.Wrap(err)
+	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
+		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+		}
 	}
 
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+	return nil, trace.AccessDenied("token generation is only available to auth, proxy or discovery services")
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
@@ -78,7 +81,7 @@ type AWSOIDCServiceConfig struct {
 	Cache                 CacheAWSOIDC
 	Clock                 clockwork.Clock
 	ProxyPublicAddrGetter func() string
-	Logger                *logrus.Entry
+	Logger                *slog.Logger
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -105,7 +108,7 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.awsoidc.service")
+		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsoidc.service")
 	}
 
 	return nil
@@ -117,7 +120,7 @@ type AWSOIDCService struct {
 
 	integrationService    *Service
 	authorizer            authz.Authorizer
-	logger                *logrus.Entry
+	logger                *slog.Logger
 	clock                 clockwork.Clock
 	proxyPublicAddrGetter func() string
 	cache                 CacheAWSOIDC
@@ -325,7 +328,11 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	for _, db := range listDBsResp.Databases {
 		dbV3, ok := db.(*types.DatabaseV3)
 		if !ok {
-			s.logger.Warnf("Skipping %s because conversion (%T) to DatabaseV3 failed: %v", db.GetName(), db, err)
+			s.logger.WarnContext(ctx, "Skipping database because conversion to DatabaseV3 failed",
+				"database", db.GetName(),
+				"type", logutils.TypeAttr(db),
+				"error", err,
+			)
 			continue
 		}
 		dbList = append(dbList, dbV3)
@@ -601,7 +608,11 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 	for _, server := range listEC2Resp.Servers {
 		serverV2, ok := server.(*types.ServerV2)
 		if !ok {
-			s.logger.Warnf("Skipping %s because conversion (%T) to ServerV2 failed: %v", server.GetName(), server, err)
+			s.logger.WarnContext(ctx, "Skipping server because conversion to ServerV2 failed",
+				"server", server.GetName(),
+				"type", logutils.TypeAttr(server),
+				"error", err,
+			)
 			continue
 		}
 		serverList = append(serverList, serverV2)

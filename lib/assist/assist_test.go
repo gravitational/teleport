@@ -37,11 +37,13 @@ import (
 	"github.com/gravitational/teleport/lib/ai/model/tools"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestChatComplete(t *testing.T) {
 	t.Parallel()
 
+	modules.SetInsecureTestMode(true)
 	// Given an OpenAI server that returns a response for a chat completion request.
 	responses := []string{
 		generateCommandResponse(),

@@ -41,7 +41,7 @@ func TestServerTLS(t *testing.T) {
 	stream, _, err := client1.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
+	stream.Close()
 
 	// trusted certificates with incorrect server role.
 	client2 := setupClient(t, ca1, ca1, types.RoleNode)
@@ -59,5 +59,5 @@ func TestServerTLS(t *testing.T) {
 	stream, _, err = client3.dial([]string{"s3"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	stream.CloseSend()
+	stream.Close()
 }

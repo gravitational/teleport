@@ -148,7 +148,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, dbUsers, dbNames), nil
+	return ui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
@@ -209,7 +209,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
-		uiDesktops = append(uiDesktops, ui.MakeDesktop(desktop, logins))
+		uiDesktops = append(uiDesktops, ui.MakeDesktop(desktop, logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
@@ -277,7 +277,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDesktop(desktop, logins), nil
+	return ui.MakeDesktop(desktop, logins, false /* requiresRequest */), nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
@@ -445,5 +445,5 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeServer(site.GetName(), server, logins), nil
+	return ui.MakeServer(site.GetName(), server, logins, false /* requiresRequest */), nil
 }

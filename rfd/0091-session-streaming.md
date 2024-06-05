@@ -61,7 +61,7 @@ improvement in "time to first byte" of playback (11s to < 1s).
 
 In addition to latency, the current approach requires the entire session to be
 loaded into memory. This is inefficient, and consuming large amounts of system
-memory can impact the overall responsiveness of the the system.
+memory can impact the overall responsiveness of the system.
 
 In the web UI, this can also result in failure to play the session at all,
 as observed in [#10578](https://github.com/gravitational/teleport/issues/10578).

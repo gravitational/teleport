@@ -54,8 +54,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -84,6 +86,7 @@ func TestSSH(t *testing.T) {
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 			cfg.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
 				PrivateKey:  webKeyPath,
 				Certificate: webCertPath,
@@ -92,6 +95,7 @@ func TestSSH(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 		}),
 	)
 
@@ -310,7 +314,7 @@ func TestWithRsync(t *testing.T) {
 					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
-				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 					Name: s.user.GetName(),
 				})
 				require.NoError(t, err)
@@ -391,11 +395,11 @@ func TestWithRsync(t *testing.T) {
 					}
 
 					// send login response to the client
-					resp := auth.SSHLoginResponse{
+					resp := authclient.SSHLoginResponse{
 						Username:    s.user.GetName(),
 						Cert:        sshCert,
 						TLSCert:     tlsCert,
-						HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+						HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 					}
 					encResp, err := json.Marshal(resp)
 					if !assert.NoError(t, err) {
@@ -594,8 +598,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(rootListenerMode)
-							// Disable session recording to prevent writing to disk after the test concludes.
-							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
 							// Load all CAs on login so that leaf CA is trusted by clients.
 							cfg.LoadAllCAs = true
 						},
@@ -610,8 +612,6 @@ func TestProxySSHJumpHost(t *testing.T) {
 					testserver.WithAuthConfig(
 						func(cfg *servicecfg.AuthConfig) {
 							cfg.NetworkingConfig.SetProxyListenerMode(leafListenerMode)
-							// Disable session recording to prevent writing to disk after the test concludes.
-							cfg.SessionRecordingConfig.SetMode(types.RecordOff)
 						},
 					),
 				}
@@ -681,7 +681,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
-	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
+	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(tshConfigFile), 0o777))
 	require.NoError(t, os.WriteFile(tshConfigFile, []byte(fmt.Sprintf(`
 proxy_templates:
@@ -1255,7 +1255,7 @@ Use one of the following commands to connect to the database or to the address a
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			templateArgs := map[string]any{}
-			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, "")
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, &databaseInfo{})
 			require.Equal(t, tt.wantTemplate, tpl)
 			require.Equal(t, tt.wantTemplateArgs, templateArgs)
 

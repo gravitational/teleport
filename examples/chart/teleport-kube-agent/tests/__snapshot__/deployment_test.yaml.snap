@@ -30,7 +30,7 @@ sets Deployment annotations when specified if action is Upgrade:
             env:
             - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -105,7 +105,7 @@ sets Deployment labels when specified if action is Upgrade:
           env:
           - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
             value: "true"
-          image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+          image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 6
@@ -167,7 +167,7 @@ sets Pod annotations when specified if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -229,7 +229,7 @@ sets Pod labels when specified if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -312,7 +312,7 @@ should add emptyDir for data when existingDataVolume is not set if action is Upg
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -375,7 +375,7 @@ should add insecureSkipProxyTLSVerify to args when set in values if action is Up
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -437,7 +437,7 @@ should correctly configure existingDataVolume when set if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -497,7 +497,7 @@ should expose diag port if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -571,7 +571,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -645,7 +645,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -707,7 +707,7 @@ should have one replica when replicaCount is not set if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -769,7 +769,7 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -980,7 +980,7 @@ should mount tls.existingCASecretName and set environment when set in values if 
         value: "true"
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1052,7 +1052,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: http://username:password@my.proxy.host:3128
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1120,7 +1120,7 @@ should provision initContainer correctly when set in values if action is Upgrade
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1240,7 +1240,7 @@ should set affinity when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1302,7 +1302,7 @@ should set default serviceAccountName when not set in values if action is Upgrad
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1377,7 +1377,7 @@ should set environment when extraEnv set in values if action is Upgrade:
         value: "true"
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1501,7 +1501,7 @@ should set imagePullPolicy when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -1563,7 +1563,7 @@ should set nodeSelector if set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1627,7 +1627,7 @@ should set not set priorityClassName when not set in values if action is Upgrade
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1701,7 +1701,7 @@ should set preferred affinity when more than one replica is used if action is Up
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1763,7 +1763,7 @@ should set priorityClassName when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1826,7 +1826,7 @@ should set probeTimeoutSeconds when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1898,7 +1898,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set if
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1960,7 +1960,7 @@ should set resources when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2029,7 +2029,7 @@ should set serviceAccountName when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2091,7 +2091,7 @@ should set tolerations when set in values if action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6

@@ -20,6 +20,7 @@ import React from 'react';
 import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
+import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import styled from 'styled-components';
 import { width, space } from 'design/system';
 
@@ -78,6 +79,25 @@ export function SelectCreatable(props: CreatableProps) {
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
+        {...restOfProps}
+      />
+    </StyledSelect>
+  );
+}
+
+export function SelectCreatableAsync(props: AsyncProps & CreatableProps) {
+  const { hasError = false, stylesConfig, ...restOfProps } = props;
+  return (
+    <StyledSelect hasError={hasError}>
+      <ReactSelectCreatableAsync
+        className="react-select-container"
+        classNamePrefix="react-select"
+        styles={stylesConfig}
+        clearable={false}
+        isSearchable={true}
+        defaultOptions={false}
+        cacheOptions={false}
+        defaultMenuIsOpen={false}
         {...restOfProps}
       />
     </StyledSelect>

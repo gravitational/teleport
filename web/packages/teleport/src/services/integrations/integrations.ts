@@ -20,8 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
-
 import auth from '../auth/auth';
+import { App } from '../apps';
+import makeApp from '../apps/makeApps';
 
 import {
   Integration,
@@ -161,6 +162,12 @@ export const integrationService = {
       .then(resp => resp.serviceDashboardUrl);
   },
 
+  async createAwsAppAccess(integrationName): Promise<App> {
+    return api
+      .post(cfg.getAwsAppAccessUrl(integrationName), null)
+      .then(makeApp);
+  },
+
   async deployDatabaseServices(
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
@@ -235,18 +242,21 @@ export const integrationService = {
         return {
           endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
           nextToken: json?.nextToken,
+          dashboardLink: json?.dashboardLink,
         };
       });
   },
 
   // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoint(
+  deployAwsEc2InstanceConnectEndpoints(
     integrationName,
     req: DeployEc2InstanceConnectEndpointRequest
   ): Promise<DeployEc2InstanceConnectEndpointResponse> {
     return api
       .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(json => ({ name: json?.name }));
+      .then(resp => {
+        return resp ?? [];
+      });
   },
 
   // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
@@ -313,7 +323,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
 
 function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
   json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId } = json;
+  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
 
   return {
     name,
@@ -321,6 +331,7 @@ function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
     stateMessage,
     dashboardLink,
     subnetId,
+    vpcId,
   };
 }
 

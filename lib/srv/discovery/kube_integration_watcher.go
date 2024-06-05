@@ -195,7 +195,7 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 		for _, r := range rsp.Results {
 			if r.Error != "" {
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.WithError(err).Errorf("failed to enroll EKS cluster %q", r.EksClusterName)
+					s.Log.Errorf("failed to enroll EKS cluster %q: %s", r.EksClusterName, r.Error)
 				} else {
 					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.EksClusterName)
 				}

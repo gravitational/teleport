@@ -70,7 +70,21 @@ db_service:
     # Free-form description of the database proxy instance.
     description: "Production database"
 
-    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "clickhouse", "clickhouse-http", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
+    # Database protocol. Valid options are:
+    # "cassandra"
+    # "clickhouse"
+    # "clickhouse-http"
+    # "cockroachdb"
+    # "dynamodb"
+    # "elasticsearch"
+    # "mongodb"
+    # "mysql"
+    # "oracle"
+    # "postgres"
+    # "redis"
+    # "snowflake"
+    # "spanner"
+    # "sqlserver"
     protocol: "postgres"
 
     # Database connection endpoint. Must be reachable from Database Service.
@@ -150,7 +164,11 @@ db_service:
         # by default.
         kms_key_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
-    # GCP specific configuration for Cloud SQL databases.
+      # Optional session tags used when assuming IAM roles for DynamoDB access.
+      session_tags:
+        dynamodb_table_name: "table-a"
+
+    # GCP specific configuration for Cloud SQL and Spanner databases.
     gcp:
       # GCP project ID.
       project_id: "xxx-1234"

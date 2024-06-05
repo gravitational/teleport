@@ -20,13 +20,14 @@ import (
 	"context"
 	fmt "fmt"
 
-	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type

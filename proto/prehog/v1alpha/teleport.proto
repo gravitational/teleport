@@ -454,6 +454,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
 
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
+
+  DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -520,6 +522,14 @@ message UIDiscoverDatabaseRDSEnrollEvent {
   int64 selected_resources_count = 4;
 }
 
+// UIDiscoverKubeEKSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of EKS clusters.
+message UIDiscoverKubeEKSEnrollEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -559,6 +569,29 @@ message UIDiscoverDeployServiceEvent {
   }
 
   DeployType deploy_type = 5;
+}
+
+// UIDiscoverCreateDiscoveryConfigEvent is emitted when a discovery config is successfully created.
+message UIDiscoverCreateDiscoveryConfigEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+
+  // ConfigMethod describes how the discovery config is configured.
+  enum ConfigMethod {
+    // CONFIG_METHOD_UNSPECIFIED means config method unspecified/unset.
+    CONFIG_METHOD_UNSPECIFIED = 0;
+    // CONFIG_METHOD_SSM means EC2 auto discovery configured with ssm.
+    CONFIG_METHOD_AWS_EC2_SSM = 1;
+    // CONFIG_METHOD_SSM means auto discovery configured for EC2 using EICE.
+    CONFIG_METHOD_AWS_EC2_EICE = 2;
+    // CONFIG_METHOD_SSM means auto discovery configured for RDS using ECS.
+    CONFIG_METHOD_AWS_RDS_ECS = 3;
+    // CONFIG_METHOD_SSM means auto discovery configured for EKS.
+    CONFIG_METHOD_AWS_EKS = 4;
+  }
+
+  ConfigMethod config_method = 4;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -733,6 +766,7 @@ enum CTA {
   CTA_ACCESS_MONITORING = 9;
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
+  CTA_ENTRA_ID = 12;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -987,6 +1021,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 20;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
+  INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1244,6 +1279,34 @@ message OktaAccessListSyncEvent {
   int32 num_access_list_members = 7;
 }
 
+// DatabaseUserCreatedEvent is an event that is emitted after database service performs automatic user provisioning.
+message DatabaseUserCreatedEvent {
+  // Database metadata.
+  SessionStartDatabaseMetadata database = 1;
+
+  // Teleport user name. Anonymized.
+  string user_name = 2;
+
+  // Number of database roles.
+  int32 num_roles = 3;
+}
+
+// DatabaseUserPermissionsUpdateEvent is an event that is emitted after database service updates the permissions for the database user.
+message DatabaseUserPermissionsUpdateEvent {
+  // Database metadata.
+  SessionStartDatabaseMetadata database = 1;
+
+  // Teleport user name. Anonymized.
+  string user_name = 2;
+
+  // How many tables were affected.
+  int32 num_tables = 3;
+
+  // How many total table permissions were given to the user.
+  // For example {SELECT,UPDATE} on ten tables gives a total of twenty.
+  int32 num_tables_permissions = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1372,6 +1435,14 @@ message SubmitEventRequest {
     SPIFFESVIDIssuedEvent spiffe_svid_issued = 79;
 
     OktaAccessListSyncEvent okta_access_list_sync = 80;
+
+    DatabaseUserCreatedEvent database_user_created = 81;
+
+    DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82;
+
+    UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83;
+
+    UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

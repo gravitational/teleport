@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,6 +49,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -451,6 +453,11 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		{
 			name:          "ipv4 unspecified, API domain should be used ",
 			kubeProxyAddr: "0.0.0.0",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+		{
+			name:          "localhost, API domain should be used ",
+			kubeProxyAddr: "localhost",
 			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{

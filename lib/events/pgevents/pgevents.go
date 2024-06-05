@@ -21,6 +21,7 @@ package pgevents
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -39,6 +39,7 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,42 +58,21 @@ const (
 
 // URL parameters for configuration.
 const (
-	authModeParam = "auth_mode"
+	authModeParam          = "auth_mode"
+	gcpConnectionNameParam = "gcp_connection_name"
+	gcpIPTypeParam         = "gcp_ip_type"
 
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
 )
 
-// AuthMode determines if we should use some environment-specific authentication
-// mechanism or credentials.
-type AuthMode string
-
-const (
-	// FixedAuth uses the static credentials as defined in the connection
-	// string.
-	FixedAuth AuthMode = ""
-	// AzureADAuth gets a connection token from Azure and uses it as the
-	// password when connecting.
-	AzureADAuth AuthMode = "azure"
-)
-
-// Check returns an error if the AuthMode is invalid.
-func (a AuthMode) Check() error {
-	switch a {
-	case FixedAuth, AzureADAuth:
-		return nil
-	default:
-		return trace.BadParameter("invalid authentication mode %q", a)
-	}
-}
-
 // Config is the configuration struct to pass to New.
 type Config struct {
-	Log        logrus.FieldLogger
-	PoolConfig *pgxpool.Config
+	pgcommon.AuthConfig
 
-	AuthMode AuthMode
+	Log        *slog.Logger
+	PoolConfig *pgxpool.Config
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -121,7 +101,9 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	}
 	c.PoolConfig = poolConfig
 
-	c.AuthMode = AuthMode(params.Get(authModeParam))
+	c.AuthMode = pgcommon.AuthMode(params.Get(authModeParam))
+	c.GCPConnectionName = params.Get(gcpConnectionNameParam)
+	c.GCPIPType = pgcommon.GCPIPType(params.Get(gcpIPTypeParam))
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -157,7 +139,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing pool config")
 	}
 
-	if err := c.AuthMode.Check(); err != nil {
+	if err := c.AuthConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -176,7 +158,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, componentName)
+		c.Log = slog.With(teleport.ComponentKey, componentName)
 	}
 
 	return nil
@@ -189,15 +171,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.PoolConfig.BeforeConnect = bc
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err, "registering prometheus collectors")
 	}
 
-	cfg.Log.Info("Setting up events backend.")
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.Log.InfoContext(ctx, "Setting up events backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, cfg.PoolConfig, cfg.Log)
 
@@ -223,14 +205,14 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
 	}
 
-	l.log.Info("Started events backend.")
+	l.log.InfoContext(ctx, "Started events backend.")
 
 	return l, nil
 }
 
 // Log is an external [events.AuditLogger] backed by a PostgreSQL database.
 type Log struct {
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	pool *pgxpool.Pool
 
 	cancel context.CancelFunc
@@ -275,7 +257,8 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		case <-tk.C:
 		}
 
-		l.log.Debug("Executing periodic cleanup.")
+		l.log.DebugContext(ctx, "Executing periodic cleanup.")
+		start := time.Now()
 		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
@@ -287,10 +270,14 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 
 			return tag.RowsAffected(), nil
 		})
+		batchDeleteLatencies.Observe(time.Since(start).Seconds())
+
 		if err != nil {
-			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
+			batchDeleteRequestsFailure.Inc()
+			l.log.ErrorContext(ctx, "Failed to execute periodic cleanup.", "error", err)
 		} else {
-			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
+			batchDeleteRequestsSuccess.Inc()
+			l.log.DebugContext(ctx, "Executed periodic cleanup.", "deleted", deleted)
 		}
 	}
 }
@@ -316,9 +303,10 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 
 	eventID := uuid.New()
 
+	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
-	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
+	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
 				" VALUES ($1, $2, $3, $4, $5)"+
@@ -326,9 +314,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
 		)
 		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
+	})
+
+	writeLatencies.Observe(time.Since(start).Seconds())
+
+	if err != nil {
+		writeRequestsFailure.Inc()
 		return trace.Wrap(err)
 	}
+	writeRequestsSuccess.Inc()
 
 	return nil
 }
@@ -424,8 +418,9 @@ func (l *Log) searchEvents(
 	var endTime time.Time
 	var endID uuid.UUID
 
+	transactionStart := time.Now()
 	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
+	err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
 		AccessMode: pgx.ReadOnly,
 	}, idempotent, func(tx pgx.Tx) error {
 		evs = nil
@@ -491,9 +486,14 @@ func (l *Log) searchEvents(
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	batchReadLatencies.Observe(time.Since(transactionStart).Seconds())
+
+	if err != nil {
+		batchReadRequestsFailure.Inc()
 		return nil, "", trace.Wrap(err)
 	}
+	batchReadRequestsSuccess.Inc()
 
 	var nextKey string
 	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -171,7 +172,7 @@ func Test_getGCPUserAndPassowrd(t *testing.T) {
 	}
 }
 
-func makeAuthClient(t *testing.T) *auth.Client {
+func makeAuthClient(t *testing.T) *authclient.Client {
 	t.Helper()
 
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{

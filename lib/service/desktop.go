@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -160,10 +160,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
 		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
-		// Device authorization breaks browser-based access.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			// Ignore the global device_trust.mode toggle, but allow role-based
+			// settings to be applied.
 			DisableGlobalMode: true,
-			DisableRoleMode:   true,
 		},
 	})
 	if err != nil {
@@ -185,7 +185,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
+		pool, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,7 +212,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
 		DataDir:      process.Config.DataDir,
-		Log:          process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Logger:       process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
 		Emitter:      conn.Client,

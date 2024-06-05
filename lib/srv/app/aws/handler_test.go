@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/google/go-cmp/cmp"
@@ -101,6 +103,39 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 	return err
 }
 
+// dont make tests generate huge requests just to test limiting the request
+// size. Use a 1MB limit instead of the actual 70MB limit.
+const maxTestHTTPRequestBodySize = 1 << 20
+
+func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
+	// fake an upload that's too large
+	payload := strings.Repeat("x", maxTestHTTPRequestBodySize)
+	return lambdaRequestWithPayload(url, provider, payload)
+}
+
+func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
+	// fake a zip file with 70% of the max limit. Lambda will base64 encode it,
+	// which bloats it up, and our proxy should still handle it.
+	const size = (maxTestHTTPRequestBodySize * 7) / 10
+	payload := strings.Repeat("x", size)
+	return lambdaRequestWithPayload(url, provider, payload)
+}
+
+func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string) error {
+	lambdaClient := lambda.New(provider, &aws.Config{
+		Endpoint:   &url,
+		MaxRetries: aws.Int(0),
+		HTTPClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
+	})
+	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
+		FunctionName: aws.String("fakeFunc"),
+		ZipFile:      []byte(payload),
+	})
+	return err
+}
+
 func assumeRoleRequest(requestDuration time.Duration) makeRequest {
 	return func(url string, provider client.ConfigProvider, _ string) error {
 		stsClient := sts.New(provider, &aws.Config{
@@ -150,10 +185,20 @@ func TestAWSSignerHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	consoleAppWithIntegration, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:         constants.AWSConsoleURL,
+		PublicAddr:  "test.local",
+		Integration: "my-integration",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                string
 		app                 types.Application
 		awsClientSession    *session.Session
+		awsSessionProvider  awsutils.AWSSessionProvider
 		request             makeRequest
 		advanceClock        time.Duration
 		wantHost            string
@@ -174,6 +219,29 @@ func TestAWSSignerHandler(t *testing.T) {
 				Region:      aws.String("us-west-2"),
 			})),
 			request:             s3Request,
+			wantHost:            "s3.us-west-2.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "s3",
+			wantAuthCredRegion:  "us-west-2",
+			wantEventType:       &events.AppSessionRequest{},
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name: "s3 access with integration",
+			app:  consoleAppWithIntegration,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-west-2"),
+			})),
+			request: s3Request,
+			awsSessionProvider: func(ctx context.Context, region, integration string) (*session.Session, error) {
+				if integration != "my-integration" {
+					return nil, trace.BadParameter("")
+				}
+				return nil, nil
+			},
 			wantHost:            "s3.us-west-2.amazonaws.com",
 			wantAuthCredKeyID:   "AKIDl",
 			wantAuthCredService: "s3",
@@ -297,6 +365,37 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "Lambda access",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request:             lambdaRequest,
+			wantHost:            "lambda.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredService: "lambda",
+			wantAuthCredRegion:  "us-east-1",
+			wantEventType:       &events.AppSessionRequest{},
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name: "Request exceeding max size",
+			app:  consoleApp,
+			awsClientSession: session.Must(session.NewSession(&aws.Config{
+				Credentials: staticAWSCredentialsForClient,
+				Region:      aws.String("us-east-1"),
+			})),
+			request: maxSizeExceededRequest,
+			errAssertionFns: []require.ErrorAssertionFunc{
+				// TODO(gavin): change this to [http.StatusRequestEntityTooLarge]
+				// after updating [trace.ErrorToCode].
+				hasStatusCode(http.StatusTooManyRequests),
+			},
+		},
+		{
 			name: "AssumeRole success (shorter identity duration)",
 			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
@@ -353,7 +452,9 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fakeClock := clockwork.NewFakeClock()
 			mockAwsHandler := func(w http.ResponseWriter, r *http.Request) {
 				// check that we got what the test case expects first.
@@ -382,7 +483,13 @@ func TestAWSSignerHandler(t *testing.T) {
 
 				w.WriteHeader(http.StatusOK)
 			}
-			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
+
+			sessionProvider := awsutils.SessionProviderUsingAmbientCredentials()
+			if tc.awsSessionProvider != nil {
+				sessionProvider = tc.awsSessionProvider
+			}
+
+			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, sessionProvider)
 			fakeClock.Advance(tc.advanceClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
@@ -501,7 +608,7 @@ type suite struct {
 	recorder *eventstest.ChannelRecorder
 }
 
-func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, awsSessionProvider awsutils.AWSSessionProvider) *suite {
 	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
@@ -518,6 +625,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		SessionProvider:   awsSessionProvider,
 		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
 		Clock:             clock,
 	})
@@ -539,7 +647,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 					return net.Dial(awsAPIMock.Listener.Addr().Network(), awsAPIMock.Listener.Addr().String())
 				},
 			},
-			Clock: clock,
+			Clock:                  clock,
+			MaxHTTPRequestBodySize: maxTestHTTPRequestBodySize,
 		})
 	require.NoError(t, err)
 	mux := http.NewServeMux()

@@ -22,11 +22,6 @@ import styled from 'styled-components';
 import { CloseIcon } from 'design/SVGIcon';
 import { ChatCircleSparkle } from 'design/Icon';
 
-import { HeaderIcon, Tooltip } from 'teleport/Assist/shared';
-import {
-  TypingContainer,
-  TypingDot,
-} from 'teleport/Assist/Conversation/Typing';
 import { useTerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
 import {
   Key,
@@ -35,6 +30,10 @@ import {
 import { MessageItem } from 'teleport/Console/DocumentSsh/TerminalAssist/MessageItem';
 import { getMetaKeySymbol } from 'teleport/Console/DocumentSsh/TerminalAssist/utils';
 import { MessageBox } from 'teleport/Console/DocumentSsh/TerminalAssist/MessageBox';
+import {
+  TypingContainer,
+  TypingDot,
+} from 'teleport/Console/DocumentSsh/TerminalAssist/Typing';
 
 interface TerminalAssistProps {
   onUseCommand: (command: string) => void;
@@ -128,6 +127,59 @@ const Title = styled.h2`
   font-size: 16px;
 `;
 
+export const Tooltip = styled.div`
+  position: absolute;
+  right: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+  top: 40px;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  border-radius: 7px;
+  padding: 5px 8px;
+
+  &:after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 7px 7px 7px;
+    border-color: transparent transparent rgba(0, 0, 0, 0.8) transparent;
+    top: -7px;
+    right: 10px;
+  }
+`;
+
+const HeaderIcon = styled.div`
+  border-radius: 7px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.2s ease-in-out opacity;
+  position: relative;
+
+  ${Tooltip} {
+    display: none;
+  }
+
+  svg {
+    transform: ${p => (p.rotated ? 'rotate(180deg)' : 'none')};
+  }
+
+  &:hover {
+    background: ${p => p.theme.colors.spotBackground[0]};
+
+    ${Tooltip} {
+      display: block;
+    }
+  }
+`;
+
 export function TerminalAssist(props: TerminalAssistProps) {
   const { close, loading, messages, open, visible } = useTerminalAssist();
 
@@ -164,7 +216,7 @@ export function TerminalAssist(props: TerminalAssistProps) {
           <HeaderIcon onClick={close}>
             <CloseIcon size={24} />
 
-            <Tooltip position="right">Hide Assist</Tooltip>
+            <Tooltip>Hide Assist</Tooltip>
           </HeaderIcon>
         </Header>
 

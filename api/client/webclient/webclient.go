@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -219,13 +220,24 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusBadRequest {
-		per := &PingErrorResponse{}
-		if err := json.NewDecoder(resp.Body).Decode(per); err != nil {
-			return nil, trace.Wrap(err)
+
+	if resp.StatusCode != http.StatusOK {
+		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
 		}
-		return nil, errors.New(per.Error.Message)
+
+		errResp := &PingErrorResponse{}
+		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
+			return nil, trace.Wrap(err, "cannot parse ping response; is proxy reachable?")
+		}
+
+		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
 	}
+
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
@@ -293,13 +305,12 @@ type PingResponse struct {
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
 }
 
-// PingErrorResponse contains the error message if the requested connector
-// does not match one that has been registered.
+// PingErrorResponse contains the error from /webapi/ping.
 type PingErrorResponse struct {
 	Error PingError `json:"error"`
 }
 
-// PingError contains the string message from the PingErrorResponse
+// PingError contains the string message from /webapi/ping.
 type PingError struct {
 	Message string `json:"message"`
 }

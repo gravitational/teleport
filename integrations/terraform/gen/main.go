@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -31,13 +32,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/olekukonko/tablewriter"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 	accesslistSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1"
 	devicetrustSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1"
 	loginruleSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1"
+	tokenSchema "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // payload represents template payload
@@ -284,11 +285,12 @@ var (
 		CreateMethod:           "UpsertToken",
 		UpdateMethod:           "UpsertToken",
 		DeleteMethod:           "DeleteToken",
-		ID:                     "strconv.FormatInt(provisionToken.Metadata.ID, 10)", // must be a string
+		ID:                     "provisionToken.Metadata.Revision", // must be a string
 		RandomMetadataName:     true,
 		Kind:                   "token",
 		HasStaticID:            false,
-		ExtraImports:           []string{"strconv"},
+		SchemaPackage:          "token",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
@@ -564,7 +566,7 @@ var (
 		"login_rule":                 loginruleSchema.GenSchemaLoginRule,
 		"okta_import_rule":           tfschema.GenSchemaOktaImportRuleV1,
 		"oidc_connector":             tfschema.GenSchemaOIDCConnectorV3,
-		"provision_token":            tfschema.GenSchemaProvisionTokenV2,
+		"provision_token":            tokenSchema.GenSchemaProvisionTokenV2,
 		"role":                       tfschema.GenSchemaRoleV6,
 		"saml_connector":             tfschema.GenSchemaSAMLConnectorV2,
 		"session_recording_config":   tfschema.GenSchemaSessionRecordingConfigV2,

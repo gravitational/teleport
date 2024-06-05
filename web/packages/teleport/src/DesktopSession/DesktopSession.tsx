@@ -77,9 +77,11 @@ export function DesktopSession(props: State) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
+    windowOnResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
     onShareDirectory,
+    onCtrlAltDel,
     warnings,
     onRemoveWarning,
     fetchAttempt,
@@ -132,6 +134,7 @@ export function DesktopSession(props: State) {
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
+        onCtrlAltDel={onCtrlAltDel}
         warnings={warnings}
         onRemoveWarning={onRemoveWarning}
       />
@@ -169,6 +172,7 @@ export function DesktopSession(props: State) {
         canvasOnMouseUp={canvasOnMouseUp}
         canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
         canvasOnContextMenu={canvasOnContextMenu}
+        windowOnResize={windowOnResize}
         updatePointer={true}
       />
     </Flex>

@@ -1,6 +1,6 @@
 ---
 authors: Bartosz Leper (bartosz.leper@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0159 - Improving Password Management UX

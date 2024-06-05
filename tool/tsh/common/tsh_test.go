@@ -46,6 +46,8 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -89,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 const (
@@ -117,6 +121,7 @@ func TestMain(m *testing.M) {
 	}
 
 	modules.SetModules(&cliModules{})
+	modules.SetInsecureTestMode(true)
 
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
@@ -130,7 +135,7 @@ func handleReexec() {
 	// is re-executed.
 	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
-			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
 					return nil, trace.Wrap(err, "dialing mock headless server")
@@ -147,7 +152,7 @@ func handleReexec() {
 				if err != nil {
 					return nil, trace.Wrap(err, "reading reply from mock headless server")
 				}
-				var loginResp auth.SSHLoginResponse
+				var loginResp authclient.SSHLoginResponse
 				if err := json.Unmarshal(reply, &loginResp); err != nil {
 					return nil, trace.Wrap(err, "decoding reply from mock headless server")
 				}
@@ -201,6 +206,16 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// IsEnterpriseBuild returns false for [cliModules].
+func (p *cliModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns false for [cliModules].
+func (p *cliModules) IsOSSBuild() bool {
+	return false
 }
 
 // PrintVersion prints the Teleport version.
@@ -343,7 +358,7 @@ func TestAlias(t *testing.T) {
 			t.Setenv(tshBinMainTestEnv, "1")
 
 			// write config to use
-			config := &TSHConfig{Aliases: tt.aliases}
+			config := &client.TSHConfig{Aliases: tt.aliases}
 			configBytes, err := yamlv2.Marshal(config)
 			require.NoError(t, err)
 			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
@@ -378,7 +393,7 @@ func TestFailedLogin(t *testing.T) {
 
 	// build a mock SSO login function to patch into tsh
 	loginFailed := trace.AccessDenied("login failed")
-	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		return nil, loginFailed
 	}
 
@@ -891,7 +906,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.TSHConfig.ExtraHeaders = []ExtraProxyHeaders{
+	conf.TSHConfig.ExtraHeaders = []client.ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
@@ -1186,7 +1201,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			return
 		}
 
-		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: name,
 		})
 		require.NoError(t, err)
@@ -2281,7 +2296,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
-		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 			ssoCalls.Add(1)
 			return mockSSOLogin(ctx, connectorID, priv, protocol)
 		}
@@ -3566,7 +3581,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		if err != nil {
@@ -3595,17 +3610,17 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 		}
 
 		// build login response
-		return &auth.SSHLoginResponse{
+		return &authclient.SSHLoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
@@ -3627,11 +3642,11 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 		require.NoError(t, err)
 
 		// build login response
-		return &auth.SSHLoginResponse{
+		return &authclient.SSHLoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
-			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+			HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 		}, nil
 	}
 }
@@ -5504,4 +5519,538 @@ func TestFlatten(t *testing.T) {
 	// Test execution: validate that flattening succeeds if a profile already exists.
 	conf.IdentityFileIn = identityPath
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
+}
+
+// TestListingResourcesAcrossClusters validates that tsh ls -R
+// returns expected results for root and leaf clusters.
+func TestListingResourcesAcrossClusters(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	createAgent(t)
+
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node01"),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db01",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	leafServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node02"),
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			// Enable DB
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "db02",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+				},
+			}
+
+			cfg.Apps.Enabled = true
+			cfg.Apps.DebugApp = true
+		}),
+	}
+	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+
+	var (
+		rootNode, leafNode *types.ServerV2
+		rootDB, leafDB     *types.DatabaseV3
+		rootApp, leafApp   *types.AppV3
+	)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
+			return
+		}
+
+		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
+			return
+		}
+
+		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
+			return
+		}
+
+		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
+			return
+		}
+
+		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
+			return
+		}
+
+		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
+			return
+		}
+
+		rootNode = rootNodes[0].(*types.ServerV2)
+		leafNode = leafNodes[0].(*types.ServerV2)
+		rootDB = rootDatabases[0].GetDatabase().(*types.DatabaseV3)
+		leafDB = leafDatabases[0].GetDatabase().(*types.DatabaseV3)
+		rootApp = rootApps[0].GetApp().(*types.AppV3)
+		leafApp = leafApps[0].GetApp().(*types.AppV3)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	t.Run("nodes", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.ServerV2]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootNode,
+				leafResource:  leafNode,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.ServerV2 {
+				type recursiveServer struct {
+					Proxy   string          `json:"proxy"`
+					Cluster string          `json:"cluster"`
+					Node    *types.ServerV2 `json:"node"`
+				}
+
+				var nodes []*types.ServerV2
+				if recursive {
+					var servers []recursiveServer
+					require.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					nodes = make([]*types.ServerV2, 0, len(servers))
+					for _, s := range servers {
+						if s.Node.GetHostname() == "node01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Node.CheckAndSetDefaults())
+						nodes = append(nodes, s.Node)
+					}
+				} else {
+					err := json.Unmarshal(raw, &nodes)
+					assert.NoError(t, err)
+					require.NotEmpty(t, nodes)
+
+					for _, s := range nodes {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return nodes
+			},
+			func(a, b *types.ServerV2) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("databases", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.DatabaseV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootDB,
+				leafResource:  leafDB,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"db", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.DatabaseV3 {
+				type recursiveServer struct {
+					Proxy    string            `json:"proxy"`
+					Cluster  string            `json:"cluster"`
+					Database *types.DatabaseV3 `json:"database"`
+				}
+
+				var databases []*types.DatabaseV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					databases = make([]*types.DatabaseV3, 0, len(servers))
+					for _, s := range servers {
+						if s.Database.GetName() == "db01" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.Database.CheckAndSetDefaults())
+						databases = append(databases, s.Database)
+					}
+				} else {
+					var servers []*types.DatabaseV3
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					for _, s := range servers {
+						require.NoError(t, s.CheckAndSetDefaults())
+						databases = append(databases, s)
+					}
+				}
+
+				return databases
+			},
+			func(a, b *types.DatabaseV3) bool {
+				return strings.Compare(a.GetName(), b.GetName()) < 0
+			},
+		)
+	})
+
+	t.Run("applications", func(t *testing.T) {
+		t.Parallel()
+
+		testListingResources(t,
+			listPack[*types.AppV3]{
+				rootProcess:   rootServer,
+				leafProcess:   leafServer,
+				rootResource:  rootApp,
+				leafResource:  leafApp,
+				user:          accessUser,
+				connectorName: connector.GetName(),
+				args:          []string{"apps", "ls"},
+			},
+			func(t *testing.T, proxyAddr string, recursive bool, raw []byte) []*types.AppV3 {
+				type recursiveServer struct {
+					Proxy   string       `json:"proxy"`
+					Cluster string       `json:"cluster"`
+					App     *types.AppV3 `json:"app"`
+				}
+
+				var apps []*types.AppV3
+				if recursive {
+					var servers []recursiveServer
+					assert.NoError(t, json.Unmarshal(raw, &servers))
+					require.NotEmpty(t, servers)
+
+					apps = make([]*types.AppV3, 0, len(servers))
+					for _, s := range servers {
+						if s.App.GetPublicAddr() == "dumper.root" {
+							assert.Equal(t, "root", s.Cluster)
+						} else {
+							assert.Equal(t, "leaf", s.Cluster)
+						}
+
+						assert.Equal(t, proxyAddr, s.Proxy)
+						require.NoError(t, s.App.CheckAndSetDefaults())
+						apps = append(apps, s.App)
+					}
+				} else {
+					assert.NoError(t, json.Unmarshal(raw, &apps))
+					require.NotEmpty(t, apps)
+
+					for _, s := range apps {
+						require.NoError(t, s.CheckAndSetDefaults())
+					}
+				}
+
+				return apps
+			},
+			func(a, b *types.AppV3) bool {
+				return strings.Compare(a.GetPublicAddr(), b.GetPublicAddr()) < 0
+			},
+		)
+	})
+}
+
+type listPack[T any] struct {
+	rootProcess   *service.TeleportProcess
+	leafProcess   *service.TeleportProcess
+	rootResource  T
+	leafResource  T
+	user          types.User
+	connectorName string
+	args          []string
+}
+
+func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc func(*testing.T, string, bool, []byte) []T, lessFunc func(a, b T) bool) {
+	ctx := context.Background()
+
+	rootProxyAddr, err := pack.rootProcess.ProxyWebAddr()
+	require.NoError(t, err)
+	leafProxyAddr, err := pack.leafProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		proxyAddr *utils.NetAddr
+		cluster   string
+		auth      *auth.Server
+		recursive bool
+		expected  []T
+	}{
+		{
+			name:      "root",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.rootResource},
+		},
+		{
+			name:      "leaf",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.leafProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "leaf via root",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.rootProcess.GetAuthServer(),
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "root recursive",
+			proxyAddr: rootProxyAddr,
+			cluster:   "root",
+			auth:      pack.rootProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.rootResource, pack.leafResource},
+		},
+		{
+			name:      "leaf recursive",
+			proxyAddr: leafProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.leafProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.leafResource},
+		},
+		{
+			name:      "leaf via root recursive",
+			proxyAddr: rootProxyAddr,
+			cluster:   "leaf",
+			auth:      pack.rootProcess.GetAuthServer(),
+			recursive: true,
+			expected:  []T{pack.leafResource},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tmpHomePath := t.TempDir()
+			err = Run(
+				ctx,
+				[]string{
+					"--insecure",
+					"login",
+					"--proxy", test.proxyAddr.String(),
+					test.cluster,
+				},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(test.auth, pack.user, pack.connectorName),
+			)
+			require.NoError(t, err)
+
+			stdout := &output{buf: bytes.Buffer{}}
+
+			args := slices.Clone(pack.args)
+			args = append(args, "--format", "json")
+			if test.recursive {
+				args = append(args, "-R")
+			}
+			err = Run(ctx,
+				args,
+				setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.OverrideStdout = stdout
+					return nil
+				},
+			)
+			require.NoError(t, err)
+
+			out := unmarshalFunc(t, test.proxyAddr.String(), test.recursive, stdout.buf.Bytes())
+			require.Empty(t, cmp.Diff(test.expected, out, cmpopts.SortSlices(lessFunc)))
+		})
+	}
+}
+
+// TestProxyTemplates verifies proxy templates apply properly to client config.
+func TestProxyTemplatesMakeClient(t *testing.T) {
+	t.Parallel()
+
+	tshConfig := client.TSHConfig{
+		ProxyTemplates: client.ProxyTemplates{
+			{
+				Template: `^(.+)\.(us.example.com):(.+)$`,
+				Proxy:    "$2:443",
+				Cluster:  "$2",
+				Host:     "$1:4022",
+			},
+		},
+	}
+	require.NoError(t, tshConfig.Check())
+
+	newCLIConf := func(modify func(conf *CLIConf)) *CLIConf {
+		// minimal configuration (with defaults)
+		conf := &CLIConf{
+			Proxy:     "proxy:3080",
+			UserHost:  "localhost",
+			HomePath:  t.TempDir(),
+			TSHConfig: tshConfig,
+		}
+
+		// Create a empty profile so we don't ping proxy.
+		clientStore, err := initClientStore(conf, conf.Proxy)
+		require.NoError(t, err)
+		profile := &profile.Profile{
+			SSHProxyAddr: "proxy:3023",
+			WebProxyAddr: "proxy:3080",
+		}
+		err = clientStore.SaveProfile(profile, true)
+		require.NoError(t, err)
+
+		modify(conf)
+		return conf
+	}
+
+	for _, tt := range []struct {
+		name         string
+		InConf       *CLIConf
+		expectErr    bool
+		outHost      string
+		outPort      int
+		outCluster   string
+		outJumpHosts []utils.JumpHost
+	}{
+		{
+			name: "does not match template",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "node-1.cn.example.com:3022"
+			}),
+			outHost:    "node-1.cn.example.com:3022",
+			outCluster: "proxy",
+		},
+		{
+			name: "does not match template with -J {{proxy}}",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "node-1.cn.example.com:3022"
+				conf.ProxyJump = "{{proxy}}"
+			}),
+			expectErr: true,
+		},
+		{
+			name: "match with full host set",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "user@node-1.us.example.com:3022"
+			}),
+			outHost:    "node-1",
+			outPort:    4022,
+			outCluster: "us.example.com",
+			outJumpHosts: []utils.JumpHost{{
+				Addr: utils.NetAddr{
+					Addr:        "us.example.com:443",
+					AddrNetwork: "tcp",
+				},
+			}},
+		},
+		{
+			name: "match with host and port set",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "user@node-1.us.example.com"
+				conf.NodePort = 3022
+			}),
+			outHost:    "node-1",
+			outPort:    4022,
+			outCluster: "us.example.com",
+			outJumpHosts: []utils.JumpHost{{
+				Addr: utils.NetAddr{
+					Addr:        "us.example.com:443",
+					AddrNetwork: "tcp",
+				},
+			}},
+		},
+		{
+			name: "match with -J {{proxy}} set",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "node-1.us.example.com:3022"
+				conf.ProxyJump = "{{proxy}}"
+			}),
+			outHost:    "node-1",
+			outPort:    4022,
+			outCluster: "us.example.com",
+			outJumpHosts: []utils.JumpHost{{
+				Addr: utils.NetAddr{
+					Addr:        "us.example.com:443",
+					AddrNetwork: "tcp",
+				},
+			}},
+		},
+		{
+			name: "match does not overwrite user specified proxy jump",
+			InConf: newCLIConf(func(conf *CLIConf) {
+				conf.UserHost = "node-1.us.example.com:3022"
+				conf.SiteName = "specified.cluster"
+				conf.ProxyJump = "specified.proxy.com:443"
+			}),
+			outHost:    "node-1",
+			outPort:    4022,
+			outCluster: "us.example.com",
+			outJumpHosts: []utils.JumpHost{{
+				Addr: utils.NetAddr{
+					Addr:        "specified.proxy.com:443",
+					AddrNetwork: "tcp",
+				},
+			}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := makeClient(tt.InConf)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.outHost, tc.Host)
+			require.Equal(t, tt.outPort, tc.HostPort)
+			require.Equal(t, tt.outJumpHosts, tc.JumpHosts)
+			require.Equal(t, tt.outCluster, tc.SiteName)
+		})
+	}
 }

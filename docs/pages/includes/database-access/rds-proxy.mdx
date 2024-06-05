@@ -14,9 +14,9 @@
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
-[PostgreSQL](../../database-access/guides/rds-proxy-postgres.mdx),
-[MariaDB/MySQL](../../database-access/guides/rds-proxy-postgres.mdx) or
-[Microsoft SQL Server](../../database-access/guides/rds-proxy-sqlserver.mdx).
+[PostgreSQL](../../database-access/enroll-aws-databases/rds-proxy-postgres.mdx),
+[MariaDB/MySQL](../../database-access/enroll-aws-databases/rds-proxy-postgres.mdx) or
+[Microsoft SQL Server](../../database-access/enroll-aws-databases/rds-proxy-sqlserver.mdx).
 </Admonition>
 
 This guide shows how to enroll a single RDS Proxy instance cluster through the
@@ -56,7 +56,7 @@ proxy:
 $ sudo teleport db configure create \
    -o file \
    --proxy=<Var name="teleport.example.com"/>:443 \
-   --uri=<Var name="DATABASE_URI" /> |
+   --uri=<Var name="DATABASE_URI" /> \
    --protocol={{ protocol }} \
    --token=/tmp/token
 ```

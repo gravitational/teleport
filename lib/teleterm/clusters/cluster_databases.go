@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -47,7 +47,7 @@ type Database struct {
 }
 
 // GetDatabase returns a database
-func (c *Cluster) GetDatabase(ctx context.Context, authClient auth.ClientI, dbURI uri.ResourceURI) (*Database, error) {
+func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI, dbURI uri.ResourceURI) (*Database, error) {
 	var database types.Database
 	dbName := dbURI.GetDbName()
 	err := AddMetadataToRetryableError(ctx, func() error {
@@ -77,7 +77,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient auth.ClientI, dbUR
 	}, err
 }
 
-func (c *Cluster) GetDatabases(ctx context.Context, authClient auth.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
+func (c *Cluster) GetDatabases(ctx context.Context, authClient authclient.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.DatabaseServer]
 		err  error
@@ -117,7 +117,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, authClient auth.ClientI, r *
 }
 
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyClient, routeToDatabase tlsca.RouteToDatabase) error {
+func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -126,7 +126,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 	}
 
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
@@ -135,7 +135,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 	}
 
 	// Fetch the certs for the database.
-	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err = clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: routeToDatabase.ServiceName,
@@ -158,7 +158,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 }
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient auth.ClientI, dbURI string) ([]string, error) {
+func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authclient.ClientI, dbURI string) ([]string, error) {
 	dbResourceURI, err := uri.ParseDBURI(dbURI)
 	if err != nil {
 		return nil, trace.Wrap(err)

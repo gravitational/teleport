@@ -19,11 +19,12 @@ package tfschema
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestStringsCopyTo(t *testing.T) {

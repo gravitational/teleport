@@ -289,35 +289,7 @@ based on one of the following examples.
 <TabItem label="Okta">
 
 ```yaml
-# connector.yaml
-kind: saml
-version: v2
-metadata:
-  name: corporate
-spec:
-  # display allows to set the caption of the "login" button
-  # in the Web interface
-  display: "Okta"
-
-  # enables/disables idp-initiated saml login
-  allow_idp_initiated: false
-
-  # The last segment of the URL must be identical to the connector metadata name
-  # when IdP-initiated login is enabled.
-  acs: https://teleport-proxy.example.com:3080/v1/webapi/saml/acs/corporate
-  attributes_to_roles:
-    - {name: "groups", value: "okta-admin", roles: ["access"]}
-    - {name: "groups", value: "okta-dev", roles: ["dev"]}
-
-     # note that wildcards can also be used. the next line instructs Teleport
-     # to assign "access" role to any user who has the SAML attribute that begins with "admin":
-     - { name: "group", value: "admin*", roles: ["access"] }
-     # regular expressions with capture are also supported. the next line instructs Teleport
-     # to assign users to roles `admin-1` if his SAML "group" attribute equals 'ssh_admin_1':
-     - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
-
-  entity_descriptor: |
-    <paste SAML XML contents here>
+(!/examples/resources/saml-connector.yaml!)
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)

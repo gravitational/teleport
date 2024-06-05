@@ -532,6 +532,10 @@ const (
 	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
 	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
+	// DatabaseSessionSpannerRPCEvent is emitted when a Spanner client
+	// calls a Spanner RPC.
+	DatabaseSessionSpannerRPCEvent = "db.session.spanner.rpc"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -757,6 +761,12 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+
+	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
+	// and an identity/resource is affected.
+	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
+	// TODO(jakule): Remove once e is updated to the new name.
+	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
 )
 
 const (
@@ -949,9 +959,13 @@ type SessionStreamer interface {
 	// after is used to return events after a specified cursor ID
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
 
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	// StreamSessionEvents streams all events from a given session recording. An
+	// error is returned on the first channel if one is encountered. Otherwise
+	// the event channel is closed when the stream ends. The event channel is
+	// not closed on error to prevent race conditions in downstream select
+	// statements. Both returned channels must be driven until the event channel
+	// is exhausted or the error channel reports an error, or until the context
+	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 

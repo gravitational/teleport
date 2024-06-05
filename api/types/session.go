@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -168,16 +167,6 @@ func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (ws *WebSessionV2) GetResourceID() int64 {
-	return ws.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (ws *WebSessionV2) SetResourceID(id int64) {
-	ws.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (ws *WebSessionV2) GetRevision() string {
 	return ws.Metadata.GetRevision()
@@ -195,18 +184,11 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 
 // WithoutSecrets returns a copy of the WebSession without secrets.
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
-	// With gogoproto, proto.Clone and proto.Merge panic with
-	// nonnullabe stdtime types unless they are in UTC.
-	// https://github.com/gogo/protobuf/issues/519
-	ws.Spec.Expires = ws.Spec.Expires.UTC()
-	ws.Spec.LoginTime = ws.Spec.LoginTime.UTC()
-	ws.Spec.BearerTokenExpires = ws.Spec.BearerTokenExpires.UTC()
-
-	cp := proto.Clone(ws).(*WebSessionV2)
+	cp := *ws
 	cp.Spec.Priv = nil
 	cp.Spec.SAMLSession = nil
 	cp.Spec.DeviceWebToken = nil
-	return cp
+	return &cp
 }
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
@@ -529,16 +511,6 @@ func (r *WebTokenV3) GetName() string {
 // SetName sets the token value
 func (r *WebTokenV3) SetName(name string) {
 	r.Metadata.Name = name
-}
-
-// GetResourceID returns the token resource ID
-func (r *WebTokenV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets the token resource ID
-func (r *WebTokenV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
 }
 
 // GetRevision returns the revision

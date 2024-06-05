@@ -406,7 +406,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil)
+				server := MakeServer(tc.clusterName, srv, nil, false)
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -430,7 +430,7 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 		},
 	}
 
-	outputDb := MakeDatabase(inputDb, nil, nil)
+	outputDb := MakeDatabase(inputDb, nil, nil, false)
 
 	require.Equal(t, []Label{
 		{
@@ -451,7 +451,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	desktop := MakeDesktop(windowsDesktop, nil)
+	desktop := MakeDesktop(windowsDesktop, nil, false)
 	labels := []Label{
 		{
 			Name:  "label3",
@@ -583,7 +583,7 @@ func TestSortedLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil)
+				server := MakeServer(tc.clusterName, srv, nil, false)
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})

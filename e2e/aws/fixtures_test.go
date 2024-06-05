@@ -60,10 +60,28 @@ func init() {
 }
 
 func getAWSGlobalCertBundlePool() (*x509.CertPool, error) {
-	// AWS global certificate bundle
-	const certBundleURL = "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+	certPool := x509.NewCertPool()
 
-	resp, err := http.Get(certBundleURL)
+	// AWS global certificate bundles
+	for _, url := range []string{
+		"https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem",
+		"https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt",
+	} {
+		certBytes, err := getAWSCertBundle(url)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ok := certPool.AppendCertsFromPEM(certBytes)
+		if !ok {
+			return nil, trace.BadParameter("failed to parse AWS cert bundle %v", url)
+		}
+	}
+
+	return certPool, nil
+}
+
+func getAWSCertBundle(url string) ([]byte, error) {
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,17 +92,7 @@ func getAWSGlobalCertBundlePool() (*x509.CertPool, error) {
 	}
 
 	certBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certPool := x509.NewCertPool()
-	ok := certPool.AppendCertsFromPEM(certBytes)
-	if !ok {
-		return nil, trace.Errorf("error parsing AWS cert bundle")
-	}
-
-	return certPool, nil
+	return certBytes, trace.Wrap(err)
 }
 
 // mustGetEnv is a test helper that fetches an env variable or fails with an

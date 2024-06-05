@@ -90,9 +90,8 @@ func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption)
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *accessList
-		copy.SetResourceID(0)
 		copy.SetRevision("")
 		accessList = &copy
 	}
@@ -114,9 +113,6 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	}
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		accessList.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		accessList.SetRevision(cfg.Revision)
@@ -189,9 +185,8 @@ func MarshalAccessListMember(member *accesslist.AccessListMember, opts ...Marsha
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *member
-		copy.SetResourceID(0)
 		copy.SetRevision("")
 		member = &copy
 	}
@@ -213,9 +208,6 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if err := member.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		member.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		member.SetRevision(cfg.Revision)
@@ -388,9 +380,8 @@ func MarshalAccessListReview(review *accesslist.Review, opts ...MarshalOption) (
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *review
-		copy.SetResourceID(0)
 		copy.SetRevision("")
 		review = &copy
 	}
@@ -412,9 +403,6 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	if err := review.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		review.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		review.SetRevision(cfg.Revision)

@@ -87,7 +87,7 @@ func (t *templateIdentity) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote identity file: %+v", files)
+	log.DebugContext(ctx, "Wrote identity file", "files", files)
 
 	return nil
 }

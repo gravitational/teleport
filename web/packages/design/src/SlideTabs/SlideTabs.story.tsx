@@ -16,49 +16,68 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
-import SlideTabs from './SlideTabs';
+import { SlideTabs } from './SlideTabs';
 
 export default {
   title: 'Design/SlideTabs',
 };
 
 export const ThreeTabs = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
   return (
     <SlideTabs
       tabs={['aws', 'automatically', 'manually']}
-      onChange={() => {}}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
     />
   );
 };
 
 export const FiveTabs = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
   return (
     <SlideTabs
       tabs={['step1', 'step2', 'step3', 'step4', 'step5']}
-      onChange={() => {}}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
     />
   );
 };
 
 export const Round = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
   return (
     <SlideTabs
       appearance="round"
       tabs={['step1', 'step2', 'step3', 'step4', 'step5']}
-      onChange={() => {}}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
     />
   );
 };
 
 export const Medium = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
   return (
     <SlideTabs
       tabs={['step1', 'step2', 'step3', 'step4', 'step5']}
       size="medium"
       appearance="round"
-      onChange={() => {}}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
+    />
+  );
+};
+
+export const LoadingTab = () => {
+  return (
+    <SlideTabs
+      tabs={['aws', 'automatically', 'manually']}
+      onChange={() => null}
+      activeIndex={1}
+      isProcessing={true}
     />
   );
 };

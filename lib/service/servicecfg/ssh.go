@@ -30,7 +30,6 @@ type SSHConfig struct {
 	Enabled               bool
 	Addr                  utils.NetAddr
 	Namespace             string
-	Shell                 string
 	Limiter               limiter.Config
 	Labels                map[string]string
 	CmdLabels             services.CommandLabels

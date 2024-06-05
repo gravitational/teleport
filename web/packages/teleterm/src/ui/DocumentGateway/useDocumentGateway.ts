@@ -71,10 +71,20 @@ export function useGateway(doc: types.DocumentGateway) {
       status: 'connected',
     });
     if (isDatabaseUri(doc.targetUri)) {
-      ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+      ctx.usageService.captureProtocolUse({
+        uri: doc.targetUri,
+        protocol: 'db',
+        origin: doc.origin,
+        accessThrough: 'local_proxy',
+      });
     }
     if (isAppUri(doc.targetUri)) {
-      ctx.usageService.captureProtocolUse(doc.targetUri, 'app', doc.origin);
+      ctx.usageService.captureProtocolUse({
+        uri: doc.targetUri,
+        protocol: 'app',
+        origin: doc.origin,
+        accessThrough: 'local_proxy',
+      });
     }
   });
 

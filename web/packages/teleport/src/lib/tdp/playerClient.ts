@@ -44,9 +44,12 @@ export class PlayerClient extends Client {
 
   private speed = 1.0;
   private paused = false;
+
   private lastPlayedTimestamp = 0;
+  private skipTimeUpdatesUntil = null;
+  private lastTimestamp = 0;
   private sendTimeUpdates = true;
-  private lastUpdate = 0;
+  private lastUpdateTime = 0;
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
@@ -62,6 +65,8 @@ export class PlayerClient extends Client {
       if (this.sendTimeUpdates) {
         this._setTime(t);
       }
+      this.lastTimestamp = t;
+      this.lastUpdateTime = Date.now();
     }, PROGRESS_UPDATE_INTERVAL_MS);
   }
 
@@ -73,11 +78,11 @@ export class PlayerClient extends Client {
 
   scheduleNextUpdate(current: number) {
     this.timeout = setTimeout(() => {
-      const delta = Date.now() - this.lastUpdate;
+      const delta = Date.now() - this.lastUpdateTime;
       const next = current + delta * this.speed;
 
       this.setTime(next);
-      this.lastUpdate = Date.now();
+      this.lastUpdateTime = Date.now();
 
       this.scheduleNextUpdate(next);
     }, PROGRESS_UPDATE_INTERVAL_MS);
@@ -101,11 +106,21 @@ export class PlayerClient extends Client {
   // togglePlayPause toggles the playback system between "playing" and "paused" states.
   togglePlayPause() {
     this.paused = !this.paused;
-    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
+    this.setPlayerStatus(this.paused ? StatusEnum.PAUSED : StatusEnum.PLAYING);
     if (this.paused) {
       this.cancelTimeUpdate();
     }
-    this.setPlayerStatus(this.paused ? StatusEnum.PAUSED : StatusEnum.PLAYING);
+
+    this.lastUpdateTime = Date.now();
+
+    if (this.isSeekingForward()) {
+      const next = Math.max(this.skipTimeUpdatesUntil, this.lastTimestamp);
+      this.scheduleNextUpdate(next);
+    } else {
+      this.scheduleNextUpdate(this.lastTimestamp);
+    }
+
+    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
   }
 
   // setPlaySpeed sets the playback speed of the recording.
@@ -126,12 +141,29 @@ export class PlayerClient extends Client {
     } else {
       this.cancelTimeUpdate();
       this.lastPlayedTimestamp = json.ms;
-      this.lastUpdate = Date.now();
+      this.lastUpdateTime = Date.now();
       this.setTime(json.ms);
 
-      // schedule the next time update (in case this
-      // part of the recording is dead time)
-      if (!this.paused) {
+      // clear seek state if we caught up to the seek point
+      if (
+        this.skipTimeUpdatesUntil !== null &&
+        this.lastPlayedTimestamp >= this.skipTimeUpdatesUntil
+      ) {
+        this.skipTimeUpdatesUntil = null;
+      }
+
+      if (!this.isSeekingForward()) {
+        this.cancelTimeUpdate();
+      }
+
+      // schedule the next time update, which ensures that
+      // the progress bar continues to update even if this
+      // section of the recording is idle time
+      //
+      // note: we don't schedule an update if we're currently
+      // seeking forward in time, as we're trying to get there
+      // as quickly as possible
+      if (!this.paused && !this.isSeekingForward()) {
         this.scheduleNextUpdate(json.ms);
       }
 
@@ -144,14 +176,22 @@ export class PlayerClient extends Client {
 
     this.send(JSON.stringify({ action: Action.SEEK, pos }));
 
+    this._setTime(pos);
+    this.lastUpdateTime = Date.now();
+    this.skipTimeUpdatesUntil = pos;
+
     if (pos < this.lastPlayedTimestamp) {
       // TODO: clear canvas
-    } else if (this.paused) {
-      // if we're paused, we want the scrubber to "stick" at the new
-      // time until we press play (rather than waiting for us to click
-      // play and start receiving new data)
-      this._setTime(pos);
+    } else if (!this.paused) {
+      this.scheduleNextUpdate(pos);
     }
+  }
+
+  isSeekingForward(): boolean {
+    return (
+      this.skipTimeUpdatesUntil !== null &&
+      this.skipTimeUpdatesUntil > this.lastPlayedTimestamp
+    );
   }
 
   // Overrides Client implementation.
@@ -166,7 +206,7 @@ export class PlayerClient extends Client {
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     return;
   }
 

@@ -435,7 +435,6 @@ exports[`active sessions CTA 1`] = `
 }
 
 .c16 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -1472,7 +1471,6 @@ exports[`loaded 1`] = `
 }
 
 .c10 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;
@@ -2471,7 +2469,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 }
 
 .c10 {
-  background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 56px;

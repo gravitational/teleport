@@ -248,19 +248,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 }
 
 // DeleteAllIntegrations removes all Integration resources.
+// DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.backend.DeleteAllIntegrations(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
 }

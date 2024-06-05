@@ -22,9 +22,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -127,10 +124,12 @@ func (a *Server) newWebSession(
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
 		log.Debug("Creating new web session without login IP specified.")
 	}
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
@@ -242,11 +241,31 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 	return nil
 }
 
+// NewAppSessionRequest defines a request to create a new user app session.
+type NewAppSessionRequest struct {
+	NewWebSessionRequest
+
+	// PublicAddr is the public address the application.
+	PublicAddr string
+	// ClusterName is cluster within which the application is running.
+	ClusterName string
+	// AWSRoleARN is AWS role the user wants to assume.
+	AWSRoleARN string
+	// AzureIdentity is Azure identity the user wants to assume.
+	AzureIdentity string
+	// GCPServiceAccount is the GCP service account the user wants to assume.
+	GCPServiceAccount string
+	// MFAVerified is the UUID of an MFA device used to verify this request.
+	MFAVerified string
+	// DeviceExtensions holds device-aware user certificate extensions.
+	DeviceExtensions DeviceExtensions
+}
+
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, user services.UserState, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
 	if !modules.GetModules().Features().App {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -263,7 +282,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 
 	// Encode user traits in the app access certificate. This will allow to
 	// pass user traits when talking to app servers in leaf clusters.
-	_, traits, err := services.ExtractFromIdentity(ctx, a, identity)
+	roles, traits, err := services.ExtractFromIdentity(ctx, a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,35 +297,57 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
-	// Create certificate for this session.
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	sess, err := a.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+		NewWebSessionRequest: NewWebSessionRequest{
+			User:           req.Username,
+			LoginIP:        identity.LoginIP,
+			SessionTTL:     ttl,
+			Roles:          roles,
+			Traits:         traits,
+			AccessRequests: identity.ActiveRequests,
+			// If the user's current identity is attested as a "web_session", it's secrets are only
+			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
+			// service on behalf of the user's Web Session. We can safely attest this child app session
+			// as a "web_session" as a result.
+			AttestWebSession: identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession,
+		},
+		PublicAddr:        req.PublicAddr,
+		ClusterName:       req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
+		MFAVerified:       verifiedMFADeviceID,
+		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           user,
-		loginIP:        identity.LoginIP,
-		publicKey:      publicKey,
-		checker:        checker,
-		ttl:            ttl,
-		traits:         traits,
-		activeRequests: services.RequestIDs{AccessRequests: identity.ActiveRequests},
-		// Only allow this certificate to be used for applications.
-		usage: []string{teleport.UsageAppsOnly},
-		// Add in the application routing information.
-		appSessionID:      uuid.New().String(),
-		appPublicAddr:     req.PublicAddr,
-		appClusterName:    req.ClusterName,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
-		// Since we are generating the keys and certs directly on the Auth Server,
-		// we need to skip attestation.
-		skipAttestation: true,
-		// Pass along device extensions from the user.
-		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
-		mfaVerified:      verifiedMFADeviceID,
-	})
+
+	return sess, nil
+}
+
+func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionRequest) (types.WebSession, error) {
+	if !modules.GetModules().Features().App {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
+	}
+
+	user, err := a.GetUserOrLoginState(ctx, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:           req.User,
+		Roles:              req.Roles,
+		Traits:             req.Traits,
+		AllowedResourceIDs: req.RequestedResourceIDs,
+	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -316,17 +357,61 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Create certificate for this session.
+	priv, err := native.GeneratePrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.AttestWebSession {
+		// Upsert web session attestation data so that this key's certs
+		// will be marked with the web session private key policy.
+		webAttData, err := services.NewWebSessionAttestationData(priv.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = a.UpsertKeyAttestationData(ctx, webAttData, req.SessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	certs, err := a.generateUserCert(ctx, certRequest{
+		user:           user,
+		loginIP:        req.LoginIP,
+		publicKey:      priv.MarshalSSHPublicKey(),
+		checker:        checker,
+		ttl:            req.SessionTTL,
+		traits:         req.Traits,
+		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
+		// Set the app session ID in the certificate - used in auditing from the App Service.
+		appSessionID: sessionID,
+		// Only allow this certificate to be used for applications.
+		usage:             []string{teleport.UsageAppsOnly},
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
+		// Pass along device extensions from the user.
+		deviceExtensions: req.DeviceExtensions,
+		mfaVerified:      req.MFAVerified,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:        req.Username,
-		Priv:        privateKey,
+		User:        req.User,
+		Priv:        priv.PrivateKeyPEM(),
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
 		LoginTime:   a.clock.Now().UTC(),
-		Expires:     a.clock.Now().UTC().Add(ttl),
+		Expires:     a.clock.Now().UTC().Add(req.SessionTTL),
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -335,87 +420,9 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	if err = a.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
+	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
 	return session, nil
-}
-
-// WaitForAppSession will block until the requested application session shows up in the
-// cache or a timeout occurs.
-func WaitForAppSession(ctx context.Context, sessionID, user string, ap ReadProxyAccessPoint) error {
-	req := waitForWebSessionReq{
-		newWatcherFn: ap.NewWatcher,
-		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
-			return ap.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		},
-	}
-	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindAppSession, req))
-}
-
-// WaitForSnowflakeSession waits until the requested Snowflake session shows up int the cache
-// or a timeout occurs.
-func WaitForSnowflakeSession(ctx context.Context, sessionID, user string, ap SnowflakeSessionWatcher) error {
-	req := waitForWebSessionReq{
-		newWatcherFn: ap.NewWatcher,
-		getSessionFn: func(ctx context.Context, sessionID string) (types.WebSession, error) {
-			return ap.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionID})
-		},
-	}
-	return trace.Wrap(waitForWebSession(ctx, sessionID, user, types.KindSnowflakeSession, req))
-}
-
-// waitForWebSessionReq is a request to wait for web session to be populated in the application cache.
-type waitForWebSessionReq struct {
-	// newWatcherFn is a function that returns new event watcher.
-	newWatcherFn func(ctx context.Context, watch types.Watch) (types.Watcher, error)
-	// getSessionFn is a function that returns web session by given ID.
-	getSessionFn func(ctx context.Context, sessionID string) (types.WebSession, error)
-}
-
-// waitForWebSession is an implementation for web session wait functions.
-func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind string, req waitForWebSessionReq) error {
-	_, err := req.getSessionFn(ctx, sessionID)
-	if err == nil {
-		return nil
-	}
-	logger := log.WithField("session", sessionID)
-	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query web session.")
-	}
-	// Establish a watch on application session.
-	watcher, err := req.newWatcherFn(ctx, types.Watch{
-		Name: teleport.ComponentAppProxy,
-		Kinds: []types.WatchKind{
-			{
-				Kind:    types.KindWebSession,
-				SubKind: evenSubKind,
-				Filter:  (&types.WebSessionFilter{User: user}).IntoMap(),
-			},
-		},
-		MetricComponent: teleport.ComponentAppProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == types.OpPut &&
-			event.Resource.GetKind() == types.KindWebSession &&
-			event.Resource.GetSubKind() == evenSubKind &&
-			event.Resource.GetName() == sessionID {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), clockwork.NewRealClock())
-	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for web session.")
-		// See again if we maybe missed the event but the session was actually created.
-		if _, err := req.getSessionFn(ctx, sessionID); err == nil {
-			return nil
-		}
-	}
-	return trace.Wrap(err)
 }
 
 // generateAppToken generates an JWT token that will be passed along with every
@@ -466,17 +473,12 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 
 	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
@@ -546,9 +548,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return session, nil
 }
 
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
-	identity tlsca.Identity, checker services.AccessChecker,
-) (types.WebSession, error) {
+func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
 
 	if req.SAMLSession == nil {

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -202,6 +203,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectRootCAs:            x509.NewCertPool(),
 			expectInsecureSkipVerify: true,
 			expectVerifyConnection:   true,
+		},
+		{
+			name:             "GCP Spanner",
+			sessionDatabase:  newSpannerDatabase(t, ""),
+			expectServerName: "spanner.googleapis.com",
+			expectRootCAs:    systemCertPool,
 		},
 		{
 			name:             "Azure SQL Server",
@@ -872,6 +879,25 @@ func newAzureSQLDatabase(t *testing.T, resourceID string) types.Database {
 	return database
 }
 
+func newSpannerDatabase(t *testing.T, uri string, specOpts ...databaseSpecOpt) types.Database {
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolSpanner,
+		URI:      uri,
+		GCP: types.GCPCloudSQL{
+			ProjectID:  "project-id",
+			InstanceID: "instance-id",
+		},
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
+	require.NoError(t, err)
+	return database
+}
+
 // identityResourceID generates full resource ID of the Azure user identity.
 func identityResourceID(t *testing.T, identityName string) string {
 	t.Helper()
@@ -942,9 +968,9 @@ func (m *authClientMock) GetAuthPreference(ctx context.Context) (types.AuthPrefe
 	return types.DefaultAuthPreference(), nil
 }
 
-// imdsMock is a mock that implements InstanceMetadata interface.
+// imdsMock is a mock that implements the [imds.Client] interface.
 type imdsMock struct {
-	cloud.InstanceMetadata
+	imds.Client
 	// GetID mocks.
 	id    string
 	idErr error

@@ -24,13 +24,19 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func onSPIFFEInspect(path string) error {
-	ctx := context.Background()
-	log.WithField("path", path).Info("Inspecting SPIFFE Workload API Endpoint")
+func onSPIFFEInspect(ctx context.Context, path string) error {
+	log.InfoContext(ctx, "Inspecting SPIFFE Workload API Endpoint", "path", path)
 
-	source, err := workloadapi.New(ctx, workloadapi.WithLogger(log), workloadapi.WithAddr(path))
+	source, err := workloadapi.New(
+		ctx,
+		// TODO(noah): Upstream PR to add slog<->workloadapi.Logger adapter.
+		workloadapi.WithLogger(utils.NewLogger()),
+		workloadapi.WithAddr(path),
+	)
 	if err != nil {
 		return trace.Wrap(err, "creating x509 source")
 	}
@@ -41,13 +47,15 @@ func onSPIFFEInspect(path string) error {
 		return trace.Wrap(err, "getting x509 context")
 	}
 
-	log.
-		WithField("svids_count", len(res.SVIDs)).
-		WithField("bundles_count", res.Bundles.Len()).
-		Info("Received X.509 SVID context from Workload API")
+	log.InfoContext(
+		ctx,
+		"Received X.509 SVID context from Workload API",
+		"svids_count", len(res.SVIDs),
+		"bundles_count", res.Bundles.Len(),
+	)
 
 	if len(res.SVIDs) == 0 {
-		log.Error("No SVIDs received, check your configuration.")
+		log.ErrorContext(ctx, "No SVIDs received, check your configuration")
 	} else {
 		fmt.Println("SVIDS")
 		for _, svid := range res.SVIDs {
@@ -64,7 +72,7 @@ func onSPIFFEInspect(path string) error {
 	}
 
 	if res.Bundles.Len() == 0 {
-		log.Error("No trust bundles received, check your configuration.")
+		log.ErrorContext(ctx, "No trust bundles received, check your configuration")
 	} else {
 		fmt.Println("Trust Bundles")
 		for _, bundle := range res.Bundles.Bundles() {

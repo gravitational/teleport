@@ -214,6 +214,23 @@ func TestReviewThresholds(t *testing.T) {
 				// no explicit thresholds defaults to single approval/denial
 			},
 		},
+		// rationalists can achieve dictatorship via consensus with a single
+		// approval if there is a good reason.
+		"rationalist": {
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"dictator"},
+				Annotations: map[string][]string{
+					"mechanism": {"consensus"},
+				},
+				Thresholds: []types.AccessReviewThreshold{
+					{
+						Name:    "rational consensus",
+						Filter:  `regexp.match(request.reason, "*good*") && regexp.match(review.reason, "*good*")`,
+						Approve: 1,
+					},
+				},
+			},
+		},
 		// idealists have an directive for requesting a role which
 		// does not exist, and no threshold which permit it to be assumed.
 		"idealist": {
@@ -231,21 +248,22 @@ func TestReviewThresholds(t *testing.T) {
 		"proletariat": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"uprising")`,
+				Where: `contains(request.system_annotations["mechanism"],"uprising")`,
 			},
 		},
-		// the intelligentsia can put dictators into power via consensus
+		// the intelligentsia can put dictators into power via consensus, with a
+		// good reason.
 		"intelligentsia": {
 			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanism"],"consensus")`,
+				Roles: []string{"dictator", "never"},
+				Where: `contains(request.system_annotations["mechanism"],"consensus") && regexp.match(request.reason, "*good*")`,
 			},
 		},
 		// the military can put dictators into power via a coup our treachery
 		"military": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
+				Where: `contains(request.system_annotations["mechanism"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
 			},
 		},
 		// never is the role that will never be requested
@@ -285,8 +303,9 @@ func TestReviewThresholds(t *testing.T) {
 
 	users := make(map[string]types.User)
 	userDesc := map[string][]string{
-		"bob":  {"general", "proletariat", "intelligentsia", "military"},
-		"dave": {"populist", "general", "conqueror"},
+		"bob":   {"general", "proletariat", "intelligentsia", "military"},
+		"dave":  {"populist", "general", "conqueror"},
+		"frank": {"rationalist"},
 	}
 
 	for name, roles := range userDesc {
@@ -304,6 +323,7 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	const (
+		pending = types.RequestState_PENDING
 		approve = types.RequestState_APPROVED
 		deny    = types.RequestState_DENIED
 		promote = types.RequestState_PROMOTED
@@ -320,6 +340,8 @@ func TestReviewThresholds(t *testing.T) {
 		expect types.RequestState
 		// assumeStartTime to apply to review
 		assumeStartTime time.Time
+		// reason for the review
+		reason string
 
 		errCheck require.ErrorAssertionFunc
 	}
@@ -331,13 +353,16 @@ func TestReviewThresholds(t *testing.T) {
 		// requestor is the name of the requesting user
 		requestor string
 		// the roles to be requested (defaults to "dictator")
-		roles   []string
+		roles []string
+		// the reason for the request
+		reason  string
 		reviews []review
 		expiry  time.Time
 	}{
 		{
 			desc:      "populist approval via multi-threshold match",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "alice",
@@ -365,6 +390,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "trying to deny an already approved request",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "alice",
@@ -419,8 +445,20 @@ func TestReviewThresholds(t *testing.T) {
 			},
 		},
 		{
+			desc:      "intelligentsia cannot review without reason",
+			requestor: "alice",
+			reviews: []review{
+				{
+					author:   g.user(t, "intelligentsia"),
+					propose:  approve,
+					noReview: true,
+				},
+			},
+		},
+		{
 			desc:      "populist approval via consensus threshold",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches "consensus" threshold
 					author:  g.user(t, "intelligentsia"),
@@ -448,6 +486,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "general denial via coup threshold",
 			requestor: "bob", // permitted by role general
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "bob",
@@ -483,6 +522,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "conqueror approval via default threshold",
 			requestor: "carol", // permitted by role conqueror
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "carol",
@@ -521,6 +561,7 @@ func TestReviewThresholds(t *testing.T) {
 			// "smart" about which thresholds really need to pass.
 			desc:      "multi-role requestor approval via separate threshold matches",
 			requestor: "dave", // permitted by conqueror, general, *and* populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches "default", "coup", and "consensus" thresholds
 					author:  g.user(t, "military"),
@@ -571,6 +612,7 @@ func TestReviewThresholds(t *testing.T) {
 			// about denying requests (i.e. erring on the side of caution).
 			desc:      "multi-role requestor denial via short-circuit on default",
 			requestor: "dave", // permitted by conqueror, general, *and* populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // ...
 					author:  g.user(t, "intelligentsia"),
@@ -586,6 +628,7 @@ func TestReviewThresholds(t *testing.T) {
 			desc:      "threshold omission related sanity-check",
 			requestor: "erika", // permitted by combination of populist and idealist
 			roles:     []string{"dictator", "never"},
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches default threshold from idealist
 					author:  g.user(t, "intelligentsia"),
@@ -602,6 +645,7 @@ func TestReviewThresholds(t *testing.T) {
 			// be omitted.
 			desc:      "threshold omission check",
 			requestor: "erika", // permitted by populist, but also holds idealist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // review is permitted but matches no thresholds
 					author:  g.user(t, "intelligentsia"),
@@ -624,6 +668,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "promoted skips the threshold check",
 			requestor: "bob",
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // status should be set to promoted despite the approval threshold not being met
 					author:  g.user(t, "intelligentsia"),
@@ -651,6 +696,26 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "rationalist approval with valid reasons",
+			requestor: "frank",
+			roles:     []string{"dictator"},
+			reason:    "some very good reason",
+			reviews: []review{
+				{
+					author:  g.user(t, "intelligentsia"),
+					propose: approve,
+					reason:  "frank is just okay",
+					expect:  pending,
+				},
+				{
+					author:  g.user(t, "intelligentsia"),
+					propose: approve,
+					reason:  "frank is pretty good",
+					expect:  approve,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
@@ -662,6 +727,7 @@ func TestReviewThresholds(t *testing.T) {
 			// create a request for the specified author
 			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
 			require.NoError(t, err, "scenario=%q", tt.desc)
+			req.SetRequestReason(tt.reason)
 
 			clock := clockwork.NewFakeClock()
 			identity := tlsca.Identity{
@@ -694,11 +760,14 @@ func TestReviewThresholds(t *testing.T) {
 				if rt.noReview {
 					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
 					continue Inner
+				} else {
+					require.True(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
 				}
 
 				rev := types.AccessReview{
 					Author:          rt.author,
 					ProposedState:   rt.propose,
+					Reason:          rt.reason,
 					AssumeStartTime: &rt.assumeStartTime,
 				}
 
@@ -744,22 +813,22 @@ func TestThresholdReviewFilter(t *testing.T) {
 	}{
 		{ // test expected matching behavior against a basic example context
 			ctx: thresholdFilterContext{
-				Reviewer: reviewAuthorContext{
-					Roles: []string{"dev"},
-					Traits: map[string][]string{
+				reviewer: reviewAuthorContext{
+					roles: []string{"dev"},
+					traits: map[string][]string{
 						"teams": {"staging-admin"},
 					},
 				},
-				Review: reviewParamsContext{
-					Reason: "ok",
-					Annotations: map[string][]string{
+				review: reviewParamsContext{
+					reason: "ok",
+					annotations: map[string][]string{
 						"constraints": {"no-admin"},
 					},
 				},
-				Request: reviewRequestContext{
-					Roles:  []string{"dev"},
-					Reason: "plz",
-					SystemAnnotations: map[string][]string{
+				request: reviewRequestContext{
+					roles:  []string{"dev"},
+					reason: "Ticket 123",
+					systemAnnotations: map[string][]string{
 						"teams": {"staging-dev"},
 					},
 				},
@@ -768,9 +837,11 @@ func TestThresholdReviewFilter(t *testing.T) {
 				`contains(reviewer.roles,"dev")`,
 				`contains(reviewer.traits["teams"],"staging-admin") && contains(request.system_annotations["teams"],"staging-dev")`,
 				`!contains(review.annotations["constraints"],"no-admin") || !contains(request.roles,"admin")`,
-				`equals(request.reason,"plz") && equals(review.reason,"ok")`,
+				`equals(request.reason,"Ticket 123") && equals(review.reason,"ok")`,
 				`contains(reviewer.roles,"admin") || contains(reviewer.roles,"dev")`,
 				`!(contains(reviewer.roles,"foo") || contains(reviewer.roles,"bar"))`,
+				`regexp.match(request.roles, "^dev(elopers)?$")`,
+				`regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")`,
 			},
 			wontMatch: []string{
 				`contains(reviewer.roles, "admin")`,
@@ -793,6 +864,8 @@ func TestThresholdReviewFilter(t *testing.T) {
 				`contains(reviewer.traits["teams"],"staging-admin") && contains(request.system_annotations["teams"],"staging-dev")`,
 				`equals(request.reason,"plz") && equals(review.reason,"ok")`,
 				`contains(reviewer.roles,"admin") || contains(reviewer.roles,"dev")`,
+				`regexp.match(request.roles, "^dev(elopers)?$")`,
+				`regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")`,
 			},
 			// confirm that an empty context can be used to catch syntax errors
 			wontParse: []string{
@@ -808,22 +881,24 @@ func TestThresholdReviewFilter(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		parser, err := NewJSONBoolParser(tt.ctx)
-		require.NoError(t, err)
 		for _, expr := range tt.willMatch {
-			result, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseThresholdFilterExpression(expr)
+			require.NoError(t, err)
+			result, err := parsed.Evaluate(tt.ctx)
 			require.NoError(t, err)
 			require.True(t, result)
 		}
 
 		for _, expr := range tt.wontMatch {
-			result, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseThresholdFilterExpression(expr)
+			require.NoError(t, err)
+			result, err := parsed.Evaluate(tt.ctx)
 			require.NoError(t, err)
 			require.False(t, result)
 		}
 
 		for _, expr := range tt.wontParse {
-			_, err := parser.EvalBoolPredicate(expr)
+			_, err := parseThresholdFilterExpression(expr)
 			require.Error(t, err)
 		}
 	}

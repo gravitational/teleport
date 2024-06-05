@@ -41,6 +41,7 @@ export function Toggle({
         onChange={onToggle}
         disabled={disabled}
         size={size}
+        data-testid="toggle"
       />
       <StyledSlider size={size} />
       {children}

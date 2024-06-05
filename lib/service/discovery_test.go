@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
@@ -166,7 +166,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 }
 
 type fakeClient struct {
-	auth.ClientI
+	authclient.ClientI
 	rsp *clusterconfigpb.AccessGraphConfig
 	err error
 }

@@ -58,7 +58,6 @@ as well as an upgrade of the previous version of Teleport.
     Windows Webauthn requires Windows 10 19H1 and device capable of Windows
     Hello.
 
-  - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
     - [ ] macOS/Linux
@@ -77,10 +76,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
-    - [ ] Attempt removing the last MFA device on the user
-      - [ ] with `second_factor: on` in `auth_service`, should fail
-      - [ ] with `second_factor: optional` in `auth_service`, should succeed
-  - [ ] Login Password Only
+    - [ ] Removing the last MFA device on the user fails
   - [ ] Login with MFA
     - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
@@ -345,7 +341,27 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
-* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes exec via WebSockets/SPDY
+
+To control usage of websockets on kubectl side environment variable `KUBECTL_REMOTE_COMMAND_WEBSOCKETS` can be used:
+`KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true kubectl -v 8 exec -n namespace podName -- /bin/bash --version`. With `-v 8` logging level
+you should be able to see `X-Stream-Protocol-Version: v5.channel.k8s.io` in case kubectl is connected over websockets to Teleport.
+To do tests you'll need kubectl version at least 1.29, Kubernetes cluster v1.29 or less (doesn't support websockets stream protocol v5)
+and cluster v1.30 (does support it by default) and to access them both through kube agent and kubeconfig each.
+
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode
+  * [ ] Cluster v1.30 in kubeconfig mode
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+  * [ ] Cluster v1.30 in kubeconfig mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+* [ ] Test Kubernetes exec via javascript client - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
 
 ### Kubernetes auto-discovery
 
@@ -539,6 +555,11 @@ and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
+- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+and with [label](https://cloud.google.com/compute/docs/labeling-resources)
+`foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
+`baz`: `quux`. Verify that a node running on the instance has labels
+`gcp/label/foo=bar` and `gcp/tag/baz=quux`.
 
 ### Passwordless
 
@@ -609,6 +630,9 @@ pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-li
 Client-side enrollment requires a signed `tsh` for macOS, make sure to use the
 `tsh` binary from `tsh.app`.
 
+Additionally, Device Trust Web requires Teleport Connect to be installed (device
+authentication for the Web is handled by Connect).
+
 A simple formula for testing device authorization is:
 
 ```shell
@@ -617,12 +641,8 @@ A simple formula for testing device authorization is:
 tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
-# Register the device.
-# Get the serial number from `tsh device asset-tag`.
-tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
-
-# Enroll the device.
-tsh device enroll --token=<TOKEN_FROM_COMMAND_ABOVE>
+# Register/enroll the device.
+tsh device enroll --current-device
 tsh logout; tsh login
 
 # After enrollment
@@ -669,6 +689,20 @@ tsh ssh node-that-requires-device-trust
     teleport-device-id ...
     ```
 
+- [ ] Device authentication
+  - [ ] tsh or Connect
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Web UI (requires Connect)
+    - [ ] SSH
+    - [ ] App Access
+    - [ ] Desktop Access
+
+    Confirm that it works by failing first. Most protocols can be tested using
+    device_trust.mode="required". App Access and Desktop Access require a custom
+    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
   - [ ] device_trust.mode="off" doesn't impede access (Enterprise and OSS)
@@ -679,36 +713,32 @@ tsh ssh node-that-requires-device-trust
     - [ ] DB Access
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
-  - [ ] device_trust.mode="required" is enforced by processes and not only by
-        Auth APIs
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-
-    Testing this requires issuing a certificate without device extensions
-    (mode="off"), then changing the cluster configuration to mode="required" and
-    attempting to access a process directly, without a login attempt.
-
+    - [ ] Desktop Access NOT enforced in global mode
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
     - [ ] App Access
-  - [ ] Device authorization works correctly for both require_session_mfa=false
+    - [ ] Desktop Access
+  - [ ] Device authentication works correctly for both require_session_mfa=false
         and require_session_mfa=true
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")
-  - [ ] Device authorization __does not apply__ to Windows Desktop access
-        (both cluster-wide and role)
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
-  - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Device authentication issues device event (any outcomes)
+  - [ ] Device web authentication issues "Device Web Token Created" and "Device
+        Web Authentication Confirmed" events
+  - [ ] Device web authentication events have web_session_id set.
+        Corresponding "Device Authenticated" events have both
+        web_authentication=true and web_session_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -954,6 +984,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
@@ -986,6 +1017,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [ ] Azure single-server MySQL and Postgres
@@ -1503,17 +1535,6 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] Assist is disabled in the Cloud.
   - [ ] Assist is enabled by default in the Cloud Team plan.
   - [ ] Assist is always disabled when etcd is used as a backend.
-
-- Conversations
-  - [ ] A new conversation can be started.
-  - [ ] SSH command can be executed on one server.
-  - [ ] SSH command can be executed on multiple servers.
-  - [ ] SSH command can be executed on a node with per session MFA enabled.
-  - [ ] Execution output is explained when it fits the context window.
-  - [ ] Assist can list all nodes/execute a command on all nodes (using embeddings).
-  - [ ] Access request can be created.
-  - [ ] Access request is created when approved.
-  - [ ] Conversation title is set after the first message.
 
 - SSH integration
   - [ ] Assist icon is visible in WebUI's Terminal

@@ -122,8 +122,8 @@ export const DesktopPlayer = ({
           onRestart={reload}
           onStartMove={() => playerClient.suspendTimeUpdates()}
           move={pos => {
-            playerClient.seekTo(pos);
             playerClient.resumeTimeUpdates();
+            playerClient.seekTo(pos);
           }}
           onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
           toggle={() => playerClient.togglePlayPause()}

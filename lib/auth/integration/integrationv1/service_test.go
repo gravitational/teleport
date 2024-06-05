@@ -28,6 +28,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -65,6 +66,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		Role         types.RoleSpecV6
 		Setup        func(t *testing.T, igName string)
 		Test         func(ctx context.Context, resourceSvc *Service, igName string) error
+		Cleanup      func(t *testing.T, igName string)
 		ErrAssertion func(error) bool
 	}{
 		// Read
@@ -227,6 +229,57 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsAccessDenied,
 		},
 		{
+			Name: "cant delete integration referenced by draft external audit storage",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+				_, err = localClient.GenerateDraftExternalAuditStorage(ctx, igName, "us-west-2")
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+
+			},
+			Cleanup: func(t *testing.T, igName string) {
+				err := localClient.DeleteDraftExternalAuditStorage(ctx)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "cant delete integration referenced by cluster external audit storage",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+				_, err = localClient.GenerateDraftExternalAuditStorage(ctx, igName, "us-west-2")
+				require.NoError(t, err)
+				err = localClient.PromoteToClusterExternalAuditStorage(ctx)
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+			},
+			Cleanup: func(t *testing.T, igName string) {
+				err := localClient.DisableClusterExternalAuditStorage(ctx)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
 			Name: "access to delete integration",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -247,33 +300,19 @@ func TestIntegrationCRUD(t *testing.T) {
 
 		// Delete all
 		{
-			Name: "remove all integrations fails when no access",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
-				return err
-			},
-			ErrAssertion: trace.IsAccessDenied,
-		},
-		{
-			Name: "remove all integrations",
+			Name: "delete all integrations fails",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
 					Verbs:     []string{types.VerbDelete},
 				}}},
 			},
-			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
-					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
-					require.NoError(t, err)
-				}
-			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
 				return err
 			},
-			ErrAssertion: noError,
+			// Deleting all integrations via gRPC is not supported.
+			ErrAssertion: trace.IsBadParameter,
 		},
 	}
 
@@ -281,10 +320,13 @@ func TestIntegrationCRUD(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-
 			igName := uuid.NewString()
 			if tc.Setup != nil {
 				tc.Setup(t, igName)
+			}
+
+			if tc.Cleanup != nil {
+				t.Cleanup(func() { tc.Cleanup(t, igName) })
 			}
 
 			err := tc.Test(localCtx, resourceSvc, igName)
@@ -322,6 +364,10 @@ type localClient interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
+	GenerateDraftExternalAuditStorage(ctx context.Context, integrationName, region string) (*externalauditstorage.ExternalAuditStorage, error)
+	DeleteDraftExternalAuditStorage(ctx context.Context) error
+	PromoteToClusterExternalAuditStorage(ctx context.Context) error
+	DisableClusterExternalAuditStorage(ctx context.Context) error
 }
 
 type testClient struct {
@@ -341,6 +387,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
 	userSvc := local.NewTestIdentityService(backend)
+	easSvc := local.NewExternalAuditStorageService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
@@ -378,6 +425,9 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	localResourceService, err := local.NewIntegrationsService(backend)
 	require.NoError(t, err)
 
+	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
+	require.NoError(t, err)
+
 	keystoreManager, err := keystore.NewManager(ctx, keystore.Config{
 		Software: keystore.SoftwareConfig{
 			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
@@ -393,7 +443,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
-		IntegrationsService: *localResourceService,
+		IntegrationsService: *cacheResourceService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
@@ -407,11 +457,13 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	return ctx, struct {
 		*local.AccessService
 		*local.IdentityService
+		*local.ExternalAuditStorageService
 		*local.IntegrationsService
 	}{
-		AccessService:       roleSvc,
-		IdentityService:     userSvc,
-		IntegrationsService: localResourceService,
+		AccessService:               roleSvc,
+		IdentityService:             userSvc,
+		ExternalAuditStorageService: easSvc,
+		IntegrationsService:         localResourceService,
 	}, resourceSvc
 }
 

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -144,7 +145,7 @@ type Server struct {
 	// the server supports. If omitted the defaults will be used.
 	macAlgorithms []string
 
-	authClient      auth.ClientI
+	authClient      authclient.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	dataDir         string
@@ -183,7 +184,7 @@ type ServerConfig struct {
 	// LocalAuthClient is a client that provides access to this local cluster.
 	// This is used for actions that should always happen on the local cluster
 	// and not remote clusters, such as session recording.
-	LocalAuthClient auth.ClientI
+	LocalAuthClient authclient.ClientI
 	// TargetClusterAccessPoint is a client that provides access to the cluster
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.
@@ -408,6 +409,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	}
 
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
@@ -455,7 +457,7 @@ func (s *Server) Component() string {
 	return teleport.ComponentForwardingNode
 }
 
-// PermitUserEnvironment is always false because it's up the the remote host
+// PermitUserEnvironment is always false because it's up to the remote host
 // to decide if the user environment will be read or not.
 func (s *Server) PermitUserEnvironment() bool {
 	return false
@@ -966,6 +968,13 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 			return
 		}
 		// Pass request on unchanged.
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := req.Reply(true, nil); err != nil {
+			s.log.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	case teleport.KeepAliveReqType:
 	default:
 		s.log.Debugf("Rejecting unknown global request %q.", req.Type)
@@ -1587,8 +1596,7 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 // teleportVarPrefixes contains the list of prefixes used by Teleport environment
 // variables. Matching variables are saved in the session context when forwarding
 // the calls to a remote SSH server as they can contain Teleport-specific
-// information used to process the session properly (e.g. TELEPORT_SESSION or
-// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+// information used to process the session properly (e.g. TELEPORT_SESSION)
 var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
 
 func isTeleportEnv(varName string) bool {

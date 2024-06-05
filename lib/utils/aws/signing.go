@@ -25,13 +25,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -54,8 +50,8 @@ type SigningService struct {
 
 // SigningServiceConfig is the SigningService configuration.
 type SigningServiceConfig struct {
-	// Session is AWS session.
-	Session *awssession.Session
+	// SessionProvider is a provider for AWS Sessions.
+	SessionProvider AWSSessionProvider
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// CredentialsGetter is used to obtain STS credentials.
@@ -67,21 +63,8 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
 	}
-	if s.Session == nil {
-		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
-		if modules.GetModules().IsBoringBinary() {
-			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
-		}
-		ses, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-			Config: aws.Config{
-				UseFIPSEndpoint: useFIPSEndpoint,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.Session = ses
+	if s.SessionProvider == nil {
+		return trace.BadParameter("session provider is required")
 	}
 	if s.CredentialsGetter == nil {
 		// Use cachedCredentialsGetter by default. cachedCredentialsGetter
@@ -114,6 +97,9 @@ type SigningCtx struct {
 	AWSExternalID string
 	// SessionTags is a list of AWS STS session tags.
 	SessionTags map[string]string
+	// Integration is the Integration name to use to generate credentials.
+	// If empty, it will use ambient credentials
+	Integration string
 }
 
 // Check checks signing context parameters.
@@ -175,8 +161,13 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	// 100-continue" headers without being signed, otherwise the Athena service
 	// would reject the requests.
 	unsignedHeaders := removeUnsignedHeaders(reqCopy)
+
+	session, err := s.SessionProvider(ctx, signCtx.SigningRegion, signCtx.Integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	credentials, err := s.CredentialsGetter.Get(ctx, GetCredentialsRequest{
-		Provider:    s.Session,
+		Provider:    session,
 		Expiry:      signCtx.Expiry,
 		SessionName: signCtx.SessionName,
 		RoleARN:     signCtx.AWSRoleArn,

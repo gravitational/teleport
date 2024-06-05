@@ -71,16 +71,6 @@ func (c *StaticTokensV2) SetSubKind(sk string) {
 	c.SubKind = sk
 }
 
-// GetResourceID returns resource ID
-func (c *StaticTokensV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *StaticTokensV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (c *StaticTokensV2) GetRevision() string {
 	return c.Metadata.GetRevision()

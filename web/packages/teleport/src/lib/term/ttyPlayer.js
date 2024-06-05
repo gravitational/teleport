@@ -50,10 +50,12 @@ export default class TtyPlayer extends Tty {
 
     this._paused = false;
     this._lastPlayedTimestamp = 0;
+    this._skipTimeUpdatesUntil = null;
 
     this._sendTimeUpdates = true;
     this._setTime = throttle(t => setTime(t), PROGRESS_UPDATE_INTERVAL_MS);
-    this._lastUpdate = 0;
+    this._lastUpdateTime = 0;
+    this._lastTimestamp = 0;
     this._timeout = null;
   }
 
@@ -97,6 +99,9 @@ export default class TtyPlayer extends Tty {
     if (this._sendTimeUpdates) {
       this._setTime(t);
     }
+
+    this._lastTimestamp = t;
+    this._lastUpdateTime = Date.now();
   }
 
   disconnect(closeCode = WebsocketCloseCode.NORMAL) {
@@ -108,10 +113,11 @@ export default class TtyPlayer extends Tty {
 
   scheduleNextUpdate(current) {
     this._timeout = setTimeout(() => {
-      const delta = Date.now() - this._lastUpdate;
+      const delta = Date.now() - this._lastUpdateTime;
       const next = current + delta;
+
       this.setTime(next);
-      this._lastUpdate = Date.now();
+      this._lastUpdateTime = Date.now();
 
       this.scheduleNextUpdate(next);
     }, PROGRESS_UPDATE_INTERVAL_MS);
@@ -133,8 +139,6 @@ export default class TtyPlayer extends Tty {
       // see lib/web/tty_playback.go for details on this protocol
       switch (typ) {
         case messageTypePty:
-          this.cancelTimeUpdate();
-
           const delay = Number(dv.getBigUint64(3));
           const data = dv.buffer.slice(
             dv.byteOffset + 11,
@@ -143,13 +147,29 @@ export default class TtyPlayer extends Tty {
 
           this.emit(TermEvent.DATA, data);
           this._lastPlayedTimestamp = delay;
-
-          this._lastUpdate = Date.now();
+          this._lastUpdateTime = Date.now();
           this.setTime(delay);
 
-          // schedule the next time update (in case this
-          // part of the recording is dead time)
-          if (!this._paused) {
+          // clear seek state if we caught up to the seek point
+          if (
+            this._skipTimeUpdatesUntil !== null &&
+            this._lastPlayedTimestamp >= this._skipTimeUpdatesUntil
+          ) {
+            this._skipTimeUpdatesUntil = null;
+          }
+
+          if (!this.isSeekingForward()) {
+            this.cancelTimeUpdate();
+          }
+
+          // schedule the next time update, which ensures that
+          // the progress bar continues to update even if this
+          // section of the recording is idle time
+          //
+          // note: we don't schedule an update if we're currently
+          // seeking forward in time, as we're trying to get there
+          // as quickly as possible
+          if (!this._paused && !this.isSeekingForward()) {
             this.scheduleNextUpdate(delay);
           }
           break;
@@ -187,7 +207,6 @@ export default class TtyPlayer extends Tty {
 
   move(newPos) {
     this.cancelTimeUpdate();
-
     try {
       const buffer = new ArrayBuffer(11);
       const dv = new DataView(buffer);
@@ -199,14 +218,24 @@ export default class TtyPlayer extends Tty {
       logger.error('error seeking', e);
     }
 
+    this._setTime(newPos);
+    this._lastUpdateTime = Date.now();
+    this._skipTimeUpdatesUntil = newPos;
+
     if (newPos < this._lastPlayedTimestamp) {
       this.emit(TermEvent.RESET);
-    } else if (this._paused) {
-      // if we're paused, we want the scrubber to "stick" at the new
-      // time until we press play (rather than waiting for us to click
-      // play and start receiving new data)
-      this._setTime(newPos);
+    } else {
+      if (!this._paused) {
+        this.scheduleNextUpdate(newPos);
+      }
     }
+  }
+
+  isSeekingForward() {
+    return (
+      this._skipTimeUpdatesUntil !== null &&
+      this._skipTimeUpdatesUntil > this._lastPlayedTimestamp
+    );
   }
 
   stop() {
@@ -225,6 +254,15 @@ export default class TtyPlayer extends Tty {
   play() {
     this._paused = false;
     this._setPlayerStatus(StatusEnum.PLAYING);
+
+    this._lastUpdateTime = Date.now();
+
+    if (this.isSeekingForward()) {
+      const next = Math.max(this._skipTimeUpdatesUntil, this._lastTimestamp);
+      this.scheduleNextUpdate(next);
+    } else {
+      this.scheduleNextUpdate(this._lastTimestamp);
+    }
 
     // the very first play call happens before we've even
     // connected - we only need to send the websocket message

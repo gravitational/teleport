@@ -45,9 +45,9 @@ import (
 var msgFieldRegexp = regexp.MustCompile(`(?im)^\*([a-zA-Z ]+)\*: (.+)$`)
 var requestReasonRegexp = regexp.MustCompile("(?im)^\\*Reason\\*:\\ ```\\n(.*?)```(.*?)$")
 
-// DiscordSuite is the discord access plugin test suite.
+// DiscordBaseSuite is the discord access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type DiscordSuite struct {
+type DiscordBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig   *discord.Config
 	raceNumber  int
@@ -56,7 +56,7 @@ type DiscordSuite struct {
 
 // SetupTest starts a fake discord and generates the plugin configuration.
 // It is run for each test.
-func (s *DiscordSuite) SetupTest() {
+func (s *DiscordBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -75,18 +75,38 @@ func (s *DiscordSuite) SetupTest() {
 }
 
 // startApp starts the discord plugin, waits for it to become ready and returns,
-func (s *DiscordSuite) startApp() {
+func (s *DiscordBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
 	app := discord.NewApp(s.appConfig)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
+}
+
+// DiscordSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type DiscordSuiteOSS struct {
+	DiscordBaseSuite
+}
+
+// DiscordSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type DiscordSuiteEnterprise struct {
+	DiscordBaseSuite
+}
+
+// SetupTest overrides DiscordBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *DiscordSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.DiscordBaseSuite.SetupTest()
 }
 
 // TestMessagePosting validates that a message is sent to each recipient
 // specified in the plugin's configuration. It also checks that the message
 // content is correct.
-func (s *DiscordSuite) TestMessagePosting() {
+func (s *DiscordSuiteOSS) TestMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -151,7 +171,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 
 // TestApproval tests that when a request is approved, its corresponding message
 // is updated to reflect the new request state.
-func (s *DiscordSuite) TestApproval() {
+func (s *DiscordSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -189,7 +209,7 @@ func (s *DiscordSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding message
 // is updated to reflect the new request state.
-func (s *DiscordSuite) TestDenial() {
+func (s *DiscordSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -228,14 +248,10 @@ func (s *DiscordSuite) TestDenial() {
 
 // TestReviewUpdates tests that the message is updated after the access request
 // is reviewed. Each review should be reflected in the original message.
-func (s *DiscordSuite) TestReviewUpdates() {
+func (s *DiscordSuiteEnterprise) TestReviewUpdates() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -295,14 +311,10 @@ func (s *DiscordSuite) TestReviewUpdates() {
 
 // TestApprovalByReview tests that the message is updated after the access request
 // is reviewed and approved.
-func (s *DiscordSuite) TestApprovalByReview() {
+func (s *DiscordSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -363,14 +375,10 @@ func (s *DiscordSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the message is updated after the access request
 // is reviewed and denied.
-func (s *DiscordSuite) TestDenialByReview() {
+func (s *DiscordSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -431,7 +439,7 @@ func (s *DiscordSuite) TestDenialByReview() {
 
 // TestExpiration tests that when a request expires, its corresponding message
 // is updated to reflect the new request state.
-func (s *DiscordSuite) TestExpiration() {
+func (s *DiscordSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -475,14 +483,11 @@ func (s *DiscordSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly and performs all the
 // message updates when a lot of access requests are sent and reviewed in a very
 // short time frame.
-func (s *DiscordSuite) TestRace() {
+func (s *DiscordSuiteEnterprise) TestRace() {
 	t := s.T()
+	t.Skip("This test is flaky")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)

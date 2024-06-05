@@ -302,7 +302,7 @@ ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VERSION # eg, "3.20.2"
+ARG PROTOC_VERSION # eg, "26.1"
 RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \

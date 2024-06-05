@@ -30,12 +30,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,7 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1007,32 +1010,70 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 }
 
 func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
-	var listings kubeListings
-
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		req := proto.ListResourcesRequest{
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-			Labels:              tc.Labels,
-		}
-
-		kubeClusters, err := tc.ListKubernetesClustersWithFiltersAllClusters(cf.Context, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for clusterName, kubeClusters := range kubeClusters {
-			for _, kc := range kubeClusters {
-				listings = append(listings, kubeListing{
-					Proxy:       profile.ProxyURL.Host,
-					Cluster:     clusterName,
-					KubeCluster: kc,
-				})
-			}
-		}
-		return nil
-	})
+	clusters, err := getClusterClients(cf, types.KindKubeServer)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
+		}
+	}()
+
+	// Fetch listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu       sync.Mutex
+		listings kubeListings
+		errors   []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		group.Go(func() error {
+			kc, err := kubeutils.ListKubeClustersWithFilters(groupCtx, cluster.auth, cluster.req)
+			if err != nil {
+				logrus.Errorf("Failed to get kube clusters: %v.", err)
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list kube clusters for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+
+				return nil
+			}
+
+			localListings := make([]kubeListing, 0, len(kc))
+			for _, kubeCluster := range kc {
+				localListings = append(localListings, kubeListing{
+					Proxy:       cluster.profile.ProxyURL.Host,
+					Cluster:     cluster.name,
+					KubeCluster: kubeCluster,
+				})
+			}
+
+			mu.Lock()
+			listings = append(listings, localListings...)
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(listings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	format := strings.ToLower(c.format)
@@ -1051,7 +1092,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		return trace.BadParameter("Unrecognized format %q", c.format)
 	}
 
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
@@ -1610,7 +1651,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 		// we will get an error here.
 		req.SetDryRun(true)
 		req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
-		if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
 			req, err = clt.CreateAccessRequestV2(ctx, req)
 			return trace.Wrap(err)
 		}); err != nil {

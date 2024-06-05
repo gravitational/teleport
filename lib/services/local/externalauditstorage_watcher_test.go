@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -42,6 +43,18 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	svc := NewExternalAuditStorageService(bk)
+
+	integrationsSvc, err := NewIntegrationsService(bk)
+	require.NoError(t, err)
+
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "test-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "test-role",
+		},
+	)
+	require.NoError(t, err)
+	integrationsSvc.CreateIntegration(ctx, oidcIntegration)
 
 	ch := make(chan string)
 
@@ -141,6 +154,17 @@ func TestClusterExternalAuditWatcher_WatcherClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	svc := NewExternalAuditStorageService(bk)
+	integrationsSvc, err := NewIntegrationsService(bk)
+	require.NoError(t, err)
+
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "test-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "test-role",
+		},
+	)
+	require.NoError(t, err)
+	integrationsSvc.CreateIntegration(ctx, oidcIntegration)
 
 	interceptor := &watcherInterceptor{
 		Backend:  bk,

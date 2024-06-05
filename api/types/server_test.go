@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 func getTestVal(isTestField bool, testVal string) string {
@@ -112,7 +113,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			SubKind: SubKindOpenSSHEICENode,
 			Version: V2,
 			Metadata: Metadata{
-				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 				Namespace: defaults.Namespace,
 			},
 			Spec: ServerSpecV2{
@@ -394,7 +394,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -403,7 +403,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -412,7 +412,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.AccountID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS Account ID")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -421,7 +421,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.InstanceID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS InstanceID")
+				require.ErrorContains(t, err, "missing account id or instance id in openssh-ec2-ice node")
 			},
 		},
 		{
@@ -440,7 +440,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
@@ -467,7 +466,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
@@ -497,7 +495,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					SubKind: SubKindOpenSSHEICENode,
 					Version: V2,
 					Metadata: Metadata{
-						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Name:      "123456789012-i-123456789012",
 						Namespace: defaults.Namespace,
 					},
 					Spec: ServerSpecV2{
@@ -518,6 +516,67 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				assert.Equal(t, expectedServer, s)
 
 				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
+
+				require.True(t, aws.IsEC2NodeID(s.GetName()),
+					"expected an EC2 Node ID format (<accid>-<instanceid>), got %s", s.GetName(),
+				)
+			},
+		},
+		{
+			name: "already existing OpenSSHEC2InstanceConnectEndpoint nodes use UUID and that must be accepted",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEICENode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "f043b730-8fdd-4f9a-81e4-45f5a9ea23a7",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789012",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
+							VPCID:       "some-vpc",
+							SubnetID:    "some-subnet",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint nodes with invalid account id or instance id must be rejected",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEICENode,
+				Version: V2,
+				Metadata: Metadata{
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:   "abcd",
+							InstanceID:  "i-defg",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
+							VPCID:       "some-vpc",
+							SubnetID:    "some-subnet",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, `invalid account "abcd" or instance id "i-defg"`)
 			},
 		},
 	}

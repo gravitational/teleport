@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const DOWNLOAD_BASE_URL = 'https://get.gravitational.com/';
+const DOWNLOAD_BASE_URL = 'https://cdn.teleport.dev/';
 
 export default function getDownloadLink(
   type: Arch,

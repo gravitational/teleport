@@ -369,11 +369,15 @@ func newFanoutV2Entry(event types.Event) fanoutV2Entry {
 }
 
 func filterEventSecrets(event types.Event) types.Event {
-	r, ok := event.Resource.(types.ResourceWithSecrets)
-	if !ok {
-		return event
+	if r, ok := event.Resource.(types.ResourceWithSecrets); ok {
+		event.Resource = r.WithoutSecrets()
 	}
-	event.Resource = r.WithoutSecrets()
+
+	// WebSessions do not implement the ResourceWithSecrets interface.
+	if r, ok := event.Resource.(types.WebSession); ok {
+		event.Resource = r.WithoutSecrets()
+	}
+
 	return event
 }
 

@@ -203,8 +203,7 @@ To recap the enrollment "Set Up SCIM" guide:
 ![Configure SCIM Provisioning](../../../img/enterprise/plugins/okta/scim-provisioning.png)
 
 For more information about how the Okta integration manages Teleport resources,
-see the Okta [Architecture](./architecture.mdx) and [Synchronization with Okta and SCIM](./sync-scim.mdx)
-guides.
+see the [Synchronization with Okta and SCIM](./sync-scim.mdx) guide.
 
 ## Deleting a hosted Okta integration
 
@@ -225,7 +224,7 @@ could revoke Okta access from users in your organization. Please exercise cautio
 when cleaning up Access Lists!
 </Admonition>
 
-All Access Lists imported by the the hosted integration will remain until they
+All Access Lists imported by the hosted integration will remain until they
 are deleted by a Teleport Administrator. That is, they will *not* be deleted
 when the hosted integration is deleted.
 
@@ -243,7 +242,7 @@ synchronization process or via SCIM, will ***not*** be deleted when the hosted
 integration is deleted.
 
 The easiest way to clean up these users when deleting a hosted integration is to
-un-assign all Okta users from the the Okta SAML Application Teleport uses as 
+un-assign all Okta users from the Okta SAML Application Teleport uses as 
 its identity provider, and wait for the sync process and/or SCIM provisioning
 to delete the corresponding Teleport accounts. Once the Teleport accounts have
 been automatically deleted you can proceed to delete the integration.

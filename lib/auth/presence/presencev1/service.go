@@ -126,7 +126,7 @@ func (s *Service) GetRemoteCluster(
 
 	rc, err := s.backend.GetRemoteCluster(ctx, req.Name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 
 	if err := authCtx.Checker.CheckAccessToRemoteCluster(rc); err != nil {
