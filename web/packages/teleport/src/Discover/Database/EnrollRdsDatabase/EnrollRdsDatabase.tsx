@@ -379,7 +379,6 @@ export function EnrollRdsDatabase() {
             <ToggleSection
               wantAutoDiscover={wantAutoDiscover}
               toggleWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
-              isDisabled={tableData.items.length === 0}
               discoveryGroupName={discoveryGroupName}
               setDiscoveryGroupName={setDiscoveryGroupName}
               clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
@@ -443,13 +442,11 @@ function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
 function ToggleSection({
   wantAutoDiscover,
   toggleWantAutoDiscover,
-  isDisabled,
   discoveryGroupName,
   setDiscoveryGroupName,
   clusterPublicUrl,
 }: {
   wantAutoDiscover: boolean;
-  isDisabled: boolean;
   toggleWantAutoDiscover(): void;
   discoveryGroupName: string;
   setDiscoveryGroupName(n: string): void;
@@ -457,11 +454,7 @@ function ToggleSection({
 }) {
   return (
     <Box mb={2}>
-      <Toggle
-        isToggled={wantAutoDiscover}
-        onToggle={toggleWantAutoDiscover}
-        disabled={isDisabled}
-      >
+      <Toggle isToggled={wantAutoDiscover} onToggle={toggleWantAutoDiscover}>
         <Box ml={2} mr={1}>
           Auto-enroll all databases for selected region
         </Box>

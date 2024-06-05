@@ -41,7 +41,7 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
-import { IAppContext } from 'teleterm/ui/types';
+import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
@@ -82,6 +82,9 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  private _unexpectedVnetShutdownListener:
+    | UnexpectedVnetShutdownListener
+    | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -173,6 +176,34 @@ export default class AppContext implements IAppContext {
     this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+  }
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function which
+   * removes the listener.
+   */
+  addUnexpectedVnetShutdownListener(
+    listener: UnexpectedVnetShutdownListener
+  ): () => void {
+    this._unexpectedVnetShutdownListener = listener;
+
+    return () => {
+      this._unexpectedVnetShutdownListener = undefined;
+    };
+  }
+
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  // To force callsites to use addUnexpectedVnetShutdownListener instead of setting the property
+  // directly on appContext, we use a getter which exposes a private property.
+  get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
+    return this._unexpectedVnetShutdownListener;
   }
 
   private subscribeToDeepLinkLaunch() {
