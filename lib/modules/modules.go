@@ -23,6 +23,7 @@ package modules
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -338,6 +339,8 @@ func GetModules() Modules {
 	return modules
 }
 
+var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
+
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
 	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
@@ -348,7 +351,7 @@ func ValidateResource(res types.Resource) error {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
 			case constants.SecondFactorOff, constants.SecondFactorOptional:
-				return trace.BadParameter("cannot disable two-factor authentication")
+				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
 	}
