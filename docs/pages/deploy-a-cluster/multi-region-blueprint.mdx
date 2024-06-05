@@ -27,9 +27,9 @@ Before continuing, you must acknowledge the following warnings:
 <Admonition type="tip">
 
 For the teams with limited bandwidth who need multi-region clusters, Teleport
-offers hosting cross-region clusters so you can benefit from the
-setup described in this document without the operational costs and complexity.
-See [the Teleport Enterprise Cloud page](../choose-an-edition/teleport-cloud/introduction.mdx)
+offers to host cross-region clusters. You can benefit from the
+setup described in this document without the operational costs and complexity,
+see [the Teleport Enterprise Cloud page](../choose-an-edition/teleport-cloud/introduction.mdx)
 for more details.
 
 </Admonition>
@@ -50,13 +50,13 @@ available in [Teleport Enterprise](../choose-an-edition/teleport-enterprise/intr
 To run a multi-region Teleport deployment, you must have:
 
 - **3 regions**. Teleport only needs 2, but CockroachDB needs 3 for its quorum mechanism.
-- Teleport Proxy Service instances which are able to dial each other by IP address.
+- Teleport Proxy Service instances able to dial each other by IP address.
   This means you have **cross-region Pod/Instance connectivity**. This is typically
   achieved with VPC peering and/or service mesh.
 - A **multi-region object storage** for session recordings.
 - **GeoDNS** to route users and Teleport agents to the closest Teleport cluster.
 - A **multi-region CockroachDB cluster**. You can use the CockroachDB core
-  features but optimal performance and fault-tolerance is achieved by using
+  features, but optimal performance and fault-tolerance is achieved by using
   [the multi-region features from CockroachDB Enterprise](https://www.cockroachlabs.com/docs/stable/enterprise-licensing).
 
 ## Implementing multi-region Teleport on Kubernetes
@@ -72,8 +72,8 @@ This section describes this setup with more details.
   [on port 3021](../reference/networking.mdx#ports). The setup will vary
   based on your network and CNI plugin configuration:
     - If pods are using the native network layer (GKE, AWS vpc-cni addon, ...)
-      you can rely on pure VPC peering, routing and firewall capabilities to
-      connect pods from each Kubernetes clusters.
+      you can rely on pure VPC peering, routing, and firewall capabilities to
+      connect pods from each Kubernetes cluster.
     - If pods are given non-native IP addresses, you can use the Cilium
       cluster-mesh capabilities to connect your pods. They
       provide [a step-by-step guide on how to mesh clusters](https://docs.cilium.io/en/stable/network/clustermesh/clustermesh/).
@@ -87,7 +87,7 @@ This section describes this setup with more details.
 ### Teleport backend configuration
 
 Create Teleport databases and user in CockroachDB:
-  ```cockroach
+  ```sql
   CREATE DATABASE teleport_backend;
   CREATE DATABASE teleport_audit;
   CREATE USER teleport;
@@ -109,7 +109,7 @@ You must end up with 3 files:
 For CockroachDB enterprise you must declare both zones and regions to
 CockroachDB and configure regional fault tolerance on the database.
 
-```cockroach
+```sql
 ALTER DATABASE teleport_backend SET PRIMARY REGION <region1>;
 ALTER DATABASE teleport_backend ADD REGION IF NOT EXISTS <region2>;
 ALTER DATABASE teleport_backend SET SECONDARY REGION <region2>;
@@ -128,22 +128,22 @@ ALTER DATABASE teleport_audit SURVIVE REGION FAILURE;
     lower database latency.
 
     If the primary and secondary regions are far from each other (for example,
-    on different continents) this will make CockraochDB write operations
+    on different continents) this will make CockroachDB write operations
     slower.
 </Admonition>
 
 </TabItem>
 <TabItem label="CockroachDB core">
-On CockroachDB core you must declare the physical regions as CockraochDB
+On CockroachDB core you must declare the physical regions as CockroachDB
 zones and configure zonal fault tolerance on the Teleport databases.
 
-```cockroach
+```sql
 ALTER DATABASE teleport_backend SURVIVE ZONE FAILURE;
 ALTER DATABASE teleport_audit SURVIVE ZONE FAILURE;
 ```
 
 <Admonition type="note">
-    CockraochDB core does not offer the regional features CockraochDB enterprise
+    CockroachDB core does not offer the regional features CockroachDB enterprise
     does. The performance might be impacted. CockroachDB core is not recommended
     for production in multi-region setups.
 </Admonition>
@@ -170,7 +170,7 @@ auth:
     teleport:
       storage:
         type: cockroachdb
-        # regional CockraochDB URL, if you followed the Cockroach docs it looks like
+        # regional CockroachDB URL, if you followed the Cockroach docs it looks like
         # cockroachdb-public.<region>.svc.cluster.local
         conn_string: postgres://teleport@cockroachdb-public.<region>.svc.cluster.local:26257/teleport_backend?sslmode=verify-full&pool_max_conns=20
         audit_events_uri:
@@ -225,9 +225,9 @@ routed to the closest working Teleport deployment.
 
 Updating Teleport on multi-region setups poses several challenges.
 Strictly following Teleport compatibility guarantees requires downscaling to a
-single auth before updating. In a multi region setup, this requires:
+single auth before updating. In a multi-region setup, this requires:
 
-- relying on a single region for auth during the udpate
+- relying on a single region for auth during the update
 - suspending two regions, ot allowing proxies to connect to auths from a
   different region (this is not the case by default and requires a Cilium
   cross-cluster service and a custom join token for the Proxy Service).
@@ -249,7 +249,7 @@ A 3x3 CockroachDB cluster (1 node per zone, 3 zones per region, 3 regions)
 whose nodes have 2 CPUs and 8GiB of memory can sustain a Teleport cluster with
 10 000 SSH nodes.
 
-The CockraochDB performance depends on the storage type. Make sure to store
+The CockroachDB performance depends on the storage type. Make sure to store
 CockroachDB's state on SSDs. When running on Kubernetes, the default storage
 class might not be the one offering the best latency and throughput.
 
@@ -297,7 +297,7 @@ regional S3 buckets and replication rules.
 1. Create a multi-region access point containing the 3 buckets
 1. After its creation, in the "Replication and Failover" tab, choose "Create
    Replication Rule" and the template "Replicate objects among all specified
-   buckets".
+   buckets."
 
 Alternatively, you can create individual replication rule with tools like
 Terraform. With 3 buckets `bucketA`, `bucketB`, `bucketC` you need 6 rules:
