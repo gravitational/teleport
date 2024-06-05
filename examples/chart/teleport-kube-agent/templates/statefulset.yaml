@@ -244,11 +244,7 @@ spec:
         secret:
           secretName: {{ .Values.jamfCredentialsSecret.name }}
           items:
-  {{- if .Values.jamfClientId }}
-          - key: jamfClientSecret
-  {{- else }}
-          - key: jamfPassword
-  {{- end }}
+          - key: jamfSecret
             path: secret
 {{- end }}
 {{- if .Values.extraVolumes }}

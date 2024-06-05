@@ -897,7 +897,7 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
       secret:
         secretName: teleport-jamf-api-credentials
         items:
-        - key: jamfPassword
+        - key: jamfSecret
           path: password
 should mount tls.existingCASecretName and set environment when set in values if action is Upgrade:
   1: |
