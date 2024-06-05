@@ -157,6 +157,10 @@
           "slug": "/deploy-a-cluster/introduction/",
           "forScopes": ["oss", "enterprise"]
         },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
