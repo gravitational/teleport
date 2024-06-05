@@ -836,7 +836,7 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf an
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -907,7 +907,7 @@ should mount jamfCredentialsSecret.name when role is jamf and action is Upgrade:
       env:
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
