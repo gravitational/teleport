@@ -345,7 +345,7 @@ export default function useAccessRequestCheckout() {
   }
 
   const shouldShowClusterNameColumn =
-    pendingAccessRequest.kind === 'resource' &&
+    pendingAccessRequest?.kind === 'resource' &&
     Array.from(pendingAccessRequest.resources.values()).some(a =>
       routing.isLeafCluster(a.resource.uri)
     );
