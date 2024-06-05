@@ -37,8 +37,8 @@ type Props = {
 
 export default function DocumentKubeExec({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
-  const { tty, status, closeDocument } = useKubeExecSession(doc);
-  const [sentData, setSentData] = useState(false);
+  const { tty, status, closeDocument, sendKubeExecData } =
+    useKubeExecSession(doc);
   const webauthn = useWebAuthn(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
@@ -72,21 +72,8 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
         />
       )}
 
-      {status === 'initialized' && !sentData && (
-        <KubeExecData
-          onExec={(namespace, pod, container, command, isInteractive) => {
-            tty.sendKubeExecData({
-              kubeCluster: doc.kubeCluster,
-              namespace,
-              pod,
-              container,
-              command,
-              isInteractive,
-            });
-            setSentData(true);
-          }}
-          onClose={closeDocument}
-        />
+      {status === 'waiting-for-exec-data' && (
+        <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />
       )}
       {status !== 'loading' && terminal}
     </Document>

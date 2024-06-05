@@ -57,6 +57,24 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
     ctx.closeTab(doc);
   }
 
+  function sendKubeExecData(
+    namespace: string,
+    pod: string,
+    container: string,
+    command: string,
+    isInteractive: boolean
+  ): void {
+    tty.sendKubeExecData({
+      kubeCluster: doc.kubeCluster,
+      namespace,
+      pod,
+      container,
+      command,
+      isInteractive,
+    });
+    setStatus('initialized');
+  }
+
   React.useEffect(() => {
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
@@ -70,7 +88,6 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
           tty.on(TermEvent.CONN_CLOSE, () => {
-            setStatus('disconnected');
             ctx.updateKubeExecDocument(doc.id, { status: 'disconnected' });
           });
 
@@ -84,7 +101,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);
-          setStatus('initialized');
+          setStatus('waiting-for-exec-data');
           span.end();
         }
       );
@@ -114,6 +131,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
     status,
     session,
     closeDocument,
+    sendKubeExecData,
   };
 }
 
@@ -159,4 +177,4 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-export type Status = 'initialized' | 'loading' | 'disconnected';
+export type Status = 'loading' | 'waiting-for-exec-data' | 'initialized';
