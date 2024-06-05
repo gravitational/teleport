@@ -82,7 +82,6 @@ func waitForInitOp(watcher types.Watcher) error {
 		case <-watcher.Done():
 			return trace.Wrap(watcher.Error())
 		}
-
 	}
 }
 
@@ -98,11 +97,22 @@ type IneligibleStatusReconciler struct {
 const (
 	// 100 years is a good enough approximation for "never"
 	neverDuration = time.Hour * 24 * 365 * 100
+	// forceReconcileDuration is the duration after which we will force a reconciliation to happen.
+	forceReconcileDuration = 30 * time.Minute
 )
 
 // Run runs the reconciliation loop.
 func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 	t := r.clock.NewTimer(neverDuration)
+	// forceReconcile is a timer that will force a reconciliation to happen
+	// after a certain amount of time has passed.
+	forceReconcile := r.clock.NewTimer(forceReconcileDuration)
+	drainAndResetTimer := func(t clockwork.Timer, timeout time.Duration) {
+		if !t.Stop() {
+			<-t.Chan()
+		}
+		t.Reset(timeout)
+	}
 	// reconcile is a blocking channel that will be used to signal that
 	// a reconciliation must happen.
 	// It must be unbuffered to ensure that we don't re-reconcile if we
@@ -134,10 +144,8 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 		if nextExpirationTime <= 0 {
 			nextExpirationTime = 1 * time.Second
 		}
-		if !t.Stop() {
-			<-t.Chan()
-		}
-		t.Reset(nextExpirationTime)
+		drainAndResetTimer(t, nextExpirationTime)
+		drainAndResetTimer(forceReconcile, forceReconcileDuration)
 		select {
 		case <-ctx.Done():
 			return nil
@@ -148,7 +156,6 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 		}
 
 	}
-
 }
 
 // Close closes the reconciler.
@@ -156,7 +163,17 @@ func (r *IneligibleStatusReconciler) Close() error {
 	return r.watcher.Close()
 }
 
-func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (time.Duration, error) {
+func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (nextExpirationTime time.Duration, err error) {
+	r.log.Debug("Reconciling memberships")
+	defer func() {
+		fields := logrus.Fields{
+			"next_expiration_time": nextExpirationTime,
+		}
+		if err != nil && !trace.IsCompareFailed(err) {
+			fields["error"] = err
+		}
+		r.log.WithFields(fields).Debug("AccessList reconciliation complete")
+	}()
 	// get all users
 	users, err := getAllUsers(ctx, r.cache, 0 /* use the default page size */)
 	if err != nil {
@@ -173,8 +190,7 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now
 		return 0, trace.Wrap(err, "unable to reconcile access list ownership")
 	}
 
-	nextExpirationTime, err := r.reconcileMemberships(ctx, now, accessLists, usersMap)
-
+	nextExpirationTime, err = r.reconcileMemberships(ctx, now, accessLists, usersMap)
 	return nextExpirationTime, trace.Wrap(err, "unable to reconcile memberships")
 }
 
@@ -210,6 +226,12 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 			oldIneligibleStatus := owner.IneligibleStatus
 			owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
 			if oldIneligibleStatus != owner.IneligibleStatus {
+				r.log.WithFields(logrus.Fields{
+					"access_list": accessList.GetName(),
+					"username":    owner.Name,
+					"old_status":  oldIneligibleStatus,
+					"new_status":  owner.IneligibleStatus,
+				}).Debug("Updating access list owner ineligibility status")
 				toUpdate = true
 			}
 			accessList.Spec.Owners[i] = owner
@@ -228,10 +250,7 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 }
 
 func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, now time.Time, accessLists []*accesslist.AccessList, usersMap map[string]types.User) (time.Duration, error) {
-	accessListsMap := make(map[string]*accesslist.AccessList, len(accessLists))
-	for _, accessList := range accessLists {
-		accessListsMap[accessList.GetName()] = accessList
-	}
+	accessListsMap := sliceToMap(accessLists)
 
 	startKey := ""
 	nextExpiration := neverDuration
@@ -258,6 +277,12 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 			oldIneligibleStatus := member.Spec.IneligibleStatus
 			member.Spec.IneligibleStatus = ineligibleStatus.String()
 			if oldIneligibleStatus != member.Spec.IneligibleStatus {
+				r.log.WithFields(logrus.Fields{
+					"access_list": member.Spec.AccessList,
+					"username":    member.Spec.Name,
+					"old_status":  oldIneligibleStatus,
+					"new_status":  member.Spec.IneligibleStatus,
+				}).Debug("Updating access list member ineligibility status")
 				toUpdate = append(toUpdate, member)
 			}
 		}
@@ -268,9 +293,7 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 		}
 
 		batchNextExpirationTime := nextExpirationTime(now, accessListsMembers)
-		if batchNextExpirationTime < nextExpiration {
-			nextExpiration = batchNextExpirationTime
-		}
+		nextExpiration = min(nextExpiration, batchNextExpirationTime)
 		if nextKey == "" {
 			break
 		}
@@ -344,7 +367,6 @@ func (r *IneligibleStatusReconciler) informReconciliationMustHappen(reconcile ch
 				case <-r.watcher.Done():
 					return
 				}
-
 			}
 		case <-r.watcher.Done():
 			return

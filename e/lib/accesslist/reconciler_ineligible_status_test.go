@@ -34,7 +34,6 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 		}
-
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Update the access list member to be ineligible.
@@ -71,7 +70,6 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			assert.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 		}
-
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Update access list to change the requirements.
@@ -108,7 +106,6 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, owner := range al.Spec.Owners {
 			assert.Equal(t, "INELIGIBLE_STATUS_MISSING_REQUIREMENTS", owner.IneligibleStatus)
 		}
-
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Expire all access list members.
@@ -121,5 +118,4 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 			assert.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
 		}
 	}, 5*time.Second, 100*time.Millisecond)
-
 }

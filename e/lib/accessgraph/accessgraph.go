@@ -158,7 +158,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 				return trace.Wrap(err)
 			}
 			missingWatchKinds(ctx, log, supportedKinds, cacheSupportedResources)
-			errc := make(chan error)
+			errc := make(chan error, 1)
 			go func() {
 				// Start watching the auth server for events.
 				// Subscribe for new events before sending all resources.
@@ -271,7 +271,6 @@ func waitForInit(watcher types.Watcher) ([]string, error) {
 			}
 			evt, ok := event.Resource.(types.WatchStatus)
 			if !ok {
-
 				return nil, nil
 			}
 			var kinds []string
@@ -388,7 +387,8 @@ func forwardEventsWatch(watcher types.Watcher, eventWatcher *tagEventWatcher) er
 // sendUsers sends all users to the access graph service.
 func sendUsers(ctx context.Context, authServer interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+) error {
 	req := userspb.ListUsersRequest{
 		PageSize: apidefaults.DefaultChunkSize,
 	}
@@ -414,7 +414,8 @@ func sendUsers(ctx context.Context, authServer interface {
 
 func sendCrownJewels(ctx context.Context, authServer interface {
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+) error {
 	nextToken := ""
 
 	for {
@@ -478,7 +479,8 @@ func pushCrownJewelsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphS
 // sendRoles sends all roles to the access graph service.
 func sendRoles(ctx context.Context, authServer interface {
 	GetRoles(context.Context) ([]types.Role, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+) error {
 	// Get all roles.
 	// Auth server does not support pagination for roles, so we have to get all roles at once
 	// and we chunk them after.
@@ -528,7 +530,8 @@ func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 func sendAccessLists(ctx context.Context, authServer interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -578,7 +581,8 @@ func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphS
 
 func sendAccessListMembers(ctx context.Context, authServer interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessList *accesslist.AccessList) error {
+}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessList *accesslist.AccessList,
+) error {
 	startToken := ""
 	limit := 0 // use default limit
 
@@ -875,8 +879,25 @@ func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
 			),
 		)
 	case *proto.Event_ResourceHeader:
+		if resource.ResourceHeader.Kind == types.KindAccessListMember {
+			// Access list member uses a different object format
+			// when it is sent to the access graph service.
+			req = &accessgraphv1.EventsStreamV2Request{
+				Operation: &accessgraphv1.EventsStreamV2Request_ExcludeAccessListMembers{
+					ExcludeAccessListMembers: &accessgraphv1.ExcludeAccessListsMembers{
+						Members: []*accessgraphv1.ExcludeAccessListMember{
+							{
+								// access list name comes from the resource header description
+								AccessList: resource.ResourceHeader.GetMetadata().Description,
+								Username:   resource.ResourceHeader.GetName(),
+							},
+						},
+					},
+				},
+			}
+			break
+		}
 		req = deleteEventStreamRequest(resource.ResourceHeader)
-
 	case *proto.Event_AccessList:
 		header := headerv1.FromResourceHeaderProto(resource.AccessList.GetHeader())
 		req = deleteEventStreamRequest(
