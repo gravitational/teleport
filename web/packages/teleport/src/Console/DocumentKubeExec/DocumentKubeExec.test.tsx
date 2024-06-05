@@ -58,6 +58,7 @@ describe('DocumentKubeExec', () => {
       } as unknown as Tty,
       status,
       closeDocument: jest.fn(),
+      sendKubeExecData: jest.fn(),
       session: baseSession,
     });
 
@@ -102,14 +103,14 @@ describe('DocumentKubeExec', () => {
     expect(screen.getByTestId('terminal')).toBeInTheDocument();
   });
 
-  test('renders data dialog when status is initialized', () => {
-    setup('initialized');
+  test('renders data dialog when status is waiting-for-exec-data', () => {
+    setup('waiting-for-exec-data');
 
     expect(screen.getByText('Exec into a pod')).toBeInTheDocument();
   });
 
-  test('does not render data dialog when status is disconnected', () => {
-    setup('disconnected');
+  test('does not render data dialog when status is initialized', () => {
+    setup('initialized');
 
     expect(screen.queryByText('Exec into a pod')).not.toBeInTheDocument();
   });
