@@ -462,6 +462,26 @@ Example: "https://yourtenant.jamfcloud.com/api".
 
 This setting is required if the chart `roles` contains `jamf`.
 
+## `jamfClientId`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jamfClientId` sets the Jamf Pro API Client ID used for Jamf service.
+
+This setting is required if the chart `roles` contains `jamf`.
+
+## `jamfClientSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jamfClientSecret` sets the Jamf Pro API password used for Jamf service.
+
+This setting is required if the chart `roles` contains `jamf`.
+
 ## `jamfUsername`
 
 | Type | Default |
@@ -493,7 +513,7 @@ This setting is required if the chart `roles` contains `jamf`.
 | `bool` | `true` |
 
 `jamfCredentialsSecret.create` controls whether the chart creates the
-Kubernetes `Secret` containing the Jamf Pro API password.
+Kubernetes `Secret` containing the Jamf Pro API Client Secret.
 If false, you must create a Kubernetes Secret with the configured name in
 the Helm release namespace.
 
@@ -504,21 +524,21 @@ the Helm release namespace.
 | `string` | `"teleport-jamf-api-credentials"` |
 
 `jamfCredentialsSecret.name` is the name of the Kubernetes Secret
-containing the Jamf Pro API password used by the chart.
+containing the Jamf Pro API Client Secret used by the chart.
 
 If `jamfCredentialsSecret.create` is `false`, the chart will not attempt to create the secret itself.
 Instead, it will read the value from an existing secret. `jamfCredentialsSecret.name`
 configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
-Jamf Pro API password stored in your Teleport chart values.
+Jamf Pro API Client Secret stored in your Teleport chart values.
 
-To create your own Jamf Pro API password secret, you can use a command like this:
+To create your own Jamf Pro API Client Secret, you can use a command like this:
 
 ```code
-$ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfPassword=<replace-with-actual-password>
+$ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfClientSecret=<replace-with-actual-secret>
 ```
 
 <Admonition type="note">
-  The key used for the Jamf Pro API password inside the secret must be `jamfPassword`, as in the command above.
+  The key used for the Jamf Pro API Client Secret inside the secret must be `jamfClientSecret`, as in the command above.
 </Admonition>
 
 For example:
@@ -528,6 +548,16 @@ jamfCredentialsSecret:
   create: false
   name: my-jamf-secret
 ```
+
+For Teleport versions lower than v16, use Jamf Pro API password:
+
+```code
+$ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfPassword=<replace-with-actual-password>
+```
+
+<Admonition type="note">
+  The key used for the Jamf Pro API password inside the secret must be `jamfPassword`, as in the command above.
+</Admonition>
 
 ## `teleportVersionOverride`
 

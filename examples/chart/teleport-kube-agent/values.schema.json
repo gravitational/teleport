@@ -763,6 +763,16 @@
             "type": "string",
             "default": ""
         },
+        "jamfClientId": {
+            "$id": "#/properties/jamfClientId",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientSecret": {
+            "$id": "#/properties/jamfSecret",
+            "type": "string",
+            "default": ""
+        },
         "jamfUsername": {
             "$id": "#/properties/jamfUsername",
             "type": "string",
