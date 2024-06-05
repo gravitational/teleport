@@ -268,6 +268,27 @@ export interface UsageReportingSettings {
      */
     enabled: boolean;
 }
+/**
+ * Request for ReportUnexpectedVnetShutdown.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+ */
+export interface ReportUnexpectedVnetShutdownRequest {
+    /**
+     * error is the error message with which VNet was shut down. Technically it can be empty, so
+     * consumers should account for that.
+     *
+     * @generated from protobuf field: string error = 1;
+     */
+    error: string;
+}
+/**
+ * Response for ReportUnexpectedVnetShutdown.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+ */
+export interface ReportUnexpectedVnetShutdownResponse {
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class ReloginRequest$Type extends MessageType<ReloginRequest> {
     constructor() {
@@ -990,6 +1011,78 @@ class UsageReportingSettings$Type extends MessageType<UsageReportingSettings> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UsageReportingSettings
  */
 export const UsageReportingSettings = new UsageReportingSettings$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReportUnexpectedVnetShutdownRequest$Type extends MessageType<ReportUnexpectedVnetShutdownRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest", [
+            { no: 1, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReportUnexpectedVnetShutdownRequest>): ReportUnexpectedVnetShutdownRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReportUnexpectedVnetShutdownRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportUnexpectedVnetShutdownRequest): ReportUnexpectedVnetShutdownRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string error */ 1:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReportUnexpectedVnetShutdownRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string error = 1; */
+        if (message.error !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+ */
+export const ReportUnexpectedVnetShutdownRequest = new ReportUnexpectedVnetShutdownRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReportUnexpectedVnetShutdownResponse$Type extends MessageType<ReportUnexpectedVnetShutdownResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse", []);
+    }
+    create(value?: PartialMessage<ReportUnexpectedVnetShutdownResponse>): ReportUnexpectedVnetShutdownResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ReportUnexpectedVnetShutdownResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportUnexpectedVnetShutdownResponse): ReportUnexpectedVnetShutdownResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ReportUnexpectedVnetShutdownResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+ */
+export const ReportUnexpectedVnetShutdownResponse = new ReportUnexpectedVnetShutdownResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TshdEventsService
  */
@@ -998,5 +1091,6 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "SendNotification", options: {}, I: SendNotificationRequest, O: SendNotificationResponse },
     { name: "SendPendingHeadlessAuthentication", options: {}, I: SendPendingHeadlessAuthenticationRequest, O: SendPendingHeadlessAuthenticationResponse },
     { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse },
-    { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse }
+    { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse },
+    { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse }
 ]);

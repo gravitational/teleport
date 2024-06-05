@@ -888,6 +888,95 @@ func (x *UsageReportingSettings) GetEnabled() bool {
 	return false
 }
 
+// Request for ReportUnexpectedVnetShutdown.
+type ReportUnexpectedVnetShutdownRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// error is the error message with which VNet was shut down. Technically it can be empty, so
+	// consumers should account for that.
+	Error string `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+}
+
+func (x *ReportUnexpectedVnetShutdownRequest) Reset() {
+	*x = ReportUnexpectedVnetShutdownRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReportUnexpectedVnetShutdownRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportUnexpectedVnetShutdownRequest) ProtoMessage() {}
+
+func (x *ReportUnexpectedVnetShutdownRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportUnexpectedVnetShutdownRequest.ProtoReflect.Descriptor instead.
+func (*ReportUnexpectedVnetShutdownRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ReportUnexpectedVnetShutdownRequest) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// Response for ReportUnexpectedVnetShutdown.
+type ReportUnexpectedVnetShutdownResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ReportUnexpectedVnetShutdownResponse) Reset() {
+	*x = ReportUnexpectedVnetShutdownResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReportUnexpectedVnetShutdownResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportUnexpectedVnetShutdownResponse) ProtoMessage() {}
+
+func (x *ReportUnexpectedVnetShutdownResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportUnexpectedVnetShutdownResponse.ProtoReflect.Descriptor instead.
+func (*ReportUnexpectedVnetShutdownResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{16}
+}
+
 var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDescriptor
 
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = []byte{
@@ -997,8 +1086,14 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = []byte{
 	0x6e, 0x67, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x22, 0x32, 0x0a, 0x16, 0x55, 0x73,
 	0x61, 0x67, 0x65, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x53, 0x65, 0x74, 0x74,
 	0x69, 0x6e, 0x67, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x32, 0x9a,
-	0x05, 0x0a, 0x11, 0x54, 0x73, 0x68, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x53, 0x65, 0x72,
+	0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64, 0x22,
+	0x3b, 0x0a, 0x23, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x55, 0x6e, 0x65, 0x78, 0x70, 0x65, 0x63,
+	0x74, 0x65, 0x64, 0x56, 0x6e, 0x65, 0x74, 0x53, 0x68, 0x75, 0x74, 0x64, 0x6f, 0x77, 0x6e, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x26, 0x0a, 0x24,
+	0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x55, 0x6e, 0x65, 0x78, 0x70, 0x65, 0x63, 0x74, 0x65, 0x64,
+	0x56, 0x6e, 0x65, 0x74, 0x53, 0x68, 0x75, 0x74, 0x64, 0x6f, 0x77, 0x6e, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x32, 0xba, 0x06,0x0a, 0x11, 0x54, 0x73, 0x68, 0x64, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x73, 0x53, 0x65, 0x72,
 	0x76, 0x69, 0x63, 0x65, 0x12, 0x5e, 0x0a, 0x07, 0x52, 0x65, 0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x12,
 	0x28, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6c, 0x69, 0x62, 0x2e, 0x74,
 	0x65, 0x6c, 0x65, 0x74, 0x65, 0x72, 0x6d, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x6f, 0x67,
@@ -1039,7 +1134,16 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = []byte{
 	0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6c, 0x69, 0x62, 0x2e, 0x74, 0x65,
 	0x6c, 0x65, 0x74, 0x65, 0x72, 0x6d, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x55, 0x73, 0x61,
 	0x67, 0x65, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x53, 0x65, 0x74, 0x74, 0x69,
-	0x6e, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x54, 0x5a, 0x52, 0x67,
+	0x6e, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x9d, 0x01, 0x0a, 0x1c, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x55, 0x6e, 0x65, 0x78,
+	0x70, 0x65, 0x63, 0x74, 0x65, 0x64, 0x56, 0x6e, 0x65, 0x74, 0x53, 0x68, 0x75, 0x74, 0x64, 0x6f,
+	0x77, 0x6e, 0x12, 0x3d, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6c, 0x69,
+	0x62, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x72, 0x6d, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65,
+	0x70, 0x6f, 0x72, 0x74, 0x55, 0x6e, 0x65, 0x78, 0x70, 0x65, 0x63, 0x74, 0x65, 0x64, 0x56, 0x6e,
+	0x65, 0x74, 0x53, 0x68, 0x75, 0x74, 0x64, 0x6f, 0x77, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x3e, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x6c, 0x69, 0x62,
+	0x2e, 0x74, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x72, 0x6d, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x70,
+	0x6f, 0x72, 0x74, 0x55, 0x6e, 0x65, 0x78, 0x70, 0x65, 0x63, 0x74, 0x65, 0x64, 0x56, 0x6e, 0x65,
+	0x74, 0x53, 0x68, 0x75, 0x74, 0x64, 0x6f, 0x77, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,0x65, 0x42, 0x54, 0x5a, 0x52, 0x67,
 	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74,
 	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74,
 	0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x74, 0x65,
@@ -1060,7 +1164,7 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP() []byt
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []interface{}{
 	(*ReloginRequest)(nil),                            // 0: teleport.lib.teleterm.v1.ReloginRequest
 	(*GatewayCertExpired)(nil),                        // 1: teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1077,6 +1181,8 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []interfac
 	(*GetUsageReportingSettingsRequest)(nil),          // 12: teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
 	(*GetUsageReportingSettingsResponse)(nil),         // 13: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
 	(*UsageReportingSettings)(nil),                    // 14: teleport.lib.teleterm.v1.UsageReportingSettings
+	(*ReportUnexpectedVnetShutdownRequest)(nil),       // 15: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 16: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1089,13 +1195,15 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	8,  // 7: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
 	10, // 8: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
 	12, // 9: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
-	3,  // 10: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
-	7,  // 11: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
-	9,  // 12: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
-	11, // 13: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
-	13, // 14: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
+	15, // 10: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	3,  // 11: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
+	7,  // 12: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
+	9,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
+	11, // 14: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
+	13, // 15: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	16, // 16: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	11, // [11:17] is the sub-list for method output_type
+	5,  // [5:11] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -1287,6 +1395,30 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() {
 				return nil
 			}
 		}
+		file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReportUnexpectedVnetShutdownRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReportUnexpectedVnetShutdownResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[0].OneofWrappers = []interface{}{
 		(*ReloginRequest_GatewayCertExpired)(nil),
@@ -1302,7 +1434,7 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

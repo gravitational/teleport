@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
+import { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
 import { PromptMFAResponse } from "./tshd_events_service_pb";
@@ -79,6 +81,14 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetUsageReportingSettings(teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest) returns (teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse);
      */
     getUsageReportingSettings: grpc.handleUnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>;
+    /**
+     * ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+     * request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+     * update the state of VNet in the UI.
+     *
+     * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
+     */
+    reportUnexpectedVnetShutdown: grpc.handleUnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TshdEventsService.
@@ -141,5 +151,15 @@ export const tshdEventsServiceDefinition: grpc.ServiceDefinition<ITshdEventsServ
         requestDeserialize: bytes => GetUsageReportingSettingsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetUsageReportingSettingsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetUsageReportingSettingsRequest.toBinary(value))
+    },
+    reportUnexpectedVnetShutdown: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/ReportUnexpectedVnetShutdown",
+        originalName: "ReportUnexpectedVnetShutdown",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ReportUnexpectedVnetShutdownResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ReportUnexpectedVnetShutdownRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ReportUnexpectedVnetShutdownResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ReportUnexpectedVnetShutdownRequest.toBinary(value))
     }
 };

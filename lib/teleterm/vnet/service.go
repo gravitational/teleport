@@ -22,6 +22,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -163,15 +164,22 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 			log.DebugContext(ctx, "VNet closed")
 		}
 
-		// TODO(ravicious): Notify the Electron app about change of VNet state, but only if it's
-		// running. If it's not running, then the Start RPC has already failed and forwarded the error
-		// to the user.
-
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
+		// Handle unexpected shutdown.
+		// If processManager.Wait has returned but status is stil "running", then it means that VNet
+		// unexpectedly shut down rather than stopped through the Stop RPC.
 		if s.status == statusRunning {
 			s.status = statusNotRunning
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			reportErr := s.reportUnexpectedShutdown(ctx, err)
+			if reportErr != nil {
+				log.ErrorContext(ctx, "Could not notify the Electron app about unexpected VNet shutdown",
+					"shutdown_error", err, "notify_error", reportErr)
+			}
 		}
 	}()
 
@@ -241,6 +249,23 @@ func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
 	}
 
 	return resp.UsageReportingSettings.Enabled, nil
+}
+
+func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr error) error {
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	if err != nil {
+		return trace.Wrap(err, "obtaining tshd events client")
+	}
+
+	var shutdownErrorMsg string
+	if shutdownErr != nil {
+		shutdownErrorMsg = shutdownErr.Error()
+	}
+
+	_, err = tshdEventsClient.ReportUnexpectedVnetShutdown(ctx, &apiteleterm.ReportUnexpectedVnetShutdownRequest{
+		Error: shutdownErrorMsg,
+	})
+	return trace.Wrap(err, "sending shutdown report")
 }
 
 type appProvider struct {
