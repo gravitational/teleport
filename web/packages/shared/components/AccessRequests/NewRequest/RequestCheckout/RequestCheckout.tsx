@@ -61,10 +61,9 @@ import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
-export function RequestCheckoutWithSlider({
-  transitionState,
-  ...props
-}: RequestCheckoutWithSliderProps) {
+export function RequestCheckoutWithSlider<
+  T extends PendingListItem = PendingListItem,
+>({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
   const ref = useRef<HTMLDivElement>();
 
   // Listeners are attached to enable overflow on the parent container after
@@ -120,7 +119,7 @@ export function RequestCheckoutWithSlider({
   );
 }
 
-export function RequestCheckout({
+export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   onClose,
   reset,
@@ -148,7 +147,7 @@ export function RequestCheckout({
   isResourceRequest,
   selectedResourceRequestRoles,
   Header,
-}: RequestCheckoutProps) {
+}: RequestCheckoutProps<T>) {
   // Specifies the start date/time a requestor requested for.
   const [start, setStart] = useState<Date>();
   const [reason, setReason] = useState('');
@@ -261,11 +260,7 @@ export function RequestCheckout({
                           p={2}
                           onClick={() => {
                             clearAttempt();
-                            toggleResource(
-                              resource.kind,
-                              resource.id,
-                              resource.name
-                            );
+                            toggleResource(resource);
                           }}
                           disabled={createAttempt.status === 'processing'}
                           css={`
@@ -687,49 +682,51 @@ const StyledTable = styled(Table)`
   overflow: hidden;
 ` as typeof Table;
 
-export type RequestCheckoutWithSliderProps = {
+export type RequestCheckoutWithSliderProps<
+  T extends PendingListItem = PendingListItem,
+> = {
   transitionState: TransitionStatus;
-} & RequestCheckoutProps;
+} & RequestCheckoutProps<T>;
 
-export type RequestCheckoutProps = {
-  onClose(): void;
-  toggleResource: (
-    kind: ResourceKind,
-    resourceId: string,
-    resourceName?: string
-  ) => void;
-  appsGrantedByUserGroup?: string[];
-  userGroupFetchAttempt?: Attempt;
-  reset: () => void;
-  SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
-  isResourceRequest: boolean;
-  requireReason: boolean;
-  selectedReviewers: ReviewerOption[];
-  data: {
-    kind: ResourceKind;
-    /** Name of the resource, for presentation purposes only. */
-    name: string;
-    /** Identifier of the resource. Should be sent in requests. */
-    id: string;
-  }[];
-  setRequestTTL: (value: Option<number>) => void;
-  createRequest: (req: CreateRequest) => void;
-  fetchStatus: 'loading' | 'loaded';
-  fetchResourceRequestRolesAttempt: Attempt;
-  requestTTL: Option<number>;
-  resourceRequestRoles: string[];
-  reviewers: string[];
-  setSelectedReviewers: (value: ReviewerOption[]) => void;
-  setMaxDuration: (value: Option<number>) => void;
-  clearAttempt: () => void;
-  createAttempt: Attempt;
-  setSelectedResourceRequestRoles: (value: string[]) => void;
-  numRequestedResources: number;
-  selectedResourceRequestRoles: string[];
-  dryRunResponse: AccessRequest;
-  maxDuration: Option<number>;
-  Header?: () => JSX.Element;
-};
+export interface PendingListItem {
+  kind: ResourceKind;
+  /** Name of the resource, for presentation purposes only. */
+  name: string;
+  /** Identifier of the resource. Should be sent in requests. */
+  id: string;
+  clusterName?: string;
+}
+
+export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
+  {
+    onClose(): void;
+    toggleResource: (resource: T) => void;
+    appsGrantedByUserGroup?: string[];
+    userGroupFetchAttempt?: Attempt;
+    reset: () => void;
+    SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
+    isResourceRequest: boolean;
+    requireReason: boolean;
+    selectedReviewers: ReviewerOption[];
+    data: T[];
+    setRequestTTL: (value: Option<number>) => void;
+    createRequest: (req: CreateRequest) => void;
+    fetchStatus: 'loading' | 'loaded';
+    fetchResourceRequestRolesAttempt: Attempt;
+    requestTTL: Option<number>;
+    resourceRequestRoles: string[];
+    reviewers: string[];
+    setSelectedReviewers: (value: ReviewerOption[]) => void;
+    setMaxDuration: (value: Option<number>) => void;
+    clearAttempt: () => void;
+    createAttempt: Attempt;
+    setSelectedResourceRequestRoles: (value: string[]) => void;
+    numRequestedResources: number;
+    selectedResourceRequestRoles: string[];
+    dryRunResponse: AccessRequest;
+    maxDuration: Option<number>;
+    Header?: () => JSX.Element;
+  };
 
 type SuccessComponentParams = {
   reset: () => void;
