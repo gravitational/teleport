@@ -22,19 +22,25 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"path/filepath"
+	"net/http"
+	"path"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	awsratelimit "github.com/aws/aws-sdk-go-v2/aws/ratelimit"
+	awsretry "github.com/aws/aws-sdk-go-v2/aws/retry"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
-	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
+	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -43,19 +49,18 @@ const (
 	payloadTypeRawProtoEvent = "raw_proto_event"
 	payloadTypeS3Based       = "s3_event"
 
-	// maxSNSMessageSize defines maximum size of SNS message. AWS allows 256KB
-	// however it counts also headers. We round it to 250KB, just to be sure.
-	maxSNSMessageSize = 250 * 1024
+	// maxDirectMessageSize defines maximum size of SNS/SQS message. AWS allows
+	// 256KB however it counts also headers. We round it to 250KB, just to be
+	// sure.
+	maxDirectMessageSize = 250 * 1024
 )
 
-var (
-	// maxS3BasedSize defines some resonable threshold for S3 based messages
-	// (almost 2GiB but fits in an int).
-	//
-	// It's a var instead of const so tests can override it instead of casually
-	// allocating 2GiB.
-	maxS3BasedSize = 2*1024*1024*1024 - 1
-)
+// maxS3BasedSize defines some resonable threshold for S3 based messages
+// (almost 2GiB but fits in an int).
+//
+// It's a var instead of const so tests can override it instead of casually
+// allocating 2GiB.
+var maxS3BasedSize = 2*1024*1024*1024 - 1
 
 // publisher is a SNS based events publisher.
 // It publishes proto events directly to SNS topic, or use S3 bucket
@@ -64,20 +69,89 @@ type publisher struct {
 	PublisherConfig
 }
 
-type snsPublisher interface {
-	Publish(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)
+type messagePublisher interface {
+	// Publish sends a message with a given body to a notification topic or a
+	// queue (or something similar), with added metadata to signify whether or
+	// not the message is only a reference to a S3 object or a full message.
+	Publish(ctx context.Context, base64Body string, s3Based bool) error
+}
+
+type messagePublisherFunc func(ctx context.Context, base64Body string, s3Based bool) error
+
+// Publish implements [messagePublisher].
+func (f messagePublisherFunc) Publish(ctx context.Context, base64Body string, s3Based bool) error {
+	return f(ctx, base64Body, s3Based)
+}
+
+// SNSPublisherFunc returns a message publisher that sends messages to a SNS
+// topic through the given SNS client.
+func SNSPublisherFunc(topicARN string, snsClient *sns.Client) messagePublisherFunc {
+	return func(ctx context.Context, base64Body string, s3Based bool) error {
+		var messageAttributes map[string]snstypes.MessageAttributeValue
+		if s3Based {
+			messageAttributes = map[string]snstypes.MessageAttributeValue{
+				payloadTypeAttr: {
+					DataType:    aws.String("String"),
+					StringValue: aws.String(payloadTypeS3Based),
+				},
+			}
+		} else {
+			messageAttributes = map[string]snstypes.MessageAttributeValue{
+				payloadTypeAttr: {
+					DataType:    aws.String("String"),
+					StringValue: aws.String(payloadTypeRawProtoEvent),
+				},
+			}
+		}
+
+		_, err := snsClient.Publish(ctx, &sns.PublishInput{
+			TopicArn:          &topicARN,
+			Message:           &base64Body,
+			MessageAttributes: messageAttributes,
+		})
+		return trace.Wrap(err)
+	}
+}
+
+// SQSPublisherFunc returns a message publisher that sends messages to a SQS
+// queue through the given SQS client.
+func SQSPublisherFunc(queueURL string, sqsClient *sqs.Client) messagePublisherFunc {
+	return func(ctx context.Context, base64Body string, s3Based bool) error {
+		var messageAttributes map[string]sqstypes.MessageAttributeValue
+		if s3Based {
+			messageAttributes = map[string]sqstypes.MessageAttributeValue{
+				payloadTypeAttr: {
+					DataType:    aws.String("String"),
+					StringValue: aws.String(payloadTypeS3Based),
+				},
+			}
+		} else {
+			messageAttributes = map[string]sqstypes.MessageAttributeValue{
+				payloadTypeAttr: {
+					DataType:    aws.String("String"),
+					StringValue: aws.String(payloadTypeRawProtoEvent),
+				},
+			}
+		}
+
+		_, err := sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+			QueueUrl:          &queueURL,
+			MessageBody:       &base64Body,
+			MessageAttributes: messageAttributes,
+		})
+		return trace.Wrap(err)
+	}
 }
 
 type s3uploader interface {
-	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error)
+	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
 }
 
 type PublisherConfig struct {
-	TopicARN      string
-	SNSPublisher  snsPublisher
-	Uploader      s3uploader
-	PayloadBucket string
-	PayloadPrefix string
+	MessagePublisher messagePublisher
+	Uploader         s3uploader
+	PayloadBucket    string
+	PayloadPrefix    string
 }
 
 // NewPublisher returns new instance of publisher.
@@ -90,17 +164,37 @@ func NewPublisher(cfg PublisherConfig) *publisher {
 // newPublisherFromAthenaConfig returns new instance of publisher from athena
 // config.
 func newPublisherFromAthenaConfig(cfg Config) *publisher {
-	r := retry.NewStandard(func(so *retry.StandardOptions) {
+	r := awsretry.NewStandard(func(so *awsretry.StandardOptions) {
 		so.MaxAttempts = 20
 		so.MaxBackoff = 1 * time.Minute
+		// failure to do an API call likely means that we've just lost data, so
+		// let's just have the server bounce us back repeatedly rather than give
+		// up in the client
+		so.RateLimiter = awsratelimit.None
 	})
-	return NewPublisher(PublisherConfig{
-		TopicARN: cfg.TopicARN,
-		SNSPublisher: sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
+	hc := awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
+		// aggressively reuse connections for the sake of avoiding TLS
+		// handshakes (the default MaxIdleConnsPerHost is a pitiful 2)
+		t.MaxIdleConns = defaults.HTTPMaxIdleConns
+		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
+	})
+	var messagePublisher messagePublisherFunc
+	if cfg.TopicARN == topicARNBypass {
+		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
-		}),
+			o.HTTPClient = hc
+		}))
+	} else {
+		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
+			o.Retryer = r
+			o.HTTPClient = hc
+		}))
+	}
+
+	return NewPublisher(PublisherConfig{
+		MessagePublisher: messagePublisher,
 		// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
-		Uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
+		Uploader:      s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
 		PayloadBucket: cfg.largeEventsBucket,
 		PayloadPrefix: cfg.largeEventsPrefix,
 	})
@@ -150,57 +244,39 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 		return trace.Wrap(err)
 	}
 
-	b64Encoded := base64.StdEncoding.EncodeToString(marshaledProto)
-	if len(b64Encoded) > maxSNSMessageSize {
-		if len(b64Encoded) > maxS3BasedSize {
-			return trace.BadParameter("message too large to publish, size %d", len(b64Encoded))
+	base64Len := base64.StdEncoding.EncodedLen(len(marshaledProto))
+	if base64Len > maxDirectMessageSize {
+		if base64Len > maxS3BasedSize {
+			return trace.BadParameter("message too large to publish, size %d", base64Len)
 		}
 		return trace.Wrap(p.emitViaS3(ctx, in.GetID(), marshaledProto))
 	}
-	return trace.Wrap(p.emitViaSNS(ctx, in.GetID(), b64Encoded))
+	base64Body := base64.StdEncoding.EncodeToString(marshaledProto)
+	const s3BasedFalse = false
+	return trace.Wrap(p.MessagePublisher.Publish(ctx, base64Body, s3BasedFalse))
 }
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
-	path := filepath.Join(p.PayloadPrefix, uid)
+	path := path.Join(p.PayloadPrefix, uid)
 	out, err := p.Uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(p.PayloadBucket),
-		Key:    aws.String(path),
+		Bucket: &p.PayloadBucket,
+		Key:    &path,
 		Body:   bytes.NewBuffer(marshaledEvent),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var versionID string
-	if out.VersionID != nil {
-		versionID = *out.VersionID
-	}
 	msg := &apievents.AthenaS3EventPayload{
 		Path:      path,
-		VersionId: versionID,
+		VersionId: aws.ToString(out.VersionID),
 	}
 	buf, err := msg.Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = p.SNSPublisher.Publish(ctx, &sns.PublishInput{
-		TopicArn: aws.String(p.TopicARN),
-		Message:  aws.String(base64.StdEncoding.EncodeToString(buf)),
-		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
-			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeS3Based)},
-		},
-	})
-	return trace.Wrap(err)
-}
-
-func (p *publisher) emitViaSNS(ctx context.Context, uid string, b64Encoded string) error {
-	_, err := p.SNSPublisher.Publish(ctx, &sns.PublishInput{
-		TopicArn: aws.String(p.TopicARN),
-		Message:  aws.String(b64Encoded),
-		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
-			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeRawProtoEvent)},
-		},
-	})
-	return trace.Wrap(err)
+	base64Body := base64.StdEncoding.EncodeToString(buf)
+	const s3BasedTrue = true
+	return trace.Wrap(p.MessagePublisher.Publish(ctx, base64Body, s3BasedTrue))
 }
