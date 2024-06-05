@@ -136,8 +136,9 @@ func (c *tshdEventsServiceClient) GetUsageReportingSettings(ctx context.Context,
 }
 
 func (c *tshdEventsServiceClient) ReportUnexpectedVnetShutdown(ctx context.Context, in *ReportUnexpectedVnetShutdownRequest, opts ...grpc.CallOption) (*ReportUnexpectedVnetShutdownResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportUnexpectedVnetShutdownResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
