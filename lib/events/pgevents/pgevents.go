@@ -242,7 +242,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			cfg.Log.DebugContext(
 				ctx, "Starting periodic cleanup background worker.",
 				"retention", cfg.RetentionPeriod.String(),
-				"cleanupInterval", cfg.CleanupInterval)
+				"cleanup_interval", cfg.CleanupInterval)
 			l.wg.Add(1)
 			go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
 		}
