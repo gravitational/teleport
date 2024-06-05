@@ -513,6 +513,8 @@
     "ioreg",
     "isnt",
     "isrgrootx",
+    "jamfapiendpoint",
+    "jamfclientid",
     "javapipeline",
     "jetbrains",
     "jiraapitoken",
