@@ -90,14 +90,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 
 	ca := gatewaytest.MustGenCACert(m.t)
 
-	if params.TargetURI.IsDB() {
-		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
-
-		config.CertPath = keyPairPaths.CertPath
-		config.KeyPath = keyPairPaths.KeyPath
-	}
-
-	if params.TargetURI.IsKube() {
+	if params.TargetURI.IsKube() || params.TargetURI.IsDB() {
 		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
 		config.Cert = cert
 	}
