@@ -654,7 +654,6 @@ func (s *session) launch(isEphemeralCont bool) (returnErr error) {
 		}
 		status := getEphemeralContainerStatusByName(pod, container)
 		if status == nil {
-			fmt.Println("######## status is nil", pod, container)
 			// the container couldn't be found in the pod, return the
 			// original command streaming error
 			return trace.Wrap(streamErr)
@@ -1438,8 +1437,6 @@ func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, auth
 		if !ok {
 			return false, trace.BadParameter("watch did not return a pod: %v", ev.Object)
 		}
-
-		fmt.Println("#########3 pod status", p.Status.Phase, p.GetResourceVersion())
 
 		s := getEphemeralContainerStatusByName(p, waitingCont.Spec.ContainerName)
 		if s == nil {
