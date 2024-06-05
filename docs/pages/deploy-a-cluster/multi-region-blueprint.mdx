@@ -17,7 +17,7 @@ Before continuing, you must acknowledge the following warnings:
 
 - This setup is not required for most Teleport users and customers.
   Single-region multi-zone deployments provide the best availability/cost ratio.
-  For example, AWS SLAs are 99.99% for both dynamoDB and EC2.
+  For example, Amazon SLAs are 99.99% for both DynamoDB and EC2.
 - This blueprint relies on many complex components. If you don't have the team
   capacity and expertise to deploy and operate such components, you will end
   up with a lower availability than a single-region multi-zone setup.
@@ -215,7 +215,7 @@ highAvailability:
 
 Finalize the deployment by setting up GeoDNS to route the users to the closest
 Teleport deployment. The setup will differ from one DNS provider to another. Use
-short TTLs to ensure you can quickly steer traffic off a region if needed.
+short TTLs to ensure you can steer traffic off a region if needed.
 
 When possible, configure healthchecks on `/v1/webapi/ping` so a broken/faulty
 Teleport region is automatically removed from the DNS records and users are
