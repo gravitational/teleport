@@ -160,7 +160,7 @@ export function AccessRequestCheckout() {
                       case 'role':
                         break;
                       default:
-                        c.kind satisfies never;
+                        c satisfies never;
                     }
                     return resource;
                   })
