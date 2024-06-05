@@ -280,10 +280,6 @@ const (
 	// HeadlessLoginTimeout is how long to wait for user to approve/reject headless login request.
 	HeadlessLoginTimeout = SSOCallbackTimeout
 
-	// KubeExecDataWaitTimeout is how long server would wait for user to send pod exec data (namespace, pod name etc)
-	// on websocket connection, after user initiated the exec into pod flow.
-	KubeExecDataWaitTimeout = HeadlessLoginTimeout
-
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
 

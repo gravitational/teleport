@@ -3478,8 +3478,12 @@ func (h *Handler) podConnect(
 	return nil, nil
 }
 
+// KubeExecDataWaitTimeout is how long server would wait for user to send pod exec data (namespace, pod name etc)
+// on websocket connection, after user initiated the exec into pod flow.
+const KubeExecDataWaitTimeout = defaults.HeadlessLoginTimeout
+
 func readPodExecRequestFromWS(ws *websocket.Conn) (*PodExecRequest, error) {
-	err := ws.SetReadDeadline(time.Now().Add(defaults.KubeExecDataWaitTimeout))
+	err := ws.SetReadDeadline(time.Now().Add(KubeExecDataWaitTimeout))
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
 	}
