@@ -79,5 +79,13 @@ export function createTshdEventsContextBridgeService(
 
       return { totpCode };
     },
+
+    getUsageReportingSettings: async () => {
+      return {
+        usageReportingSettings: {
+          enabled: ctx.configService.get('usageReporting.enabled').value,
+        },
+      };
+    },
   };
 }

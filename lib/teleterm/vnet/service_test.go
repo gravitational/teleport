@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-func TestUsageReporter(t *testing.T) {
+func TestDaemonUsageReporter(t *testing.T) {
 	eventConsumer := fakeEventConsumer{}
 
 	validCluster := uri.NewClusterURI("foo")
@@ -51,7 +51,7 @@ func TestUsageReporter(t *testing.T) {
 	clusterIDcache := clusteridcache.Cache{}
 	clusterIDcache.Store(uri.NewClusterURI("foo"), "1234")
 
-	usageReporter, err := NewUsageReporter(UsageReporterConfig{
+	usageReporter, err := newDaemonUsageReporter(daemonUsageReporterConfig{
 		EventConsumer:  &eventConsumer,
 		ClientCache:    &clientCache,
 		ClusterIDCache: &clusterIDcache,
@@ -79,14 +79,14 @@ func TestUsageReporter(t *testing.T) {
 	require.Equal(t, 1, eventConsumer.EventCount())
 }
 
-func TestUsageReporter_Stop(t *testing.T) {
+func TestDaemonUsageReporter_Stop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	eventConsumer := fakeEventConsumer{}
 	clientCache := fakeClientCache{blockingOnCtxC: make(chan struct{}, 1)}
 	clusterIDCache := clusteridcache.Cache{}
 
-	usageReporter, err := NewUsageReporter(UsageReporterConfig{
+	usageReporter, err := newDaemonUsageReporter(daemonUsageReporterConfig{
 		EventConsumer:  &eventConsumer,
 		ClientCache:    &clientCache,
 		ClusterIDCache: &clusterIDCache,
