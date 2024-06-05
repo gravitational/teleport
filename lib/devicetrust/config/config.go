@@ -30,7 +30,7 @@ import (
 // `dt` and the current modules.
 func GetEffectiveMode(dt *types.DeviceTrust) string {
 	// OSS doesn't support device trust.
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if modules.GetModules().IsOSSBuild() {
 		return constants.DeviceTrustModeOff
 	}
 
