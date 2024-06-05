@@ -278,6 +278,7 @@
     "apimachinery",
     "apiserver",
     "appdomain",
+    "appgroup",
     "appresources",
     "appuser",
     "argoproj",
