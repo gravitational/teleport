@@ -1388,6 +1388,7 @@ derive:
 derive-up-to-date: must-start-clean/host derive
 	@if ! git diff --quiet; then \
 		echo 'Please run make derive.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1423,6 +1424,7 @@ endif
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! git diff --quiet; then \
 		echo 'Please run make grpc.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1430,6 +1432,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1439,6 +1442,7 @@ crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! git diff --quiet; then \
 		echo 'Please run make -C integrations/operator manifests.'; \
+		git diff; \
 		exit 1; \
 	fi
 
