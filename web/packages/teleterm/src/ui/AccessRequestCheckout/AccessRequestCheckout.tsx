@@ -86,6 +86,7 @@ export function AccessRequestCheckout() {
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
+    shouldShowClusterNameColumn,
     suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
@@ -232,6 +233,7 @@ export function AccessRequestCheckout() {
             }
             reset={reset}
             data={data}
+            showClusterNameColumn={shouldShowClusterNameColumn}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
             fetchResourceRequestRolesAttempt={fetchResourceRolesAttempt}

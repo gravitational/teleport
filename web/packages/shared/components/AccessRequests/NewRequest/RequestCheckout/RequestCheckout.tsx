@@ -137,6 +137,7 @@ export function RequestCheckout<T extends PendingListItem>({
   setRequestTTL,
   dryRunResponse,
   data,
+  showClusterNameColumn,
   createAttempt,
   fetchResourceRequestRolesAttempt,
   createRequest,
@@ -249,6 +250,11 @@ export function RequestCheckout<T extends PendingListItem>({
                   {
                     key: 'name',
                     headerText: 'Name',
+                  },
+                  {
+                    key: 'clusterName',
+                    headerText: 'Cluster Name',
+                    isNonRender: !showClusterNameColumn,
                   },
                   {
                     altKey: 'delete-btn',
@@ -709,6 +715,7 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     requireReason: boolean;
     selectedReviewers: ReviewerOption[];
     data: T[];
+    showClusterNameColumn?: boolean;
     setRequestTTL: (value: Option<number>) => void;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';

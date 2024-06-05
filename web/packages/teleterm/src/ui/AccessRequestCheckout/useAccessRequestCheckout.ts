@@ -43,6 +43,8 @@ import {
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
 
+import { routing } from 'teleterm/ui/uri';
+
 import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
@@ -344,12 +346,19 @@ export default function useAccessRequestCheckout() {
     }
   }
 
+  const shouldShowClusterNameColumn =
+    pendingAccessRequest.kind === 'resource' &&
+    Array.from(pendingAccessRequest.resources.values()).some(a =>
+      routing.isLeafCluster(a.resource.uri)
+    );
+
   return {
     showCheckout,
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
     data: getPendingAccessRequestsPerResource(pendingAccessRequest),
+    shouldShowClusterNameColumn,
     createRequest,
     reset,
     setHasExited,
