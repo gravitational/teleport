@@ -2379,7 +2379,7 @@
     },
     {
       "source": "/kubernetes-access/getting-started/local/",
-      "destination": "/kubernetes-access/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     },
     {
@@ -2449,11 +2449,6 @@
     },
     {
       "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
       "permanent": true
     },
@@ -3198,18 +3193,8 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/",
+      "destination": "/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -3245,11 +3230,6 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {
