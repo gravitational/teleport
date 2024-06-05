@@ -36,7 +36,7 @@ import (
 func init() {
 	// Override maxS3BasedSize so we don't have to allocate 2GiB to test it.
 	// Do this in init to avoid any race.
-	maxS3BasedSize = maxSNSMessageSize * 4
+	maxS3BasedSize = maxDirectMessageSize * 4
 }
 
 // TODO(tobiaszheller): Those UT just cover basic stuff. When we will have consumer
@@ -61,7 +61,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeRawProtoEvent)
+				require.False(t, out[0].s3Based)
 			},
 		},
 		{
@@ -77,7 +77,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeRawProtoEvent)
+				require.False(t, out[0].s3Based)
 			},
 		},
 		{
@@ -86,13 +86,13 @@ func Test_EmitAuditEvent(t *testing.T) {
 				Metadata: apievents.Metadata{
 					ID:   uuid.NewString(),
 					Time: time.Now().UTC(),
-					Code: strings.Repeat("d", 2*maxSNSMessageSize),
+					Code: strings.Repeat("d", 2*maxDirectMessageSize),
 				},
 			},
 			uploader: mockUploader{},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeS3Based)
+				require.True(t, out[0].s3Based)
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			uploader: mockUploader{},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeS3Based)
+				require.True(t, out[0].s3Based)
 			},
 		},
 	}
@@ -128,8 +128,8 @@ func Test_EmitAuditEvent(t *testing.T) {
 			fq := newFakeQueue()
 			p := &publisher{
 				PublisherConfig: PublisherConfig{
-					SNSPublisher: fq,
-					Uploader:     tt.uploader,
+					MessagePublisher: fq,
+					Uploader:         tt.uploader,
 				},
 			}
 			err := p.EmitAuditEvent(context.Background(), tt.in)
