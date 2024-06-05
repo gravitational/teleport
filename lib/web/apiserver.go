@@ -2266,7 +2266,17 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 
 func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *SessionContext) error {
 	if err := sctx.Invalidate(ctx); err != nil {
-		return trace.Wrap(err)
+		h.log.
+			WithError(err).
+			WithField("user", sctx.GetUser()).
+			Warn("Failed to invalidate sessions")
+	}
+
+	if err := h.auth.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {
+		h.log.
+			WithError(err).
+			WithField("session_id", sctx.GetSessionID()).
+			Debug("sessionCache: Failed to release web session")
 	}
 	clearSessionCookies(w)
 
