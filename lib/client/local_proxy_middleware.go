@@ -61,41 +61,46 @@ func NewCertChecker(certIssuer CertIssuer, clock clockwork.Clock) *CertChecker {
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *CertChecker {
 	return NewCertChecker(&DBCertIssuer{
 		IssueCertFunc: func(ctx context.Context) (tls.Certificate, error) {
-			var accessRequests []string
-			if profile, err := tc.ProfileStatus(); err != nil {
-				log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
-			} else {
-				accessRequests = profile.ActiveRequests.AccessRequests
-			}
-
-			var key *Key
-			if err := RetryWithRelogin(ctx, tc, func() error {
-				newKey, err := tc.IssueUserCertsWithMFA(ctx, ReissueParams{
-					RouteToCluster: tc.SiteName,
-					RouteToDatabase: proto.RouteToDatabase{
-						ServiceName: dbRoute.ServiceName,
-						Protocol:    dbRoute.Protocol,
-						Username:    dbRoute.Username,
-						Database:    dbRoute.Database,
-					},
-					AccessRequests: accessRequests,
-					RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-				}, mfa.WithPromptReasonSessionMFA("database", dbRoute.ServiceName))
-				key = newKey
-				return trace.Wrap(err)
-			}); err != nil {
-				return tls.Certificate{}, trace.Wrap(err)
-			}
-
-			dbCert, err := key.DBTLSCert(dbRoute.ServiceName)
-			if err != nil {
-				return tls.Certificate{}, trace.Wrap(err)
-			}
-			return dbCert, nil
-
+			cert, err := issueDbCert(ctx, tc, dbRoute)
+			return cert, trace.Wrap(err)
 		},
 		RouteToDb: dbRoute,
 	}, clock)
+}
+
+func issueDbCert(ctx context.Context, tc *TeleportClient, dbRoute tlsca.RouteToDatabase) (tls.Certificate, error) {
+	var accessRequests []string
+	if profile, err := tc.ProfileStatus(); err != nil {
+		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
+	} else {
+		accessRequests = profile.ActiveRequests.AccessRequests
+	}
+
+	var key *Key
+	if err := RetryWithRelogin(ctx, tc, func() error {
+		newKey, err := tc.IssueUserCertsWithMFA(ctx, ReissueParams{
+			RouteToCluster: tc.SiteName,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: dbRoute.ServiceName,
+				Protocol:    dbRoute.Protocol,
+				Username:    dbRoute.Username,
+				Database:    dbRoute.Database,
+			},
+			AccessRequests: accessRequests,
+			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		}, mfa.WithPromptReasonSessionMFA("database", dbRoute.ServiceName))
+		key = newKey
+		return trace.Wrap(err)
+	}); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	dbCert, err := key.DBTLSCert(dbRoute.ServiceName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return dbCert, nil
+
 }
 
 // Create a new CertChecker for the given database and custom function to reissue certs.
