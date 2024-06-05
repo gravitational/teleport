@@ -277,6 +277,14 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -build
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
+ifeq ("$(OS)","darwin")
+# Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
+# clamped to the value for builds of that architecture
+MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
+MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG) CGO_LDFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+endif
+
 CGOFLAG_TSH ?= $(CGOFLAG)
 
 # Map ARCH into the architecture flag for electron-builder if they
@@ -376,17 +384,18 @@ else
 bpf-bytecode:
 endif
 
-ifeq ("$(with_rdpclient)", "yes")
-.PHONY: rdpclient
-rdpclient:
-ifneq ("$(FIPS)","")
-	cargo build -p rdp-client --features=fips --release --locked $(CARGO_TARGET)
-else
-	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
+ifeq ("$(OS)-$(with_rdpclient)", "darwin-yes")
+# Set the minimum version linker flag for the rust build of rdpclient (and only rdpclient,
+# as the flag is invalid for building ironrdp to wasm in the web UI). Also set an env
+# var so any C libraries built by this build also target the correct min version.
+rdpclient: export RUSTFLAGS = -C link-arg=$(MACOSX_VERSION_MIN_FLAG)
+rdpclient: export MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
 endif
-else
+
 .PHONY: rdpclient
 rdpclient:
+ifeq ("$(with_rdpclient)", "yes")
+	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
