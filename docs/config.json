@@ -869,7 +869,7 @@
       ]
     },
     {
-      "title": "Run Teleport Agents",
+      "title": "Protect Infrastructure",
       "icon": "layers",
       "entries": [
         {
@@ -877,7 +877,7 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy via Terraform",
+          "title": "Deploy Agents via Terraform",
           "slug": "/agents/deploy-agents-terraform/"
         },
         {
