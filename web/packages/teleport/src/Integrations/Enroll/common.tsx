@@ -34,7 +34,7 @@ export const IntegrationTile = styled(Flex)`
   cursor: pointer;
 
   ${props => {
-    const pointerEvents = props.disabled ? 'none' : null;
+    const pointerEvents = props.disabled || props.$exists ? 'none' : null;
     if (props.$exists) {
       return { pointerEvents };
     }
@@ -44,6 +44,7 @@ export const IntegrationTile = styled(Flex)`
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
+    pointer-events: ${pointerEvents};
     `;
   }}
 `;

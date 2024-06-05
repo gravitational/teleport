@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -50,7 +51,7 @@ type AppProvider interface {
 	// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 	// expected to be cached, as this may be called frequently.
-	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
+	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
 
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
@@ -62,6 +63,20 @@ type AppProvider interface {
 
 	// GetVnetConfig returns the cluster VnetConfig resource.
 	GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
+
+	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
+	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
+	// app.
+	//
+	// The connection won't be established until OnNewConnection returns. Returning an error prevents
+	// the connection from being made.
+	OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error
+}
+
+// ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
+type ClusterClient interface {
+	CurrentCluster() authclient.ClientI
+	ClusterName() string
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
@@ -80,10 +95,12 @@ type DialOptions struct {
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
-	appProvider        AppProvider
-	clusterConfigCache *clusterConfigCache
-	slog               *slog.Logger
-	clock              clockwork.Clock
+	appProvider          AppProvider
+	clusterConfigCache   *clusterConfigCache
+	customDNSZoneChecker *customDNSZoneValidator
+	slog                 *slog.Logger
+	clock                clockwork.Clock
+	lookupTXT            lookupTXTFunc
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -102,18 +119,25 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 	for _, opt := range opts {
 		opt(r)
 	}
-	if r.clock == nil {
-		r.clock = clockwork.NewRealClock()
-	}
+	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
 	r.clusterConfigCache = newClusterConfigCache(appProvider.GetVnetConfig, r.clock)
+	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
 
 type tcpAppResolverOption func(*TCPAppResolver)
 
+// withClock is a functional option to override the default clock (for tests).
 func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.clock = clock
+	}
+}
+
+// withLookupTXTFunc is a functional option to override the DNS TXT record lookup function (for tests).
+func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.lookupTXT = lookupTXT
 	}
 }
 
@@ -131,8 +155,9 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, ErrNoTCPHandler
 		}
-		if !isSubdomain(fqdn, profileName) {
-			// TODO(nklaassen): support leaf clusters and custom DNS zones.
+		if match, err := r.fqdnMatchesProfile(ctx, profileName, fqdn); err != nil {
+			return nil, trace.Wrap(err)
+		} else if !match {
 			continue
 		}
 
@@ -143,13 +168,50 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// return an error so that DNS resolution will be forwarded upstream instead of failing, to avoid
 			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't
 			// log in).
-			slog.InfoContext(ctx, "Failed to get teleport client.", "error", err)
+			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
 		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
+}
+
+func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fqdn string) (bool, error) {
+	if isSubdomain(fqdn, profileName) {
+		// The queried app fqdn is a subdomain of the proxy address, this is a match.
+		return true, nil
+	}
+	// Not a proxy address subdomain, must check custom DNS zones.
+
+	// TODO(nklaassen): support leaf clusters.
+	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, "" /*leafClustername*/)
+	if err != nil {
+		// Good chance we're here because the user is not logged in to the profile.
+		r.slog.ErrorContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
+		return false, nil
+	}
+
+	// TODO(nklaassen): support leaf clusters.
+	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
+	if err != nil {
+		r.slog.ErrorContext(ctx, "Failed to get teleport client, not checking custom DNS zones.", "profile", profileName, "error", err)
+		return false, nil
+	}
+	clusterName := rootClient.ClusterName()
+	for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
+		if !isSubdomain(fqdn, zone.GetSuffix()) {
+			// The queried app fqdn is not a subdomain of this custom zone suffix, skip it.
+			continue
+		}
+		// The queried app fqdn is a subdomain of this custom zone suffix. Check if the custom zone is valid.
+		if err := r.customDNSZoneChecker.validate(ctx, clusterName, zone.GetSuffix()); err != nil {
+			r.slog.ErrorContext(ctx, "Failed to validate custom DNS zone %q for cluster %q", "error", err)
+			return false, trace.Wrap(err, "validating custom DNS zone")
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
@@ -227,7 +289,14 @@ func (r *TCPAppResolver) newTCPAppHandler(
 		leafClusterName: leafClusterName,
 		app:             app,
 	}
-	middleware := client.NewCertChecker(appCertIssuer, r.clock)
+	certChecker := client.NewCertChecker(appCertIssuer, r.clock)
+	middleware := &localProxyMiddleware{
+		certChecker:     certChecker,
+		appProvider:     r.appProvider,
+		app:             app,
+		profileName:     profileName,
+		leafClusterName: leafClusterName,
+	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         dialOpts.WebProxyAddr,
@@ -281,8 +350,8 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
-func isSubdomain(appFQDN, proxyAddress string) bool {
-	return strings.HasSuffix(appFQDN, "."+fullyQualify(proxyAddress))
+func isSubdomain(appFQDN, suffix string) bool {
+	return strings.HasSuffix(appFQDN, "."+fullyQualify(suffix))
 }
 
 // fullyQualify returns a fully-qualified domain name from [domain]. Fully-qualified domain names always end
@@ -292,4 +361,27 @@ func fullyQualify(domain string) string {
 		return domain
 	}
 	return domain + "."
+}
+
+// localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
+// OnNewConnection method calls the same method of [AppProvider].
+type localProxyMiddleware struct {
+	app             types.Application
+	profileName     string
+	leafClusterName string
+	certChecker     *client.CertChecker
+	appProvider     AppProvider
+}
+
+func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	err := m.certChecker.OnNewConnection(ctx, lp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.app))
+}
+
+func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
 }

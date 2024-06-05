@@ -40,6 +40,7 @@ const (
 	TshdEventsService_SendNotification_FullMethodName                  = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
 	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
 	TshdEventsService_PromptMFA_FullMethodName                         = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
+	TshdEventsService_GetUsageReportingSettings_FullMethodName         = "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -57,7 +58,15 @@ type TshdEventsServiceClient interface {
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error)
 	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+	// code.
 	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
+	// GetUsageReportingSettings returns the current state of usage reporting.
+	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+	// with the only exception being the first start of the app when they're prompted about telemetry.
+	// Hence why this is an RPC and not information passed over argv to tsh daemon.
+	GetUsageReportingSettings(ctx context.Context, in *GetUsageReportingSettingsRequest, opts ...grpc.CallOption) (*GetUsageReportingSettingsResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -104,6 +113,15 @@ func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARe
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) GetUsageReportingSettings(ctx context.Context, in *GetUsageReportingSettingsRequest, opts ...grpc.CallOption) (*GetUsageReportingSettingsResponse, error) {
+	out := new(GetUsageReportingSettingsResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_GetUsageReportingSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -119,7 +137,15 @@ type TshdEventsServiceServer interface {
 	// which it can use to initiate headless authentication resolution in the UI.
 	SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error)
 	// PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+	// If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+	// code.
 	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
+	// GetUsageReportingSettings returns the current state of usage reporting.
+	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+	// with the only exception being the first start of the app when they're prompted about telemetry.
+	// Hence why this is an RPC and not information passed over argv to tsh daemon.
+	GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -138,6 +164,9 @@ func (UnimplementedTshdEventsServiceServer) SendPendingHeadlessAuthentication(co
 }
 func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsageReportingSettings not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -224,6 +253,24 @@ func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_GetUsageReportingSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsageReportingSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).GetUsageReportingSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_GetUsageReportingSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).GetUsageReportingSettings(ctx, req.(*GetUsageReportingSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -246,6 +293,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PromptMFA",
 			Handler:    _TshdEventsService_PromptMFA_Handler,
+		},
+		{
+			MethodName: "GetUsageReportingSettings",
+			Handler:    _TshdEventsService_GetUsageReportingSettings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

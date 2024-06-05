@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TshdEventsService } from "./tshd_events_service_pb";
+import type { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
+import type { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
 import type { PromptMFAResponse } from "./tshd_events_service_pb";
 import type { PromptMFARequest } from "./tshd_events_service_pb";
 import type { SendPendingHeadlessAuthenticationResponse } from "./tshd_events_service_pb";
@@ -66,10 +68,22 @@ export interface ITshdEventsServiceClient {
     sendPendingHeadlessAuthentication(input: SendPendingHeadlessAuthenticationRequest, options?: RpcOptions): UnaryCall<SendPendingHeadlessAuthenticationRequest, SendPendingHeadlessAuthenticationResponse>;
     /**
      * PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+     * If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+     * If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+     * code.
      *
      * @generated from protobuf rpc: PromptMFA(teleport.lib.teleterm.v1.PromptMFARequest) returns (teleport.lib.teleterm.v1.PromptMFAResponse);
      */
     promptMFA(input: PromptMFARequest, options?: RpcOptions): UnaryCall<PromptMFARequest, PromptMFAResponse>;
+    /**
+     * GetUsageReportingSettings returns the current state of usage reporting.
+     * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+     * with the only exception being the first start of the app when they're prompted about telemetry.
+     * Hence why this is an RPC and not information passed over argv to tsh daemon.
+     *
+     * @generated from protobuf rpc: GetUsageReportingSettings(teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest) returns (teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse);
+     */
+    getUsageReportingSettings(input: GetUsageReportingSettingsRequest, options?: RpcOptions): UnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>;
 }
 /**
  * TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -116,11 +130,26 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
     }
     /**
      * PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+     * If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+     * If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+     * code.
      *
      * @generated from protobuf rpc: PromptMFA(teleport.lib.teleterm.v1.PromptMFARequest) returns (teleport.lib.teleterm.v1.PromptMFAResponse);
      */
     promptMFA(input: PromptMFARequest, options?: RpcOptions): UnaryCall<PromptMFARequest, PromptMFAResponse> {
         const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<PromptMFARequest, PromptMFAResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetUsageReportingSettings returns the current state of usage reporting.
+     * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+     * with the only exception being the first start of the app when they're prompted about telemetry.
+     * Hence why this is an RPC and not information passed over argv to tsh daemon.
+     *
+     * @generated from protobuf rpc: GetUsageReportingSettings(teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest) returns (teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse);
+     */
+    getUsageReportingSettings(input: GetUsageReportingSettingsRequest, options?: RpcOptions): UnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>("unary", this._transport, method, opt, input);
     }
 }
