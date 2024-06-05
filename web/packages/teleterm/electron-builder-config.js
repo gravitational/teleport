@@ -1,6 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-
+const { spawnSync } = require('child_process');
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the
@@ -118,6 +118,30 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
+    // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+    // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+    signingHashAlgorithms: ['sha256'],
+    sign: customSign => {
+      if (process.env.CI !== 'true') {
+        console.warn('Not running in CI pipeline: signing will be skipped');
+        return;
+      }
+
+      spawnSync(
+        'powershell',
+        [
+          '-noprofile',
+          '-executionpolicy',
+          'bypass',
+          '-c',
+          "$ProgressPreference = 'SilentlyContinue'; " +
+            "$ErrorActionPreference = 'Stop'; " +
+            '. ../../../build.assets/windows/build.ps1; ' +
+            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+        ],
+        { stdio: 'inherit' }
+      );
+    },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',
     extraResources: [
