@@ -11,13 +11,13 @@ roles: db
 proxyAddr: <Var name="example.teleport.sh" />
 # Set to false if using Teleport Community Edition
 enterprise: true
-authToken: <Var name="JOIN_TOKEN" />
+authToken: "<Var name="JOIN_TOKEN" />"
 databases:
   - name: {{ dbName }}
     uri: {{ databaseAddress }}
     protocol: {{ dbProtocol }}
-labels:
-  env: dev
+    static_labels:
+      env: dev
 ```
 
 To configure the Teleport Database Service to trust a custom CA:
@@ -46,8 +46,8 @@ To configure the Teleport Database Service to trust a custom CA:
          protocol: {{ dbProtocol }}
    +     tls:
    +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
-     labels:
-       env: dev
+         static_labels:
+           env: dev
    + extraVolumes:
    +   - name: db-ca
    +     secret:

@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -52,16 +51,4 @@ func ConvertResponseError(err error) error {
 		return trace.AccessDenied(authenticationFailedErr.Error())
 	}
 	return err // Return unmodified.
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(statusCode int, body []byte) error {
-	err := trace.ReadError(statusCode, body)
-	azureError := struct {
-		Error string `json:"error"`
-	}{}
-	if json.Unmarshal(body, &azureError) != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(err, azureError.Error)
 }

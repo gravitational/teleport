@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 // NewEngine creates a new Spanner engine.
@@ -136,7 +137,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 	// this doesn't block, because the listener returns when Accept is called
 	// for a second time.
-	err := grpcServer.Serve(newSingleUseListener(e.clientConn))
+	err := grpcServer.Serve(listener.NewSingleUseListener(e.clientConn))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}

@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -139,7 +139,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	//
 	// It is also found that Azure metadata client can throw "Too many
 	// requests" during CI which fails services.NewTeleport.
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
@@ -391,6 +391,16 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// IsEnterpriseBuild returns false for [cliModules].
+func (p *cliModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns false for [cliModules].
+func (p *cliModules) IsOSSBuild() bool {
+	return false
 }
 
 // PrintVersion prints the Teleport version.

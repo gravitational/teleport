@@ -25,6 +25,7 @@ import { NewFlow, StepComponentProps } from 'design/StepSlider';
 import { ReactElement } from 'react';
 
 import { DeviceUsage, RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
 
 export type UseTokenState = {
   auth2faType: Auth2faType;
@@ -76,6 +77,8 @@ export type NewCredentialsProps = UseTokenState & {
   InviteCollaborators?: ({
     onSubmit,
   }: InviteCollaboratorsCardProps) => ReactElement;
+
+  RecoveryCodes?: React.ComponentType<RecoveryCodesProps>;
 };
 
 export type RegisterSuccessProps = {

@@ -48,9 +48,6 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
-
-	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
-	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -731,6 +728,14 @@ const (
 	// version they are running.
 	VersionRequest = "x-teleport-version"
 
+	// CurrentSessionIDRequest is sent by servers to inform clients of
+	// the session ID that is being used.
+	CurrentSessionIDRequest = "current-session-id@goteleport.com"
+
+	// SessionIDQueryRequest is sent by clients to ask servers if they
+	// will generate their own session ID when a new session is created.
+	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
@@ -754,8 +759,8 @@ const (
 	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
 	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
 
-	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
-	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+	// EnvSSHSessionInvited is an environment variable listing people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_INVITED_USERS"
 
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.

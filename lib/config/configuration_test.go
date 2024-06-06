@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3090,7 +3089,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 
 		auth Auth
 
-		want       keystore.Config
+		want       servicecfg.KeystoreConfig
 		errMessage string
 	}{
 		{
@@ -3112,8 +3111,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "pin",
@@ -3133,8 +3132,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "secure-pin-file",
@@ -3192,8 +3191,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				GCPKMS: keystore.GCPKMSConfig{
+			want: servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
 					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
 					ProtectionLevel: "HSM",
 				},
@@ -3494,6 +3493,22 @@ jamf_service:
 			},
 		},
 		{
+			name: "using API credentials",
+			yaml: fmt.Sprintf(`jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: %v`, passwordFile),
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:      true,
+					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
+					ClientId:     "llama-UUID",
+					ClientSecret: password,
+				},
+			},
+		},
+		{
 			name: "all fields",
 			yaml: minimalYAML + `  name: jamf2
   sync_delay: 1m
@@ -3534,15 +3549,6 @@ jamf_service:
 			wantErr: "listen_addr",
 		},
 		{
-			name: "password_file empty",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama`,
-			wantErr: "password_file required",
-		},
-		{
 			name: "password_file invalid",
 			yaml: `
 jamf_service:
@@ -3551,6 +3557,16 @@ jamf_service:
   username: llama
   password_file: /path/to/file/that/doesnt/exist.txt`,
 			wantErr: "password_file",
+		},
+		{
+			name: "client_secret_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "client_secret_file",
 		},
 		{
 			name: "spec is validated",
@@ -3574,7 +3590,7 @@ jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password_file",
+			wantErr: "password",
 		},
 	}
 	for _, test := range tests {
@@ -4560,6 +4576,45 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedAWSMatchers: []types.AWSMatcher{{
 				Types:   []string{"ec2"},
 				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      installers.InstallerScriptName,
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
+			}},
+		},
+		{
+			desc:          "AWS section is filled using the example config in docs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"us-east-1", "us-west-1"},
+						"install": map[string]map[string]string{
+							"join_params": {
+								"token_name": "aws-discovery-iam-token",
+								"method":     "iam",
+							},
+						},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1", "us-west-1"},
 				Tags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},

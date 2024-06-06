@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -129,7 +129,7 @@ const caRotationRetryBackoff = time.Second * 2
 type caRotationService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
-	botClient         *auth.Client
+	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
 }
 

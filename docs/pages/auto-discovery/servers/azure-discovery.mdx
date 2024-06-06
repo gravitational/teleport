@@ -236,13 +236,12 @@ In order to enable Azure instance discovery the `discovery_service.azure` sectio
 of `teleport.yaml` must include at least one entry:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  auth_servers:
-  - "teleport.example.com:3080"
+  proxy_server: "<Var name="teleport.example.com" />:443"
 auth_service:
   enabled: off
 proxy_service:

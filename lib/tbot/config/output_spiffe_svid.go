@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -71,6 +72,15 @@ type SVIDRequest struct {
 	// SANS is the Subject Alternative Names that are requested to be included
 	// in the SVID.
 	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
+}
+
+func (o SVIDRequest) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("path", o.Path),
+		slog.String("hint", o.Hint),
+		slog.Any("dns_sans", o.SANS.DNS),
+		slog.Any("ip_sans", o.SANS.IP),
+	)
 }
 
 // CheckAndSetDefaults checks the SVIDRequest values and sets any defaults.

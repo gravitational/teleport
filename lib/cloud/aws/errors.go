@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go-v2/config"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -89,15 +88,6 @@ func ConvertIAMError(err error) error {
 	return ConvertRequestFailureError(err)
 }
 
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(err error) error {
-	var httpError interface{ HTTPStatusCode() int }
-	if errors.As(err, &httpError) {
-		return trace.ReadError(httpError.HTTPStatusCode(), nil)
-	}
-	return trace.Wrap(err)
-}
-
 // ConvertIAMv2Error converts common errors from IAM clients to trace errors.
 func ConvertIAMv2Error(err error) error {
 	if err == nil {
@@ -125,15 +115,4 @@ func ConvertIAMv2Error(err error) error {
 	}
 
 	return err
-}
-
-// ConvertLoadConfigError converts common AWS config loading errors to trace errors.
-func ConvertLoadConfigError(configErr error) error {
-	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
-	switch {
-	case errors.As(configErr, &sharedConfigProfileNotExistError):
-		return trace.NotFound(configErr.Error())
-	}
-
-	return configErr
 }

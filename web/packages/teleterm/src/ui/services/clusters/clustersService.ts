@@ -26,7 +26,10 @@ import { pipe } from 'shared/utils/pipe';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import {
+  Cluster,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
@@ -72,12 +75,18 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async addRootCluster(addr: string) {
     const { response: cluster } = await this.client.addCluster({ name: addr });
-    this.setState(draft => {
-      draft.clusters.set(
-        cluster.uri as uri.RootClusterUri,
-        this.removeInternalLoginsFromCluster(cluster)
-      );
-    });
+    // Do not overwrite the existing cluster;
+    // otherwise we may lose properties fetched from the auth server.
+    // Consider separating properties read from profile and those
+    // fetched from the auth server at the RPC message level.
+    if (!this.state.clusters.has(cluster.uri)) {
+      this.setState(draft => {
+        draft.clusters.set(
+          cluster.uri,
+          this.removeInternalLoginsFromCluster(cluster)
+        );
+      });
+    }
 
     return cluster;
   }
@@ -678,29 +687,46 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
-    const { response: cluster } = await this.client.getCluster({ clusterUri });
-    // TODO: this information should eventually be gathered by getCluster
-    const assumedRequests = cluster.loggedInUser
-      ? await this.fetchClusterAssumedRequests(
-          cluster.loggedInUser.activeRequests,
-          clusterUri
-        )
-      : undefined;
-    const mergeAssumedRequests = (cluster: Cluster) => ({
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        assumedRequests,
-      },
-    });
-    const processCluster = pipe(
-      this.removeInternalLoginsFromCluster,
-      mergeAssumedRequests
-    );
+    try {
+      const { response: cluster } = await this.client.getCluster({
+        clusterUri,
+      });
+      // TODO: this information should eventually be gathered by getCluster
+      const assumedRequests = cluster.loggedInUser
+        ? await this.fetchClusterAssumedRequests(
+            cluster.loggedInUser.activeRequests,
+            clusterUri
+          )
+        : undefined;
+      const mergeAssumedRequests = (cluster: Cluster) => ({
+        ...cluster,
+        loggedInUser: cluster.loggedInUser && {
+          ...cluster.loggedInUser,
+          assumedRequests,
+        },
+      });
+      const processCluster = pipe(
+        this.removeInternalLoginsFromCluster,
+        mergeAssumedRequests
+      );
 
-    this.setState(draft => {
-      draft.clusters.set(clusterUri, processCluster(cluster));
-    });
+      this.setState(draft => {
+        draft.clusters.set(clusterUri, processCluster(cluster));
+      });
+    } catch (error) {
+      this.setState(draft => {
+        const cluster = draft.clusters.get(clusterUri);
+        if (cluster) {
+          // TODO(gzdunek): We should rather store the cluster synchronization status,
+          // so the callsites could check it before reading the field.
+          // The workaround is to update the field in case of a failure,
+          // so the places that wait for showResources !== UNSPECIFIED don't get stuck indefinitely.
+          cluster.showResources = ShowResources.ACCESSIBLE_ONLY;
+        }
+      });
+
+      throw error;
+    }
   }
 
   private async fetchClusterAssumedRequests(

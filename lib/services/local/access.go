@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -91,7 +90,9 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 	limit := int(req.Limit)
 
 	if limit == 0 {
-		limit = apidefaults.DefaultChunkSize
+		// it can take a lot of effort to parse roles and until a page is done
+		// parsing, it will be held in memory - so keep this reasonably small
+		limit = 100
 	}
 
 	if limit > maxPageSize {
@@ -120,7 +121,6 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 			role, err := services.UnmarshalRoleV6(
 				item.Value,
-				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires),
 				services.WithRevision(item.Revision),
 			)
@@ -171,7 +171,6 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.
 		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -200,7 +199,6 @@ func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.
 		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -229,7 +227,6 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.
 		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -254,7 +251,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalRole(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteRole deletes a role from the backend
@@ -283,7 +280,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
@@ -296,7 +293,7 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 	out := []types.Lock{}
 	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		lock, err := services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -330,7 +327,6 @@ func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
 		Key:      backend.Key(locksPrefix, lock.GetName()),
 		Value:    value,
 		Expires:  lock.Expiry(),
-		ID:       lock.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -389,7 +385,6 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				Key:      backend.Key(locksPrefix, lock.GetName()),
 				Value:    value,
 				Expires:  lock.Expiry(),
-				ID:       lock.GetResourceID(),
 				Revision: rev,
 			}
 			newRemoteLocksToStore[string(item.Key)] = item

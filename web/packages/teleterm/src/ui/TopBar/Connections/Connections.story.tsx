@@ -44,6 +44,20 @@ const rootClusterUri = '/clusters/foo';
 export function Story() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+      proxyHost: 'teleport.example.sh:443',
+    });
+    const rootCluster2 = makeRootCluster({
+      uri: '/clusters/bar',
+      name: 'bar.example.com',
+      proxyHost: 'bar.example.com:3080',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+    draft.clusters.set(rootCluster2.uri, rootCluster2);
+  });
 
   return (
     <AppContextProvider value={appContext}>
@@ -95,7 +109,7 @@ export function MultipleClusters() {
   );
 }
 
-export function JustVnet() {
+export function JustVnetWithNoClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
@@ -124,6 +138,37 @@ export function VnetError() {
   });
   appContext.vnet.start = () =>
     new MockedUnaryCall({}, new Error('something went wrong'));
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetUnexpectedShutdown() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.start = () => {
+    setTimeout(() => {
+      appContext.unexpectedVnetShutdownListener({
+        error: 'lorem ipsum dolor sit amet',
+      });
+    }, 0);
+    return new MockedUnaryCall({});
+  };
 
   return (
     <AppContextProvider value={appContext}>
@@ -251,7 +296,6 @@ const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
   appContext.connectionTracker.useState = () => null;
-  appContext.configService.set('feature.vnet', true);
 };
 
 const useOpenConnections = () => {

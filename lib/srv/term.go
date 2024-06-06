@@ -651,7 +651,6 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
-	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -659,8 +658,12 @@ func (t *remoteTerminal) Close() error {
 		return trace.Wrap(err)
 	}
 
-	t.log.Debugf("Closed remote terminal and underlying SSH session")
+	// Wait for parties to be relased after closing the remote session. This
+	// avoid cases where the parties are blocked, reading from the remote
+	// session.
+	t.wg.Wait()
 
+	t.log.Debugf("Closed remote terminal and underlying SSH session")
 	return nil
 }
 

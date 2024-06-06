@@ -226,7 +226,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         PKG_FILENAME="teleport-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-upgrade"
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/tbot ${TAR_PATH}/teleport"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
     EXTRA_DOCKER_OPTIONS=""
@@ -290,6 +290,10 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         mv -v ${LINUX_CONFIG_FILE} ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
+
+    # include post-upgrade script
+    mv -v ${TAR_PATH}/examples/systemd/post-upgrade ${PACKAGE_TEMPDIR}
+
     # /var/lib/teleport
     # shellcheck disable=SC2174
     mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}
@@ -365,6 +369,7 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
+        --after-upgrade /src/post-upgrade \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \
         ${RPM_SIGN_STANZA} .

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -707,7 +708,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference(t)
 
-			resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -767,7 +768,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)

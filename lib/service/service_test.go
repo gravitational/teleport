@@ -51,10 +51,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -765,7 +767,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 }
 
 type mockAccessPoint struct {
-	auth.ProxyAccessPoint
+	authclient.ProxyAccessPoint
 }
 
 // NewWatcher needs to be defined so that we can test proxy TLS config setup without panicing.
@@ -885,7 +887,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
-				ServerIdentity: &auth.Identity{
+				ServerIdentity: &state.Identity{
 					Cert: &ssh.Certificate{
 						Permissions: ssh.Permissions{
 							Extensions: map[string]string{},
@@ -919,7 +921,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -1049,7 +1051,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 	type args struct {
 		kubeBackend   *fakeKubeBackend
 		hostIDContent string
-		identity      []*auth.Identity
+		identity      []*state.Identity
 	}
 	tests := []struct {
 		name             string
@@ -1140,9 +1142,9 @@ func Test_readOrGenerateHostID(t *testing.T) {
 					getErr:  fmt.Errorf("key not found"),
 				},
 
-				identity: []*auth.Identity{
+				identity: []*state.Identity{
 					{
-						ID: auth.IdentityID{
+						ID: state.IdentityID{
 							HostUUID: id,
 						},
 					},

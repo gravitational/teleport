@@ -263,6 +263,47 @@ interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspectio
 or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
 which prevents Teleport from authenticating.
 
+#### Manually validate a client certificate
+
+Another helpful troubleshooting step is to issue a client certificate using
+`tctl` and attempt to validate it on the Windows side.
+
+First, generate a client certificate with `tctl`, being sure to replace the
+`--windows-user`, `--windows-sid`, and `--windows-domain` flags with values
+appropriate for your environment:
+
+```
+$  tctl auth sign \
+    --windows-user=svc-teleport \
+    --windows-sid=S-1-5-21-3788279871-1068139173-3054872986-500 \
+    --windows-domain=domain.example.com \
+    --format=windows \
+    --out=test
+```
+
+This will generate a certificate file named `test.svc-teleport.der`.
+
+Next, copy this certificate to one of your domain controllers and attempt to verify it:
+
+```
+$ certutil -urlfetch -verify test.svc-teleport.der
+```
+
+A successful verification should end with output similar to the following:
+
+```
+------------------------------------
+Verified Application Policies:
+    1.3.6.1.5.5.7.3.2 Client Authentication
+    1.3.6.1.4.1.311.20.2.2 Smart Card Logon
+Cert is an End Entity certificate
+Leaf certificate revocation check passed
+CertUtil: -verify command completed successfully.
+```
+
+If you do not see similar results, scan the output for errors which may indicate
+why the certificate cannot be verified.
+
 ## Connection attempts fail
 
 ### RDP server only uses Standard RDP Security

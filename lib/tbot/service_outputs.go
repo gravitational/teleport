@@ -41,7 +41,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -62,7 +62,8 @@ type outputsService struct {
 	reloadBroadcaster *channelBroadcaster
 	proxyPingCache    *proxyPingCache
 	authPingCache     *authPingCache
-	botClient         *auth.Client
+	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
+	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
 	cfg               *config.BotConfig
 	resolver          reversetunnelclient.Resolver
@@ -92,10 +93,11 @@ func (s *outputsService) renewOutputs(
 	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
 	drc := &outputRenewalCache{
-		proxyPingCache: s.proxyPingCache,
-		authPingCache:  s.authPingCache,
-		client:         s.botClient,
-		cfg:            s.cfg,
+		proxyPingCache:   s.proxyPingCache,
+		authPingCache:    s.authPingCache,
+		alpnUpgradeCache: s.alpnUpgradeCache,
+		client:           s.botClient,
+		cfg:              s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -305,7 +307,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func generateIdentity(
 	ctx context.Context,
-	client *auth.Client,
+	client *authclient.Client,
 	currentIdentity *identity.Identity,
 	roles []string,
 	ttl time.Duration,
@@ -389,7 +391,7 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
-func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 
@@ -413,7 +415,7 @@ func getKubeCluster(ctx context.Context, clt *auth.Client, name string) (types.K
 	return cluster, trace.Wrap(err)
 }
 
-func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Application, error) {
+func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
 
@@ -440,7 +442,7 @@ func getApp(ctx context.Context, clt *auth.Client, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *auth.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
 	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
@@ -456,7 +458,7 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0
-	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
@@ -469,11 +471,11 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 // impersonated identity.
 func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
-	botClient *auth.Client,
+	botClient *authclient.Client,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
-) (impersonatedIdentity *identity.Identity, impersonatedClient *auth.Client, err error) {
+) (impersonatedIdentity *identity.Identity, impersonatedClient *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
@@ -657,10 +659,11 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, iden
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client         *auth.Client
-	cfg            *config.BotConfig
-	proxyPingCache *proxyPingCache
-	authPingCache  *authPingCache
+	client           *authclient.Client
+	cfg              *config.BotConfig
+	proxyPingCache   *proxyPingCache
+	authPingCache    *authPingCache
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
@@ -715,6 +718,18 @@ func (orc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingRe
 	return res, nil
 }
 
+// IsALPNConnUpgradeRequired returns a (possibly cached) test of whether ALPN
+// routing is required.
+func (orc *outputRenewalCache) IsALPNConnUpgradeRequired(
+	ctx context.Context, addr string, insecure bool,
+) (bool, error) {
+	res, err := orc.alpnUpgradeCache.isUpgradeRequired(ctx, addr, insecure)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return res, nil
+}
+
 // Config returns the bots config.
 func (orc *outputRenewalCache) Config() *config.BotConfig {
 	return orc.cfg
@@ -730,7 +745,7 @@ type outputProvider struct {
 	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
-	impersonatedClient *auth.Client
+	impersonatedClient *authclient.Client
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.

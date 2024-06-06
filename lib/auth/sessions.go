@@ -305,6 +305,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
+			// If the user's current identity is attested as a "web_session", it's secrets are only
+			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
+			// service on behalf of the user's Web Session. We can safely attest this child app session
+			// as a "web_session" as a result.
+			AttestWebSession: identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession,
 		},
 		PublicAddr:        req.PublicAddr,
 		ClusterName:       req.ClusterName,
@@ -354,14 +359,27 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	// Create certificate for this session.
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if req.AttestWebSession {
+		// Upsert web session attestation data so that this key's certs
+		// will be marked with the web session private key policy.
+		webAttData, err := services.NewWebSessionAttestationData(priv.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = a.UpsertKeyAttestationData(ctx, webAttData, req.SessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
 		loginIP:        req.LoginIP,
-		publicKey:      publicKey,
+		publicKey:      priv.MarshalSSHPublicKey(),
 		checker:        checker,
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
@@ -375,9 +393,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
-		// Since we are generating the keys and certs directly on the Auth Server,
-		// we need to skip attestation.
-		skipAttestation: true,
 		// Pass along device extensions from the user.
 		deviceExtensions: req.DeviceExtensions,
 		mfaVerified:      req.MFAVerified,
@@ -392,7 +407,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
 		User:        req.User,
-		Priv:        privateKey,
+		Priv:        priv.PrivateKeyPEM(),
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
 		LoginTime:   a.clock.Now().UTC(),
@@ -458,17 +473,12 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 
 	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
@@ -538,9 +548,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return session, nil
 }
 
-func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
-	identity tlsca.Identity, checker services.AccessChecker,
-) (types.WebSession, error) {
+func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
 
 	if req.SAMLSession == nil {
@@ -562,40 +570,4 @@ func (a *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
-}
-
-type CreateAppSessionForV15Client interface {
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
-}
-
-// TryCreateAppSessionForClientCertV15 creates an app session if the auth
-// server is pre-v16 and returns the app session ID. This app session ID
-// is needed for user app certs requests before v16.
-// TODO (Joerger): DELETE IN v17.0.0
-func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// If the auth server is v16+, the client does not need to provide a pre-created app session.
-	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
-		return "", nil
-	}
-
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          username,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		AWSRoleARN:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GCPServiceAccount,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return ws.GetName(), nil
 }

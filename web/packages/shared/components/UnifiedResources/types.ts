@@ -36,6 +36,7 @@ export type UnifiedResourceApp = {
   addrWithProtocol?: string;
   friendlyName?: string;
   samlApp: boolean;
+  requiresRequest?: boolean;
 };
 
 export interface UnifiedResourceDatabase {
@@ -45,6 +46,7 @@ export interface UnifiedResourceDatabase {
   type: string;
   protocol: DbProtocol;
   labels: ResourceLabel[];
+  requiresRequest?: boolean;
 }
 
 export interface UnifiedResourceNode {
@@ -55,12 +57,14 @@ export interface UnifiedResourceNode {
   addr: string;
   tunnel: boolean;
   subKind: NodeSubKind;
+  requiresRequest?: boolean;
 }
 
 export interface UnifiedResourceKube {
   kind: 'kube_cluster';
   name: string;
   labels: ResourceLabel[];
+  requiresRequest?: boolean;
 }
 
 export type UnifiedResourceDesktop = {
@@ -69,6 +73,7 @@ export type UnifiedResourceDesktop = {
   name: string;
   addr: string;
   labels: ResourceLabel[];
+  requiresRequest?: boolean;
 };
 
 export type UnifiedResourceUserGroup = {
@@ -77,6 +82,7 @@ export type UnifiedResourceUserGroup = {
   description: string;
   friendlyName?: string;
   labels: ResourceLabel[];
+  requiresRequest?: boolean;
 };
 
 export type UnifiedResourceUi = {
@@ -106,6 +112,7 @@ export type UnifiedResourcesQueryParams = {
   pinnedOnly?: boolean;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
+  includedResourceMode?: IncludedResourceMode;
 };
 export interface UnifiedResourceViewItem {
   name: string;
@@ -118,6 +125,7 @@ export interface UnifiedResourceViewItem {
   ActionButton: React.ReactElement;
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
+  requiresRequest?: boolean;
 }
 
 export enum PinningSupport {
@@ -133,6 +141,12 @@ export enum PinningSupport {
   Hidden = 'Hidden',
 }
 
+export type IncludedResourceMode =
+  | 'none'
+  | 'all'
+  | 'requestable'
+  | 'accessible';
+
 export type ResourceItemProps = {
   name: string;
   primaryIconName: ResourceIconName;
@@ -146,6 +160,7 @@ export type ResourceItemProps = {
   selectResource: () => void;
   selected: boolean;
   pinned: boolean;
+  requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
 };
@@ -171,9 +186,6 @@ export type UnifiedResourcesPinning =
       /** `getClusterPinnedResources` has to be stable, it is used in `useEffect`. */
       getClusterPinnedResources(): Promise<string[]>;
       updateClusterPinnedResources(pinned: string[]): Promise<void>;
-    }
-  | {
-      kind: 'not-supported';
     }
   | {
       kind: 'hidden';

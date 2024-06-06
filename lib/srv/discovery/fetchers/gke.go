@@ -141,7 +141,7 @@ func (a *gkeFetcher) String() string {
 // If any cluster does not match the filtering criteria, this function returns
 // a “trace.CompareFailed“ error to distinguish filtering and operational errors.
 func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.KubeCluster, error) {
-	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to create types.KubernetesClusterV3 cluster from gcp.GKECluster.")
 	}

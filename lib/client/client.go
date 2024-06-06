@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -136,7 +136,7 @@ type ReissueParams struct {
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
 }
@@ -229,7 +229,7 @@ type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *pr
 // sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
 type sharedAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 }
 
 // Close is a no-op
@@ -366,7 +366,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 // RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -395,7 +395,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, mode, c.TC.OnChannelRequest, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
@@ -539,7 +539,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
 		originErr := trace.Unwrap(err)
 		var exitErr *ssh.ExitError
 		if errors.As(originErr, &exitErr) {
@@ -888,7 +888,7 @@ func (c *NodeClient) Close() error {
 }
 
 // GetPaginatedSessions grabs up to 'max' sessions.
-func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient authclient.ClientI) ([]apievents.AuditEvent, error) {
 	prevEventKey := ""
 	var sessions []apievents.AuditEvent
 	for {

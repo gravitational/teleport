@@ -82,6 +82,8 @@ type WebConfig struct {
 	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	IsIGSEnabled bool `json:"isIgsEnabled"`
+	// IsPolicyEnabled is true if [Features.Policy] = true
+	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 	// featureLimits define limits for features.
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
@@ -106,6 +108,8 @@ type WebConfig struct {
 	SAML bool `json:"saml"`
 	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
+	// Edition is the edition of Teleport
+	Edition string `json:"edition"`
 }
 
 // featureLimits define limits for features.

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -75,10 +76,10 @@ func TestReadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
+	id, err := state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, "example.com", id.ClusterName)
-	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, state.IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
 	require.Equal(t, cert, id.CertBytes)
 	require.Equal(t, priv, id.KeyBytes)
 
@@ -108,7 +109,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// bad cert type
-	_, err = ReadSSHIdentityFromKeyPair(priv, pub)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
@@ -123,7 +124,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
@@ -138,7 +139,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
@@ -153,7 +154,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 }
 
@@ -1522,7 +1523,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }
 
@@ -1731,7 +1732,7 @@ func TestIdentityChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{test.cert},
+				sshutils.StaticHostSigners(test.cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)
@@ -1739,7 +1740,7 @@ func TestIdentityChecker(t *testing.T) {
 			t.Cleanup(func() { sshServer.Close() })
 			require.NoError(t, sshServer.Start())
 
-			identity, err := GenerateIdentity(authServer, IdentityID{
+			identity, err := GenerateIdentity(authServer, state.IdentityID{
 				Role:     types.RoleNode,
 				HostUUID: uuid.New().String(),
 				NodeName: "node-1",

@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -60,11 +62,13 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -74,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -83,12 +88,14 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	notifications "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
+	"github.com/gravitational/teleport/lib/auth/vnetconfig/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -132,6 +139,24 @@ var (
 		},
 		[]string{teleport.TagType},
 	)
+
+	createAuditStreamAcceptedTotalMetric = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "unstable_createauditstream_accepted_total",
+		Help:      "CreateAuditStream RPCs accepted by the concurrency limiter",
+	})
+
+	createAuditStreamRejectedTotalMetric = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "unstable_createauditstream_rejected_total",
+		Help:      "CreateAuditStream RPCs rejected by the concurrency limiter",
+	})
+
+	createAuditStreamLimitMetric = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "unstable_createauditstream_limit",
+		Help:      "Configured limit of in-flight CreateAuditStream RPCs",
+	})
 )
 
 // GRPCServer is gRPC Auth Server API
@@ -144,7 +169,7 @@ type GRPCServer struct {
 
 	// usersService is used to forward deprecated users requests to
 	// the new service so that logic only needs to exist in one place.
-	// TODO(tross) DELETE IN 16.0.0
+	// TODO(tross) DELETE IN 17.0.0
 	usersService *usersv1.Service
 
 	// botService is used to forward requests to deprecated bot RPCs to the
@@ -159,6 +184,11 @@ type GRPCServer struct {
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
+
+	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
+	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
+	// of the RPC and pulling one out before returning.
+	createAuditStreamSemaphore chan struct{}
 }
 
 // Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
@@ -203,6 +233,15 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	return &emptypb.Empty{}, nil
 }
 
+var connectedResourceGauges = map[string]prometheus.Gauge{
+	constants.KeepAliveNode:                  connectedResources.WithLabelValues(constants.KeepAliveNode),
+	constants.KeepAliveKube:                  connectedResources.WithLabelValues(constants.KeepAliveKube),
+	constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
+	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
+	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+}
+
 // SendKeepAlives allows node to send a stream of keep alive requests
 func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServer) error {
 	defer stream.SendAndClose(&emptypb.Empty{})
@@ -215,11 +254,11 @@ func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServ
 		}
 		keepAlive, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			g.Debugf("Connection closed.")
+			g.Logger.Debug("Connection closed.")
 			return nil
 		}
 		if err != nil {
-			g.Debugf("Failed to receive heartbeat: %v", err)
+			g.Logger.Debugf("Failed to receive heartbeat: %v", err)
 			return trace.Wrap(err)
 		}
 		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
@@ -227,10 +266,17 @@ func (g *GRPCServer) SendKeepAlives(stream authpb.AuthService_SendKeepAlivesServ
 			return trace.Wrap(err)
 		}
 		if firstIteration {
-			g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
+			g.Logger.Debugf("Got %s heartbeat connection from %v.", keepAlive.GetType(), auth.User.GetName())
 			heartbeatConnectionsReceived.Inc()
-			connectedResources.WithLabelValues(keepAlive.GetType()).Inc()
-			defer connectedResources.WithLabelValues(keepAlive.GetType()).Dec()
+
+			metric, ok := connectedResourceGauges[keepAlive.GetType()]
+			if ok {
+				metric.Inc()
+				defer metric.Dec()
+			} else {
+				g.Logger.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", keepAlive.GetType())
+			}
+
 			firstIteration = false
 		}
 	}
@@ -241,6 +287,21 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if sem := g.createAuditStreamSemaphore; sem != nil {
+		select {
+		case sem <- struct{}{}:
+			createAuditStreamAcceptedTotalMetric.Inc()
+			defer func() { <-sem }()
+		default:
+			createAuditStreamRejectedTotalMetric.Inc()
+			// [trace.ConnectionProblemError] is rendered with a gRPC
+			// "unavailable" error code, which is the correct error if the
+			// client can just back off and retry with no further changes to the
+			// request
+			return trace.ConnectionProblem(nil, "too many concurrent CreateAuditStream operations, try again later")
+		}
 	}
 
 	var eventStream apievents.Stream
@@ -624,10 +685,28 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	return cert, nil
 }
 
+// AssertSystemRole is used by agents to prove that they have a given system role when their credentials
+// originate from multiple separate join tokens so that they can be issued an instance certificate that
+// encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
+// model for join token joining/replacement.
+func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRoleAssertion) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.AssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
 	types.RoleNode: constants.KeepAliveNode,
+	types.RoleApp:  constants.KeepAliveApp,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -660,16 +739,6 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 
 	// the heartbeatConnectionsReceived metric counts individual services as individual connections.
 	heartbeatConnectionsReceived.Add(float64(len(metricServices)))
-
-	for _, service := range metricServices {
-		connectedResources.WithLabelValues(service).Inc()
-	}
-
-	defer func() {
-		for _, service := range metricServices {
-			connectedResources.WithLabelValues(service).Dec()
-		}
-	}()
 
 	// hold open the stream until it completes
 	<-ics.Done()
@@ -822,7 +891,7 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 }
 
 // GetUser returns a user matching the provided name if one exists.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
@@ -834,7 +903,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 }
 
 // GetCurrentUser returns the currently authenticated user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
 	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
@@ -868,7 +937,7 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 }
 
 // GetUsers returns all users.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.ListUsers] instead.
 func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
@@ -1061,7 +1130,7 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.C
 		req = &authpb.CreateResetPasswordTokenRequest{}
 	}
 
-	token, err := auth.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := auth.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: req.Name,
 		TTL:  time.Duration(req.TTL),
 		Type: req.Type,
@@ -1163,7 +1232,7 @@ func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb
 }
 
 // CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	resp, err := g.usersService.CreateUser(ctx, &userspb.CreateUserRequest{User: req})
@@ -1180,7 +1249,7 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptyp
 // users service like other user CRUD methods to preserve update semantics.
 // This results in all updates blindly overwriting the existing user. Updating
 // users with [usersv1.Service.UpdateUser] is protected by optimistic locking.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2205,7 +2274,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 //
 // This function bypasses the `ServerWithRoles` RBAC layer. This is not
 // usually how the gRPC layer accesses the underlying auth server API's but it's done
-// here to avoid bloating the ClientI interface with special logic that isn't designed to be touched
+// here to avoid bloating the [authclient.ClientI]  interface with special logic that isn't designed to be touched
 // by anyone external to this process. This is not the norm and caution should be taken
 // when looking at or modifying this function. This is the same approach taken by other MFA
 // related gRPC API endpoints.
@@ -2358,12 +2427,6 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
-}
-
-// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
-// complete the challenge with.
-var ErrNoMFADevices = &trace.AccessDeniedError{
-	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
 }
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
@@ -5032,6 +5095,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	creds, err := NewTransportCredentials(TransportCredentialsConfig{
 		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
 		UserGetter:           cfg.Middleware,
+		GetAuthPreference:    cfg.AuthServer.Cache.GetAuthPreference,
+		Clock:                cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5135,6 +5200,26 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		usersService:    usersService,
 		botService:      botService,
 		presenceService: presenceService,
+	}
+
+	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
+		inflightLimit, err := strconv.ParseInt(en, 10, 64)
+		if err != nil {
+			log.Error("Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced.")
+			inflightLimit = -1
+		}
+		if inflightLimit == 0 {
+			log.Warn("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed.")
+		}
+		metrics.RegisterPrometheusCollectors(
+			createAuditStreamAcceptedTotalMetric,
+			createAuditStreamRejectedTotalMetric,
+			createAuditStreamLimitMetric,
+		)
+		createAuditStreamLimitMetric.Set(float64(inflightLimit))
+		if inflightLimit >= 0 {
+			authServer.createAuditStreamSemaphore = make(chan struct{}, inflightLimit)
+		}
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
@@ -5290,6 +5375,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
+
+	// Initialize and register the notifications service.
+	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
+		Authorizer:              cfg.Authorizer,
+		Backend:                 cfg.AuthServer.Services,
+		UserNotificationCache:   cfg.AuthServer.UserNotificationCache,
+		GlobalNotificationCache: cfg.AuthServer.GlobalNotificationCache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	notificationsv1.RegisterNotificationServiceServer(server, notificationsServer)
+
+	vnetConfigStorage, err := local.NewVnetConfigService(cfg.AuthServer.bk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
+	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

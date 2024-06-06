@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -243,7 +244,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
-		[]ssh.Signer{signer},
+		sshutils.StaticHostSigners(signer),
 		nodeClient,
 		nodeDir,
 		"",
@@ -442,7 +443,7 @@ loop:
 	require.Equal(t, "echo 1", execEvent.CommandMetadata.Command)
 }
 
-func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
+func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
@@ -455,7 +456,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 	return proxyClient, proxyID
 }
 
-func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
+func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*authclient.Client, string) {
 	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
@@ -1466,7 +1467,7 @@ func mustListen(t *testing.T) (net.Listener, utils.NetAddr) {
 	return l, addr
 }
 
-func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint, error) {
+func noCache(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
 	return clt, nil
 }
 
@@ -1487,22 +1488,21 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClusterName:                   f.testSrv.ClusterName(),
-		ClientTLS:                     proxyClient.TLSConfig(),
-		ID:                            hostID,
-		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
-		LocalAuthClient:               proxyClient,
-		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         noCache,
-		NewCachingAccessPointOldProxy: noCache,
-		DataDir:                       t.TempDir(),
-		Emitter:                       proxyClient,
-		Log:                           logger,
-		LockWatcher:                   lockWatcher,
-		NodeWatcher:                   nodeWatcher,
-		CertAuthorityWatcher:          caWatcher,
-		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
+		ClusterName:           f.testSrv.ClusterName(),
+		ClientTLS:             proxyClient.TLSConfig(),
+		ID:                    hostID,
+		Listener:              listener,
+		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:       proxyClient,
+		LocalAccessPoint:      proxyClient,
+		NewCachingAccessPoint: noCache,
+		DataDir:               t.TempDir(),
+		Emitter:               proxyClient,
+		Log:                   logger,
+		LockWatcher:           lockWatcher,
+		NodeWatcher:           nodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1533,7 +1533,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -1625,22 +1625,21 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:                     proxyClient.TLSConfig(),
-		ID:                            hostID,
-		ClusterName:                   f.testSrv.ClusterName(),
-		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
-		LocalAuthClient:               proxyClient,
-		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         noCache,
-		NewCachingAccessPointOldProxy: noCache,
-		DataDir:                       t.TempDir(),
-		Emitter:                       proxyClient,
-		Log:                           logger,
-		LockWatcher:                   lockWatcher,
-		NodeWatcher:                   nodeWatcher,
-		CertAuthorityWatcher:          caWatcher,
-		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
+		ClientTLS:             proxyClient.TLSConfig(),
+		ID:                    hostID,
+		ClusterName:           f.testSrv.ClusterName(),
+		Listener:              listener,
+		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:       proxyClient,
+		LocalAccessPoint:      proxyClient,
+		NewCachingAccessPoint: noCache,
+		DataDir:               t.TempDir(),
+		Emitter:               proxyClient,
+		Log:                   logger,
+		LockWatcher:           lockWatcher,
+		NodeWatcher:           nodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 
@@ -1672,7 +1671,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -1910,7 +1909,7 @@ func TestLimiter(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		nodeClient,
 		nodeStateDir,
 		"",
@@ -2339,21 +2338,20 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			ClientTLS:                     proxyClient.TLSConfig(),
-			ID:                            hostID,
-			ClusterName:                   f.testSrv.ClusterName(),
-			Listener:                      listener,
-			HostSigners:                   []ssh.Signer{f.signer},
-			LocalAuthClient:               proxyClient,
-			LocalAccessPoint:              proxyClient,
-			NewCachingAccessPoint:         noCache,
-			NewCachingAccessPointOldProxy: noCache,
-			DataDir:                       t.TempDir(),
-			Emitter:                       proxyClient,
-			Log:                           logrus.StandardLogger(),
-			LockWatcher:                   lockWatcher,
-			NodeWatcher:                   nodeWatcher,
-			CertAuthorityWatcher:          caWatcher,
+			ClientTLS:             proxyClient.TLSConfig(),
+			ID:                    hostID,
+			ClusterName:           f.testSrv.ClusterName(),
+			Listener:              listener,
+			GetHostSigners:        sshutils.StaticHostSigners(f.signer),
+			LocalAuthClient:       proxyClient,
+			LocalAccessPoint:      proxyClient,
+			NewCachingAccessPoint: noCache,
+			DataDir:               t.TempDir(),
+			Emitter:               proxyClient,
+			Log:                   logrus.StandardLogger(),
+			LockWatcher:           lockWatcher,
+			NodeWatcher:           nodeWatcher,
+			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
 
@@ -2388,7 +2386,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			ctx,
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			f.testSrv.ClusterName(),
-			[]ssh.Signer{f.signer},
+			sshutils.StaticHostSigners(f.signer),
 			proxyClient,
 			t.TempDir(),
 			"",
@@ -2602,21 +2600,20 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:                     proxyClient.TLSConfig(),
-		ID:                            hostID,
-		ClusterName:                   f.testSrv.ClusterName(),
-		Listener:                      listener,
-		HostSigners:                   []ssh.Signer{f.signer},
-		LocalAuthClient:               proxyClient,
-		LocalAccessPoint:              proxyClient,
-		NewCachingAccessPoint:         noCache,
-		NewCachingAccessPointOldProxy: noCache,
-		DataDir:                       t.TempDir(),
-		Emitter:                       proxyClient,
-		Log:                           logger,
-		LockWatcher:                   lockWatcher,
-		NodeWatcher:                   nodeWatcher,
-		CertAuthorityWatcher:          caWatcher,
+		ClientTLS:             proxyClient.TLSConfig(),
+		ID:                    hostID,
+		ClusterName:           f.testSrv.ClusterName(),
+		Listener:              listener,
+		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:       proxyClient,
+		LocalAccessPoint:      proxyClient,
+		NewCachingAccessPoint: noCache,
+		DataDir:               t.TempDir(),
+		Emitter:               proxyClient,
+		Log:                   logger,
+		LockWatcher:           lockWatcher,
+		NodeWatcher:           nodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -2648,7 +2645,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
+		sshutils.StaticHostSigners(f.signer),
 		proxyClient,
 		t.TempDir(),
 		"",
@@ -2821,7 +2818,7 @@ func TestTargetMetadata(t *testing.T) {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		testServer.ClusterName(),
-		[]ssh.Signer{newSigner(t, ctx, testServer)},
+		sshutils.StaticHostSigners(newSigner(t, ctx, testServer)),
 		nodeClient,
 		nodeDir,
 		"",

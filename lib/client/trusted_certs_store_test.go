@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -68,7 +68,7 @@ func TestTrustedCertsStore(t *testing.T) {
 
 		// Add trusted certs to the store.
 		proxy := "proxy.example.com"
-		trustedCerts := []auth.TrustedCerts{
+		trustedCerts := []authclient.TrustedCerts{
 			{
 				ClusterName:     rootCluster.ClusterName,
 				TLSCertificates: append(rootCluster.TLSCertificates, rootClusterSecondCert.TLSCertificates...),
@@ -118,7 +118,7 @@ func TestTrustedCertsStore(t *testing.T) {
 
 		// Saving a new trusted certs entry should overwrite existing TLS certificates.
 		// Host keys shouldn't be overwritten.
-		err = trustedCertsStore.SaveTrustedCerts(proxy, []auth.TrustedCerts{
+		err = trustedCertsStore.SaveTrustedCerts(proxy, []authclient.TrustedCerts{
 			{
 				ClusterName:     rootCluster.ClusterName,
 				TLSCertificates: rootCluster.TLSCertificates,
@@ -136,7 +136,7 @@ func TestTrustedCertsStore(t *testing.T) {
 		require.NoError(t, err)
 		sshPub, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
 		require.NoError(t, err)
-		trustedCertsStore.SaveTrustedCerts(proxy, []auth.TrustedCerts{{
+		trustedCertsStore.SaveTrustedCerts(proxy, []authclient.TrustedCerts{{
 			ClusterName:    rootCluster.ClusterName,
 			AuthorizedKeys: [][]byte{ssh.MarshalAuthorizedKey(sshPub)},
 		}})

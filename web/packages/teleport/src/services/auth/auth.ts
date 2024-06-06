@@ -258,22 +258,24 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async fetchWebAuthnChallenge({
-    scope,
-    allowReuse,
-    isMfaRequiredRequest,
-    userVerificationRequirement,
-  }: CreateAuthenticateChallengeRequest) {
+  async fetchWebAuthnChallenge(
+    req: CreateAuthenticateChallengeRequest,
+    abortSignal?: AbortSignal
+  ) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath, {
-            is_mfa_required_req: isMfaRequiredRequest,
-            challenge_scope: scope,
-            challenge_allow_reuse: allowReuse,
-            user_verification_requirement: userVerificationRequirement,
-          })
+          .post(
+            cfg.api.mfaAuthnChallengePath,
+            {
+              is_mfa_required_req: req.isMfaRequiredRequest,
+              challenge_scope: req.scope,
+              challenge_allow_reuse: req.allowReuse,
+              user_verification_requirement: req.userVerificationRequirement,
+            },
+            abortSignal
+          )
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -301,14 +303,18 @@ const auth = {
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest
+    isMfaRequiredRequest?: IsMfaRequiredRequest,
+    abortSignal?: AbortSignal
   ) {
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
     if (isMfaRequiredRequest) {
       try {
-        const isMFARequired = await checkMfaRequired(isMfaRequiredRequest);
+        const isMFARequired = await checkMfaRequired(
+          isMfaRequiredRequest,
+          abortSignal
+        );
         if (!isMFARequired.required) {
           return;
         }
@@ -328,7 +334,10 @@ const auth = {
     }
 
     return auth
-      .fetchWebAuthnChallenge({ scope, allowReuse, isMfaRequiredRequest })
+      .fetchWebAuthnChallenge(
+        { scope, allowReuse, isMfaRequiredRequest },
+        abortSignal
+      )
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
@@ -350,9 +359,10 @@ const auth = {
 };
 
 function checkMfaRequired(
-  params: IsMfaRequiredRequest
+  params: IsMfaRequiredRequest,
+  abortSignal?
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params);
+  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {

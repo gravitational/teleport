@@ -122,7 +122,6 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
-    'feature.vnet': z.boolean().default(false).describe('Shows UI for VNet.'),
   });
 };
 
@@ -161,15 +160,15 @@ const getDefaultKeymap = (
         tab7: 'Ctrl+7',
         tab8: 'Ctrl+8',
         tab9: 'Ctrl+9',
-        closeTab: 'Ctrl+W',
-        newTab: 'Ctrl+T',
-        newTerminalTab: 'Ctrl+Shift+T',
+        closeTab: 'Ctrl+Shift+W',
+        newTab: 'Ctrl+Shift+T',
+        newTerminalTab: 'Ctrl+Shift+`',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openSearchBar: 'Ctrl+K',
-        openConnections: 'Ctrl+P',
-        openClusters: 'Ctrl+E',
-        openProfiles: 'Ctrl+I',
+        openSearchBar: 'Ctrl+Shift+K',
+        openConnections: 'Ctrl+Shift+P',
+        openClusters: 'Ctrl+Shift+E',
+        openProfiles: 'Ctrl+Shift+I',
       };
     case 'linux':
       return {
@@ -182,15 +181,15 @@ const getDefaultKeymap = (
         tab7: 'Alt+7',
         tab8: 'Alt+8',
         tab9: 'Alt+9',
-        closeTab: 'Ctrl+W',
-        newTab: 'Ctrl+T',
-        newTerminalTab: 'Ctrl+Shift+T',
+        closeTab: 'Ctrl+Shift+W',
+        newTab: 'Ctrl+Shift+T',
+        newTerminalTab: 'Ctrl+Shift+`',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openSearchBar: 'Ctrl+K',
-        openConnections: 'Ctrl+P',
-        openClusters: 'Ctrl+E',
-        openProfiles: 'Ctrl+I',
+        openSearchBar: 'Ctrl+Shift+K',
+        openConnections: 'Ctrl+Shift+P',
+        openClusters: 'Ctrl+Shift+E',
+        openProfiles: 'Ctrl+Shift+I',
       };
     case 'darwin':
       return {
@@ -205,7 +204,7 @@ const getDefaultKeymap = (
         tab9: 'Command+9',
         closeTab: 'Command+W',
         newTab: 'Command+T',
-        newTerminalTab: 'Shift+Command+T',
+        newTerminalTab: 'Control+Shift+`',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
         openSearchBar: 'Command+K',

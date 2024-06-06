@@ -181,16 +181,6 @@ func (c *ClusterNetworkingConfigV2) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetResourceID returns resource ID.
-func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (c *ClusterNetworkingConfigV2) GetRevision() string {
 	return c.Metadata.GetRevision()

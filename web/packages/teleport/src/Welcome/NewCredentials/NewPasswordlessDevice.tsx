@@ -86,7 +86,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     <Validation>
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="passwordless">
-          <Text typography="h4" mb={3} color="text.main" bold>
+          <Text typography="h4" mb={3} color="text.main">
             Set up Passwordless Authentication
           </Text>
           {submitAttempt.status === 'failed' && (

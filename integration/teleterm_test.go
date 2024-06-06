@@ -47,6 +47,7 @@ import (
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -97,7 +99,7 @@ func TestTeleterm(t *testing.T) {
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
 
-	t.Run("Test headless watcher", func(t *testing.T) {
+	t.Run("headless watcher", func(t *testing.T) {
 		t.Parallel()
 
 		testHeadlessWatcher(t, pack, creds)
@@ -123,7 +125,7 @@ func TestTeleterm(t *testing.T) {
 		testDeleteConnectMyComputerNode(t, pack)
 	})
 
-	t.Run("TestClientCache", func(t *testing.T) {
+	t.Run("client cache", func(t *testing.T) {
 		t.Parallel()
 
 		testClientCache(t, pack, creds)
@@ -163,7 +165,7 @@ func TestTeleterm(t *testing.T) {
 			require.NoError(t, err)
 			device.SetPasswordless()
 
-			token, err := authServer.CreateResetPasswordToken(context.Background(), auth.CreateUserTokenRequest{
+			token, err := authServer.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
 				Name: userName,
 			})
 			require.NoError(t, err)
@@ -361,10 +363,13 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	})
 	require.NoError(t, err)
 
+	clusterIDCache := clusteridcache.Cache{}
+
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClusterIDCache: &clusterIDCache,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -380,15 +385,22 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
+	clusterURI := uri.NewClusterURI(rootClusterName)
 
 	response, err := handler.GetCluster(context.Background(), &api.GetClusterRequest{
-		ClusterUri: uri.NewClusterURI(rootClusterName).String(),
+		ClusterUri: clusterURI.String(),
 	})
 	require.NoError(t, err)
 
 	require.Equal(t, userName, response.LoggedInUser.Name)
 	require.ElementsMatch(t, []string{requestableRoleName}, response.LoggedInUser.RequestableRoles)
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
+
+	// Verify that cluster ID cache gets updated.
+	clusterIDFromCache, ok := clusterIDCache.Load(clusterURI)
+	require.True(t, ok, "ID for cluster %q was not found in the cache", clusterURI)
+	require.NotEmpty(t, clusterIDFromCache)
+	require.Equal(t, response.AuthClusterId, clusterIDFromCache)
 }
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {

@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -85,6 +86,7 @@ func TestSSH(t *testing.T) {
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 			cfg.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
 				PrivateKey:  webKeyPath,
 				Certificate: webCertPath,
@@ -93,6 +95,7 @@ func TestSSH(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 		}),
 	)
 
@@ -311,7 +314,7 @@ func TestWithRsync(t *testing.T) {
 					assert.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
-				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 					Name: s.user.GetName(),
 				})
 				require.NoError(t, err)
@@ -392,11 +395,11 @@ func TestWithRsync(t *testing.T) {
 					}
 
 					// send login response to the client
-					resp := auth.SSHLoginResponse{
+					resp := authclient.SSHLoginResponse{
 						Username:    s.user.GetName(),
 						Cert:        sshCert,
 						TLSCert:     tlsCert,
-						HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+						HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
 					}
 					encResp, err := json.Marshal(resp)
 					if !assert.NoError(t, err) {

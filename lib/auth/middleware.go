@@ -23,10 +23,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -46,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -63,6 +67,13 @@ const (
 	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
 	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
+
+// AccessCacheWithEvents extends the [authclient.AccessCache] interface with [types.Events].
+// Useful for trust-related components that need to watch for changes.
+type AccessCacheWithEvents interface {
+	authclient.AccessCache
+	types.Events
+}
 
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
@@ -167,9 +178,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	var oldestSupportedVersion *semver.Version
-	if os.Getenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS") == "yes" {
-		oldestSupportedVersion = &teleport.MinClientSemVersion
+	oldestSupportedVersion := &teleport.MinClientSemVersion
+	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = nil
 	}
 
 	// authMiddleware authenticates request assuming TLS client authentication
@@ -181,6 +192,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		Limiter:                limiter,
 		GRPCMetrics:            grpcMetrics,
 		OldestSupportedVersion: oldestSupportedVersion,
+		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
+			return trace.Wrap(cfg.AuthServer.UpsertClusterAlert(ctx, a))
+		},
 	}
 
 	apiServer, err := NewAPIServer(&cfg.APIConfig)
@@ -336,6 +350,13 @@ type Middleware struct {
 	// originated from a client that is using an unsupported version. If not set, then no
 	// rejection occurs.
 	OldestSupportedVersion *semver.Version
+	// AlertCreator if provided is used to generate a cluster alert when any
+	// unsupported connections are rejected.
+	AlertCreator func(ctx context.Context, a types.ClusterAlert) error
+
+	// lastRejectedAlertTime is the timestamp at which the last alert
+	// was created in response to rejecting unsupported clients.
+	lastRejectedAlertTime atomic.Int64
 }
 
 // Wrap sets next handler in chain
@@ -387,25 +408,78 @@ func (a *Middleware) ValidateClientVersion(ctx context.Context, info IdentityInf
 		return nil
 	}
 
-	logger := log.WithFields(logrus.Fields{"identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString})
+	ua := metadata.UserAgentFromContext(ctx)
+	logger := log.WithFields(logrus.Fields{"user_agent": ua, "identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString})
 	clientVersion, err := semver.NewVersion(clientVersionString)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to determine client version")
+		a.displayRejectedClientAlert(ctx, ua)
 		if err := info.Conn.Close(); err != nil {
 			logger.WithError(err).Warn("Failed to close client connection")
 		}
+
 		return trace.AccessDenied("client version is unsupported")
 	}
 
 	if clientVersion.LessThan(*a.OldestSupportedVersion) {
 		logger.Info("Terminating connection of client using unsupported version")
+		a.displayRejectedClientAlert(ctx, ua)
+
 		if err := info.Conn.Close(); err != nil {
 			logger.WithError(err).Warn("Failed to close client connection")
 		}
+
 		return trace.AccessDenied("client version is unsupported")
 	}
 
 	return nil
+}
+
+var clientUARegex = regexp.MustCompile(`(tsh|tbot|tctl)\/\d+`)
+
+// displayRejectedClientAlert creates an alert to notify admins that
+// unsupported Teleport versions exist in the cluster and are explicitly
+// being denied to prevent causing issues. Alerts are limited to being
+// created once per day to reduce backend writes if there are a large
+// number of unsupported clients constantly being rejected.
+func (a *Middleware) displayRejectedClientAlert(ctx context.Context, userAgent string) {
+	if a.AlertCreator == nil {
+		return
+	}
+
+	connectionType := "agents"
+	match := clientUARegex.FindStringSubmatch(userAgent)
+	if len(match) > 1 {
+		connectionType = match[1]
+	}
+
+	now := time.Now()
+	lastAlert := a.lastRejectedAlertTime.Load()
+	then := time.Unix(0, lastAlert)
+	if lastAlert != 0 && now.Before(then.Add(24*time.Hour)) {
+		return
+	}
+
+	if !a.lastRejectedAlertTime.CompareAndSwap(lastAlert, now.UnixNano()) {
+		return
+	}
+
+	alert, err := types.NewClusterAlert(
+		"rejected-unsupported-connection",
+		fmt.Sprintf("Connections were rejected from %s running unsupported Teleport versions(<%s), they will be inaccessible until upgraded.", connectionType, a.OldestSupportedVersion),
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+	)
+	if err != nil {
+		log.WithError(err).Warn("failed to create rejected-unsupported-connection alert")
+		return
+	}
+
+	if err := a.AlertCreator(ctx, alert); err != nil {
+		log.WithError(err).Warn("failed to persist rejected-unsupported-connection alert")
+		return
+	}
 }
 
 // withAuthenticatedUser returns a new context with the ContextUser field set to
@@ -748,7 +822,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
 // using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+func ClientCertPool(client authclient.AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
 	if len(caTypes) == 0 {
 		return nil, 0, trace.BadParameter("at least one CA type is required")
 	}
@@ -793,11 +867,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 		}
 	}
 	return pool, totalSubjectsLen, nil
-}
-
-// DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
 }
 
 // isProxyRole returns true if the certificate role is a proxy role.

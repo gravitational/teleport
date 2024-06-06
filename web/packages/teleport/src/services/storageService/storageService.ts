@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeprecatedThemeOption } from 'design/theme/types';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
+import { getPrefersDark } from 'design/ThemeProvider';
 
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
@@ -43,6 +43,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.LICENSE_ACKNOWLEDGED,
 ];
 
 export const storageService = {
@@ -172,16 +173,12 @@ export const storageService = {
 
   getThemePreference(): Theme {
     const userPreferences = storageService.getUserPreferences();
-    if (userPreferences) {
+    if (userPreferences && userPreferences.theme !== Theme.UNSPECIFIED) {
       return userPreferences.theme;
     }
 
-    const theme = this.getDeprecatedThemePreference();
-    if (theme) {
-      return theme === 'light' ? Theme.LIGHT : Theme.DARK;
-    }
-
-    return Theme.LIGHT;
+    const prefersDark = getPrefersDark();
+    return prefersDark ? Theme.DARK : Theme.LIGHT;
   },
 
   getOnboardUserPreference(): OnboardUserPreferences {
@@ -201,21 +198,14 @@ export const storageService = {
     };
   },
 
-  // DELETE IN 15 (ryan)
-  getDeprecatedThemePreference(): DeprecatedThemeOption {
-    return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
-  },
-
-  // TODO(ryan): remove in v15
-  clearDeprecatedThemePreference() {
-    window.localStorage.removeItem(KeysEnum.THEME);
-  },
-
-  arePinnedResourcesDisabled(): boolean {
+  getLicenseAcknowledged(): boolean {
     return (
-      window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
-      'true'
+      window.localStorage.getItem(KeysEnum.LICENSE_ACKNOWLEDGED) === 'true'
     );
+  },
+
+  setLicenseAcknowledged() {
+    window.localStorage.setItem(KeysEnum.LICENSE_ACKNOWLEDGED, 'true');
   },
 
   broadcast(messageType, messageBody) {

@@ -1,4 +1,4 @@
-VERSION?=15.1.10
+VERSION ?= $(shell go run ../hack/get-version/get-version.go)
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)

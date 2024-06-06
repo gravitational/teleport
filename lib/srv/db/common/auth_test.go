@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -967,9 +968,9 @@ func (m *authClientMock) GetAuthPreference(ctx context.Context) (types.AuthPrefe
 	return types.DefaultAuthPreference(), nil
 }
 
-// imdsMock is a mock that implements InstanceMetadata interface.
+// imdsMock is a mock that implements the [imds.Client] interface.
 type imdsMock struct {
-	cloud.InstanceMetadata
+	imds.Client
 	// GetID mocks.
 	id    string
 	idErr error

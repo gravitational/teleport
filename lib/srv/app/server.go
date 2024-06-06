@@ -25,17 +25,17 @@ import (
 	"context"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,10 +55,10 @@ type Config struct {
 	Clock clockwork.Clock
 
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.AppsAccessPoint
+	AccessPoint authclient.AppsAccessPoint
 
 	// Hostname is the hostname where this application agent is running.
 	Hostname string
@@ -90,6 +90,9 @@ type Config struct {
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
+
+	// InventoryHandle is used to send app server heartbeats via the inventory control stream.
+	InventoryHandle inventory.DownstreamHandle
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -135,7 +138,7 @@ type Server struct {
 	closeFunc    context.CancelFunc
 
 	mu            sync.RWMutex
-	heartbeats    map[string]*srv.Heartbeat
+	heartbeats    map[string]srv.HeartbeatI
 	dynamicLabels map[string]*labels.Dynamic
 
 	// apps are all apps this server currently proxies. Proxied apps are
@@ -199,7 +202,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		log: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentApp,
 		}),
-		heartbeats:    make(map[string]*srv.Heartbeat),
+		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		monitoredApps: monitoredApps{
@@ -296,17 +299,14 @@ func (s *Server) stopDynamicLabels(name string) {
 
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, app types.Application) error {
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Context:         s.closeContext,
-		Component:       teleport.ComponentApp,
-		Mode:            srv.HeartbeatModeApp,
-		Announcer:       s.c.AccessPoint,
-		GetServerInfo:   s.getServerInfoFunc(app),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
+	heartbeat, err := srv.NewAppServerHeartbeat(srv.HeartbeatV2Config[*types.AppServerV3]{
+		InventoryHandle: s.c.InventoryHandle,
+		GetResource:     s.getServerInfoFunc(app),
 		OnHeartbeat:     s.c.OnHeartbeat,
+		// Announcer is provided to allow falling back to non-ICS heartbeats if
+		// the Auth server is older than the app service.
+		// TODO(tross): DELETE IN 16.0.0
+		Announcer: s.c.AccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,42 +332,43 @@ func (s *Server) stopHeartbeat(name string) error {
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided application to the auth server.
-func (s *Server) getServerInfoFunc(app types.Application) func() (types.Resource, error) {
-	return func() (types.Resource, error) {
+func (s *Server) getServerInfoFunc(app types.Application) func() *types.AppServerV3 {
+	return func() *types.AppServerV3 {
 		return s.getServerInfo(app)
 	}
 }
 
 // getServerInfo returns up-to-date app resource.
-func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
+func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	server, err := types.NewAppServerV3(types.Metadata{
-		Name:    copy.GetName(),
-		Expires: &expires,
-	}, types.AppServerSpecV3{
-		Version:  teleport.Version,
-		Hostname: s.c.Hostname,
-		HostID:   s.c.HostID,
-		Rotation: s.getRotationState(),
-		App:      copy,
-		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return server, nil
+	return &types.AppServerV3{
+		Kind:    types.KindAppServer,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name:    copy.GetName(),
+			Expires: &expires,
+		},
+		Spec: types.AppServerSpecV3{
+			Version:  teleport.Version,
+			Hostname: s.c.Hostname,
+			HostID:   s.c.HostID,
+			Rotation: s.getRotationState(),
+			App:      copy,
+			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
+		},
+	}
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 		s.log.WithError(err).Warn("Failed to get rotation state.")
 	}
 	if rotation != nil {
@@ -400,17 +401,6 @@ func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 		}
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-// unregisterApp stops proxying the app.
-func (s *Server) unregisterApp(ctx context.Context, name string) error {
-	if err := s.stopApp(ctx, name); err != nil {
-		return trace.Wrap(err)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.apps, name)
 	return nil
 }
 
@@ -470,19 +460,54 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func (s *Server) close(ctx context.Context) error {
-	var errs []error
-
 	// Stop all proxied apps.
-	for _, app := range s.getApps() {
-		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-			errs = append(errs, trace.Wrap(s.unregisterAndRemoveApp(ctx, app.GetName())))
-		} else {
-			errs = append(errs, trace.Wrap(s.unregisterApp(ctx, app.GetName())))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(100)
+	for name := range s.apps {
+		name := name
+		heartbeat := s.heartbeats[name]
+
+		if dynamic, ok := s.dynamicLabels[name]; ok {
+			dynamic.Close()
+		}
+
+		if heartbeat != nil {
+			log := s.log.WithField("app", name)
+			log.Debug("Stopping app")
+			if err := heartbeat.Close(); err != nil {
+				s.log.WithError(err).Warnf("Failed to stop app %q.", name)
+			} else {
+				log.Debug("Stopped app")
+			}
+
+			if shouldDeleteApps {
+				g.Go(func() error {
+					log.Debug("Deleting app")
+					if err := s.removeAppServer(gctx, name); err != nil {
+						log.WithError(err).Warnf("Failed to delete app %q.", name)
+					} else {
+						log.Debugf("Deleted app")
+					}
+					return nil
+				})
+			}
 		}
 	}
 
-	connectionHandlerClosingErrs := s.c.ConnectionsHandler.Close(ctx)
-	errs = append(errs, connectionHandlerClosingErrs...)
+	if err := g.Wait(); err != nil {
+		s.log.WithError(err).Warn("Deleting all apps failed")
+	}
+
+	clear(s.apps)
+	clear(s.dynamicLabels)
+	clear(s.heartbeats)
+
+	errs := s.c.ConnectionsHandler.Close(ctx)
 
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
@@ -499,19 +524,6 @@ func (s *Server) close(ctx context.Context) error {
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
 	return s.closeContext.Err()
-}
-
-// ForceHeartbeat is used in tests to force updating of app servers.
-func (s *Server) ForceHeartbeat() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for name, heartbeat := range s.heartbeats {
-		s.log.Debugf("Forcing heartbeat for %q.", name)
-		if err := heartbeat.ForceSend(time.Second); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // HandleConnection takes a connection and wraps it in a listener, so it can

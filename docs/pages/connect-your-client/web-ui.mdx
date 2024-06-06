@@ -31,3 +31,52 @@ You must have the `join_sessions` allow policy in a role you've been assigned to
 For information about how to configure the `join_sessions` allow policy and participant modes for a role, see 
 [Configure an allow policy](../access-controls/guides/moderated-sessions.mdx#configure-an-allow-policy).
 
+## Idle timeout
+
+After you log in, the Teleport Web UI checks every 30 seconds if your session is inactive. If so, it
+logs you out. A session is considered inactive if more than 10 minutes have passed since you last
+interacted with any Web UI browser tab, either through keyboard input or mouse movement and clicks.
+
+To change the default idle timeout of 10 minutes, ask your cluster admin to adjust the
+`web_idle_timeout` setting in the Auth Service configuration.
+
+<Tabs>
+<TabItem scope={["cloud", "team"]} label="Dynamic Resources (All Editions)">
+
+Use `tctl` to edit the `cluster_networking_config` value:
+
+```code
+$ tctl edit cluster_networking_config
+```
+
+Change the value of `spec.web_idle_timeout`:
+
+```yaml
+kind: cluster_networking_config
+metadata:
+  ...
+spec:
+  ...
+  web_idle_timeout: 10m0s
+  ...
+version: v2
+```
+
+After you save and exit the editor, `tctl` will update the resource:
+
+```text
+cluster networking configuration has been updated
+```
+
+</TabItem>
+<TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+
+Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+
+```yaml
+auth_service:
+  web_idle_timeout: 10m0s
+```
+
+</TabItem>
+</Tabs>

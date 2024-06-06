@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,7 +66,7 @@ type AppOrSAMLIdPServiceProvider struct {
 }
 
 // GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
+func (c *Cluster) GetApps(ctx context.Context, authClient authclient.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
 		err  error
@@ -125,7 +125,7 @@ type GetAppsResponse struct {
 	TotalCount int
 }
 
-func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
+func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
@@ -148,8 +148,8 @@ func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName s
 	return app, trace.Wrap(err)
 }
 
-// reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
+// ReissueAppCert issue new certificates for the app and saves them to disk.
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
@@ -177,7 +177,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	defer rootClient.Close()
-	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

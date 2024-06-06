@@ -115,9 +115,6 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		authPreference.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		authPreference.SetRevision(cfg.Revision)
 	}
@@ -139,9 +136,8 @@ func MarshalAuthPreference(c types.AuthPreference, opts ...MarshalOption) ([]byt
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
+		if !cfg.PreserveRevision {
 			copy := *c
-			copy.SetResourceID(0)
 			copy.SetRevision("")
 			c = &copy
 		}

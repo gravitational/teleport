@@ -1077,6 +1077,12 @@ export interface ListUnifiedResourcesRequest {
      * @generated from protobuf field: bool pinned_only = 9;
      */
     pinnedOnly: boolean;
+    /**
+     * include_requestable indicates that the response should include resources that the user must request access to.
+     *
+     * @generated from protobuf field: bool include_requestable = 10;
+     */
+    includeRequestable: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.SortBy
@@ -1145,6 +1151,10 @@ export interface PaginatedResource {
     } | {
         oneofKind: undefined;
     };
+    /**
+     * @generated from protobuf field: bool requires_request = 5;
+     */
+    requiresRequest: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetUserPreferencesRequest
@@ -4884,7 +4894,8 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
             { no: 6, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "sort_by", kind: "message", T: () => SortBy },
             { no: 8, name: "search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 10, name: "include_requestable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ListUnifiedResourcesRequest>): ListUnifiedResourcesRequest {
@@ -4897,6 +4908,7 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         message.search = "";
         message.searchAsRoles = false;
         message.pinnedOnly = false;
+        message.includeRequestable = false;
         if (value !== undefined)
             reflectionMergePartial<ListUnifiedResourcesRequest>(this, message, value);
         return message;
@@ -4932,6 +4944,9 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
                     break;
                 case /* bool pinned_only */ 9:
                     message.pinnedOnly = reader.bool();
+                    break;
+                case /* bool include_requestable */ 10:
+                    message.includeRequestable = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4972,6 +4987,9 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         /* bool pinned_only = 9; */
         if (message.pinnedOnly !== false)
             writer.tag(9, WireType.Varint).bool(message.pinnedOnly);
+        /* bool include_requestable = 10; */
+        if (message.includeRequestable !== false)
+            writer.tag(10, WireType.Varint).bool(message.includeRequestable);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5099,12 +5117,14 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 1, name: "database", kind: "message", oneof: "resource", T: () => Database },
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
-            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App }
+            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
+            { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<PaginatedResource>): PaginatedResource {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.resource = { oneofKind: undefined };
+        message.requiresRequest = false;
         if (value !== undefined)
             reflectionMergePartial<PaginatedResource>(this, message, value);
         return message;
@@ -5138,6 +5158,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
+                case /* bool requires_request */ 5:
+                    message.requiresRequest = reader.bool();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -5162,6 +5185,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* bool requires_request = 5; */
+        if (message.requiresRequest !== false)
+            writer.tag(5, WireType.Varint).bool(message.requiresRequest);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -30,8 +30,8 @@ import (
 // `tsh proxy ssh` which results in much less memory and cpu consumption. This will
 // eventually supersede `tbot proxy ssh` as it becomes more feature rich and supports
 // all the edge cases.
-func onSSHProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	if cf.Port == "" {
@@ -39,7 +39,9 @@ func onSSHProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	proxySSHConfig := tbot.ProxySSHConfig{
-		BotConfig:                 botConfig,
+		DestinationPath:           cf.DestinationDir,
+		Insecure:                  cf.Insecure,
+		FIPS:                      cf.FIPS,
 		ProxyServer:               cf.ProxyServer,
 		Cluster:                   cf.Cluster,
 		User:                      cf.User,
