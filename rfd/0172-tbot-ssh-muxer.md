@@ -97,9 +97,7 @@ Comparing Rust and Go for this lightweight binary:
 
 For this binary, we will use Rust.
 
-### Scope
-
-#### Initial Scope
+### Initial Scope
 
 For the initial version, we must include:
 
@@ -117,9 +115,9 @@ For the initial version, we must include:
 - OpenTelemetry trace spans at key points.
   - This will allow us to target future performance improvements.
 
-#### Future Scope
+### Future Scope
 
-##### Caching
+#### Caching
 
 We can further improve performance by caching the results of operations such as
 resolving the target host from labels.
@@ -128,7 +126,7 @@ This work is deferred as it is complex and introduces risks. Information from
 OpenTelemetry tracing will allow us to target the most impactful areas at a 
 later date.
 
-##### Upstream Connection Pooling
+#### Upstream Connection Pooling
 
 The initial version will not share the upstream connections to the Teleport
 Proxy.
