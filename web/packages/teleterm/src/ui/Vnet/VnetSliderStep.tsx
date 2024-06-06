@@ -86,9 +86,17 @@ export const VnetSliderStep = (props: StepComponentProps) => {
               .
             </Text>
           ) : (
-            <Text>
-              VNet automatically authenticates connections to TCP apps.
-            </Text>
+            <>
+              <Text>
+                VNet enables any program to connect to TCP applications
+                protected by Teleport.
+              </Text>
+              <Text>
+                Just start VNet and connect to any TCP app over its public
+                address – VNet authenticates the connection for you under the
+                hood.
+              </Text>
+            </>
           ))}
       </Flex>
 
