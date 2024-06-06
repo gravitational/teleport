@@ -2143,6 +2143,8 @@ type GenerateUserTestCertsRequest struct {
 	PinnedIP             string
 	MFAVerified          string
 	AttestationStatement *keys.AttestationStatement
+	AppName              string
+	AppSessionID         string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2173,6 +2175,8 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		pinIP:                req.PinnedIP != "",
 		mfaVerified:          req.MFAVerified,
 		attestationStatement: req.AttestationStatement,
+		appName:              req.AppName,
+		appSessionID:         req.AppSessionID,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
