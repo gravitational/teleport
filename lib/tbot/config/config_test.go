@@ -283,6 +283,11 @@ func TestBotConfig_YAML(t *testing.T) {
 					&ExampleService{
 						Message: "llama",
 					},
+					&SSHProxyService{
+						Destination: &DestinationDirectory{
+							Path: "/bot/output",
+						},
+					},
 				},
 			},
 		},
