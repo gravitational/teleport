@@ -20,17 +20,29 @@ package tbot
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // SSHProxyService
 type SSHProxyService struct {
-	cfg *config.SSHProxyService
+	cfg         *config.SSHProxyService
+	svcIdentity *config.UnstableClientCredentialOutput
+	botCfg      *config.BotConfig
+	log         *slog.Logger
+	resolver    reversetunnelclient.Resolver
+
+	// client holds the impersonated client for the service
+	client *authclient.Client
 }
 
 func (s *SSHProxyService) Run(ctx context.Context) error {
-	return nil
+	return trace.NotImplemented("SSHProxyService.Run is not implemented")
 }
 
 func (s *SSHProxyService) String() string {
