@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -96,6 +97,12 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		// profileName is the web proxy address, add the default DNS zone for it.
 		// TODO(nklaassen): add the custom DNS zones as well, after the rest of VNet supports it.
 		dnsZones = append(dnsZones, profileName)
+		for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
+			suffix := zone.GetSuffix()
+			// Trim any leading or trailing "." to match expected format.
+			zone := strings.TrimPrefix(strings.TrimSuffix(suffix, "."), ".")
+			dnsZones = append(dnsZones, zone)
+		}
 
 		cidrRange := cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 		cidrRanges = append(cidrRanges, cidrRange)
@@ -123,11 +130,9 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	return trace.Wrap(err, "configuring OS")
 }
 
-func (c *osConfigurator) deconfigureOS() error {
+func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	// Pass context.Background() because we are likely deconfiguring because we received a signal to terminate
-	// and all contexts have been canceled.
-	return trace.Wrap(configureOS(context.Background(), &osConfig{}))
+	return trace.Wrap(configureOS(ctx, &osConfig{}))
 }
 
 func (c *osConfigurator) setTunIPv4FromCIDR(cidrRange string) error {

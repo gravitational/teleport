@@ -64,7 +64,7 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 	members := make([]*accesslist.AccessListMember, len(msgs))
 	for i, msg := range msgs {
 		var err error
-		members[i], err = FromMemberProto(msg)
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
