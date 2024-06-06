@@ -93,9 +93,6 @@ spec:
   agent_auto_update: true|false
   # agent_update_hour sets the hour in UTC at which clients should update their agents.
   agent_update_hour: 0-23
-  # agent_update_now overrides agent_update_hour and serves the new version immediately.
-  # This is useful for rolling out critical security updates and bug fixes.
-  agent_update_now: on|off
   # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
   # The agent upgrader will pick a random time within this duration to wait to upgrade.
   agent_update_jitter_seconds: 0-3600
@@ -107,12 +104,17 @@ $ tctl autoupdate update --set-agent-auto-update=off
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-hour=3
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-update-now=true
-Automatic updates configuration has been updated.
 $ tctl autoupdate update --set-agent-update-jitter-seconds=600
 Automatic updates configuration has been updated.
 $ tctl autoupdate reset
 Automatic updates configuration has been reset to defaults.
+$ tctl autoupdate status
+Status: disabled
+Current: v1.2.3
+Desired: v1.2.4 (critical)
+Window: 3
+Jitter: 600s
+
 ```
 
 ```yaml
@@ -120,6 +122,10 @@ kind: autoupdate_version
 spec:
   # agent_version is the version of the agent the cluster will advertise.
   agent_version: X.Y.Z
+  # agent_critical makes the version as critical.
+  # This overrides agent_update_hour in cluster_maintenance_config and serves the version immediately.
+  # This is useful for rolling out critical security updates and bug fixes.
+  agent_critical: true|false
 
   [...]
 ```
