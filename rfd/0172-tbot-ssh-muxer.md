@@ -51,9 +51,9 @@ data between the socket and the upstream connection.
 
 The client will be configured as the `ProxyCommand`, and additionally
 `ProxyUseFdpass` will be enabled. The `ProxyUseFdPass` allows the `ProxyCommand`
-to return an FD via STDOUT which should be used for the connection, rather than
-the `ProxyCommand` actively performing the proxying. This will allow the client
-process to return the FD to OpenSSH and then exit.
+to return an FD via STDOUT using `sendmsg`, rather than the `ProxyCommand`
+actively forwarding the connection. This means the client can exit after the
+connection to the local proxy is established.
 
 This solution means that whilst a process will be spun up for each SSH
 connection, it will return after the connection is established. This reduces the
@@ -68,6 +68,8 @@ The Unix socket will implement a simple protocol:
   a. The message will be encoded in JSON. This will allow more fields to be 
     added in the future without breaking compatability.
   b. The `host_port` field will be a string in the format `host:port`.
+2. The server will establish a connection to the target, and then begin
+   forwarding data between the local connection and the target.
 
 Also considered was implementing the SOCKS5 protocol. Whilst this is more 
 standardized, it is more complicated than necessary. It also relies on our
