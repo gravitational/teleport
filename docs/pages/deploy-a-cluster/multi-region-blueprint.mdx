@@ -1,5 +1,5 @@
 ---
-title: "Multi-region blueprint"
+title: "Multi-region Blueprint"
 description: "Blueprint describing how to deploy a multi-region Teleport Enterprise cluster using CockroachDB."
 ---
 
@@ -22,11 +22,12 @@ Before continuing, you must acknowledge the following warnings:
   capacity and expertise to deploy and operate such components, you will end
   up with a lower availability than a single-region multi-zone setup.
 - You are responsible for deploying and maintaining the Teleport dependencies
-  including the database, object storage, container runtime, network plugins, ...
+  including the database, object storage, container runtime, network plugins
+  and anything else which is required.
 
 <Admonition type="tip">
 
-For the teams with limited bandwidth who need multi-region clusters, Teleport
+For teams with limited bandwidth who need multi-region clusters, Teleport
 offers to host cross-region clusters. You can benefit from the
 setup described in this document without the operational costs and complexity,
 see [the Teleport Enterprise Cloud page](../choose-an-edition/teleport-cloud/introduction.mdx)
@@ -39,7 +40,7 @@ for more details.
 A multi-region Teleport deployment is composed of several regional Teleport
 deployments. Teleport stores its state in a multi-region backend and uses
 [Proxy Peering](../architecture/proxy-peering.mdx) to connect users to resources
-hosted a different region.
+hosted in a different region.
 
 The recommended multi-region backend
 is [the CockroachDB backend](../reference/backends.mdx#cockroachdb)
@@ -62,7 +63,7 @@ To run a multi-region Teleport deployment, you must have:
 ## Implementing multi-region Teleport on Kubernetes
 
 Teams with Kubernetes infrastructure will want to host Teleport in Kubernetes.
-This section describes this setup with more details.
+This section describes this setup in more detail.
 
 ### Teleport Dependencies
 
@@ -71,7 +72,7 @@ This section describes this setup with more details.
 - Ensure pod mesh connectivity. Proxy pods must be able to dial each other
   [on port 3021](../reference/networking.mdx#ports). The setup will vary
   based on your network and CNI plugin configuration:
-    - If pods are using the native network layer (GKE, AWS vpc-cni addon, ...)
+    - If pods are using the native network layer (for example GKE, or AWS' vpc-cni addon)
       you can rely on pure VPC peering, routing, and firewall capabilities to
       connect pods from each Kubernetes cluster.
     - If pods are given non-native IP addresses, you can use the Cilium
@@ -96,7 +97,7 @@ Create Teleport databases and user in CockroachDB:
   SET CLUSTER SETTING kv.rangefeed.enabled = true;
   ```
 
-Then sign a certificate for the `telpeort` user
+Then sign a certificate for the `teleport` user
 with [the `cockroach certs` command](https://www.cockroachlabs.com/docs/stable/cockroach-cert).
 
 You must end up with 3 files:
@@ -105,8 +106,8 @@ You must end up with 3 files:
 - `ca.crt`
 
 <Tabs>
-<TabItem label="CockroachDB enterprise">
-For CockroachDB enterprise you must declare both zones and regions to
+<TabItem label="CockroachDB Enterprise">
+For CockroachDB Enterprise you must declare both zones and regions to
 CockroachDB and configure regional fault tolerance on the database.
 
 ```sql
@@ -123,7 +124,7 @@ ALTER DATABASE teleport_audit SURVIVE REGION FAILURE;
 
 <Admonition type="note" title="Impact of the CockroachDB regions">
     CockroachDB stores the Teleport data in two regions. If you only deploy two
-    regional Teleport clusters, pick the same regions. IF you deploy 3 Teleport
+    regional Teleport clusters, pick the same regions. If you deploy 3 Teleport
     clusters, the ones in the primary and secondary regions will experience
     lower database latency.
 
@@ -143,7 +144,7 @@ ALTER DATABASE teleport_audit SURVIVE ZONE FAILURE;
 ```
 
 <Admonition type="note">
-    CockroachDB core does not offer the regional features CockroachDB enterprise
+    CockroachDB core does not offer the regional features CockroachDB Enterprise
     does. The performance might be impacted. CockroachDB core is not recommended
     for production in multi-region setups.
 </Admonition>
@@ -155,7 +156,7 @@ ALTER DATABASE teleport_audit SURVIVE ZONE FAILURE;
 
 Once all Teleport dependencies are set up, you can deploy Teleport via the
 `teleport-cluster` Helm chart. You need to create one release per Kubernetes cluster.
-The values for a specific region look like:
+Here is an example of the values for one specific region:
 
 ```yaml
 chartMode: standalone
@@ -202,7 +203,7 @@ auth:
     - name: PGSSLKEY
       value: /var/lib/db-certs/client.teleport.key
 
-# Pass the TLS certificate use by the proxy
+# Pass the TLS certificate to be used by the proxy
 # This can be omitted if you use cert-manager and set `highAvailability.certManager`
 tls:
   existingSecretName: proxy-cert
@@ -228,7 +229,7 @@ Strictly following Teleport compatibility guarantees requires downscaling to a
 single auth before updating. In a multi-region setup, this requires:
 
 - relying on a single region for auth during the update
-- suspending two regions, ot allowing proxies to connect to auths from a
+- suspending two regions, or allowing proxies to connect to auths from a
   different region (this is not the case by default and requires a Cilium
   cross-cluster service and a custom join token for the Proxy Service).
 
@@ -236,7 +237,7 @@ single auth before updating. In a multi-region setup, this requires:
 
     It's possible to do Auth rolling updates. In such case, multiple auth
     versions might be running concurrently. Newly introduced resource fields
-    might not be properly set until all auth are rolled out.
+    might not be properly set until all auths are rolled out.
 
     This consistency/usability tradeoff can be acceptable if the rollout period
     is short and the version difference is minimal.
@@ -258,21 +259,21 @@ details on how to size Teleport.
 
 Teleport load varies depending on the usage type (number of connected
 nodes, number of protected resources, number of roles, concurrent connections,
-user activity, ...), so you will need to test and adapt the sizing based on your
+and user activity), so you will need to test and adapt the sizing based on your
 specific needs.
 
 
 <Admonition type="important">
     When running on Kubernetes, unless you are using [the static CPU
     policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy)
-    we don't recommend setting CPU limits to Teleport nor CockroachDB pods.
+    we don't recommend setting CPU limits on either Teleport or CockroachDB pods.
 
     Due to the way CPU throttling is implemented, multi-threaded I/O-intensive
     applications such as Teleport and CockroachDB will degrade as soon as they
     reach the CPU limit. This will lead to a service disruption and very likely
     to a complete outage.
 
-    As rule of thumb, most critical pod `resources` section should look like this:
+    As a rule of thumb, most critical pods' `resources` section should look like this:
 
     ```yaml
     resources:
@@ -309,6 +310,6 @@ Terraform. With 3 buckets `bucketA`, `bucketB`, `bucketC` you need 6 rules:
 - from `bucketC` to `bucketB`
 
 <Admonition type="note">
-    If you want Teleport to automatically cleanup session recordings, you must
-    to enable "Delete marker replication" in the replication rules.
+    If you want Teleport to automatically clean up session recordings, you must
+    enable "Delete marker replication" in the replication rules.
 </Admonition>
