@@ -406,6 +406,8 @@ func onProxyCommandApp(cf *CLIConf) error {
 	// Virtual profiles (e.g. indirect use via `tbot proxy app`) will attempt
 	// relogin which is not possible. For these, we'll need to load the app
 	// certificate manually and prepend the config option.
+	// TODO(timothyb89): Remove this workaround in favor of
+	// https://github.com/gravitational/teleport/pull/40985 once it is merged.
 	if profile.IsVirtual {
 		cert, needLogin, err := loadAppCertificate(tc, app.GetName())
 		if err != nil {
