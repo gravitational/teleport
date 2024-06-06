@@ -244,6 +244,11 @@ export function RequestCheckout<T extends PendingListItem>({
                 data={data}
                 columns={[
                   {
+                    key: 'clusterName',
+                    headerText: 'Cluster Name',
+                    isNonRender: !showClusterNameColumn,
+                  },
+                  {
                     key: 'kind',
                     headerText: 'Type',
                     render: item => (
@@ -253,11 +258,6 @@ export function RequestCheckout<T extends PendingListItem>({
                   {
                     key: 'name',
                     headerText: 'Name',
-                  },
-                  {
-                    key: 'clusterName',
-                    headerText: 'Cluster Name',
-                    isNonRender: !showClusterNameColumn,
                   },
                   {
                     altKey: 'delete-btn',
