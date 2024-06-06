@@ -1,6 +1,7 @@
 resource "random_string" "token" {
-  count  = var.agent_count
-  length = 32
+  count            = var.agent_count
+  length           = 32
+  override_special = "-.+"
 }
 
 resource "teleport_provision_token" "agent" {
