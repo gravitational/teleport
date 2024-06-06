@@ -2717,11 +2717,6 @@
       "permanent": true
     },
     {
-      "source": "/machine-id/",
-      "destination": "/machine-id/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/api/",
       "destination": "/api/introduction/",
       "permanent": true
