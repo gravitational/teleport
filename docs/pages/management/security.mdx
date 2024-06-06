@@ -15,10 +15,9 @@ You should note that the security practices covered in this section aren't neces
 examples used in the documentation. Examples in the documentation are primarily intended for demonstration 
 purposes and for development environments.
 
-- [Restrict Access for Privileged Accounts](./security/restrict-privileges.mdx). Learn about potential 
-   risks of allowing privileged access and how to mitigate them.
-- [Reducing the Blast Radius of Attacks](./security/reduce-blast-radius.mdx).
-  Prevent attackers from accessing your infrastructure even if they manage to
-  obtain passwords or certificates.
-- [Revoking Access](./security/revoking-access.mdx). Revoke access in the event
-  of a compromise.
+{/*TOPICS*/}
+
+- [PROXY protocol](security/proxy-protocol.mdx): How to securely configure PROXY protocol usage with Teleport
+- [Reducing the Blast Radius of Attacks](security/reduce-blast-radius.mdx): How to configure Teleport to minimize the scope of security breaches
+- [Restrict Access for Privileged Accounts](security/restrict-privileges.mdx): Explains the risks of root-level access to Teleport-protected resources.
+- [Revoking Access](security/revoking-access.mdx): Learn how to revoke access before Teleport certificates expire
