@@ -33,7 +33,7 @@ This has a few drawbacks:
 - Monitoring a large number of short-lived `tbot` processes is difficult.
 - There is no easy way to implement global ratelimits and backoffs across all
   the short-lived `tbot` processes. This makes gracefully handling upstream
-  outages 
+  outages problematic.
 
 ## Details
 
