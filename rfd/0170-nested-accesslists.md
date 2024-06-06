@@ -1,5 +1,5 @@
 ---
-title: RFD 0XYZ - Nested Access lists
+title: RFD 0170 - Nested Access lists
 authors: Alex McGrath (alex.mcgrath@goteleport.com)
 state: in development
 ---
@@ -43,7 +43,7 @@ spec:
       #  A user becomes an access list member if its a member of the access list
       - ea4cbbc7-bee1-49b3-bf78-734b4b27ea38
   dynamic_owners:
-    - access_list_owners:
+    access_list_owners:
       # A user becomes an access list owner if its a member of the access list
       - 3e9df1e7-0b8a-4984-b2e8-5bc0d7b356a9
   title: access-list-a
@@ -53,9 +53,9 @@ version: v1
 These fields will contain a list of other access lists that will be
 included in the access list.
 
-Access lists included in `member_access_lists` and
-`owner_access_lists` will take the membership only from the list of
-members in the included access list.
+Access lists included in `dynamic_members.access_list_members` and
+`dynamic_members.access_list_owners` will take the membership only
+from the list of members in the included access list.
 
 # Implementation considerations
 
@@ -85,7 +85,7 @@ users.
 ## Impact on access requests
 
 Access request suggested reviewers will include members included in
-the `owner_access_lists` field.
+the `dynamic_access_lists.access_list_owners` field.
 
 The suggested lists field will remain operating as it presently does,
 only showing the list that actually grants the resource.
@@ -134,8 +134,8 @@ spec:
     - reviewer
     traits: {}
   # list of references to other access lists, for users to include in this access list
-  member_access_lists:
-  - name: acl-c
+  dynamic_members:
+    access_list_members: "acl-c"
   title: access-list-a
 version: v1
 ---
@@ -148,8 +148,8 @@ spec:
     - manager
     traits: {}
   # list of references to other access lists, for users to include in this access list
-  member_access_lists:
-  - name: acl-a
+  dynamic_members:
+    access_list_members: "acl-a"
   title: access-list-a
 version: v1
 
