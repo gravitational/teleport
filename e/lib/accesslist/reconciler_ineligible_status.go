@@ -153,6 +153,7 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 			return trace.Wrap(r.watcher.Error())
 		case <-reconcile:
 		case <-t.Chan():
+		case <-forceReconcile.Chan():
 		}
 
 	}
