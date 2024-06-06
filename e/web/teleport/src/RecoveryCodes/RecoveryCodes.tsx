@@ -7,8 +7,15 @@ import selectElementContent from 'design/utils/selectElementContent';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { StyledCheckbox } from 'design/Checkbox';
 import * as Icon from 'design/Icon';
+import { RecoveryCodes as RecoveryCodesData } from 'teleport/services/auth';
 
-import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
+export type RecoveryCodesProps = {
+  recoveryCodes: RecoveryCodesData;
+  onContinue: () => void;
+  isNewCodes: boolean;
+  continueText?: string;
+  username?: string;
+};
 
 export function RecoveryCodes({
   recoveryCodes,

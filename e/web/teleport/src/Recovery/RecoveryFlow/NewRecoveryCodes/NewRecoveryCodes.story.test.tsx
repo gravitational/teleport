@@ -3,14 +3,13 @@ import { render } from 'design/utils/testing';
 
 import { Loaded, Failed } from './NewRecoveryCodes.story';
 
-test('render recovery codes', () => {
-  const { container } = render(<Loaded />);
+// TODO(bl-nero): Snapshot tests removed. Tests to be replaced by Storybook
+// snapshot tests. See https://github.com/gravitational/teleport/issues/19185.
 
-  expect(container.firstChild).toMatchSnapshot();
+test('render recovery codes', () => {
+  render(<Loaded />);
 });
 
 test('render failed state for recovery codes', () => {
-  const { container } = render(<Failed />);
-
-  expect(container.firstChild).toMatchSnapshot();
+  render(<Failed />);
 });
