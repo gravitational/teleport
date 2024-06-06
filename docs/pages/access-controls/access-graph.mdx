@@ -12,6 +12,8 @@ users, roles, and resources in your organization. It can help you answer questio
 - What users can access a specific resource?
 - What are the relationships between users, roles, and resources?
 
+## Getting started with Teleport Policy
+
 Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is only 
 available to Teleport Enterprise customers.
 
@@ -19,6 +21,50 @@ After logging into the Teleport UI, go to the Management tab. If enabled, Access
 under the Permission Management section.
 
 ![Teleport Access Graph](../../img/access-graph/main-view.png)
+
+## Prerequisites 
+
+Self-hosted vs Enterprise 
+
+## Configuration
+
+User role requirememnts, nresources, etc
+
+## How to use it
+
+Teleport Access Graph can help you to answer questions like:
+
+- Who can access a specific resource?
+
+![Show Access Path Resource](../../img/access-graph/show-access-path-resource.gif)
+
+- What resources can a specific user access?
+
+![Show Access Path](../../img/access-graph/show-access-path.gif)
+
+## Navigation
+
+![Navigation](../../img/access-graph/sidebar.png)
+
+The left hand side menu contains the main navigation options:
+
+- Graph view
+- Search
+- SQL editor
+- Integrations
+
+## Graph View
+
+Graph view is the main view that shows the connections between identities and resources.
+By default, an aggregated view of access paths grouped by identity is showed.
+
+## Search
+
+To search for a graph node use the search bar at the top of the page or the search icon on the right hand side.
+
+![Search](../../img/access-graph/search.png)
+
+You can then search through all node types and all imported entities.
 
 ## Graph nodes
 
@@ -72,6 +118,8 @@ The number on the right hand side shows the number of resources that a resource 
 Resources are the things that users can or cannot access. They can be
 servers, databases, or Kubernetes clusters.
 
+## Connecting to resources
+
 ## Graph paths
 
 Teleport Access Graph shows the relationships between users, roles, and
@@ -100,42 +148,6 @@ and what actions they can perform.
 Deny paths connect identities to resources. They show what an identity cannot access
 and what actions they cannot perform. Deny paths take precedence over allow
 paths.
-
-## How to use it
-
-Teleport Access Graph can help you to answer questions like:
-
-- Who can access a specific resource?
-
-![Show Access Path Resource](../../img/access-graph/show-access-path-resource.gif)
-
-- What resources can a specific user access?
-
-![Show Access Path](../../img/access-graph/show-access-path.gif)
-
-## Navigation
-
-![Navigation](../../img/access-graph/sidebar.png)
-
-The left hand side menu contains the main navigation options:
-
-- Graph view
-- Search
-- SQL editor
-- Integrations
-
-## Graph View
-
-Graph view is the main view that shows the connections between identities and resources.
-By default, an aggregated view of access paths grouped by identity is showed.
-
-## Search
-
-To search for a graph node use the search bar at the top of the page or the search icon on the right hand side.
-
-![Search](../../img/access-graph/search.png)
-
-You can then search through all node types and all imported entities.
 
 ## SQL Editor
 
