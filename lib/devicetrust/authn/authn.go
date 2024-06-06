@@ -131,6 +131,34 @@ func (c *Ceremony) run(
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	// Fetch device data early, this automatically excludes unsupported platforms
 	// and unenrolled devices.
+	_, err := c.GetDeviceCredential()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	stream, err := devicesClient.AuthenticateDevice(ctx)
+	if err != nil {
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+	}
+	defer stream.CloseSend()
+
+	rsp, err := c.runWithStream(stream, init)
+	return rsp, trace.Wrap(err)
+
+}
+
+// RunWithStream performs the client-side device authentication ceremony
+// using the provided stream.
+func (c *Ceremony) RunWithStream(
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	init *devicepb.AuthenticateDeviceInit,
+) (*devicepb.AuthenticateDeviceResponse, error) {
+	return c.runWithStream(stream, init)
+}
+
+func (c *Ceremony) runWithStream(
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	init *devicepb.AuthenticateDeviceInit,
+) (*devicepb.AuthenticateDeviceResponse, error) {
 	cred, err := c.GetDeviceCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,12 +167,6 @@ func (c *Ceremony) run(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	stream, err := devicesClient.AuthenticateDevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
-	}
-	defer stream.CloseSend()
 
 	// 1. Init.
 	init.CredentialId = cred.Id

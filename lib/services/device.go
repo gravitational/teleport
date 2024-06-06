@@ -19,11 +19,19 @@
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+type DevicesGetter interface {
+	ListDevices(ctx context.Context, pageSize int, pageToken string, view devicepb.DeviceView) (devices []*devicepb.Device, nextPageToken string, err error)
+}
 
 // UnmarshalDevice unmarshals a DeviceV1 resource and runs CheckAndSetDefaults.
 func UnmarshalDevice(raw []byte) (*types.DeviceV1, error) {
@@ -41,4 +49,23 @@ func MarshalDevice(dev *types.DeviceV1) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return devBytes, nil
+}
+
+var (
+	// UnmarshalDeviceFromBackendItemConv is a convenience function that converts
+	// a backend.Item to a *devicepb.Device.
+	// It's populated when e/lib/devicetrust/storage/ is initialized.
+	UnmarshalDeviceFromBackendItemConv func(item backend.Item) (*devicepb.Device, error)
+)
+
+// UnmarshalDeviceFromBackendItem unmarshals a devicepb.Device from a backend.Item.
+// It's a convenience function that uses UnmarshalDeviceFromBackendItemConv because
+// the storage package uses an internal representation of devicepb.Device when storing
+// it in the backend.
+func UnmarshalDeviceFromBackendItem(item backend.Item) (*devicepb.Device, error) {
+	if UnmarshalDeviceFromBackendItemConv == nil {
+		return nil, trace.BadParameter("UnmarshalDeviceFromBackendItemConv is not set")
+	}
+	res, err := UnmarshalDeviceFromBackendItemConv(item)
+	return res, trace.Wrap(err)
 }

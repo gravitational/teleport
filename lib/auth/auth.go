@@ -600,6 +600,8 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.AccessGraphSecrets
+	services.DevicesGetter
 }
 
 // SecReportsClient returns the security reports client.
@@ -670,6 +672,16 @@ func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContai
 // DatabaseObjectsClient returns the database objects client.
 func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
 	return r
+}
+
+// AccessGraphSecretsService returns the AccessGraph secrets service.
+func (r *Services) AccessGraphSecretsService() services.AccessGraphSecrets {
+	return r.AccessGraphSecrets
+}
+
+// DevicesService returns the trusted devices service.
+func (r *Services) DevicesService() services.DevicesGetter {
+	return r.DevicesGetter
 }
 
 var (
@@ -1752,6 +1764,16 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
+}
+
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecrets) {
+	a.Services.AccessGraphSecrets = s
+}
+
+// SetDeviceService sets the server's device service
+func (a *Server) SetDeviceService(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
 }
 
 // SetAuditLog sets the server's audit log

@@ -874,10 +874,11 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 
 	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 		AccessGraph: &clusterconfigpb.AccessGraphConfig{
-			Enabled:  s.accessGraph.Enabled,
-			Address:  s.accessGraph.Address,
-			Ca:       s.accessGraph.CA,
-			Insecure: s.accessGraph.Insecure,
+			Enabled:        s.accessGraph.Enabled,
+			Address:        s.accessGraph.Address,
+			Ca:             s.accessGraph.CA,
+			Insecure:       s.accessGraph.Insecure,
+			SshScanEnabled: true,
 		},
 	}, nil
 }

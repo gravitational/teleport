@@ -33,8 +33,8 @@ func NewServiceWrapper[T types.ResourceMetadata](
 	resourceKind string,
 	backendPrefix string,
 	marshalFunc MarshalFunc[T],
-	unmarshalFunc UnmarshalFunc[T]) (*ServiceWrapper[T], error) {
-
+	unmarshalFunc UnmarshalFunc[T],
+) (*ServiceWrapper[T], error) {
 	cfg := &ServiceConfig[resourceMetadataAdapter[T]]{
 		Backend:       backend,
 		ResourceKind:  resourceKind,
@@ -131,6 +131,20 @@ func (s ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, page
 		out = append(out, adapter.resource)
 	}
 	return out, nextToken, trace.Wrap(err)
+}
+
+// ListResources returns a paginated list of resources.
+func (s ServiceWrapper[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
+	adapters, nextAdapter, err := s.service.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	out := make([]T, 0, len(adapters))
+	for _, adapter := range adapters {
+		out = append(out, adapter.resource)
+	}
+	var next *T
+	if nextAdapter != nil {
+		next = &nextAdapter.resource
+	}
+	return out, next, trace.Wrap(err)
 }
 
 // ListResourcesWithFilter returns a paginated list of resources that match the provided filter.

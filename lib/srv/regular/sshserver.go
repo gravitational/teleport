@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"os"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
+	authorizedkeys "github.com/gravitational/teleport/lib/srv/authorized_keys"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -849,6 +851,25 @@ func New(
 		return nil, trace.Wrap(err)
 	}
 	s.srv = server
+
+	if runtime.GOOS == constants.LinuxOS {
+		authorizedKeysWatcher, err := authorizedkeys.NewWatcher(
+			ctx,
+			authorizedkeys.WatcherConfig{
+				ClusterName: clusterName.GetClusterName(),
+				Client:      auth,
+				Logger:      slog.Default(),
+				HostID:      s.uuid,
+				Clock:       s.clock,
+			},
+		)
+		if err != nil {
+			s.srv.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		go authorizedKeysWatcher.Run(ctx)
+	}
 
 	var heartbeatMode srv.HeartbeatMode
 	if s.proxyMode {

@@ -30,4 +30,6 @@ message AccessGraphConfig {
   // insecure is a flag that indicates whether the access graph service should
   // skip verifying the server's certificate chain and host name.
   bool insecure = 4;
+  // ssh_scan_enabled indicates if the SSH scan feature is enabled for the cluster.
+  bool ssh_scan_enabled = 5;
 }

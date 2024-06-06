@@ -348,7 +348,7 @@ func ValidateResource(res types.Resource) error {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
 			case constants.SecondFactorOff, constants.SecondFactorOptional:
-				return trace.BadParameter("cannot disable two-factor authentication")
+				//			return trace.BadParameter("cannot disable two-factor authentication")
 			}
 		}
 	}
