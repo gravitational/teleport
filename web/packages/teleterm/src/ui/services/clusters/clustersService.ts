@@ -392,23 +392,31 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     });
   }
 
-  async assumeRole(
+  /** Assumes roles for the given requests. */
+  async assumeRoles(
     rootClusterUri: uri.RootClusterUri,
-    requestIds: string[],
-    dropIds: string[]
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
+    requestIds: string[]
+  ): Promise<void> {
     await this.client.assumeRole({
       rootClusterUri,
       accessRequestIds: requestIds,
-      dropRequestIds: dropIds,
+      dropRequestIds: [],
     });
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
-    return this.syncRootCluster(rootClusterUri);
+    await this.syncRootCluster(rootClusterUri);
+  }
+
+  /** Drops roles for the given requests. */
+  async dropRoles(
+    rootClusterUri: uri.RootClusterUri,
+    requestIds: string[]
+  ): Promise<void> {
+    await this.client.assumeRole({
+      rootClusterUri,
+      accessRequestIds: [],
+      dropRequestIds: requestIds,
+    });
+    await this.syncRootCluster(rootClusterUri);
   }
 
   async getAccessRequest(
