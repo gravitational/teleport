@@ -44,7 +44,6 @@ const cfg = {
   isEnterprise: false,
   edition: 'oss',
   isCloud: false,
-  assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
@@ -131,8 +130,6 @@ const cfg = {
     root: '/web',
     discover: '/web/discover',
     accessRequest: '/web/accessrequest',
-    assistBase: '/web/assist/',
-    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
@@ -341,16 +338,6 @@ const cfg = {
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    assistConversationsPath: '/v1/webapi/assistant/conversations',
-    assistSetConversationTitlePath:
-      '/v1/webapi/assistant/conversations/:conversationId/title',
-    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
-    assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/ws',
-    assistConversationHistoryPath:
-      '/v1/webapi/assistant/conversations/:conversationId',
-    assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute/ws',
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
@@ -929,73 +916,6 @@ const cfg = {
 
   getUIConfig() {
     return cfg.ui;
-  },
-
-  getAssistSetConversationTitleUrl(conversationId: string) {
-    return generatePath(cfg.api.assistSetConversationTitlePath, {
-      conversationId,
-    });
-  },
-
-  getAssistConversationWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    conversationId: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('conversation_id', conversationId);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistActionWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    action: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('action', action);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationHistoryUrl(conversationId: string) {
-    return generatePath(cfg.api.assistConversationHistoryPath, {
-      conversationId,
-    });
-  },
-
-  getAssistExecuteCommandUrl(
-    hostname: string,
-    clusterId: string,
-    params: Record<string, string>
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('params', JSON.stringify(params));
-
-    return (
-      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationUrl(conversationId: string) {
-    return generatePath(cfg.routes.assist, { conversationId });
   },
 
   getAccessRequestUrl(requestId?: string) {
