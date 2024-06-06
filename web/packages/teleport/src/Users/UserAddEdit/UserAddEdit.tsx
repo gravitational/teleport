@@ -59,7 +59,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onChangeRoles,
     onClose,
     fetchRoles,
-    traits,
+    allTraits,
     attempt,
     name,
     selectedRoles,
@@ -127,7 +127,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               }}
               elevated={true}
             />
-            <TraitsEditor traits={traits} />
+            <TraitsEditor allTraits={allTraits} />
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary
@@ -151,22 +151,29 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
 }
 
 export type TraitEditorProps = {
-  traits: AllUserTraits;
+  allTraits: AllUserTraits;
 };
 
-function TraitsEditor({ traits }: TraitEditorProps) {
+function TraitsEditor({ allTraits }: TraitEditorProps) {
   const [tt, setTT] = useState([]);
 
+  const [availableTraits, setAvailableTraits] = useState<Option[]>([])
   useEffect(() => {
+    console.log('allTraits: ', allTraits)
     let t = [];
-    for (let trait in traits) {
-      if (traits[trait].length !== 0) {
-        t.push({ trait: trait, traitValues: traits[trait] });
+    for (let trait in allTraits) {
+      if (allTraits[trait].length === 0) {
+        // send empty traits to availableTraits so that users can choose from Trait Name dropdown.
+        availableTraits.push({value: trait, label: trait})
+        setAvailableTraits(availableTraits)
+      }
+      if (allTraits[trait].length !== 0) {
+        t.push({ trait: trait, traitValues: allTraits[trait] });
       }
     }
     console.log(t);
     setTT(t);
-  }, [traits]);
+  }, [allTraits]);
 
   return (
     <Box>
@@ -186,6 +193,7 @@ function TraitsEditor({ traits }: TraitEditorProps) {
             <Flex alignItems="center" mt={-3}>
               <Box width="290px" mr={1} mt={4}>
                 <FieldSelectCreatable
+                options={availableTraits}
                   placeholder="trait-key"
                   autoFocus
                   value={{ value: trait, label: trait }}
