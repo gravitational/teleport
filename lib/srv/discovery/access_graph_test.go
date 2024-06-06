@@ -31,7 +31,7 @@ import (
 )
 
 func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
-	var testErr = "test error"
+	testErr := "test error"
 	clock := clockwork.NewFakeClock()
 	type args struct {
 		fetchers []aws_sync.AWSSync
