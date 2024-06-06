@@ -1569,10 +1569,11 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-
 		if err != nil {
 			return false
 		}
+
+		defer r.Body.Close()
 
 		if r.StatusCode != 200 {
 			return false
