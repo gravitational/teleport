@@ -5,7 +5,8 @@ resource "random_string" "token" {
 }
 
 resource "teleport_provision_token" "agent" {
-  count = var.agent_count
+  count   = var.agent_count
+  version = "v2"
   spec = {
     roles = var.agent_roles
   }
