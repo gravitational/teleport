@@ -510,7 +510,6 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/jamf-service.yaml
-      - ../.lint/jamf-service-username-password.yaml
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -518,9 +517,6 @@ tests:
             name: jamf-api-credentials
             secret:
               secretName: teleport-jamf-api-credentials
-              items:
-              - key: jamfSecret
-                path: secret
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -534,7 +530,6 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/jamf-service-existing-secret.yaml
-      - ../.lint/jamf-service-existing-secret-username-password.yaml
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -542,9 +537,6 @@ tests:
             name: jamf-api-credentials
             secret:
               secretName: existing-teleport-jamf-secret
-              items:
-              - key: jamfSecret
-                path: secret
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -553,7 +545,6 @@ tests:
             readOnly: true
       - matchSnapshot:
           path: spec.template.spec
-
 
   - it: should mount tls.existingCASecretName and set environment when set in values
     template: statefulset.yaml

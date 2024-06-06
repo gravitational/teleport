@@ -515,9 +515,6 @@ tests:
             name: jamf-api-credentials
             secret:
               secretName: teleport-jamf-api-credentials
-              items:
-              - key: jamfSecret
-                path: secret
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -542,9 +539,6 @@ tests:
             name: jamf-api-credentials
             secret:
               secretName: existing-teleport-jamf-secret
-              items:
-              - key: jamfSecret
-                path: secret
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:

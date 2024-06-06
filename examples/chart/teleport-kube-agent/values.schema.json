@@ -772,16 +772,6 @@
             "$id": "#/properties/jamfSecret",
             "type": "string",
             "default": ""
-        },
-        "jamfUsername": {
-            "$id": "#/properties/jamfUsername",
-            "type": "string",
-            "default": ""
-        },
-        "jamfPassword": {
-            "$id": "#/properties/jamfPassword",
-            "type": "string",
-            "default": ""
         }
     }
 }

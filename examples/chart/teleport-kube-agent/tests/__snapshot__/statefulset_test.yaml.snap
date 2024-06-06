@@ -1174,9 +1174,6 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
       name: data
     - name: jamf-api-credentials
       secret:
-        items:
-        - key: jamfSecret
-          path: secret
         secretName: existing-teleport-jamf-secret
 should mount jamfCredentialsSecret.name when role is jamf:
   1: |
@@ -1255,9 +1252,6 @@ should mount jamfCredentialsSecret.name when role is jamf:
       name: data
     - name: jamf-api-credentials
       secret:
-        items:
-        - key: jamfSecret
-          path: secret
         secretName: teleport-jamf-api-credentials
 should mount tls.existingCASecretName and set environment when set in values:
   1: |

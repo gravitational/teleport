@@ -243,9 +243,6 @@ spec:
       - name: "jamf-api-credentials"
         secret:
           secretName: {{ .Values.jamfCredentialsSecret.name }}
-          items:
-          - key: jamfSecret
-            path: secret
 {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
