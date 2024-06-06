@@ -132,6 +132,8 @@ spec:
 ```
 $ tctl autoupdate update --set-agent-version=15.1.1
 Automatic updates configuration has been updated.
+$ tctl autoupdate update --set-agent-version=15.1.2 --critical
+Automatic updates configuration has been updated.
 ```
 
 Notes:
