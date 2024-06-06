@@ -1,0 +1,82 @@
+---
+title: Manage your Teleport Cluster
+description: Once you have completed the initial setup of your Teleport cluster, follow the guides in this section to perform cluster operations.
+---
+
+{/*TOPICS*/}
+
+## Cluster Administration Guides
+
+Teleport Cluster Administration Guides. ([more info](management/admin.mdx))
+
+- [Add Labels to Resources](management/admin/labels.mdx): How to assign static and command-based dynamic labels to Teleport resources.
+- [Commands to look up cluster addresses](management/admin/trusted-cluster-address-lookup.mdx): Suggests command-line tools and scripts to look up cluster addresses.
+- [Configure Trusted Clusters](management/admin/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+- [Local Users](management/admin/users.mdx): Learn how to manage local users in Teleport. Local users are stored on the Auth Service instead of a third-party identity provider.
+- [Run Teleport as a Daemon](management/admin/daemon.mdx): Configure Teleport to run as a daemon using systemd
+- [Running Teleport with Self-Signed Certificates](management/admin/self-signed-certs.mdx): This guide shows you how to run Teleport using self-signed certificates, which is helpful for testing or demo environments.
+- [Troubleshooting](management/admin/troubleshooting.mdx): Troubleshooting and Collecting Metrics of Teleport Processes
+- [Uninstall Teleport](management/admin/uninstall-teleport.mdx): How to remove Teleport from your system
+
+## Dynamic Resources
+
+Guides to using dynamic resources to manage cluster RBAC, resource enrollment, and other configuration settings. ([more info](management/dynamic-resources.mdx))
+
+- [Creating Access Lists with IaC](management/dynamic-resources/access-list.mdx): Use Infrastructure-as-Code tooling to create Teleport AccessLists.
+- [Kubernetes Operator in teleport-cluster Helm chart](management/dynamic-resources/teleport-operator-helm.mdx): Deploy the operator alongside your Helm-deployed Teleport Cluster.
+- [Managing Users And Roles With IaC](management/dynamic-resources/user-and-role.mdx): Use infrastructure-as-code tooling to create Teleport users and roles.
+- [Registering Agentless OpenSSH Servers with IaC](management/dynamic-resources/agentless-ssh-servers.mdx): Use infrastructure-as-code tooling to register Agentless OpenSSH servers in Teleport.
+- [Set up the Teleport Terraform Provider](management/dynamic-resources/terraform-provider.mdx): How to manage dynamic resources using the Teleport Terraform provider.
+- [Standalone Kubernetes Operator](management/dynamic-resources/teleport-operator-standalone.mdx): Run a standalone operator against a remote Teleport cluster such as Teleport Cloud.
+- [Teleport Kubernetes Operator](management/dynamic-resources/teleport-operator.mdx): Easily manage Teleport resources from Kubernetes
+- [Using Dynamic Resources](management/dynamic-resources/overview.mdx): An introduction to Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code.
+
+## Exporting Teleport Audit Events
+
+Learn how to export Teleport audit events to your log management solution. ([more info](management/export-audit-events.mdx))
+
+- [Export Events with Fluentd](management/export-audit-events/fluentd.mdx): Forwarding events with Fluentd and Teleport event handler
+- [Export Teleport Audit Events to Panther](management/export-audit-events/panther.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Panther
+- [Export Teleport Audit Events to Splunk](management/export-audit-events/splunk.mdx): How to configure the Teleport Event Handler plugin to send audit logs to Splunk
+- [Export Teleport Audit Events to the Elastic Stack](management/export-audit-events/elastic-stack.mdx): How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack
+- [Export Teleport Audit Events with Datadog](management/export-audit-events/datadog.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Datadog
+
+## Integrations
+
+Miscellaneous guides for integrating Teleport with third-party tools. ([more info](management/guides.mdx))
+
+- [AWS OIDC Integration](management/guides/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
+- [EC2 Tags as Teleport Node Labels](management/guides/ec2-tags.mdx): How to set up Teleport Node labels based on EC2 tags
+- [GCP Tags and Labels as Teleport Agent Labels](management/guides/gcp-tags.mdx): How to set up Teleport agent labels based on GCP tags and labels
+- [Using Teleport's Certificate Authority with GitHub](management/guides/ssh-key-extensions.mdx): How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
+
+## Monitoring your Cluster
+
+Monitoring your Teleport deployment ([more info](management/diagnostics.mdx))
+
+- [Distributed Tracing](management/diagnostics/tracing.mdx): How to enable tracing within Teleport.
+- [Health Monitoring](management/diagnostics/monitoring.mdx): Monitoring health and readiness.
+- [Metrics](management/diagnostics/metrics.mdx): How to enable and consume metrics
+- [Profiling](management/diagnostics/profiles.mdx): Collecting pprof profiles.
+- [Teleport Diagnostics Reference (section)](management/diagnostics/reference.mdx): Reference guides to retrieving and analyzing Teleport monitoring data.
+
+## Operations
+
+Provides guidance on migrations and routine administration tasks. ([more info](management/operations.mdx))
+
+- [Backup and Restore](management/operations/backup-restore.mdx): How to back up and restore your Teleport cluster state.
+- [Cert Authority Rotation](management/operations/ca-rotation.mdx): How to rotate Teleport's certificate authority
+- [Database CA Migrations](management/operations/db-ca-migrations.mdx): How to complete Teleport Database CA migrations.
+- [Database Cert Authority Rotation](management/operations/db-ca-rotation.mdx): How to rotate Teleport database certificate authorities
+- [Proxy Peering Migration](management/operations/proxy-peering.mdx): How to upgrade an existing Teleport cluster to Proxy Peering mode.
+- [Scaling](management/operations/scaling.mdx): How to configure Teleport for large-scale deployments
+- [TLS Routing Migration](management/operations/tls-routing.mdx): How to upgrade an existing Teleport cluster to single-port TLS routing mode
+
+## Secure Practices for Teleport Clusters
+
+Highlights recommended practices and ways to harden security for your Teleport cluster. ([more info](management/security.mdx))
+
+- [PROXY protocol](management/security/proxy-protocol.mdx): How to securely configure PROXY protocol usage with Teleport
+- [Reducing the Blast Radius of Attacks](management/security/reduce-blast-radius.mdx): How to configure Teleport to minimize the scope of security breaches
+- [Restrict Access for Privileged Accounts](management/security/restrict-privileges.mdx): Explains the risks of root-level access to Teleport-protected resources.
+- [Revoking Access](management/security/revoking-access.mdx): Learn how to revoke access before Teleport certificates expire
