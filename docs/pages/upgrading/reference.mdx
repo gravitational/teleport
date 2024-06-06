@@ -305,7 +305,7 @@ You can upgrade a single Teleport binary running on a Linux host by running the
 one-line installation script with a higher version than the current one.
 
 Before upgrading Teleport across a self-hosted cluster, read the [Compatibility
-Overview](./upgrading/overview.mdx) to ensure you are upgrading components in
+Overview](./overview.mdx) to ensure you are upgrading components in
 the correct order.
 
 Complete the following steps on all servers that run the Auth Service and Proxy
@@ -383,9 +383,9 @@ your `teleport-cluster` release is called `teleport-cluster`.
       --values=values.yaml
     ```
 
-    The `teleport-cluster` Helm chart automatically waits for the previous version
-    of the Proxy Service to stop responding to requests before running a new version
-    of the Auth Service.
+   The `teleport-cluster` Helm chart automatically waits for the previous
+   version of the Proxy Service to stop responding to requests before running a
+   new version of the Auth Service.
 
 1. Once you have completed this guide and upgraded the cluster, you can
    configure your cluster for high availability again.
