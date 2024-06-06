@@ -60,11 +60,11 @@ jobs:
         shell: bash
     env:
       REPO_DOMAIN_NAME: "${{ inputs.environment == 'test-prod' && 'releases.teleport.dev' || 'releases.development.teleport.dev' }}"
+      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
       PACKAGE_TO_TEST: "${{ inputs.package-to-test }}"
       RELEASE_CHANNEL: "${{ inputs.release-channel }}"
       VERSION_CHANNEL: "${{ inputs.version-channel }}"
       ARTIFACT_TAG: "${{ inputs.artifact-tag }}"
-      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
       INSTALLER: "${{ matrix.container.package-manager }}"
     steps:
       - name: Checkout repo
@@ -105,11 +105,11 @@ jobs:
         shell: bash
     env:
       REPO_DOMAIN_NAME: "${{ inputs.environment == 'test-prod' && 'releases.teleport.dev' || 'releases.development.teleport.dev' }}"
+      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
       PACKAGE_TO_TEST: "${{ inputs.package-to-test }}"
       RELEASE_CHANNEL: "${{ inputs.release-channel }}"
       VERSION_CHANNEL: "${{ inputs.version-channel }}"
       ARTIFACT_TAG: "${{ inputs.artifact-tag }}"
-      AUTO_UPDATES_DOMAIN_NAME: "${{ inputs.auto-updates-domain-name }}"
       INSTALLER: "${{ matrix.container.package-manager }}"
     steps:
       # sles12 specific setup

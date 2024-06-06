@@ -25,6 +25,7 @@ function verify_updater() {
 
     local installed_updater_version
     installed_updater_version="$(teleport-upgrade version --raw)"
+    installed_updater_version="${installed_updater_version#v}"
     if [ "${installed_updater_version}" != "${expected_updater_version}" ]; then
         echo "Installed updater version (${installed_updater_version}) does not match expected version (${expected_updater_version})"
         return 1

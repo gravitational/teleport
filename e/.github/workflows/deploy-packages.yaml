@@ -60,7 +60,6 @@ on:
 jobs:
   determine-runner:
     name: Determine what runner the job should be sent to
-    if: ${{ inputs.deploy }}
     runs-on: ubuntu-latest
     outputs:
       runner: ${{ steps.output-step.outputs.runner }}
