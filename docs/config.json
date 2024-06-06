@@ -1114,6 +1114,10 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
+          "title": "Using VNet",
+          "slug": "/connect-your-client/vnet/"
+        },
+        {
           "title": "Using PuTTY and WinSCP",
           "slug": "/connect-your-client/putty-winscp/"
         },
