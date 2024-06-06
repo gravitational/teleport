@@ -32,7 +32,6 @@ import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import {
   CreateAccessRequestRequest,
-  GetRequestableRolesRequest,
   ReviewAccessRequestRequest,
   PromoteAccessRequestRequest,
   PasswordlessPrompt,
@@ -337,32 +336,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  async getRequestableRoles(params: GetRequestableRolesRequest) {
-    const { response } = await this.client.getRequestableRoles(params);
-
-    return response;
-  }
-
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
     return cluster?.loggedInUser?.assumedRequests || {};
-  }
-
-  async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
-    const { response } = await this.client.getAccessRequests({
-      clusterUri: rootClusterUri,
-    });
-    return response.requests;
-  }
-
-  async deleteAccessRequest(
-    rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    await this.client.deleteAccessRequest({
-      rootClusterUri,
-      accessRequestId: requestId,
-    });
   }
 
   /** Assumes roles for the given requests. */
