@@ -58,6 +58,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -4971,7 +4972,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Expires: timestamppb.New(req.Expiry()),
 				},
 			},
 		},
@@ -5244,7 +5246,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"request-id":                 params.RequestID,
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
-			}},
+			},
+			Expires: timestamppb.New(req.Expiry())},
 	}
 }
 
