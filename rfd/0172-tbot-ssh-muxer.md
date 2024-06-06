@@ -93,7 +93,7 @@ The client will accept two arguments:
 
 Comparing Rust and Go for this lightweight binary:
 
-- Rust has a smaller binary size: 400KiB vs 1.8MiB.
+- Rust has a smaller binary size: ~400KiB vs ~1.8MiB.
 - Rust executes faster.
 - Tuning Go's GC behaviour requires also using `env` as part of the
   ProxyCommand. This is not necessary with Rust.
