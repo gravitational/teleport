@@ -330,13 +330,6 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		s.Commands = []CommandLabel{
-			{
-				Name:    defaults.HostnameLabel,
-				Command: []string{"hostname"},
-				Period:  time.Minute,
-			},
-		}
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
@@ -2574,9 +2567,14 @@ type JamfService struct {
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`
-	// PasswordFile is a file containing the  Jamf Pro API password.
+	// PasswordFile is a file containing the Jamf Pro API password.
 	// A single trailing newline is trimmed, anything else is taken literally.
 	PasswordFile string `yaml:"password_file,omitempty"`
+	// ClientID is the Jamf API Client ID.
+	ClientID string `yaml:"client_id,omitempty"`
+	// ClientSecretFile is a file containing the Jamf API client secret.
+	// A single trailing newline is trimmed, anything else is taken literally.
+	ClientSecretFile string `yaml:"client_secret_file,omitempty"`
 	// Inventory are the entries for inventory sync.
 	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
 }
@@ -2607,22 +2605,16 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		return nil, trace.BadParameter("jamf_service is nil")
 	case j.ListenAddress != "":
 		return nil, trace.BadParameter("jamf listen_addr not supported")
-	case j.PasswordFile == "":
-		return nil, trace.BadParameter("jamf password_file required")
 	}
 
-	// Read password from file.
-	pwdBytes, err := os.ReadFile(j.PasswordFile)
+	// Read secrets.
+	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
 	if err != nil {
-		return nil, trace.BadParameter("jamf password_file: %v", err)
+		return nil, trace.Wrap(err)
 	}
-	pwd := string(pwdBytes)
-	if pwd == "" {
-		return nil, trace.BadParameter("jamf password_file is empty")
-	}
-	// Trim trailing \n?
-	if l := len(pwd); pwd[l-1] == '\n' {
-		pwd = pwd[:l-1]
+	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Assemble spec.
@@ -2637,13 +2629,15 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		}
 	}
 	spec := &types.JamfSpecV1{
-		Enabled:     j.Enabled(),
-		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
-		ApiEndpoint: j.APIEndpoint,
-		Username:    j.Username,
-		Password:    pwd,
-		Inventory:   inventory,
+		Enabled:      j.Enabled(),
+		Name:         j.Name,
+		SyncDelay:    types.Duration(j.SyncDelay),
+		ApiEndpoint:  j.APIEndpoint,
+		Username:     j.Username,
+		Password:     password,
+		Inventory:    inventory,
+		ClientId:     j.ClientID,
+		ClientSecret: clientSecret,
 	}
 
 	// Validate.
@@ -2652,4 +2646,25 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	return spec, nil
+}
+
+func readJamfPasswordFile(path, key string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	pwdBytes, err := os.ReadFile(path)
+	if err != nil {
+		return "", trace.BadParameter("jamf %v: %v", key, err)
+	}
+	pwd := string(pwdBytes)
+	if pwd == "" {
+		return "", trace.BadParameter("jamf %v is empty", key)
+	}
+	// Trim exactly one trailing \n, if present.
+	if l := len(pwd); pwd[l-1] == '\n' {
+		pwd = pwd[:l-1]
+	}
+
+	return pwd, nil
 }

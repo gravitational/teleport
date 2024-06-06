@@ -23,6 +23,7 @@ package modules
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -293,6 +294,10 @@ type Modules interface {
 	SetFeatures(Features)
 	// BuildType returns build type (OSS, Community or Enterprise)
 	BuildType() string
+	// IsEnterpriseBuild returns if the binary was built with enterprise modules
+	IsEnterpriseBuild() bool
+	// IsOSSBuild returns if the binary was built without enterprise modules
+	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -334,6 +339,8 @@ func GetModules() Modules {
 	return modules
 }
 
+var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
+
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
 	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
@@ -344,7 +351,7 @@ func ValidateResource(res types.Resource) error {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
 			case constants.SecondFactorOff, constants.SecondFactorOptional:
-				return trace.BadParameter("cannot disable two-factor authentication")
+				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
 	}
@@ -377,6 +384,16 @@ var teleportBuildType = BuildOSS
 // BuildType returns build type (OSS, Community or Enterprise)
 func (p *defaultModules) BuildType() string {
 	return teleportBuildType
+}
+
+// IsEnterpriseBuild returns false for [defaultModules].
+func (p *defaultModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns true for [defaultModules].
+func (p *defaultModules) IsOSSBuild() bool {
+	return true
 }
 
 // PrintVersion prints the Teleport version.

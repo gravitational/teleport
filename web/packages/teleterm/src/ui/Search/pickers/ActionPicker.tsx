@@ -50,6 +50,7 @@ import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { isWebApp } from 'teleterm/services/tshd/app';
+import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -86,6 +87,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     resourceActionsAttempt,
     resourceSearchAttempt,
   } = useActionAttempts();
+  const { isSupported: isVnetSupported } = useVnetContext();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -211,6 +213,7 @@ export function ActionPicker(props: { input: ReactElement }) {
               <Component
                 searchResult={item.searchResult}
                 getOptionalClusterName={getOptionalClusterName}
+                isVnetSupported={isVnetSupported}
               />
             ),
           };
@@ -511,6 +514,7 @@ export const ComponentMap: Record<
 type SearchResultItem<T> = {
   searchResult: T;
   getOptionalClusterName: (uri: uri.ClusterOrResourceUri) => string;
+  isVnetSupported: boolean;
 };
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
@@ -608,7 +612,11 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <IconAndContent Icon={icons.Server} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Server}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -616,7 +624,9 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
         gap={1}
       >
         <Text typography="body1">
-          Connect over SSH to{' '}
+          {props.searchResult.requiresRequest
+            ? 'Request access to server '
+            : 'Connect over SSH to '}
           <strong>
             <HighlightField field="hostname" searchResult={searchResult} />
           </strong>
@@ -682,7 +692,11 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <IconAndContent Icon={icons.Database} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Database}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -690,7 +704,9 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up a db connection to{' '}
+          {props.searchResult.requiresRequest
+            ? 'Request access to db '
+            : 'Set up a db connection to '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
@@ -759,14 +775,25 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 
   return (
-    <IconAndContent Icon={icons.Application} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Application}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body1">{getAppItemCopy($appName, app)}</Text>
+        <Text typography="body1">
+          {getAppItemCopy(
+            $appName,
+            app,
+            searchResult.requiresRequest,
+            props.isVnetSupported
+          )}
+        </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(app.uri)}
@@ -789,12 +816,25 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
-function getAppItemCopy($appName: React.JSX.Element, app: tsh.App) {
+function getAppItemCopy(
+  $appName: React.JSX.Element,
+  app: tsh.App,
+  requiresRequest: boolean,
+  isVnetSupported: boolean
+) {
+  if (requiresRequest) {
+    return <>Request access to app {$appName}</>;
+  }
   if (app.samlApp) {
     return <>Log in to {$appName} in the browser</>;
   }
   if (isWebApp(app) || app.awsConsole) {
     return <>Launch {$appName} in the browser</>;
+  }
+
+  // TCP app
+  if (isVnetSupported) {
+    return <>Connect with VNet to {$appName}</>;
   }
   return <>Set up an app connection to {$appName}</>;
 }
@@ -803,7 +843,11 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <IconAndContent Icon={icons.Kubernetes} iconColor="brand">
+    <IconAndContent
+      Icon={icons.Kubernetes}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -811,7 +855,9 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
         gap={1}
       >
         <Text typography="body1">
-          Log in to Kubernetes cluster{' '}
+          {props.searchResult.requiresRequest
+            ? 'Request access to Kubernetes cluster '
+            : 'Log in to Kubernetes cluster '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
@@ -1121,4 +1167,9 @@ function ContentAndAdvancedSearch(
       )}
     </Flex>
   );
+}
+
+function getRequestableResourceIconOpacity(args: { requiresRequest: boolean }) {
+  // Unified resources use 0.5 opacity for the requestable resources.
+  return args.requiresRequest ? 0.5 : 1;
 }

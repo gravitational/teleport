@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2177,4 +2178,74 @@ spec:
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
+}
+
+func TestPluginResourceWrapper(t *testing.T) {
+	tests := []struct {
+		name   string
+		plugin types.PluginV1
+	}{
+		{
+			name: "okta",
+			plugin: types.PluginV1{
+				Metadata: types.Metadata{
+					Name: "okta",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							OrgUrl: "https://oktaorg.okta.com",
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SyncUsers:       true,
+								SsoConnectorId:  "connectorID",
+								SyncAccessLists: true,
+							},
+						},
+					},
+				},
+				Credentials: &types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{Labels: map[string]string{"label": "value"}},
+					},
+				},
+			},
+		},
+		{
+			name: "slack",
+			plugin: types.PluginV1{
+				Metadata: types.Metadata{
+					Name: "okta",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_SlackAccessPlugin{
+						SlackAccessPlugin: &types.PluginSlackAccessSettings{
+							FallbackChannel: "#channel",
+						},
+					},
+				},
+				Credentials: &types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
+						Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+							AccessToken:  "token",
+							RefreshToken: "refresh_token",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			buff, err := json.Marshal(&tc.plugin)
+			require.NoError(t, err)
+			var failItem types.PluginV1
+			err = json.Unmarshal(buff, &failItem)
+			require.Error(t, err)
+			var item pluginResourceWrapper
+			err = json.Unmarshal(buff, &item)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tc.plugin, item.PluginV1))
+		})
+	}
 }

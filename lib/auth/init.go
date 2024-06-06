@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -476,12 +477,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
+			msg := "Cannot rename cluster: continuing with current cluster name. Teleport " +
 				"clusters can not be renamed once they are created. You are seeing this " +
-				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
+				"message for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.Warnf(warnMessage, cfg.ClusterName.GetClusterName(), cn.GetClusterName())
+			log.WithFields(logrus.Fields{
+				"current_cluster_name":    cn.GetClusterName(),
+				"configured_cluster_name": cfg.ClusterName.GetClusterName(),
+			}).Error(msg)
 		}
 
 		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
@@ -706,6 +710,20 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
+var secondFactorUpgradeInstructions = `
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
+
+auth_service:
+  authentication:
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+
+For more information:
+- https://goteleport.com/docs/access-controls/guides/webauthn/
+`
+
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
@@ -721,7 +739,13 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if !shouldReplace {
 			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				return trace.Wrap(modules.ValidateResource(storedAuthPref))
+				err := modules.ValidateResource(storedAuthPref)
+				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+					return trace.Wrap(err, secondFactorUpgradeInstructions)
+				}
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			return nil
 		}
@@ -740,6 +764,9 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
 		if trace.IsCompareFailed(err) {
 			continue
+		}
+		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)

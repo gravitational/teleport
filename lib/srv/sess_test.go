@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"os/user"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -266,6 +267,7 @@ func TestSession_newRecorder(t *testing.T) {
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecording,
+				term:                   &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -285,6 +287,7 @@ func TestSession_newRecorder(t *testing.T) {
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecordingSync,
+				term:                   &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -307,6 +310,7 @@ func TestSession_newRecorder(t *testing.T) {
 				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
+				term: &terminal{},
 				Identity: IdentityContext{
 					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 						Roles: []string{"dev"},
@@ -363,6 +367,7 @@ func TestSession_newRecorder(t *testing.T) {
 						},
 					}),
 				},
+				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
@@ -392,6 +397,7 @@ func TestSession_newRecorder(t *testing.T) {
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
 				},
+				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
@@ -460,12 +466,14 @@ func TestSession_emitAuditEvent(t *testing.T) {
 	})
 }
 
-// TestInteractiveSession tests interaction session lifecycles.
-// Multiple sessions are opened in parallel tests to test for
-// deadlocks between session registry, sessions, and parties.
+// TestInteractiveSession tests interactive session lifecycles
+// and validates audit events and session recordings are emitted.
 func TestInteractiveSession(t *testing.T) {
+	t.Parallel()
+
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
+	t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
 
 	reg, err := NewSessionRegistry(SessionRegistryConfig{
 		Srv:                   srv,
@@ -474,19 +482,217 @@ func TestInteractiveSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
-	t.Run("Stop", func(t *testing.T) {
-		t.Parallel()
-		sess, _ := testOpenSession(t, reg, nil)
+	// Create a server context with an overridden recording mode
+	// so that sessions are recorded with the test emitter.
+	scx := newTestServerContext(t, reg.Srv, nil)
+	rcfg := types.DefaultSessionRecordingConfig()
+	rcfg.SetMode(types.RecordAtNodeSync)
+	scx.SessionRecordingConfig = rcfg
 
-		// Stopping the session should trigger the session
-		// to end and cleanup in the background
-		sess.Stop()
+	// Allocate a terminal for the session so that
+	// events are properly recorded.
+	terminal, err := newLocalTerminal(scx)
+	require.NoError(t, err)
+	scx.term = terminal
 
-		sessionClosed := func() bool {
-			_, found := reg.findSession(sess.id)
-			return !found
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+	require.NoError(t, reg.OpenSession(context.Background(), sshChanOpen, scx))
+	require.NotNil(t, scx.session)
+
+	// Simulate changing window size to capture an additional event.
+	require.NoError(t, reg.NotifyWinChange(context.Background(), rsession.TerminalParams{W: 100, H: 100}, scx))
+
+	// Stopping the session should trigger the session
+	// to end and cleanup in the background
+	scx.session.Stop()
+
+	// Wait for the session to be removed from the registry.
+	require.Eventually(t, func() bool {
+		_, found := reg.findSession(scx.session.id)
+		return !found
+	}, time.Second*15, time.Millisecond*500)
+
+	// Validate that the expected audit events were emitted.
+	expectedEvents := []string{events.SessionStartEvent, events.ResizeEvent, events.SessionEndEvent, events.SessionLeaveEvent}
+	require.Eventually(t, func() bool {
+		actual := srv.MockRecorderEmitter.Events()
+
+		for _, evt := range expectedEvents {
+			contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
+				return event.GetType() == evt
+			})
+			if !contains {
+				return false
+			}
 		}
-		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+		return true
+	}, 15*time.Second, 500*time.Millisecond)
+
+	// Validate that the expected recording events were emitted.
+	require.Eventually(t, func() bool {
+		actual := srv.MockRecorderEmitter.RecordedEvents()
+
+		for _, evt := range expectedEvents {
+			contains := slices.ContainsFunc(actual, func(event apievents.PreparedSessionEvent) bool {
+				return event.GetAuditEvent().GetType() == evt
+			})
+			if !contains {
+				return false
+			}
+		}
+
+		return true
+	}, 15*time.Second, 500*time.Millisecond)
+}
+
+// TestNonInteractiveSession tests non-interactive session lifecycles
+// and validates audit events and session recordings are emitted when
+// appropriate.
+func TestNonInteractiveSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("without BPF", func(t *testing.T) {
+		t.Parallel()
+
+		srv := newMockServer(t)
+		srv.component = teleport.ComponentNode
+		t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
+
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
+
+		// Create a server context with an overridden recording mode
+		// so that sessions are recorded with the test emitter.
+		scx := newTestServerContext(t, reg.Srv, nil)
+		rcfg := types.DefaultSessionRecordingConfig()
+		rcfg.SetMode(types.RecordAtNodeSync)
+		scx.SessionRecordingConfig = rcfg
+
+		// Modify the execRequest to actually execute a command.
+		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
+
+		// Open a new session
+		sshChanOpen := newMockSSHChannel()
+		go func() {
+			// Consume stdout sent to the channel
+			io.ReadAll(sshChanOpen)
+		}()
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
+		require.NotNil(t, scx.session)
+
+		// Wait for the command execution to complete and the session to be terminated.
+		require.Eventually(t, func() bool {
+			_, found := reg.findSession(scx.session.id)
+			return !found
+		}, time.Second*15, time.Millisecond*500)
+
+		// Verify that all the expected audit events are eventually emitted.
+		expected := []string{events.SessionStartEvent, events.ExecEvent, events.SessionEndEvent, events.SessionLeaveEvent}
+		require.Eventually(t, func() bool {
+			actual := srv.MockRecorderEmitter.Events()
+
+			for _, evt := range expected {
+				contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
+					return event.GetType() == evt
+				})
+				if !contains {
+					return false
+				}
+			}
+
+			return true
+		}, 15*time.Second, 500*time.Millisecond)
+
+		// Verify that NO recordings were emitted
+		require.Empty(t, srv.MockRecorderEmitter.RecordedEvents())
+	})
+
+	t.Run("with BPF", func(t *testing.T) {
+		t.Parallel()
+
+		srv := newMockServer(t)
+		srv.component = teleport.ComponentNode
+		// Modify bpf to "enable" enhanced recording. This should
+		// trigger recordings to be captured.
+		srv.bpf = fakeBPF{}
+		t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
+
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
+
+		// Create a server context with an overridden recording mode
+		// so that sessions are recorded with the test emitter.
+		scx := newTestServerContext(t, reg.Srv, nil)
+		rcfg := types.DefaultSessionRecordingConfig()
+		rcfg.SetMode(types.RecordAtNodeSync)
+		scx.SessionRecordingConfig = rcfg
+
+		// Modify the execRequest to actually execute a command.
+		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
+
+		// Open a new session
+		sshChanOpen := newMockSSHChannel()
+		go func() {
+			// Consume stdout sent to the channel
+			io.ReadAll(sshChanOpen)
+		}()
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
+		require.NotNil(t, scx.session)
+
+		// Wait for the command execution to complete and the session to be terminated.
+		require.Eventually(t, func() bool {
+			_, found := reg.findSession(scx.session.id)
+			return !found
+		}, time.Second*15, time.Millisecond*500)
+
+		// Verify that all the expected audit events are eventually emitted.
+		expectedEvents := []string{events.SessionStartEvent, events.ExecEvent, events.SessionEndEvent, events.SessionLeaveEvent}
+		require.Eventually(t, func() bool {
+			actual := srv.MockRecorderEmitter.Events()
+
+			for _, evt := range expectedEvents {
+				contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
+					return event.GetType() == evt
+				})
+				if !contains {
+					return false
+				}
+			}
+
+			return true
+		}, 15*time.Second, 500*time.Millisecond)
+
+		// Validate that the expected recording events were emitted.
+		require.Eventually(t, func() bool {
+			actual := srv.MockRecorderEmitter.RecordedEvents()
+
+			for _, evt := range expectedEvents {
+				if evt == events.ExecEvent {
+					continue
+				}
+				contains := slices.ContainsFunc(actual, func(event apievents.PreparedSessionEvent) bool {
+					return event.GetAuditEvent().GetType() == evt
+				})
+				if !contains {
+					return false
+				}
+			}
+
+			return true
+		}, 15*time.Second, 500*time.Millisecond)
 	})
 }
 
@@ -609,10 +815,10 @@ func TestParties(t *testing.T) {
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
-	scx.setSession(sess)
+	sshChanOpen := newMockSSHChannel()
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
 	go func() {
 		// Consume stdout sent to the channel
 		io.ReadAll(sshChanOpen)
@@ -788,6 +994,8 @@ func TestTrackingSession(t *testing.T) {
 		recordingMode   string
 		createError     error
 		moderated       bool
+		interactive     bool
+		botUser         bool
 		assertion       require.ErrorAssertionFunc
 		createAssertion func(t *testing.T, count int)
 	}{
@@ -795,6 +1003,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "node with proxy recording mode",
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtProxy,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 0, count)
@@ -804,6 +1013,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "node with node recording mode",
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNode,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -813,6 +1023,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "proxy with proxy recording mode",
 			component:     teleport.ComponentProxy,
 			recordingMode: types.RecordAtProxy,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -822,6 +1033,7 @@ func TestTrackingSession(t *testing.T) {
 			name:          "proxy with node recording mode",
 			component:     teleport.ComponentProxy,
 			recordingMode: types.RecordAtNode,
+			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 0, count)
@@ -832,6 +1044,7 @@ func TestTrackingSession(t *testing.T) {
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNodeSync,
 			assertion:     require.NoError,
+			interactive:   true,
 			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
@@ -842,10 +1055,31 @@ func TestTrackingSession(t *testing.T) {
 			component:     teleport.ComponentNode,
 			recordingMode: types.RecordAtNodeSync,
 			moderated:     true,
+			interactive:   true,
 			assertion:     require.Error,
 			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
 			createAssertion: func(t *testing.T, count int) {
 				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "bot session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			interactive:   true,
+			botUser:       true,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "non-interactive session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
 			},
 		},
 	}
@@ -871,6 +1105,10 @@ func TestTrackingSession(t *testing.T) {
 				},
 			}
 
+			if tt.botUser {
+				scx.Identity.BotName = "test-bot"
+			}
+
 			sess := &session{
 				id:  rsession.NewID(),
 				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
@@ -882,6 +1120,7 @@ func TestTrackingSession(t *testing.T) {
 					},
 				},
 				serverMeta: apievents.ServerMetadata{
+					ServerVersion:  teleport.Version,
 					ServerHostname: "test",
 					ServerID:       "123",
 				},
@@ -896,7 +1135,13 @@ func TestTrackingSession(t *testing.T) {
 				id:   rsession.NewID(),
 				mode: types.SessionPeerMode,
 			}
-			err = sess.trackSession(ctx, me.Name, nil, p)
+
+			sessType := sessionTypeNonInteractive
+			if tt.interactive {
+				sessType = sessionTypeInteractive
+			}
+
+			err = sess.trackSession(ctx, me.Name, nil, p, sessType)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})

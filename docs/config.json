@@ -5,7 +5,7 @@
       "title": "Home",
       "entries": [
         {
-          "title": "Get Started with Teleport",
+          "title": "Introduction to Teleport",
           "slug": "/"
         },
         {
@@ -157,6 +157,10 @@
           "slug": "/deploy-a-cluster/introduction/",
           "forScopes": ["oss", "enterprise"]
         },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
@@ -479,21 +483,21 @@
           ]
         },
         {
-          "title": "Access Graph",
+          "title": "Teleport Policy",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
             "enterprise"
           ],
           "entries": [
             {
-              "title": "TAG for Self-Hosted Clusters",
+              "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
               "forScopes": [
                 "enterprise"
               ]
             },
             {
-              "title": "TAG for Self-Hosted Clusters with Helm",
+              "title": "Teleport Policy for Self-Hosted Clusters with Helm",
               "slug": "/access-controls/access-graph/self-hosted-helm/",
               "forScopes": [
                 "enterprise"
@@ -865,7 +869,7 @@
       ]
     },
     {
-      "title": "Run Teleport Agents",
+      "title": "Protect Infrastructure",
       "icon": "layers",
       "entries": [
         {
@@ -873,7 +877,7 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy via Terraform",
+          "title": "Deploy Agents via Terraform",
           "slug": "/agents/deploy-agents-terraform/"
         },
         {
@@ -1268,10 +1272,6 @@
             {
               "title": "PostgreSQL",
               "slug": "/database-access/auto-user-provisioning/postgres/"
-            },
-            {
-              "title": "Database Access Controls",
-              "slug": "/database-access/auto-user-provisioning/database-access-controls/"
             }
           ]
         },
@@ -1299,7 +1299,7 @@
               "title": "Microsoft SQL Server with Active Directory authentication",
               "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
             },
-                        {
+            {
               "title": "AWS ElastiCache and AWS MemoryDB for Redis",
               "slug": "/database-access/enroll-aws-databases/redis-aws/"
             },
@@ -1352,12 +1352,16 @@
           "slug": "/database-access/enroll-google-cloud-databases/",
           "entries": [
             {
-              "title": "PostgreSQL on GCP Cloud SQL",
-              "slug": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/"
+              "title": "Cloud Spanner",
+              "slug": "/database-access/enroll-google-cloud-databases/spanner/"
             },
             {
-              "title": "MySQL on GCP Cloud SQL",
+              "title": "Cloud SQL for MySQL",
               "slug": "/database-access/enroll-google-cloud-databases/mysql-cloudsql/"
+            },
+            {
+              "title": "Cloud SQL for PostgreSQL",
+              "slug": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/"
             }
           ]
         },
@@ -1430,8 +1434,8 @@
           ]
         },
         {
-          "title": "Architecture",
-          "slug": "/database-access/architecture/"
+          "title": "Using the Teleport Database Service",
+          "slug": "/database-access/guides/"
         },
         {
           "title": "Reference",
@@ -1480,10 +1484,6 @@
         {
           "title": "Configure local Windows users",
           "slug": "/desktop-access/getting-started/"
-        },
-        {
-          "title": "Active Directory",
-          "slug": "/desktop-access/active-directory/"
         },
         {
           "title": "Active Directory (Manual)",
@@ -1884,10 +1884,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
+	{
+	  "title": "Teleport Agents",
+	  "slug": "/architecture/agents/"
+	},
         {
           "title": "Session Recording",
           "slug": "/architecture/session-recording/"
@@ -1916,7 +1916,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.20.1"
+      "version": "1.20.4"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -1926,7 +1926,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.3.5",
+      "version": "15.3.7",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1952,6 +1952,11 @@
     },
     "helm": {
       "version": "3.4.2"
+    },
+    "jamf": {
+      "api_endpoint": "https://yourtenant.jamfcloud.com",
+      "client_id": "your-client-id",
+      "client_secret": "your-client-secret"
     },
     "kubernetes": {
       "major_version": "1",
@@ -3054,21 +3059,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/discovery/includes/discovery-group/",
-      "destination": "/includes/discovery/discovery-group/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/includes/step-description/",
-      "destination": "/includes/discovery/step-description/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/includes/troubleshooting/",
-      "destination": "/includes/discovery/troubleshooting/",
-      "permanent": true
-    },
-    {
       "source": "/server-access/guides/azure-discovery/",
       "destination": "/auto-discovery/servers/azure-discovery/",
       "permanent": true
@@ -3126,6 +3116,161 @@
     {
       "source": "/database-access/rbac/configuring-access/",
       "destination": "/database-access/rbac/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-cassandra-keyspaces/",
+      "destination": "/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-cross-account/",
+      "destination": "/database-access/enroll-aws-databases/aws-cross-account/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-dynamodb/",
+      "destination": "/database-access/enroll-aws-databases/aws-dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/aws-opensearch/",
+      "destination": "/database-access/enroll-aws-databases/aws-opensearch/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/azure-postgres-mysql/",
+      "destination": "/database-access/enroll-azure-databases/azure-postgres-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/azure-redis/",
+      "destination": "/database-access/enroll-azure-databases/azure-redis/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/azure-sql-server-ad/",
+      "destination": "/database-access/enroll-azure-databases/azure-sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/cassandra-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/cassandra-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/clickhouse-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/clickhouse-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/cockroachdb-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/elastic/",
+      "destination": "/database-access/enroll-self-hosted-databases/elastic/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mongodb-atlas/",
+      "destination": "/database-access/enroll-managed-databases/mongodb-atlas/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mongodb-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/mongodb-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mysql-cloudsql/",
+      "destination": "/database-access/enroll-google-cloud-databases/mysql-cloudsql/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/mysql-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/mysql-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/oracle-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/oracle-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-cloudsql/",
+      "destination": "/database-access/enroll-google-cloud-databases/postgres-cloudsql/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-redshift/",
+      "destination": "/database-access/enroll-aws-databases/postgres-redshift/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-self-hosted/",
+      "destination": "/database-access/enroll-self-hosted-databases/postgres-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds-proxy-mysql/",
+      "destination": "/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds-proxy-postgres/",
+      "destination": "/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds-proxy-sqlserver/",
+      "destination": "/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/rds/",
+      "destination": "/database-access/enroll-aws-databases/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/redis-aws/",
+      "destination": "/database-access/enroll-aws-databases/redis-aws/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/redis-cluster/",
+      "destination": "/database-access/enroll-self-hosted-databases/redis-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/redis/",
+      "destination": "/database-access/enroll-self-hosted-databases/redis/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/redshift-serverless/",
+      "destination": "/database-access/enroll-aws-databases/redshift-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/snowflake/",
+      "destination": "/database-access/enroll-managed-databases/snowflake/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/sql-server-ad-pkinit/",
+      "destination": "/database-access/enroll-self-hosted-databases/sql-server-ad-pkinit/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/sql-server-ad/",
+      "destination": "/database-access/enroll-aws-databases/sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/vitess/",
+      "destination": "/database-access/enroll-self-hosted-databases/vitess/",
       "permanent": true
     }
   ]

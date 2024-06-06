@@ -3229,7 +3229,11 @@ export enum CTA {
     /**
      * @generated from protobuf enum value: CTA_OKTA_USER_SYNC = 11;
      */
-    CTA_OKTA_USER_SYNC = 11
+    CTA_OKTA_USER_SYNC = 11,
+    /**
+     * @generated from protobuf enum value: CTA_ENTRA_ID = 12;
+     */
+    CTA_ENTRA_ID = 12
 }
 /**
  * IntegrationEnrollKind represents the types of integration that
@@ -3329,7 +3333,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
      */
-    MACHINE_ID_KUBERNETES = 22
+    MACHINE_ID_KUBERNETES = 22,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
+     */
+    ENTRA_ID = 23
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status

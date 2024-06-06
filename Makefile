@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0-dev
+VERSION=17.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -245,7 +245,8 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
+GO_LDFLAGS += -extldflags -Wl,--long-plt -debugtramp=2
 endif
 endif # OS == linux
 
@@ -1387,6 +1388,7 @@ derive:
 derive-up-to-date: must-start-clean/host derive
 	@if ! git diff --quiet; then \
 		echo 'Please run make derive.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1422,6 +1424,7 @@ endif
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! git diff --quiet; then \
 		echo 'Please run make grpc.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1429,6 +1432,7 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1438,6 +1442,7 @@ crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! git diff --quiet; then \
 		echo 'Please run make -C integrations/operator manifests.'; \
+		git diff; \
 		exit 1; \
 	fi
 

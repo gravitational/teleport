@@ -5331,8 +5331,8 @@ message SessionTrackerSpecV1 {
   // purpose.
   string Reason = 7 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // Invited is a list of invited users, this field is interpreted by different
-  // clients on a best-effort basis and used for delivering notifications to invited users.
+  // Invited is a list of invited users, this field can be used by
+  // clients to deliver notifications to invited users.
   repeated string Invited = 8 [(gogoproto.jsontag) = "invited,omitempty"];
 
   // Hostname identifies the target this session is connected to.
@@ -6677,16 +6677,26 @@ message JamfSpecV1 {
   // Jamf API username.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
   // Jamf API password.
   // Username and password are used to acquire short-lived Jamf Pro API tokens.
   // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Required.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
   string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
+  // Jamf API client ID.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
+  // Jamf API client secret.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].

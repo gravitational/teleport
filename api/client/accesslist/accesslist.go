@@ -48,7 +48,9 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(
+			accessList,
+			conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -70,7 +72,7 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -102,7 +104,7 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromProto(accessList)
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -119,7 +121,7 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseAccessList, err := conv.FromProto(resp)
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return responseAccessList, trace.Wrap(err)
 }
 
@@ -131,7 +133,7 @@ func (c *Client) UpdateAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseAccessList, err := conv.FromProto(resp)
+	responseAccessList, err := conv.FromProto(resp, conv.WithOwnersIneligibleStatusField(resp.GetSpec().GetOwners()))
 	return responseAccessList, trace.Wrap(err)
 }
 
@@ -227,7 +229,7 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseMember, err := conv.FromMemberProto(resp)
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return responseMember, trace.Wrap(err)
 }
 
@@ -239,7 +241,7 @@ func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	responseMember, err := conv.FromMemberProto(resp)
+	responseMember, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return responseMember, trace.Wrap(err)
 }
 

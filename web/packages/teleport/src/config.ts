@@ -83,6 +83,9 @@ const cfg = {
   // access list, and access monitoring.
   isIgsEnabled: false,
 
+  // isPolicyEnabled refers to the Teleport Policy product
+  isPolicyEnabled: false,
+
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
@@ -282,11 +285,6 @@ const cfg = {
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
-    installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
-    installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
-    configureADPath:
-      '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
-
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
@@ -323,6 +321,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
     awsConfigureIamAppAccessPath:
       '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+
+    awsConfigureIamEc2AutoDiscoverWithSsmPath:
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -365,7 +366,7 @@ const cfg = {
       '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
-      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKeys=:startKey?',
+      '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
     notificationLastSeenTimePath:
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
@@ -522,18 +523,6 @@ const cfg = {
 
   getDbScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
-  },
-
-  getConfigureADUrl(token: string) {
-    return cfg.baseUrl + generatePath(cfg.api.configureADPath, { token });
-  },
-
-  getInstallADDSPath() {
-    return cfg.baseUrl + cfg.api.installADDSPath;
-  },
-
-  getInstallADCSPath() {
-    return cfg.baseUrl + cfg.api.installADCSPath;
   },
 
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
@@ -1106,6 +1095,17 @@ const cfg = {
     );
   },
 
+  getAwsIamConfigureScriptEc2AutoDiscoverWithSsmUrl(
+    params: UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -1263,6 +1263,12 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+}
+
+export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
+  region: Regions;
+  iamRoleName: string;
+  ssmDocument: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

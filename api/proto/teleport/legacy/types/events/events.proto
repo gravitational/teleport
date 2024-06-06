@@ -141,6 +141,9 @@ message ServerMetadata {
 
   // ServerSubKind is the sub kind of the server the session occurred on.
   string ServerSubKind = 7 [(gogoproto.jsontag) = "server_sub_kind,omitempty"];
+
+  // ServerVersion is the component version the session occurred on.
+  string ServerVersion = 8 [(gogoproto.jsontag) = "server_version,omitempty"];
 }
 
 // Connection contains connection info
@@ -6237,6 +6240,9 @@ message AccessPathChanged {
 
   // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
   string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
+
+  // AffectedResourceType is the type of the affected resource, ex: user, role, etc.
+  string AffectedResourceType = 5 [(gogoproto.jsontag) = "affected_resource_type"];
 }
 
 // SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.

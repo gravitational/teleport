@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -25,71 +26,144 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
-
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 )
 
-// Run is a blocking call to create and start Teleport VNet.
-func Run(ctx context.Context, appProvider AppProvider) error {
-	ipv6Prefix, err := IPv6Prefix()
+// SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
+// needs to launch an admin subcommand in the background. It returns [ProcessManager] which controls
+// the lifecycle of both background tasks.
+//
+// The caller is expected to call Close on the process manager to close the network stack, clean
+// up any resources used by it and terminate the admin subcommand.
+//
+// ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
+// process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
+// with its background tasks.
+func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager, error) {
+	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
 	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	pm, processCtx := newProcessManager()
+	success := false
+	defer func() {
+		if !success {
+			// Closes the socket and background tasks.
+			pm.Close()
+		}
+	}()
 
-	tunCh, adminCommandErrCh := CreateAndSetupTUNDevice(ctx, ipv6Prefix.String(), dnsIPv6.String())
+	// Create the socket that's used to receive the TUN device from the admin subcommand.
+	socket, socketPath, err := createUnixSocket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
+	pm.AddCriticalBackgroundTask("socket closer", func() error {
+		// Keep the socket open until the process context is canceled.
+		// Closing the socket signals the admin subcommand to terminate.
+		<-processCtx.Done()
+		return trace.NewAggregate(processCtx.Err(), socket.Close())
+	})
 
-	var tun TUNDevice
+	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
+		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+	})
+
+	recvTUNErr := make(chan error, 1)
+	var tun tun.Device
+	go func() {
+		// Unblocks after receiving a TUN device or when the context gets canceled (and thus socket gets
+		// closed).
+		tunDevice, err := receiveTUNDevice(socket)
+		tun = tunDevice
+		recvTUNErr <- err
+	}()
+
 	select {
-	case err := <-adminCommandErrCh:
-		return trace.Wrap(err)
-	case tun = <-tunCh:
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case <-processCtx.Done():
+		return nil, trace.Wrap(context.Cause(processCtx))
+	case err := <-recvTUNErr:
+		if err != nil {
+			if processCtx.Err() != nil {
+				// Both errors being present means that VNet failed to receive a TUN device because of a
+				// problem with the admin subcommand.
+				// Returning error from processCtx will be more informative to the user, e.g., the error
+				// will say "password prompt closed by user" instead of "read from closed socket".
+				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
+				return nil, trace.Wrap(context.Cause(processCtx))
+			}
+			return nil, trace.Wrap(err, "receiving TUN from admin subcommand")
+		}
 	}
 
-	appResolver := NewTCPAppResolver(appProvider)
+	appResolver, err := NewTCPAppResolver(appProvider)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	manager, err := NewManager(&Config{
+	ns, err := newNetworkStack(&Config{
 		TUNDevice:          tun,
 		IPv6Prefix:         ipv6Prefix,
 		DNSIPv6:            dnsIPv6,
 		TCPHandlerResolver: appResolver,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	allErrors := make(chan error, 2)
+	pm.AddCriticalBackgroundTask("network stack", func() error {
+		return trace.Wrap(ns.Run(processCtx))
+	})
+
+	success = true
+	return pm, nil
+}
+
+func newProcessManager() (*ProcessManager, context.Context) {
+	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		// Make sure to cancel the context if manager.Run terminates for any reason.
-		defer cancel()
-		err := trace.Wrap(manager.Run(ctx), "running VNet manager")
-		allErrors <- err
-		return err
-	})
-	g.Go(func() error {
-		var adminCommandErr error
-		select {
-		case adminCommandErr = <-adminCommandErrCh:
-			// The admin command exited before the context was canceled, cancel everything and exit.
-			cancel()
-		case <-ctx.Done():
-			// The context has been canceled, the admin command should now exit.
-			adminCommandErr = <-adminCommandErrCh
+
+	return &ProcessManager{
+		g:      g,
+		cancel: cancel,
+	}, ctx
+}
+
+// ProcessManager handles background tasks needed to run VNet.
+// Its semantics are similar to an error group with a context, but it cancels the context whenever
+// any task returns prematurely, that is, a task exits while the context was not canceled.
+type ProcessManager struct {
+	g      *errgroup.Group
+	cancel context.CancelFunc
+}
+
+// AddCriticalBackgroundTask adds a function to the error group. [task] is expected to block until
+// the context returned by [newProcessManager] gets canceled. The context gets canceled either by
+// calling Close on [ProcessManager] or if any task returns.
+func (pm *ProcessManager) AddCriticalBackgroundTask(name string, task func() error) {
+	pm.g.Go(func() error {
+		err := task()
+		if err == nil {
+			// Make sure to always return an error so that the errgroup context is canceled.
+			err = fmt.Errorf("critical task %q exited prematurely", name)
 		}
-		adminCommandErr = trace.Wrap(adminCommandErr, "running admin subcommand")
-		allErrors <- adminCommandErr
-		return adminCommandErr
+		return trace.Wrap(err)
 	})
-	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
-	_ = g.Wait()
-	close(allErrors)
-	return trace.NewAggregateFromChannel(allErrors, context.Background())
+}
+
+// Wait blocks and waits for the background tasks to finish, which typically happens when another
+// goroutine calls Close on the process manager.
+func (pm *ProcessManager) Wait() error {
+	return trace.Wrap(pm.g.Wait())
+}
+
+// Close stops any active background tasks by canceling the underlying context.
+func (pm *ProcessManager) Close() {
+	pm.cancel()
 }
 
 // AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and
@@ -136,28 +210,6 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 	}
 }
 
-// CreateAndSetupTUNDevice creates a virtual network device and configures the host OS to use that device for
-// VNet connections.
-//
-// If not already running as root, it will spawn a root process to handle the TUN creation and host
-// configuration.
-//
-// After the TUN device is created, it will be sent on the result channel. Any error will be sent on the err
-// channel. Always select on both the result channel and the err channel when waiting for a result.
-//
-// This will keep running until [ctx] is canceled or an unrecoverable error is encountered, in order to keep
-// the host OS configuration up to date.
-func CreateAndSetupTUNDevice(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
-	if os.Getuid() == 0 {
-		// We can get here if the user runs `tsh vnet` as root, but it is not in the expected path when
-		// started as a regular user. Typically we expect `tsh vnet` to be run as a non-root user, and for
-		// AdminSubcommand to directly call createAndSetupTUNDeviceAsRoot.
-		return createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix, dnsAddr)
-	} else {
-		return createAndSetupTUNDeviceWithoutRoot(ctx, ipv6Prefix, dnsAddr)
-	}
-}
-
 // createAndSetupTUNDeviceAsRoot creates a virtual network device and configures the host OS to use that device for
 // VNet connections.
 //
@@ -177,40 +229,41 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 	}
 	tunCh <- tun
 
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
+	if err != nil {
+		errCh <- trace.Wrap(err, "creating OS configurator")
+		return tunCh, errCh
+	}
+
+	// Clean up any stale configuration left by a previous VNet instance that may have failed to clean up.
+	// This is necessary in case any stale /etc/resolver/<proxy address> entries are still present, we need to
+	// be able to reach the proxy in order to fetch the vnet_config.
+	if err := osConfigurator.deconfigureOS(ctx); err != nil {
+		errCh <- trace.Wrap(err, "cleaning up OS configuration on startup")
+		return tunCh, errCh
+	}
+
 	go func() {
 		defer func() {
-			// Shutting down, deconfigure OS.
-			errCh <- trace.Wrap(configureOS(context.Background(), &osConfig{}))
+			// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
+			// already but we still need to clean up.
+			errCh <- trace.Wrap(osConfigurator.deconfigureOS(context.Background()))
 		}()
 
-		var err error
-		tunIPv6 := ipv6Prefix + "1"
-		cfg := osConfig{
-			tunName: tunName,
-			tunIPv6: tunIPv6,
-			dnsAddr: dnsAddr,
-		}
-		if cfg.dnsZones, err = dnsZones(); err != nil {
-			errCh <- trace.Wrap(err, "getting DNS zones")
-			return
-		}
-		if err := configureOS(ctx, &cfg); err != nil {
-			errCh <- trace.Wrap(err, "configuring OS")
+		if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+			errCh <- trace.Wrap(err, "applying initial OS configuration")
 			return
 		}
 
-		// Re-check the DNS zones every 10 seconds, and configure the host OS appropriately.
+		// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
+		// reading profiles from TELEPORT_HOME.
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if cfg.dnsZones, err = dnsZones(); err != nil {
-					errCh <- trace.Wrap(err, "getting DNS zones")
-					return
-				}
-				if err := configureOS(ctx, &cfg); err != nil {
-					errCh <- trace.Wrap(err, "configuring OS")
+				if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+					errCh <- trace.Wrap(err, "updating OS configuration")
 					return
 				}
 			case <-ctx.Done():
@@ -232,23 +285,4 @@ func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
 		return nil, "", trace.Wrap(err, "getting TUN device name")
 	}
 	return dev, name, nil
-}
-
-type osConfig struct {
-	tunName  string
-	tunIPv6  string
-	dnsAddr  string
-	dnsZones []string
-}
-
-func dnsZones() ([]string, error) {
-	profileDir := profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
-	profileNames, err := profile.ListProfileNames(profileDir)
-	if err != nil {
-		return nil, trace.Wrap(err, "listing profiles")
-	}
-	// profile names are Teleport proxy addresses.
-	// TODO(nklaassen): support leaf clusters and custom DNS zones.
-	// TODO(nklaassen): check if profiles are expired.
-	return profileNames, nil
 }
