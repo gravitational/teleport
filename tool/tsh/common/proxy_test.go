@@ -1575,11 +1575,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 		defer r.Body.Close()
 
-		if r.StatusCode != 200 {
-			return false
-		}
-
-		return true
+		return r.StatusCode == 200
 	}, time.Second*5, time.Millisecond*250, "a proxied app request must eventually succeed")
 
 	cancel()
