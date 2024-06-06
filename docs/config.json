@@ -75,6 +75,16 @@
       ]
     },
     {
+    	"title": "Admin Guides",
+    	"icon": "wrench",
+    	"entries": [
+	    {
+	    	"title": "All Topics",
+	    	"slug": "/admin-guides/"
+	    }
+	]
+    },
+    {
       "icon": "success",
       "title": "Choose an Edition",
       "entries": [
@@ -1693,37 +1703,6 @@
       ]
     },
     {
-      "icon": "list",
-      "title": "API",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/api/introduction/"
-        },
-        {
-          "title": "Getting Started",
-          "slug": "/api/getting-started/"
-        },
-        {
-          "title": "Architecture",
-          "slug": "/api/architecture/"
-        },
-        {
-          "title": "How to Build an Access Request Plugin",
-          "slug": "/api/access-plugin/",
-          "forScopes": ["enterprise", "cloud"]
-        },
-        {
-          "title": "Automatically Register Teleport Agents",
-          "slug": "/api/automatically-register-agents/"
-        },
-        {
-          "title": "Automatically Generate Roles",
-          "slug": "/api/rbac/"
-        }
-      ]
-    },
-    {
       "icon": "book",
       "title": "Reference",
       "entries": [
@@ -1862,55 +1841,11 @@
               "slug": "/reference/helm-reference/teleport-plugin-slack/"
             }
           ]
-        }
-      ]
-    },
-    {
-      "icon": "integrations",
-      "title": "Architecture",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/architecture/introduction/"
-        },
-        {
-          "title": "Authentication",
-          "slug": "/architecture/authentication/"
-        },
-        {
-          "title": "Authorization",
-          "slug": "/architecture/authorization/"
-        },
-        {
-          "title": "Teleport Proxy",
-          "slug": "/architecture/proxy/"
-        },
-        {
-          "title": "Trusted Clusters",
-          "slug": "/architecture/trustedclusters/"
         },
 	{
-	  "title": "Teleport Agents",
-	  "slug": "/architecture/agents/"
-	},
-        {
-          "title": "Session Recording",
-          "slug": "/architecture/session-recording/"
-        },
-        {
-          "title": "TLS Routing",
-          "slug": "/architecture/tls-routing/"
-        },
-        {
-          "title": "Proxy Peering",
-          "slug": "/architecture/proxy-peering/",
-          "forScopes": ["enterprise"]
-        },
-        {
-          "title": "Agent Update Management",
-          "slug": "/architecture/agent-update-management/",
-          "forScopes": ["enterprise", "cloud"]
-        }
+	    "title": "All Topics",
+	    "slug": "/reference/"
+	}
       ]
     }
   ],
@@ -2009,11 +1944,6 @@
   },
   "redirects": [
     {
-      "source": "/architecture/users/",
-      "destination": "/architecture/authorization/",
-      "permanent": true
-    },
-    {
       "source": "/enterprise/ssh_sso/",
       "destination": "/access-controls/sso/",
       "permanent": true
@@ -2041,11 +1971,6 @@
     {
       "source": "/intro/",
       "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/api-reference/",
-      "destination": "/api/getting-started/",
       "permanent": true
     },
     {
@@ -2714,18 +2639,8 @@
       "permanent": true
     },
     {
-      "source": "/api/",
-      "destination": "/api/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/preview/",
       "destination": "/upcoming-releases/",
-      "permanent": true
-    },
-    {
-      "source": "/architecture/",
-      "destination": "/architecture/introduction/",
       "permanent": true
     },
     {
