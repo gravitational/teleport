@@ -58,9 +58,12 @@ func (s *SSHProxyService) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (s *SSHProxyService) CheckAndSetDefaults() error {
+	if s.Destination == nil {
+		return trace.BadParameter("destination: must be specified")
+	}
 	_, ok := s.Destination.(*DestinationDirectory)
-	if ok {
-		return trace.BadParameter("destination: must be of type `Directory`")
+	if !ok {
+		return trace.BadParameter("destination: must be of type `directory`")
 	}
 	if err := validateOutputDestination(s.Destination); err != nil {
 		return trace.Wrap(err)
