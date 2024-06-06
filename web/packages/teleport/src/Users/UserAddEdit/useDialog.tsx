@@ -76,6 +76,7 @@ export default function useUserDialog(props: Props) {
     onChangeRoles,
     fetchRoles: props.fetchRoles,
     isNew: props.isNew,
+    traits: props.user.allTraits,
     attempt,
     name,
     selectedRoles,

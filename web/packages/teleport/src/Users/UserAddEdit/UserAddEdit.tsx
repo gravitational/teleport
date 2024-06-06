@@ -16,8 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert } from 'design';
+import React, { useState, useEffect } from 'react';
+import {
+  ButtonPrimary,
+  ButtonSecondary,
+  Alert,
+  Box,
+  Flex,
+  Text,
+  ButtonIcon,
+} from 'design';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
+import * as Icons from 'design/Icon';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -26,9 +36,14 @@ import Dialog, {
 } from 'design/Dialog';
 import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import {
+  FieldSelectAsync,
+  FieldSelectCreatable,
+} from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 import UserTokenLink from './../UserTokenLink';
 import useDialog, { Props } from './useDialog';
@@ -44,6 +59,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onChangeRoles,
     onClose,
     fetchRoles,
+    traits,
     attempt,
     name,
     selectedRoles,
@@ -69,9 +85,9 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
       {({ validator }) => (
         <Dialog
           dialogCss={() => ({
-            maxWidth: '500px',
+            maxWidth: '700px',
             width: '100%',
-            overflow: 'initial',
+            height: '70%',
           })}
           disableEscapeKeyDown={false}
           onClose={onClose}
@@ -111,6 +127,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               }}
               elevated={true}
             />
+            <TraitsEditor traits={traits} />
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary
@@ -130,5 +147,99 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
         </Dialog>
       )}
     </Validation>
+  );
+}
+
+export type TraitEditorProps = {
+  traits: AllUserTraits;
+};
+
+function TraitsEditor({ traits }: TraitEditorProps) {
+  const [tt, setTT] = useState([]);
+
+  useEffect(() => {
+    let t = [];
+    for (let trait in traits) {
+      if (traits[trait].length !== 0) {
+        t.push({ trait: trait, traitValues: traits[trait] });
+      }
+    }
+    console.log(t);
+    setTT(t);
+  }, [traits]);
+
+  return (
+    <Box>
+      <Text bold>Traits</Text>
+      <Flex mt={2}>
+        <Box width="265px">
+          <Text fontSize={1}>Trait Name</Text>
+        </Box>
+
+        <Text fontSize={1} ml={4}>
+          Trait Value
+        </Text>
+      </Flex>
+      {tt.map(({ trait, traitValues }) => {
+        return (
+          <Box mb={-5} key={trait}>
+            <Flex alignItems="center" mt={-3}>
+              <Box width="290px" mr={1} mt={4}>
+                <FieldSelectCreatable
+                  placeholder="trait-key"
+                  autoFocus
+                  value={{ value: trait, label: trait }}
+                />
+              </Box>
+              <Box width="400px" ml={3}>
+                <FieldSelectCreatable
+                  mt={4}
+                  ariaLabel="attribute value"
+                  css={`
+                    background: ${props => props.theme.colors.levels.surface};
+                  `}
+                  placeholder="trait values"
+                  defaultValue={traitValues.map(r => ({
+                    value: r,
+                    label: r,
+                  }))}
+                  isMulti
+                  value={traitValues.map(r => ({
+                    value: r,
+                    label: r,
+                  }))}
+                  isDisabled={false}
+                  createOptionPosition="last"
+                  formatCreateLabel={(i: string) => `"${i}"`}
+                />
+              </Box>
+              <ButtonIcon
+                ml={1}
+                size={1}
+                title="Remove Attribute"
+                onClick={() => null}
+                css={`
+                  &:disabled {
+                    opacity: 0.65;
+                    pointer-events: none;
+                  }
+                `}
+                disabled={false}
+              >
+                <Icons.Trash size="medium" />
+              </ButtonIcon>
+            </Flex>
+          </Box>
+        );
+      })}
+
+      <Box mt={4}>
+        <ButtonTextWithAddIcon
+          onClick={() => null}
+          label={'Add another trait'}
+          disabled={false}
+        />
+      </Box>
+    </Box>
   );
 }
