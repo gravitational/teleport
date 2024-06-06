@@ -2714,11 +2714,6 @@
       "permanent": true
     },
     {
-      "source": "/reference/",
-      "destination": "/reference/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/architecture/",
       "destination": "/architecture/introduction/",
       "permanent": true
