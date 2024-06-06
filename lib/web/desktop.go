@@ -230,6 +230,9 @@ func (h *Handler) createDesktopConnection(
 			return sendTDPError(err)
 		}
 	}
+	// nil out the slice so we don't hang on to these messages
+	// for the rest of the connection
+	withheld = nil
 
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
