@@ -127,7 +127,8 @@ export function useResourceSearch() {
             filters: resourceTypeSearchFilters.map(f => f.resourceType),
             limit,
             includeRequestable:
-              cluster.showResources === ShowResources.REQUESTABLE,
+              clustersService.findRootClusterByResource(cluster.uri)
+                ?.showResources === ShowResources.REQUESTABLE,
           })
         )
       );
