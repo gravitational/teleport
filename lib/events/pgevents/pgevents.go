@@ -67,6 +67,24 @@ const (
 	retentionPeriodParam = "retention_period"
 )
 
+const (
+	schemaV1Table = `CREATE TABLE events (
+		event_time timestamptz NOT NULL,
+		event_id uuid NOT NULL,
+		event_type text NOT NULL,
+		session_id uuid NOT NULL,
+		event_data json NOT NULL,
+		creation_time timestamptz NOT NULL DEFAULT now(),
+		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
+	);
+	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
+		WHERE session_id != '00000000-0000-0000-0000-000000000000';`
+	dateIndex                       = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
+	schemaV1TableWithDateIndex      = schemaV1Table + "\n" + dateIndex
+	schemaV1CockroachSetRowExpiry   = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + (%d * INTERVAL ''1 microsecond'')) AT TIME ZONE ''UTC'' ');"
+	schemaV1CockroachUnsetRowExpiry = "ALTER TABLE events RESET (ttl_expiration_expression);"
+)
+
 // Config is the configuration struct to pass to New.
 type Config struct {
 	pgcommon.AuthConfig
@@ -188,7 +206,19 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := pgcommon.SetupAndMigrate(ctx, cfg.Log, pool, "audit_version", schemas); err != nil {
+	var isCockroach bool
+
+	// We're a bit hacky here, we must not start the cleanup job if we're
+	// running on cockroach (rows have TTLs). To avoid running another query,
+	// the builder function detects and reports if it's a cockroach via a shared
+	// variable. This works because everything is synchronous.
+	schemaBuilder := func(conn *pgx.Conn) ([]string, error) {
+		isCockroach = conn.PgConn().ParameterStatus("crdb_version") != ""
+
+		return buildSchema(isCockroach, &cfg)
+	}
+
+	if err := pgcommon.SetupAndMigrateDynamic(ctx, cfg.Log, pool, "audit_version", schemaBuilder); err != nil {
 		pool.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -200,14 +230,58 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		cancel: cancel,
 	}
 
-	if !cfg.DisableCleanup {
-		l.wg.Add(1)
-		go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+	if isCockroach {
+		err = configureCockroachDBRetention(ctx, &cfg, pool)
+		if err != nil {
+			return nil, trace.Wrap(err, "configuring CockroachDB retention")
+		}
+	} else {
+		// Regular PostgreSQL that doesn't support expiring rows, we must run a
+		// periodic cleanup job.
+		if !cfg.DisableCleanup {
+			cfg.Log.DebugContext(
+				ctx, "Starting periodic cleanup background worker.",
+				"retention", cfg.RetentionPeriod.String(),
+				"cleanup_interval", cfg.CleanupInterval)
+			l.wg.Add(1)
+			go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+		}
 	}
 
 	l.log.InfoContext(ctx, "Started events backend.")
 
 	return l, nil
+}
+
+func configureCockroachDBRetention(ctx context.Context, cfg *Config, pool *pgxpool.Pool) error {
+	// Arbitrary timeout to make sure we don't end up hanging for some reason
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var expiryQuery string
+	if cfg.DisableCleanup {
+		cfg.Log.DebugContext(ctx, "Disabling CockroachDB native row expiry")
+		expiryQuery = schemaV1CockroachUnsetRowExpiry
+	} else {
+		cfg.Log.DebugContext(ctx, "Configuring CockroachDB native row expiry")
+		expiryQuery = fmt.Sprintf(schemaV1CockroachSetRowExpiry, cfg.RetentionPeriod)
+	}
+	_, err := pool.Exec(ctx, expiryQuery, pgx.QueryExecModeExec)
+	return trace.Wrap(err)
+
+}
+
+func buildSchema(isCockroach bool, cfg *Config) (schemas []string, err error) {
+	// If this is a real postgres, we cannot use self-expiring rows and we need
+	// to create an index for the deletion job to run. This index type is not
+	// supported by CockroachDB at the time of writing
+	// (see https://github.com/cockroachdb/cockroach/issues/41293)
+	if !isCockroach {
+		return []string{schemaV1TableWithDateIndex}, nil
+	}
+
+	cfg.Log.DebugContext(context.TODO(), "CockroachDB detected.")
+	return []string{schemaV1Table}, nil
 }
 
 // Log is an external [events.AuditLogger] backed by a PostgreSQL database.
@@ -225,21 +299,6 @@ func (l *Log) Close() error {
 	l.wg.Wait()
 	l.pool.Close()
 	return nil
-}
-
-var schemas = []string{
-	`CREATE TABLE events (
-		event_time timestamptz NOT NULL,
-		event_id uuid NOT NULL,
-		event_type text NOT NULL,
-		session_id uuid NOT NULL,
-		event_data json NOT NULL,
-		creation_time timestamptz NOT NULL DEFAULT now(),
-		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
-	);
-	CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
-	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
-		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
 }
 
 // periodicCleanup removes events past the retention period from the table,
