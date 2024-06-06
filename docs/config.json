@@ -635,7 +635,7 @@
       "entries": [
         {
           "title": "Introduction",
-          "slug": "/management/introduction/"
+          "slug": "/management/"
         },
         {
           "title": "Using Dynamic Resources",
@@ -2701,11 +2701,6 @@
     {
       "source": "/try-out-teleport/",
       "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/management/",
-      "destination": "/management/introduction/",
       "permanent": true
     },
     {
