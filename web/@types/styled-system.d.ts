@@ -16,35 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import 'styled-system';
 
-import { Text } from 'design';
+declare module 'styled-system' {
+  export function style(args: LowLevelStylefunctionArguments): styleFn;
 
-export function PageIndicatorText({
-  from,
-  to,
-  count,
-}: {
-  from: number;
-  to: number;
-  count: number;
-}) {
-  if (count == 0) {
-    return;
+  export interface styleFn {
+    (...args: any[]): any;
+    propTypes: React.WeakValidationMap<{ [string]: any }>;
   }
-
-  return (
-    <Text
-      typography="body2"
-      mr={1}
-      fontWeight={500}
-      style={{
-        whiteSpace: 'nowrap',
-        letterSpacing: '0.15px',
-      }}
-    >
-      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
-      <strong>{count}</strong>
-    </Text>
-  );
 }

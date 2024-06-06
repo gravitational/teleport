@@ -21,10 +21,12 @@ import styled from 'styled-components';
 import {
   ColorProps,
   FontSizeProps,
-  FontWeightProps,
   SpaceProps,
   TextAlignProps,
+  ResponsiveValue,
 } from 'styled-system';
+
+import { Property } from 'csstype';
 
 import {
   typography,
@@ -35,6 +37,11 @@ import {
   fontWeight,
 } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
+import { fontWeights } from 'design/theme/typography';
+
+interface FontWeightProps {
+  fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
+}
 
 export interface TextProps
   extends TypographyProps,

@@ -18,9 +18,9 @@
 
 import PropTypes from 'prop-types';
 
-import { ResponsiveValue, ThemeValue } from 'styled-system';
+import { ResponsiveValue } from 'styled-system';
 
-import { Theme } from 'design/theme/themes/types';
+import { SharedStyles, Theme } from 'design/theme/themes/types';
 
 export interface TypographyProps {
   caps?: boolean;
@@ -28,7 +28,7 @@ export interface TypographyProps {
   italic?: boolean;
   mono?: boolean;
   breakAll?: boolean;
-  typography?: ResponsiveValue<ThemeValue<'typography', Theme>>;
+  typography?: ResponsiveValue<keyof SharedStyles['typography']>;
 }
 
 interface TypographyPropsWithTheme extends TypographyProps {

@@ -18,9 +18,7 @@
 
 import styled from 'styled-components';
 
-import { BorderRadiusProps } from 'styled-system';
-
-import { borderRadius } from 'design/system';
+import { borderRadius, BorderRadiusProps } from 'design/system';
 
 export const StyledTable = styled.table<BorderRadiusProps>`
   border-collapse: collapse;

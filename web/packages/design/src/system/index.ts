@@ -42,16 +42,14 @@ import {
   textAlign,
   width,
   style,
-  Theme,
-  RequiredTheme,
   ResponsiveValue,
   TLengthStyledSystem,
 } from 'styled-system';
 
-import * as CSS from 'csstype';
+import { Property } from 'csstype';
 
 import typography from './typography';
-import borderRadius from './borderRadius';
+import borderRadius, { BorderRadiusProps } from './borderRadius';
 
 const gap = style({
   prop: 'gap',
@@ -61,11 +59,8 @@ const gap = style({
   key: 'space',
 });
 
-export interface GapProps<
-  ThemeType extends Theme = RequiredTheme,
-  TVal = CSS.Property.Gap<TLengthStyledSystem>,
-> {
-  gap?: ResponsiveValue<TVal, ThemeType> | undefined;
+export interface GapProps<TLength = TLengthStyledSystem> {
+  gap?: ResponsiveValue<Property.Gap<TLength>>;
 }
 
 export {
@@ -75,6 +70,7 @@ export {
   borderColor,
   borders,
   borderRadius,
+  type BorderRadiusProps,
   color,
   flex,
   flexDirection,
