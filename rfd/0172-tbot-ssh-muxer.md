@@ -100,11 +100,28 @@ Comparing Rust and Go for this lightweight binary:
 
 For this binary, we will use Rust.
 
+#### Connection Re-use
+
+The Go gRPC client is capable of multiplexing multiple streams over a single
+connection, but using a single connection for a large number of streams is 
+problematic for a few reasons:
+
+- Contention of the upstream connection.
+- TCP head of line blocking becomes more problematic as the amount of data being
+  transferred over a single connection increases.
+- The server enforces a maximum number of streams per connection.
+
+To avoid this, a simple connection cycler will be implemented. After a number of
+streams have been established, a new internal connection will be dialed. New
+streams will use the new connection, and the old connection will be closed once
+all streams using it have been closed.
+
 ### Initial Scope
 
 For the initial version, we must include:
 
 - The long-lived proxying background service within `tbot`
+  - This will include a rudimentary connection cycler.
 - The new lightweight client binary with support for ProxyUseFdPass.
 - A configuration option to control the maximum number of proxied connections.
   - When this maximum is reached, the service will wait until the number of
@@ -129,18 +146,17 @@ This work is deferred as it is complex and introduces risks. Information from
 OpenTelemetry tracing will allow us to target the most impactful areas at a 
 later date.
 
-#### Upstream Connection Pooling
+#### Further improving re-use of connections
 
-The initial version will not share the upstream connections to the Teleport
-Proxy.
+The initial version will use a rudimentary connection "cycler". This will cause
+a new connection to be established after a certain number of downstream
+connections have been established. It will then close the upstream connection
+once all downstream connections using it have been closed.
 
-Sharing upstream connections will allow us to reduce the number of connections
-and reduce the latency and overhead associated with establishing a new
-connection.
-
-This work is deferred as it is complex and introduces risks. We should first
-ensure that the initial version is stable and to take measurements which can
-inform the design of the connection pooling.
+This could be further improved by balancing incoming downstream connections
+against a pool of upstream connections, because the upstream connections would
+live longer and we'd avoid a scenario where an upstream connection remains open
+but is only being utilised by one or two remaining downstream connections.
 
 ### UX
 
