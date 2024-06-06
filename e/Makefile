@@ -25,11 +25,11 @@ endif
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
-FIPS_ENT_MESSAGE := "without-FIPS-support"
+FIPS_ENT_MESSAGE := without-FIPS-support
 # FIPS support must be requested at build time.
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_ENT_MESSAGE := "with-FIPS-support"
+FIPS_ENT_MESSAGE := with-FIPS-support
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 # See the comment in tool/modules/fips.go.hide for explanation.
 $(shell ln -sf fips.go.hide tool/modules/fips.go)
@@ -38,11 +38,11 @@ else
 $(shell rm -f tool/modules/fips.go)
 endif
 
-PAM_ENT_MESSAGE := "without-PAM-support"
+PAM_ENT_MESSAGE := without-PAM-support
 # PAM support will only be built into Teleport if headers exist at build time.
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG = pam
-PAM_ENT_MESSAGE := "with-PAM-support"
+PAM_ENT_MESSAGE := with-PAM-support
 endif
 
 # darwin universal (Intel + Apple Silicon combined) binary vars
@@ -61,7 +61,7 @@ CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
 with_rdpclient := no
-RDPCLIENT_ENT_MESSAGE := "without-Windows-RDP-client"
+RDPCLIENT_ENT_MESSAGE := without-Windows-RDP-client
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
@@ -80,12 +80,21 @@ ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
-# Do not build RDP client on ARM or 386.
+is_fips_on_arm64 := no
+ifneq ("$(FIPS)","")
+ifeq ("$(ARCH)","arm64")
+is_fips_on_arm64 := yes
+endif
+endif
+
+# Do not build RDP client on ARM or 386, or for FIPS builds on arm64.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
+ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
-RDPCLIENT_ENT_MESSAGE := "with-Windows-RDP-client"
+RDPCLIENT_ENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -158,7 +167,7 @@ COMMA := ,
 MESSAGES := $(PAM_ENT_MESSAGE) $(FIPS_ENT_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_ENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE)
 WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
 WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
-RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and with $(WITH) and without $(WITHOUT)."
+RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) with $(WITH) and without $(WITHOUT)."
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
