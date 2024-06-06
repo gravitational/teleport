@@ -29,17 +29,17 @@ func (s *Service) getSession(ctx context.Context, req *saml.IdpAuthnRequest) (*s
 	identity, err := getIdentityFromCtx(ctx)
 	if err != nil {
 		s.log.Debugf("error getting identity from context: %v", err)
-		s.emitAuthAttemptEvent(ctx, "", "", entityID, "", err)
+		s.emitAuthAttemptEvent(ctx, "", entityID, "", err)
 		return nil, trace.Wrap(err)
 	}
 
 	session, err := s.createSession(identity)
 	if err != nil {
-		s.emitAuthAttemptEvent(ctx, identity.Username, "", entityID, "", err)
+		s.emitAuthAttemptEvent(ctx, identity.Username, entityID, "", err)
 		return nil, trace.Wrap(err, "failed to create session")
 	}
 
-	s.emitAuthAttemptEvent(ctx, identity.Username, session.ID, entityID, "", err)
+	s.emitAuthAttemptEvent(ctx, identity.Username, entityID, "", err)
 	return session, nil
 }
 
@@ -144,7 +144,7 @@ func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) 
 	}
 
 	err = trace.NotFound("could not find service provider")
-	s.emitAuthAttemptEvent(r.Context(), user, "", serviceProviderID, "", err)
+	s.emitAuthAttemptEvent(r.Context(), user, serviceProviderID, "", err)
 
 	return nil, err
 }

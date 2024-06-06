@@ -93,7 +93,7 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 			if identity != nil {
 				user = identity.Username
 			}
-			s.emitAuthAttemptEvent(r.Context(), user, "", "", "", err)
+			s.emitAuthAttemptEvent(r.Context(), user, "", "", err)
 			s.writeError(w, http.StatusNotFound)
 			return
 		}
@@ -232,20 +232,20 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	// It looks like this case isn't possible because the httprouter won't let this resolve
 	// without the shortcut, but we'll check here just to be sure.
 	if shortcutName == "" {
-		s.emitAuthAttemptEvent(r.Context(), user, "", "", "", trace.NotFound("shortcut is empty"))
+		s.emitAuthAttemptEvent(r.Context(), user, "", "", trace.NotFound("shortcut (SAML app name) is empty"))
 		s.writeError(w, http.StatusInternalServerError)
 		return
 	}
 
 	sp, err := s.accessPoint.GetSAMLIdPServiceProvider(r.Context(), shortcutName)
 	if err != nil {
-		s.emitAuthAttemptEvent(r.Context(), user, "", "", shortcutName, err)
+		s.emitAuthAttemptEvent(r.Context(), user, "", shortcutName, err)
 		s.writeError(w, http.StatusNotFound)
 		return
 	}
 
 	if err := validateAssertionConsumerServices(sp); err != nil {
-		s.emitAuthAttemptEvent(r.Context(), user, "", "", shortcutName, err)
+		s.emitAuthAttemptEvent(r.Context(), user, "", shortcutName, err)
 		s.writeError(w, http.StatusNotFound)
 		return
 	}

@@ -217,7 +217,7 @@ func (s *Service) createIdP(ctx context.Context) (saml.IdentityProvider, error) 
 }
 
 // emitAuthAttemptEvent will emit an auth attempt event to the audit log.
-func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, sessionID, entityID, shortcut string, sourceErr error) {
+func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, entityID, shortcut string /* SAML app name */, sourceErr error) {
 	success := true
 	var errorMsg string
 	if sourceErr != nil {
@@ -232,9 +232,6 @@ func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, sessionID, ent
 		},
 		UserMetadata: apievents.UserMetadata{
 			User: user,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID,
 		},
 		Status: apievents.Status{
 			Success: success,
