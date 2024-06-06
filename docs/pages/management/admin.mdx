@@ -12,19 +12,13 @@ If you already understand how to set up a Teleport cluster, consult the
 [Operations](./operations.mdx) section so you can start conducting periodic
 cluster maintenance tasks.
 
-## Run Teleport
+{/*TOPICS*/}
 
-- [Teleport Daemon](./admin/daemon.mdx): Set up Teleport as a daemon on Linux with systemd.
-- [Run Teleport with Self-Signed Certificates](./admin/self-signed-certs.mdx): Set up Teleport in a local
-environment without configuring TLS certificates.
-
-## Manage users and resources
-
-- [Trusted Clusters](./admin/trustedclusters.mdx): Connect multiple Teleport clusters using trusted clusters.
-- [Labels](./admin/labels.mdx): Manage resource metadata with labels.
-- [Local Users](./admin/users.mdx): Manage local user accounts.
-
-## Troubleshoot issues
-
-- [Troubleshooting](./admin/troubleshooting.mdx): Collect metrics and diagnostic information from Teleport.
-- [Uninstall Teleport](./admin/uninstall-teleport.mdx): Uninstall Teleport from your system.
+- [Add Labels to Resources](admin/labels.mdx): How to assign static and command-based dynamic labels to Teleport resources.
+- [Commands to look up cluster addresses](admin/trusted-cluster-address-lookup.mdx): Suggests command-line tools and scripts to look up cluster addresses.
+- [Configure Trusted Clusters](admin/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+- [Local Users](admin/users.mdx): Learn how to manage local users in Teleport. Local users are stored on the Auth Service instead of a third-party identity provider.
+- [Run Teleport as a Daemon](admin/daemon.mdx): Configure Teleport to run as a daemon using systemd
+- [Running Teleport with Self-Signed Certificates](admin/self-signed-certs.mdx): This guide shows you how to run Teleport using self-signed certificates, which is helpful for testing or demo environments.
+- [Troubleshooting](admin/troubleshooting.mdx): Troubleshooting and Collecting Metrics of Teleport Processes
+- [Uninstall Teleport](admin/uninstall-teleport.mdx): How to remove Teleport from your system
