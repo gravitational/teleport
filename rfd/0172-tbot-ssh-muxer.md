@@ -44,7 +44,7 @@ We will introduce a long-lived service in `tbot`: `ssh-local-proxy`.
 Upon start, the service will write a SSH config to a configured destination.
 This SSH config should be used by OpenSSH to leverage the service.
 
-Once initialized, the service will open a Unix socket. Upon connection to this
+Once initialized, the service will listen on a Unix socket. Upon connection to this
 socket, the client will write a short message containing the target host and
 port. The service will then establish the connection, and then begin forwarding
 data between the socket and the upstream connection.
