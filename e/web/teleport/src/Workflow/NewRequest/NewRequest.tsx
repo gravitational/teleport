@@ -518,7 +518,9 @@ function NewRequest(props: State) {
               setShowCheckout(false);
               fetchUsage();
             }}
-            toggleResource={addOrRemoveResource}
+            toggleResource={({ kind, id, name }) =>
+              addOrRemoveResource(kind, id, name)
+            }
             transitionState={transitionState}
             reset={clearAddedResources}
             selectedResource={selectedResource}

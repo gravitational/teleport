@@ -178,7 +178,9 @@ export function UnifiedResourcesE() {
               {...requestCheckout}
               clearAttempt={clearAttempt}
               createAttempt={createAttempt}
-              toggleResource={addOrRemoveResource}
+              toggleResource={({ kind, id, name }) =>
+                addOrRemoveResource(kind, id, name)
+              }
               reset={clearAddedResources}
               onClose={clearAttempt}
               isResourceRequest={true} // only resource requests happen from this page
