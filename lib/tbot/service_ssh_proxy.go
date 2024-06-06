@@ -21,19 +21,24 @@ package tbot
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/resumption"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,9 +47,7 @@ import (
 type SSHProxyService struct {
 	cfg         *config.SSHProxyService
 	svcIdentity *config.UnstableClientCredentialOutput
-	botCfg      *config.BotConfig
 	log         *slog.Logger
-	resolver    reversetunnelclient.Resolver
 
 	apiClient   *authclient.Client
 	proxyClient *proxyclient.Client
@@ -52,7 +55,84 @@ type SSHProxyService struct {
 }
 
 func (s *SSHProxyService) Run(ctx context.Context) error {
-	return trace.NotImplemented("SSHProxyService.Run is not implemented")
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(10 * time.Second):
+		return trace.BadParameter("timeout waiting for identity to be ready")
+	case <-s.svcIdentity.Ready():
+	}
+	facade, err := s.svcIdentity.Facade()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyHost, _, err := net.SplitHostPort(proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyClient, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
+		ProxyAddress:      proxy,
+		TLSRoutingEnabled: s.cfg.TLSRoutingEnabled,
+		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
+			cfg, err := facade.TLSConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// The facade TLS config is tailored toward connections to the Auth service.
+			// Override the server name to be the proxy and blank out the next protos to
+			// avoid hitting the proxy web listener.
+			cfg.ServerName = proxyHost
+			cfg.NextProtos = nil
+			return cfg, nil
+		},
+		UnaryInterceptors: []grpc.UnaryClientInterceptor{
+			interceptors.GRPCClientUnaryErrorInterceptor,
+		},
+		StreamInterceptors: []grpc.StreamClientInterceptor{
+			interceptors.GRPCClientStreamErrorInterceptor,
+		},
+		SSHConfig:               sshConfig,
+		InsecureSkipVerify:      s.cfg.Insecure,
+		ALPNConnUpgradeRequired: cfg.ConnectionUpgradeRequired,
+
+		DialContext: dialCycling,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	authConfig, err := proxyClient.ClientConfig(ctx, clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authConfig.Credentials = []apiclient.Credentials{facade}
+
+	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	l, err := createListener(ctx, s.log, fmt.Sprintf("unix://%s", dest.Path))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer context.AfterFunc(ctx, func() { _ = l.Close() })()
+	for {
+		downstream, err := l.Accept()
+		if err != nil {
+			s.log.WarnContext(ctx, "Accept error, sleeping and continuing", "error", err)
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+
+		go func() {
+			err := s.handleConn(ctx, downstream)
+			if err != nil {
+				s.log.WarnContext(ctx, "Handler exited", "error", err)
+			}
+		}()
+	}
 }
 
 func (s *SSHProxyService) handleConn(
