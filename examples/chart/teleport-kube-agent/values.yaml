@@ -428,7 +428,7 @@ jamfApiEndpoint: ""
 # This setting is required if the chart `roles` contains `jamf`.
 jamfClientId: ""
 
-# jamfClientSecret(string) -- sets the Jamf Pro API password used for Jamf service.
+# jamfClientSecret(string) -- sets the Jamf Pro API client secret used for Jamf service.
 #
 # This setting is required if the chart `roles` contains `jamf`.
 jamfClientSecret: ""
@@ -447,7 +447,7 @@ jamfUsername: ""
 # This setting is required if the chart `roles` contains `jamf`.
 jamfPassword: ""
 
-# jamfCredentialsSecret -- manages the Jamf Pro API secret creation and its name.
+# jamfCredentialsSecret -- manages the Kubernetes Secret containing the Jamf API credentials (either Jamf client secret or password).
 jamfCredentialsSecret:
   # jamfCredentialsSecret.create(bool) -- controls whether the chart creates the
   # Kubernetes `Secret` containing the Jamf Pro API Client Secret.
@@ -458,11 +458,11 @@ jamfCredentialsSecret:
   # containing the Jamf Pro API Client Secret used by the chart.
   #
   # If `jamfCredentialsSecret.create` is `false`, the chart will not attempt to create the secret itself.
-  # Instead, it will read the value from an existing secret. `jamfCredentialsSecret.name`
+  # Instead, it will read the value from an existing Kubernetes Secret. `jamfCredentialsSecret.name`
   # configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
   # Jamf Pro API Client Secret stored in your Teleport chart values.
   #
-  # To create your own Jamf Pro API Client Secret, you can use a command like this:
+# To create your own Kubernetes Secret containing Jamf Pro API Client Secret, run the command:
   #
   # ```code
   # $ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=jamfSecret=<replace-with-actual-secret>
