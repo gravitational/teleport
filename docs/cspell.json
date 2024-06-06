@@ -890,6 +890,7 @@
     "trustedclusters",
     "trustpolicy",
     "truststore",
+    "tshd",
     "turnoffuserassign",
     "ubunutu",
     "udev",
@@ -957,8 +958,7 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop",
-    "SPDY"
+    "zztop"
   ],
   "flagWords": [
     "hte"

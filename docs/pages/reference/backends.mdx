@@ -17,13 +17,17 @@ read/write ratio, mutability, etc.).
 | session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in the Teleport Architecture documentation.
-</Admonition>
+## Cluster state
+
+Cluster state is stored in a central storage location configured by the Auth
+Service. The cluster state includes:
+
+- Agent and Proxy Service membership information, including offline/online
+  status.
+- List of active sessions.
+- List of locally stored users.
+- RBAC configuration (roles and permissions).
+- Dynamic configuration.
 
 There are two ways to achieve High Availability. You can "outsource"
 this function to the infrastructure. For example, using a highly available
@@ -184,14 +188,6 @@ teleport:
 
 PostgreSQL cluster state and audit log storage is available starting from
 Teleport `13.3`.
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
-</Admonition>
 
 Teleport can use [PostgreSQL](https://www.postgresql.org/) as a storage backend
 to achieve high availability. You must take steps to protect access to
@@ -514,14 +510,6 @@ teleport:
 
 ## S3
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
-</Admonition>
-
 S3 buckets can only be used as storage for the recorded sessions. S3 cannot
 store the audit log or the cluster state.
 
@@ -747,14 +735,6 @@ To enforce the ownership transfer, set `B`'s bucket's policy to only allow uploa
 For more information, see the [AWS Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
 
 ## DynamoDB
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in the Teleport Architecture documentation.
-</Admonition>
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage backend to achieve
@@ -1190,14 +1170,6 @@ To disable writing to DynamoDB, remove the DynamoDB URL from the
 
 ## GCS
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
-</Admonition>
-
 Google Cloud Storage (GCS) can be used as storage for recorded
 sessions. GCS cannot store the audit log or the cluster state. Below is an
 example of how to configure a Teleport Auth Service to store the recorded
@@ -1231,14 +1203,6 @@ Replace the following variables in the above example with your own values:
 - `$CREDENTIALS_PATH` with the path to a JSON-formatted GCP credentials file configured for a service account applicable to the project.
 
 ## Firestore
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
-</Admonition>
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage backend to achieve
@@ -1301,14 +1265,6 @@ teleport:
 
 Azure Blob Storage for session storage is available starting from Teleport
 `13.3`.
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
-</Admonition>
 
 Azure Blob Storage can be used as storage for recorded sessions. Azure Blob
 Storage cannot store the audit log or the cluster state. Below is an example of
