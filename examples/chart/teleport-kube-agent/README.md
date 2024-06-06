@@ -262,8 +262,6 @@ To use [Teleport Jamf service](https://goteleport.com/docs/access-controls/devic
 you will also need:
 - provide your Jamf Pro API endpoint
 - provide your Jamf Pro API credentials
-  - Teleport versions v16.0.0 or lower don't support Jamf API credentials. Use [Jamf user and password authentication](https://goteleport.com/docs/ver/16.x/access-controls/device-trust/jamf-integration/#optional-using-jamf-user-and-password-authentication) instead.
-  - Teleport versions higher than v16.0.0 should use [Jamf API credentials](https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html).
 
 To install the agent with Jamf API credentials, run:
 
@@ -273,22 +271,10 @@ $ helm install teleport-kube-agent . \
   --namespace teleport \
   --set roles=jamf \
   --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
   --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
   --set jamfClientId=${JAMF_CLIENT_ID?} \
   --set jamfClientSecret=${JAMF_CLIENT_SECRET?}
-```
-
-For Jamf username and password, run:
-
-```sh
-$ helm install teleport-kube-agent . \
-  --create-namespace \
-  --namespace teleport \
-  --set roles=jamf \
-  --set proxyAddr=${PROXY_ENDPOINT?} \
-  --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
-  --set jamfUsername=${JAMF_USERNAME?} \
-  --set jamfPassword=${JAMF_PASSWORD?}
 ```
 
 Set the values in the above command as appropriate for your setup.
@@ -319,6 +305,7 @@ $ helm install teleport-kube-agent . \
   --namespace ${TELEPORT_NAMESPACE?} \
   --set roles=jamf \
   --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
   --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
   --set jamfClientId=${JAMF_CLIENT_ID?} \
   --set jamfCredentialsSecret.name=${JAMF_SECRET_NAME?} \
