@@ -175,8 +175,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
+	// Holds any messages withheld while issuing certs.
+	var withheld []tdp.Message
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
-	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq)
+	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq, &withheld)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -222,7 +224,8 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	for _, msg := range h.withheldMessages {
+	for _, msg := range withheld {
+		log.Debugf("Sending withheld message: %v", msg)
 		if err := tdpConn.WriteMessage(msg); err != nil {
 			return sendTDPError(err)
 		}
@@ -314,9 +317,10 @@ func (h *Handler) issueCerts(
 	sctx *SessionContext,
 	mfaRequired bool,
 	certsReq *proto.UserCertsRequest,
+	withheld *[]tdp.Message,
 ) (certs *proto.Certs, err error) {
 	if mfaRequired {
-		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq)
+		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq, withheld)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -363,6 +367,7 @@ func (h *Handler) performMFACeremony(
 	ws *websocket.Conn,
 	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
+	withheld *[]tdp.Message,
 ) (_ *proto.Certs, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
 	defer func() {
@@ -413,7 +418,7 @@ func (h *Handler) performMFACeremony(
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				h.withheldMessages = append(h.withheldMessages, msg)
+				*withheld = append(*withheld, msg)
 				continue
 			}
 
