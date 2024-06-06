@@ -72,9 +72,10 @@ The Unix socket will implement a simple protocol:
    forwarding data between the local connection and the target.
 
 Also considered was implementing the SOCKS5 protocol. Whilst this is more 
-standardized, it is more complicated than necessary. It also relies on our
-existing implementation of a SOCKS5 server which has not received signficant
-attention in some time.
+standardized, it is more complicated than necessary. In addition, it seems like
+there's not many tools in the wild that can connect to a SOCKS server over a
+unix domain socket, so any advantage gained by the use of a standard protocol
+is not actually realized in practice.
 
 #### Client Binary
 
