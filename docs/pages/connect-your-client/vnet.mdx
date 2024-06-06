@@ -3,6 +3,8 @@ title: Using VNet
 description: Using VNet
 ---
 
+## How it works
+
 VNet is a virtual network emulation tool which enables any program on your computer to connect to
 TCP applications protected by Teleport, with no extra changes required to the program itself. It is
 available in Teleport Connect and tsh on macOS, with Windows and Linux version in the works.
@@ -60,8 +62,8 @@ before closing Teleport Connect.
 
 ## `tsh` support
 
-VNet is available in `tsh` as well. Using it is as simple as logging in to the cluster and
-calling `tsh vnet`.
+VNet is available in `tsh` as well. Using it involves logging into the cluster and executing the
+command `tsh vnet`.
 
 ```code
 $ tsh login --proxy=teleport.example.com
