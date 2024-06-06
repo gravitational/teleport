@@ -130,11 +130,9 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	return trace.Wrap(err, "configuring OS")
 }
 
-func (c *osConfigurator) deconfigureOS() error {
+func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	// Pass context.Background() because we are likely deconfiguring because we received a signal to terminate
-	// and all contexts have been canceled.
-	return trace.Wrap(configureOS(context.Background(), &osConfig{}))
+	return trace.Wrap(configureOS(ctx, &osConfig{}))
 }
 
 func (c *osConfigurator) setTunIPv4FromCIDR(cidrRange string) error {
