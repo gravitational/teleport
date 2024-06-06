@@ -235,10 +235,19 @@ func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr stri
 		return tunCh, errCh
 	}
 
+	// Clean up any stale configuration left by a previous VNet instance that may have failed to clean up.
+	// This is necessary in case any stale /etc/resolver/<proxy address> entries are still present, we need to
+	// be able to reach the proxy in order to fetch the vnet_config.
+	if err := osConfigurator.deconfigureOS(ctx); err != nil {
+		errCh <- trace.Wrap(err, "cleaning up OS configuration on startup")
+		return tunCh, errCh
+	}
+
 	go func() {
 		defer func() {
-			// Shutting down, deconfigure OS.
-			errCh <- trace.Wrap(osConfigurator.deconfigureOS())
+			// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
+			// already but we still need to clean up.
+			errCh <- trace.Wrap(osConfigurator.deconfigureOS(context.Background()))
 		}()
 
 		if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
