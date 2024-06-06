@@ -647,6 +647,7 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'Desktop';
     default:
       kind satisfies never;
+      return kind;
   }
 }
 
