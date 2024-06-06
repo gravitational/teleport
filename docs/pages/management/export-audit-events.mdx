@@ -9,23 +9,10 @@ your cluster.
 You can use Teleport's Event Handler plugin to export audit events from Teleport
 so you can store them in a log management platform or custom backend.
 
-If you are new to exporting audit events with Teleport, read [Forwarding Events
-with Fluentd](./export-audit-events/fluentd.mdx) to learn the basics of how our
-Event Handler plugin works. While this guide focuses on Fluentd, the Event
-Handler plugin can export audit events to any endpoint that ingests JSON
-messages via HTTP.
+{/*TOPICS*/}
 
-Next, read our guides to setting up the Event Handler plugin to export audit
-events to your solution of choice:
-
-- [Export Teleport Audit Events with
-  Datadog](./export-audit-events/datadog.mdx): Learn how to configure the Event
-  Handler plugin and Fluentd (with the Datadog plugin) to export audit events to
-  Datadog.
-- [Monitor Teleport Audit Events with the Elastic
-  Stack](./export-audit-events/elastic-stack.mdx): How to configure the Event
-  Handler plugin to forward Teleport audit logs to Logstash for ingestion in
-  Elasticsearch so you can explore them in Kibana.
-- [Monitor Teleport Audit Events with Splunk](./export-audit-events/splunk.mdx):
-  How to configure the Event Handler plugin to send logs to Splunk's Universal
-  Forwarder so you can explore your audit events in Splunk.
+- [Export Events with Fluentd](export-audit-events/fluentd.mdx): Forwarding events with Fluentd and Teleport event handler
+- [Export Teleport Audit Events to Panther](export-audit-events/panther.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Panther
+- [Export Teleport Audit Events to Splunk](export-audit-events/splunk.mdx): How to configure the Teleport Event Handler plugin to send audit logs to Splunk
+- [Export Teleport Audit Events to the Elastic Stack](export-audit-events/elastic-stack.mdx): How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack
+- [Export Teleport Audit Events with Datadog](export-audit-events/datadog.mdx): How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Datadog
