@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/lib/backend/clone"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 )
 
@@ -15,18 +15,24 @@ func onClone(ctx context.Context, configPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var config clone.Config
+	var config backend.CloneConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	cloner, err := clone.New(ctx, config)
+	src, err := backend.New(ctx, config.Source.Type, config.Source.Params)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to create source backend")
 	}
-	defer cloner.Close()
+	defer src.Close()
 
-	if err := cloner.Clone(ctx); err != nil {
+	dst, err := backend.New(ctx, config.Destination.Type, config.Destination.Params)
+	if err != nil {
+		return trace.Wrap(err, "failed to create destination backend")
+	}
+	defer dst.Close()
+
+	if err := backend.Clone(ctx, src, dst, config.Parallel, config.Force); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
