@@ -21,9 +21,13 @@ package web
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -32,8 +36,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 func TestGenerateIAMTokenName(t *testing.T) {
@@ -72,6 +80,248 @@ func TestGenerateIAMTokenName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, hash1, hash2)
+}
+
+type tokenData struct {
+	name   string
+	roles  types.SystemRoles
+	expiry time.Time
+}
+
+func TestGetTokens(t *testing.T) {
+	t.Parallel()
+	username := "test-user@example.com"
+	ctx := context.Background()
+	expiry := time.Now().UTC().Add(30 * time.Minute)
+
+	staticUIToken := ui.JoinToken{
+		ID:       "static-token",
+		SafeName: "************",
+		Roles:    types.SystemRoles{types.RoleNode},
+		Expiry:   time.Unix(0, 0).UTC(),
+		IsStatic: true,
+		Method:   types.JoinMethodToken,
+	}
+
+	tt := []struct {
+		name             string
+		tokenData        []tokenData
+		expected         []ui.JoinToken
+		noAccess         bool
+		includeUserToken bool
+	}{
+		{
+			name:      "no access",
+			tokenData: []tokenData{},
+			noAccess:  true,
+			expected:  []ui.JoinToken{},
+		},
+		{
+			name:      "only static tokens exist",
+			tokenData: []tokenData{},
+			expected: []ui.JoinToken{
+				staticUIToken,
+			},
+		},
+		{
+			name:      "static and sign up tokens",
+			tokenData: []tokenData{},
+			expected: []ui.JoinToken{
+				staticUIToken,
+			},
+			includeUserToken: true,
+		},
+		{
+			name: "all tokens",
+			tokenData: []tokenData{
+				{
+					name: "test-token",
+					roles: types.SystemRoles{
+						types.RoleNode,
+					},
+					expiry: expiry,
+				},
+				{
+					name: "test-token-2",
+					roles: types.SystemRoles{
+						types.RoleNode,
+						types.RoleDatabase,
+					},
+					expiry: expiry,
+				},
+				{
+					name: "test-token-3-and-super-duper-long",
+					roles: types.SystemRoles{
+						types.RoleNode,
+						types.RoleKube,
+						types.RoleDatabase,
+					},
+					expiry: expiry,
+				},
+			},
+			expected: []ui.JoinToken{
+				staticUIToken,
+				{
+					ID:       "test-token",
+					SafeName: "**********",
+					IsStatic: false,
+					Expiry:   expiry,
+					Roles: types.SystemRoles{
+						types.RoleNode,
+					},
+					Method: types.JoinMethodToken,
+				},
+				{
+					ID:       "test-token-2",
+					SafeName: "************",
+					IsStatic: false,
+					Expiry:   expiry,
+					Roles: types.SystemRoles{
+						types.RoleNode,
+						types.RoleDatabase,
+					},
+					Method: types.JoinMethodToken,
+				},
+				{
+					ID:       "test-token-3-and-super-duper-long",
+					SafeName: "************************uper-long",
+					IsStatic: false,
+					Expiry:   expiry,
+					Roles: types.SystemRoles{
+						types.RoleNode,
+						types.RoleKube,
+						types.RoleDatabase,
+					},
+					Method: types.JoinMethodToken,
+				},
+			},
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, username, nil /* roles */)
+
+			if tc.noAccess {
+				noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+				require.NoError(t, err)
+				noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
+				endpoint := noAccessPack.clt.Endpoint("webapi", "tokens")
+				_, err = noAccessPack.clt.Get(ctx, endpoint, url.Values{})
+				require.Error(t, err)
+				return
+			}
+
+			if tc.includeUserToken {
+				passwordToken, err := env.server.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+					Name: username,
+					TTL:  defaults.MaxSignupTokenTTL,
+					Type: authclient.UserTokenTypeResetPasswordInvite,
+				})
+				require.NoError(t, err)
+				userToken, err := types.NewProvisionToken(passwordToken.GetName(), types.SystemRoles{types.RoleSignup}, passwordToken.Expiry())
+				require.NoError(t, err)
+
+				userUiToken := ui.JoinToken{
+					ID:       userToken.GetName(),
+					SafeName: userToken.GetSafeName(),
+					IsStatic: false,
+					Expiry:   userToken.Expiry(),
+					Roles:    userToken.GetRoles(),
+					Method:   types.JoinMethodToken,
+				}
+				tc.expected = append(tc.expected, userUiToken)
+			}
+
+			for _, td := range tc.tokenData {
+				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, types.ProvisionTokenSpecV2{
+					Roles: td.roles,
+				})
+				require.NoError(t, err)
+				err = env.server.Auth().CreateToken(ctx, token)
+				require.NoError(t, err)
+			}
+
+			endpoint := pack.clt.Endpoint("webapi", "tokens")
+			re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+			require.NoError(t, err)
+
+			resp := GetTokensResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Len(t, resp.Items, len(tc.expected))
+			require.ElementsMatch(t, resp.Items, tc.expected)
+		})
+	}
+}
+
+func TestDeleteToken(t *testing.T) {
+	ctx := context.Background()
+	username := "test-user@example.com"
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, nil /* roles */)
+	endpoint := pack.clt.Endpoint("webapi", "tokens")
+	staticUIToken := ui.JoinToken{
+		ID:       "static-token",
+		SafeName: "************",
+		Roles:    types.SystemRoles{types.RoleNode},
+		Expiry:   time.Unix(0, 0).UTC(),
+		IsStatic: true,
+		Method:   types.JoinMethodToken,
+	}
+
+	// create join token
+	token, err := types.NewProvisionTokenFromSpec("my-token", time.Now().UTC().Add(30*time.Minute), types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{
+			types.RoleNode,
+			types.RoleDatabase,
+		},
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateToken(ctx, token)
+	require.NoError(t, err)
+
+	// create password reset token
+	passwordToken, err := env.server.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+		TTL:  defaults.MaxSignupTokenTTL,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
+	})
+	require.NoError(t, err)
+	userToken, err := types.NewProvisionToken(passwordToken.GetName(), types.SystemRoles{types.RoleSignup}, passwordToken.Expiry())
+	require.NoError(t, err)
+
+	// should have static token + a signup token now
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := GetTokensResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 3 /* static + sign up + join */)
+
+	// delete
+	req, err := http.NewRequest("DELETE", endpoint, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", pack.session.Token))
+	req.Header.Set(HeaderTokenName, userToken.GetName())
+	_, err = pack.clt.RoundTrip(func() (*http.Response, error) {
+		return pack.clt.HTTPClient().Do(req)
+	})
+	require.NoError(t, err)
+	req.Header.Set(HeaderTokenName, token.GetName())
+	_, err = pack.clt.RoundTrip(func() (*http.Response, error) {
+		return pack.clt.HTTPClient().Do(req)
+	})
+	require.NoError(t, err)
+
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp = GetTokensResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1 /* only static again */)
+	require.ElementsMatch(t, resp.Items, []ui.JoinToken{
+		staticUIToken,
+	})
 }
 
 func TestGenerateAzureTokenName(t *testing.T) {
