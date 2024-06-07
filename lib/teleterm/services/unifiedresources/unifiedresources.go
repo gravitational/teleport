@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -36,7 +37,7 @@ var supportedResourceKinds = []string{
 	types.KindApp,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -49,40 +50,34 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 	}
 
 	req.Kinds = kinds
-	unifiedResourcesResponse, err := client.ListUnifiedResources(ctx, req)
+	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	response := &ListResponse{
-		NextKey: unifiedResourcesResponse.NextKey,
+		NextKey: nextKey,
 	}
 
-	for _, unifiedResource := range unifiedResourcesResponse.Resources {
-		switch e := unifiedResource.GetResource().(type) {
-		case *proto.PaginatedResource_Node:
+	for _, enrichedResource := range enrichedResources {
+		switch r := enrichedResource.ResourceWithLabels.(type) {
+		case types.Server:
 			response.Resources = append(response.Resources, UnifiedResource{
 				Server: &clusters.Server{
-					URI:    cluster.URI.AppendServer(e.Node.GetName()),
-					Server: e.Node,
+					URI:    cluster.URI.AppendServer(r.GetName()),
+					Server: r,
 				},
 			})
-		case *proto.PaginatedResource_DatabaseServer:
+		case types.DatabaseServer:
+			db := r.GetDatabase()
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:      cluster.URI.AppendDB(e.DatabaseServer.GetName()),
-					Database: e.DatabaseServer.GetDatabase(),
+					URI:      cluster.URI.AppendDB(db.GetName()),
+					Database: db,
 				},
 			})
-		case *proto.PaginatedResource_KubernetesServer:
-			response.Resources = append(response.Resources, UnifiedResource{
-				Kube: &clusters.Kube{
-					URI:               cluster.URI.AppendKube(e.KubernetesServer.GetCluster().GetName()),
-					KubernetesCluster: e.KubernetesServer.GetCluster(),
-				},
-			})
-		case *proto.PaginatedResource_AppServer:
-			app := e.AppServer.GetApp()
+		case types.AppServer:
+			app := r.GetApp()
 
 			response.Resources = append(response.Resources, UnifiedResource{
 				App: &clusters.App{
@@ -92,9 +87,9 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					App:      app,
 				},
 			})
-		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
-			if e.AppServerOrSAMLIdPServiceProvider.IsAppServer() {
-				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
+		case types.AppServerOrSAMLIdPServiceProvider:
+			if r.IsAppServer() {
+				app := r.GetAppServer().GetApp()
 				response.Resources = append(response.Resources, UnifiedResource{
 					App: &clusters.App{
 						URI:      cluster.URI.AppendApp(app.GetName()),
@@ -104,7 +99,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					},
 				})
 			} else {
-				provider := e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider()
+				provider := r.GetSAMLIdPServiceProvider()
 				response.Resources = append(response.Resources, UnifiedResource{
 					SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
 						URI:      cluster.URI.AppendApp(provider.GetName()),
@@ -112,17 +107,26 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					},
 				})
 			}
+		case types.KubeCluster:
+			kubeCluster := r
+			response.Resources = append(response.Resources, UnifiedResource{
+				Kube: &clusters.Kube{
+					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
+					KubernetesCluster: kubeCluster,
+				},
+			})
+		case types.KubeServer:
+			kubeCluster := r.GetCluster()
+			response.Resources = append(response.Resources, UnifiedResource{
+				Kube: &clusters.Kube{
+					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
+					KubernetesCluster: kubeCluster,
+				},
+			})
 		}
 	}
 
 	return response, nil
-}
-
-// Client represents auth.ClientI methods used by [List].
-// During a normal operation, auth.ClientI is passed as this interface.
-type Client interface {
-	// See auth.ClientI.ListUnifiedResources.
-	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
 
 type ListResponse struct {
