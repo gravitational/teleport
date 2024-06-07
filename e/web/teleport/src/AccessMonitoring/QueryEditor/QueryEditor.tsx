@@ -15,16 +15,10 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Flex } from 'design';
 import Indicator from 'design/Indicator';
 import { Theme } from 'design/theme/themes/types';
-import { useTeleport } from 'teleport';
 
 import { getSchema, runQuery } from 'e-teleport/AccessMonitoring/service';
 import { Result } from 'e-teleport/AccessMonitoring/QueryEditor/Result';
 import { Days, Timeframe } from 'e-teleport/AccessMonitoring/Timeframe';
-import { QueryAssist } from 'e-teleport/AccessMonitoring/QueryEditor/Assist/QueryAssist';
-import {
-  QueryAssistContextProvider,
-  useQueryAssist,
-} from 'e-teleport/AccessMonitoring/QueryEditor/Assist/context';
 
 import cube from './icons/cube.svg';
 import object from './icons/object.svg';
@@ -110,23 +104,6 @@ interface CodeMirrorConfig {
 }
 
 export function QueryEditor() {
-  const ctx = useTeleport();
-
-  const assistEnabled =
-    ctx.storeUser.getAssistantAccess().list && ctx.assistEnabled;
-
-  if (assistEnabled) {
-    return (
-      <QueryAssistContextProvider>
-        <QueryEditorContent assistEnabled={true} />
-      </QueryAssistContextProvider>
-    );
-  }
-
-  return <QueryEditorContent assistEnabled={false} />;
-}
-
-function QueryEditorContent(props: { assistEnabled: boolean }) {
   const theme = useTheme();
   const location = useLocation<{ query: string; days: number }>();
 
@@ -143,29 +120,6 @@ function QueryEditorContent(props: { assistEnabled: boolean }) {
 
   const editorTheme = useMemo(() => createEditorTheme(theme), [theme]);
   const styleTheme = useMemo(() => createStyleTheme(theme), [theme]);
-
-  const queryAssist = useQueryAssist();
-
-  useEffect(() => {
-    if (!queryAssist) {
-      return;
-    }
-
-    if (queryAssist.latestMessage) {
-      setQueryText(queryAssist.latestMessage);
-    }
-  }, [queryAssist?.latestMessage]);
-
-  useEffect(() => {
-    if (!queryAssist) {
-      return;
-    }
-
-    // clear the query once assist starts loading a response
-    if (queryAssist.loading) {
-      setQueryText('');
-    }
-  }, [queryAssist?.loading]);
 
   const [config, setConfig] = useState<CodeMirrorConfig>({
     schema: {},
@@ -236,8 +190,6 @@ function QueryEditorContent(props: { assistEnabled: boolean }) {
   return (
     <>
       <Query disabled={query.attempt.status === 'processing'}>
-        {props.assistEnabled && <QueryAssist />}
-
         <EditorContainer>
           <CodeMirror
             value={queryText}
