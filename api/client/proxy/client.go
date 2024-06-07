@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/asn1"
+	"io"
 	"net"
 	"slices"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -74,11 +74,21 @@ type ClientConfig struct {
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	PROXYHeaderGetter client.PROXYHeaderGetter
 
+	// DialContext allows a custom grpc.ClientConnInterface to be used by the
+	// client. This allows for more customised behaviour (e.g cycling the
+	// underlying connection every X connections).
+	DialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (grpcClientConnInterfaceCloser, error)
+
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
 	creds func(cluster string) (credentials.TransportCredentials, error)
 	// The client credentials to use when establishing the connection to auth.
 	clientCreds func(cluster string) (client.Credentials, error)
+}
+
+type grpcClientConnInterfaceCloser = interface {
+	grpc.ClientConnInterface
+	io.Closer
 }
 
 // CheckAndSetDefaults ensures required options are present and
@@ -158,7 +168,7 @@ type Client struct {
 	// connect and interact with the Proxy.
 	cfg *ClientConfig
 	// grpcConn is the established gRPC connection to the Proxy.
-	grpcConn *grpc.ClientConn
+	grpcConn grpcClientConnInterfaceCloser
 	// transport is the transportv1.Client
 	transport *transportv1.Client
 	// clusterName as determined by inspecting the certificate presented by
@@ -276,7 +286,14 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := grpc.DialContext(
+	dialContext := cfg.DialContext
+	if dialContext == nil {
+		dialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (grpcClientConnInterfaceCloser, error) {
+			return grpc.DialContext(ctx, target, opts...)
+		}
+	}
+
+	conn, err := dialContext(
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
@@ -431,10 +448,7 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 func (c *Client) Ping(ctx context.Context) error {
 	// TODO(tross): Update to call Ping when it is added to the transport service.
 	// For now we don't really care what method is used we just want to measure
-	// how long it takes to get a reply. This will always fail with a not implemented
-	// error since the Proxy gRPC server doesn't serve the auth service proto. However,
-	// we use it because it's already imported in the api package.
-	clt := authpb.NewAuthServiceClient(c.grpcConn)
-	_, _ = clt.Ping(ctx, &authpb.PingRequest{})
+	// how long it takes to get a reply.
+	_, _ = c.transport.ClusterDetails(ctx)
 	return nil
 }

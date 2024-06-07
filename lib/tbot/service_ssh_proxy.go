@@ -32,49 +32,78 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/resumption"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SSHProxyService
 type SSHProxyService struct {
-	cfg         *config.SSHProxyService
-	svcIdentity *config.UnstableClientCredentialOutput
-	log         *slog.Logger
+	cfg              *config.SSHProxyService
+	botCfg           *config.BotConfig
+	svcIdentity      *config.UnstableClientCredentialOutput
+	log              *slog.Logger
+	proxyPingCache   *proxyPingCache
+	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
+	resolver         reversetunnelclient.Resolver
 
-	apiClient   *authclient.Client
+	// Fields below here are initialized by the service itself on startup.
+	authClient  *authclient.Client
 	proxyClient *proxyclient.Client
 	tshConfig   *libclient.TSHConfig
+	proxyHost   string
+	clusterName string
 }
 
-func (s *SSHProxyService) Run(ctx context.Context) error {
+func (s *SSHProxyService) setup(ctx context.Context) (net.Listener, error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	case <-time.After(10 * time.Second):
-		return trace.BadParameter("timeout waiting for identity to be ready")
+		return nil, trace.BadParameter("timeout waiting for identity to be ready")
 	case <-s.svcIdentity.Ready():
 	}
 	facade, err := s.svcIdentity.Facade()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	proxyHost, _, err := net.SplitHostPort(proxy)
+	sshConfig, err := facade.SSHClientConfig()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	s.clusterName = facade.Get().ClusterName
+
+	proxyPing, err := s.proxyPingCache.ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	proxyHost, _, err := net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.proxyHost = proxyHost
+
+	connUpgradeRequired := false
+	if proxyPing.Proxy.TLSRoutingEnabled {
+		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
+			ctx, proxyAddr, s.botCfg.Insecure,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "determining if ALPN upgrade is required")
+		}
 	}
 
 	proxyClient, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:      proxy,
-		TLSRoutingEnabled: s.cfg.TLSRoutingEnabled,
+		ProxyAddress:      proxyAddr,
+		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			cfg, err := facade.TLSConfig()
 			if err != nil {
@@ -95,24 +124,36 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 			interceptors.GRPCClientStreamErrorInterceptor,
 		},
 		SSHConfig:               sshConfig,
-		InsecureSkipVerify:      s.cfg.Insecure,
-		ALPNConnUpgradeRequired: cfg.ConnectionUpgradeRequired,
+		InsecureSkipVerify:      s.botCfg.Insecure,
+		ALPNConnUpgradeRequired: connUpgradeRequired,
 
 		DialContext: dialCycling,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
+	s.proxyClient = proxyClient
 
-	authConfig, err := proxyClient.ClientConfig(ctx, clusterName)
+	authClient, err := clientForFacade(
+		ctx, s.log, s.botCfg, facade, s.resolver,
+	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	authConfig.Credentials = []apiclient.Credentials{facade}
+	s.authClient = authClient
 
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 	l, err := createListener(ctx, s.log, fmt.Sprintf("unix://%s", dest.Path))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return l, nil
+}
+
+func (s *SSHProxyService) Run(ctx context.Context) error {
+	l, err := s.setup(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,7 +181,7 @@ func (s *SSHProxyService) handleConn(
 	downstream net.Conn,
 ) (err error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/handleConn")
-	defer tracing.EndSpan(span, err)
+	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 
 	buf := bufio.NewReader(downstream)
@@ -158,6 +199,7 @@ func (s *SSHProxyService) handleConn(
 		return trace.Wrap(err)
 	}
 
+	clusterName := s.clusterName
 	expanded, matched := s.tshConfig.ProxyTemplates.Apply(hostPort)
 	if matched {
 		s.log.DebugContext(
@@ -176,15 +218,20 @@ func (s *SSHProxyService) handleConn(
 
 	var target string
 	if expanded == nil || (len(expanded.Search) == 0 && expanded.Query == "") {
-		host = cleanTargetHost(host, proxyHost, clusterName)
+		host = cleanTargetHost(host, s.proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, apiClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, s.authClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		cfg.Log.DebugContext(ctx, "found matching SSH host", "host_uuid", node.GetName(), "host_name", node.GetHostname())
+		s.log.DebugContext(
+			ctx,
+			"found matching SSH host",
+			"host_uuid", node.GetName(),
+			"host_name", node.GetHostname(),
+		)
 
 		target = net.JoinHostPort(node.GetName(), "0")
 	}
@@ -193,25 +240,29 @@ func (s *SSHProxyService) handleConn(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.EnableResumption {
-		nodeConn, err = resumption.WrapSSHClientConn(ctx, nodeConn, func(ctx context.Context, hostID string) (net.Conn, error) {
-			// if the connection is being resumed, it means that
-			// we didn't need the agent in the first place
-			var noAgent agent.ExtendedAgent
-			conn, _, err := proxyClient.DialHost(ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent)
-			return conn, err
-		})
+	if s.cfg.EnableResumption {
+		upstream, err = resumption.WrapSSHClientConn(
+			ctx,
+			upstream,
+			func(ctx context.Context, hostID string) (net.Conn, error) {
+				// if the connection is being resumed, it means that
+				// we didn't need the agent in the first place
+				var noAgent agent.ExtendedAgent
+				conn, _, err := s.proxyClient.DialHost(ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent)
+				return conn, err
+			})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	defer upstream.Close()
 
+	// This AfterFunc exists to interrupt the copy operations if the context is
+	// cancelled
 	defer context.AfterFunc(ctx, func() {
 		_ = upstream.Close()
 		_ = downstream.Close()
 	})()
-
 	errC := make(chan error, 2)
 	go func() {
 		defer upstream.Close()
