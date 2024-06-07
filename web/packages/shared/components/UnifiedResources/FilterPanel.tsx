@@ -126,7 +126,7 @@ export function FilterPanel({
           <StyledCheckbox
             css={`
               // add extra margin so it aligns with the checkboxes of the resources
-              margin-left: 17px;
+              margin-left: 16px;
             `}
             checked={selected}
             onChange={selectVisible}
