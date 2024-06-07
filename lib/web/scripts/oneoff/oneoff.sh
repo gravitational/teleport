@@ -45,10 +45,10 @@ main() {
 
     mkdir -p ./bin
     mv ./${teleportFlavor}/teleport ./bin/teleport
-    echo "> ./bin/teleport ${teleportArgs}"
-    ./bin/teleport ${teleportArgs} && echo $successMessage
+    echo "> ./bin/teleport ${teleportArgs} $@"
+    ./bin/teleport ${teleportArgs} $@ && echo $successMessage
 
     cd -
 }
 
-main
+main $@
