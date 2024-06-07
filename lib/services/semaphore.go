@@ -319,6 +319,34 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	return lock, nil
 }
 
+// SemaphoreLockConfigWithRetry contains parameters for acquiring a semaphore lock
+// until it succeeds or context expires.
+type SemaphoreLockConfigWithRetry struct {
+	SemaphoreLockConfig
+	// Retry is the retry configuration.
+	Retry retryutils.LinearConfig
+}
+
+// AcquireSemaphoreLockWithRetry attempts to acquire and hold a semaphore lease. If successfully acquired,
+// background keepalive processes are started and an associated lock handle is returned.
+// If the lease cannot be acquired, the operation is retried according to the retry schedule until
+// it succeeds or the context expires.  Canceling the supplied context releases the semaphore.
+func AcquireSemaphoreLockWithRetry(ctx context.Context, cfg SemaphoreLockConfigWithRetry) (*SemaphoreLock, error) {
+	retry, err := retryutils.NewLinear(cfg.Retry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var lease *SemaphoreLock
+	err = retry.For(ctx, func() (err error) {
+		lease, err = AcquireSemaphoreLock(ctx, cfg.SemaphoreLockConfig)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return lease, nil
+}
+
 // UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
 func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, error) {
 	var semaphore types.SemaphoreV3
