@@ -76,12 +76,35 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 
 // SemaphoreLock provides a convenient interface for managing
 // semaphore lease keepalive operations.
+// SemaphoreLock implements the [context.Context] interface
+// and can be used to propagate cancellation when the parent
+// context is canceled or when the lease expires.
+//
+//		lease,err := AcquireSemaphoreLock(ctx, cfg)
+//		if err != nil {
+//			... handle error ...
+//		}
+//		defer func(){
+//			lease.Stop()
+//			err := lease.Wait()
+//			if err != nil {
+//				... handle error ...
+//			}
+//		}()
+//
+//	 newCtx,cancel := context.WithCancel(ctx)
+//	 defer cancel()
+//	 ... do work with newCtx ...
 type SemaphoreLock struct {
+	// ctx is the parent context for the lease keepalive operation.
+	// it's used to propagate deadline cancellations from the parent
+	// context and to carry values for the context interface.
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
 	ticker    clockwork.Ticker
-	doneC     chan struct{}
 	closeOnce sync.Once
 	renewalC  chan struct{}
 	cond      *sync.Cond
@@ -103,8 +126,27 @@ func (l *SemaphoreLock) finish(err error) {
 
 // Done signals that lease keepalive operations
 // have stopped.
+// If the parent context is canceled, the lease
+// will be released and done will be closed.
 func (l *SemaphoreLock) Done() <-chan struct{} {
-	return l.doneC
+	return l.ctx.Done()
+}
+
+// Deadline returns the deadline of the parent context if it exists.
+func (l *SemaphoreLock) Deadline() (time.Time, bool) {
+	return l.ctx.Deadline()
+}
+
+// Value returns the value associated with the key in the parent context.
+func (l *SemaphoreLock) Value(key interface{}) interface{} {
+	return l.ctx.Value(key)
+}
+
+// Error returns the final error value.
+func (l *SemaphoreLock) Err() error {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
+	return l.err
 }
 
 // Wait blocks until the final result is available.  Note that
@@ -123,7 +165,7 @@ func (l *SemaphoreLock) Wait() error {
 func (l *SemaphoreLock) Stop() {
 	l.closeOnce.Do(func() {
 		l.ticker.Stop()
-		close(l.doneC)
+		l.cancelCtx()
 	})
 }
 
@@ -137,9 +179,8 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 	var nodrop bool
 	var err error
 	lease := l.lease0
-	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		cancel()
+		l.cancelCtx()
 		l.Stop()
 		defer l.finish(err)
 		if nodrop {
@@ -263,14 +304,16 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	lock := &SemaphoreLock{
-		cfg:      cfg,
-		lease0:   *lease,
-		retry:    retry,
-		ticker:   cfg.Clock.NewTicker(cfg.TickRate),
-		doneC:    make(chan struct{}),
-		renewalC: make(chan struct{}),
-		cond:     sync.NewCond(&sync.Mutex{}),
+		ctx:       ctx,
+		cancelCtx: cancel,
+		cfg:       cfg,
+		lease0:    *lease,
+		retry:     retry,
+		ticker:    cfg.Clock.NewTicker(cfg.TickRate),
+		renewalC:  make(chan struct{}),
+		cond:      sync.NewCond(&sync.Mutex{}),
 	}
 	go lock.keepAlive(ctx)
 	return lock, nil
