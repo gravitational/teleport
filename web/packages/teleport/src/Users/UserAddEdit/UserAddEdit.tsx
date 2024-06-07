@@ -170,15 +170,24 @@ function TraitsEditor({
   setConfiguredTraits,
 }: TraitEditorProps) {
 
-  const [availableTraitNames, setAvailableTraitNames] = useState<Option[]>([]);
+  const availableTraitNames = [
+    'aws_role_arns',
+    'azure_identities',
+    'db_names',
+    'db_roles',
+    'db_users',
+    'gcp_service_accounts',
+    'host_user_gid',
+    'host_user_uid',
+    'kubernetes_groups',
+    'kubernetes_users',
+    'logins',
+    'windows_logins'
+  ]
+
   useEffect(() => {
     let newTrait = [];
     for (let trait in allTraits) {
-      if (allTraits[trait].length === 0) {
-        // send empty traits to availableTraits so that users can choose from Trait Name dropdown.
-        availableTraitNames.push({ value: trait, label: trait });
-        setAvailableTraitNames(availableTraitNames);
-      }
       if (!allTraits[trait][0]) {
         continue;
       }
@@ -254,7 +263,10 @@ function TraitsEditor({
               <Flex alignItems="center" mt={-3}>
                 <Box width="290px" mr={1} mt={4}>
                   <FieldSelectCreatable
-                    options={availableTraitNames}
+                    options={availableTraitNames.map(r => ({
+                      value: r,
+                      label: r,
+                    }))}
                     placeholder="trait-key"
                     autoFocus
                     isSearchable
