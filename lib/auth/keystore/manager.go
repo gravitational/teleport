@@ -22,6 +22,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -355,6 +358,35 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string) (*types
 		Cert:    tlsCert,
 		Key:     tlsKey,
 		KeyType: keyType(tlsKey),
+	}, nil
+}
+
+// NewEC256TLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
+func (m *Manager) NewEC256TLSKeyPair(ctx context.Context, clusterName string) (*types.TLSKeyPair, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	marshaled, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: marshaled})
+
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		key,
+		pkix.Name{
+			CommonName:   clusterName,
+			Organization: []string{clusterName},
+		}, nil, defaults.CATTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.TLSKeyPair{
+		Cert:    tlsCert,
+		Key:     pemBytes,
+		KeyType: keyType(pemBytes),
 	}, nil
 }
 

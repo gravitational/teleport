@@ -21,7 +21,9 @@ package config
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	cryptorand "crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -37,7 +39,6 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -121,13 +122,13 @@ func GenerateSVID(
 	signer spiffeSVIDSigner,
 	reqs []SVIDRequest,
 	ttl time.Duration,
-) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, *ecdsa.PrivateKey, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"GenerateSVID",
 	)
 	defer span.End()
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), cryptorand.Reader)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
