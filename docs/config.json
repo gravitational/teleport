@@ -159,105 +159,6 @@
       ]
     },
     {
-      "icon": "quickstart",
-      "title": "Deploy a Cluster",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/deploy-a-cluster/introduction/",
-          "forScopes": ["oss", "enterprise"]
-        },
-	{
-	  "title": "Linux Demo",
-	  "slug": "/deploy-a-cluster/linux-demo/"
-	},
-        {
-          "title": "High Availability Deployments",
-          "slug": "/deploy-a-cluster/high-availability/",
-          "forScopes": ["oss", "enterprise"]
-        },
-        {
-          "title": "Deploy with Helm",
-          "slug": "/deploy-a-cluster/helm-deployments/",
-          "forScopes": ["oss", "enterprise"],
-          "entries": [
-            {
-              "title": "Deploy Teleport on Kubernetes",
-              "slug": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/deploy-a-cluster/helm-deployments/aws/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/deploy-a-cluster/helm-deployments/gcp/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Azure AKS Cluster",
-              "slug": "/deploy-a-cluster/helm-deployments/azure/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/deploy-a-cluster/helm-deployments/digitalocean/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/deploy-a-cluster/helm-deployments/custom/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Migrating from v11 to v12",
-              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Kubernetes 1.25 and PSP removal",
-              "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
-              "forScopes": ["oss", "enterprise"]
-            }
-          ]
-        },
-        {
-          "title": "Deploy to your Cloud",
-          "slug": "/deploy-a-cluster/deployments/",
-          "forScopes": ["oss", "enterprise"],
-          "entries": [
-            {
-              "title": "AWS HA Terraform",
-              "slug": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "AWS Single-Instance Terraform",
-              "slug": "/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "AWS Multi-Region Proxy Deployment",
-              "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "GCP",
-              "slug": "/deploy-a-cluster/deployments/gcp/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "IBM",
-              "slug": "/deploy-a-cluster/deployments/ibm/",
-              "forScopes": ["oss", "enterprise"]
-            }
-          ]
-        }
-      ]
-    },
-    {
       "icon": "lock",
       "title": "Manage Access",
       "entries": [
@@ -1595,11 +1496,6 @@
       "permanent": true
     },
     {
-      "source": "/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/guides/migration/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true
@@ -1645,43 +1541,8 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/getting-started/cluster/",
-      "destination": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/getting-started/local/",
       "destination": "/kubernetes-access/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/aws/",
-      "destination": "/deploy-a-cluster/helm-deployments/aws/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/custom/",
-      "destination": "/deploy-a-cluster/helm-deployments/custom/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/digitalocean/",
-      "destination": "/deploy-a-cluster/helm-deployments/digitalocean/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/gcp/",
-      "destination": "/deploy-a-cluster/helm-deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -1810,63 +1671,8 @@
       "permanent": true
     },
     {
-      "source": "/setup/deployments/",
-      "destination": "/deploy-a-cluster/deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
       "source": "/setup/deployments/digitalocean/",
       "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/gcp/",
-      "destination": "/deploy-a-cluster/deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/ibm/",
-      "destination": "/deploy-a-cluster/deployments/ibm/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/aws/",
-      "destination": "/deploy-a-cluster/helm-deployments/aws/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/custom/",
-      "destination": "/deploy-a-cluster/helm-deployments/custom/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/digitalocean/",
-      "destination": "/deploy-a-cluster/helm-deployments/digitalocean/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/gcp/",
-      "destination": "/deploy-a-cluster/helm-deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/getting-started/kubernetes-cluster/",
-      "destination": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -2282,11 +2088,6 @@
     {
       "source": "/database-access/guides/rds-proxy/",
       "destination": "/database-access/guides/",
-      "permanent": true
-    },
-    {
-      "source": "/deploy-a-cluster/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
       "permanent": true
     },
     {
