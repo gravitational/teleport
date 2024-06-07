@@ -75,7 +75,7 @@ type ClientConfig struct {
 	PROXYHeaderGetter client.PROXYHeaderGetter
 
 	// DialContext allows a custom grpc.ClientConnInterface to be used by the
-	// client. This allows for more customised behaviour (e.g cycling the
+	// client. This allows for more customized behavior (e.g cycling the
 	// underlying connection every X connections).
 	DialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (grpcClientConnInterfaceCloser, error)
 
