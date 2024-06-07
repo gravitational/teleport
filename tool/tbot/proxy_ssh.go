@@ -18,6 +18,10 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"os"
+	"syscall"
 
 	"github.com/gravitational/trace"
 
@@ -55,4 +59,51 @@ func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
 	}
 
 	return trace.Wrap(tbot.ProxySSH(ctx, proxySSHConfig))
+}
+
+// onSSHProxyCommandConnect connects to an existing long-lived SSH proxy service
+// as opposed to onSSHProxyCommand which completes this on-the-fly.
+func onSSHProxyCommandConnect(ctx context.Context, socketPath string, target string) error {
+	outConn, err := net.FileConn(os.Stdout)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer outConn.Close()
+	outUnix, ok := outConn.(*net.UnixConn)
+	if !ok {
+		return trace.BadParameter("expected stdout to be %T, got %T", outUnix, outConn)
+	}
+
+	c, err := new(net.Dialer).DialContext(ctx, "unix", socketPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer c.Close()
+
+	if _, err := fmt.Fprintf(c, "%v\n", target); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rawC, err := c.(*net.UnixConn).SyscallConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var innerErr error
+	if controlErr := rawC.Control(func(fd uintptr) {
+		// We have to write something in order to send a control message so
+		// we just write NULL.
+		_, _, innerErr = outUnix.WriteMsgUnix(
+			[]byte{0},
+			syscall.UnixRights(int(fd)),
+			nil,
+		)
+	}); controlErr != nil {
+		return trace.Wrap(err)
+	}
+	if innerErr != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
