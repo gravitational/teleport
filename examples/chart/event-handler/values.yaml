@@ -9,7 +9,6 @@ teleport:
   address: ""
   identitySecretName: ""
   identitySecretPath: "auth_id"
-  debug: false
 
 eventHandler:
   storagePath: "/var/lib/teleport/plugins/event-handler/storage"
