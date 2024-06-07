@@ -292,13 +292,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			})
 		case *config.SSHMultiplexerService:
 			svc := &SSHMultiplexerService{
-				resolver:         resolver,
-				botCfg:           b.cfg,
-				cfg:              svcCfg,
-				proxyPingCache:   proxyPingCache,
-				alpnUpgradeCache: alpnUpgradeCache,
-				getBotIdentity:   b.botIdentitySvc.GetIdentity,
-				botAuthClient:    b.botIdentitySvc.GetClient(),
+				alpnUpgradeCache:  alpnUpgradeCache,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
