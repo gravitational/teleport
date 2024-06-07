@@ -225,6 +225,12 @@ function TraitsEditor({
     }
   }
 
+  function addTrait() {
+    const newList = [...configuredTraits];
+    newList.push({trait: {value: '', label: ''}, traitValues: []})
+    setConfiguredTraits(newList)
+  }
+
   return (
     <Box>
       <Text bold>Traits</Text>
@@ -309,7 +315,7 @@ function TraitsEditor({
 
       <Box mt={4}>
         <ButtonTextWithAddIcon
-          onClick={() => null}
+          onClick={addTrait}
           label={'Add another trait'}
           disabled={false}
         />
