@@ -63,9 +63,9 @@ func TestStartCmdConfig(t *testing.T) {
 					SkipSessionTypes: map[string]struct{}{
 						"print": {},
 					},
-					Timeout:     10 * time.Second,
-					Concurrency: 5,
-					WindowSize:  24 * time.Hour,
+					Timeout:             10 * time.Second,
+					Concurrency:         5,
+					WindowSize:          24 * time.Hour,
 					DebugLoggingEnabled: false,
 				},
 				LockConfig: LockConfig{
