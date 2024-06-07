@@ -69,8 +69,8 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 {{- if eq $dot.AppName "tbot" }}
 {{- if $dot.PureTBotProxyCommand }}
     ProxyCommand {{ proxyCommandQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ proxyCommandQuote $dot.DestinationDir }} --proxy-server={{ proxyCommandQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ proxyCommandQuote $clusterName }} {{ if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{ if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{ if $dot.Resume }}--resume{{ else }}--no-resume{{ end }} --user=%r --host=%h --port=%p
-{{- else if $dot.TBotMuxCommand }}
-    ProxyCommand {{ proxyCommandQuote $dot.ExecutablePath }} ssh-multiplexer-proxy-command {{ proxyCommandQuote $dot.TBotMuxSocketPath }} '%h:%p'
+{{- else if $dot.TBotMux }}
+    ProxyCommand {{ proxyCommandQuote $dot.TBotMuxCommand }} {{- if ne $dot.TBotMuxSubcommand "" }} {{ proxyCommandQuote $dot.TBotMuxSubcommand }}{{ end }} {{ proxyCommandQuote $dot.TBotMuxSocketPath }} '{{ $dot.TBotMuxData }}'
 	ProxyUseFdpass true
 {{- else }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
@@ -110,8 +110,11 @@ type SSHConfigParameters struct {
 
 	// TBotMuxCommand enables the `ssh-multiplexer-proxy-command` operating mode
 	// when generating the ssh_config for tbot.
-	TBotMuxCommand    bool
+	TBotMux           bool
+	TBotMuxCommand    string
+	TBotMuxSubcommand string
 	TBotMuxSocketPath string
+	TBotMuxData       string
 }
 
 type sshTmplParams struct {

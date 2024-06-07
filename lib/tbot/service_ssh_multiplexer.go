@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -124,11 +125,17 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 	}
 
 	// Generate SSH config
-	// TODO: Allow hyperspeed mux client to be enabled.
 	executablePath, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "determining executable path")
 	}
+	muxCommand := executablePath
+	muxSubcommand := "ssh-multiplexer-proxy-command"
+	if s.cfg.CustomMuxCommand != "" {
+		muxCommand = s.cfg.CustomMuxCommand
+		muxSubcommand = s.cfg.CustomMuxSubcommand
+	}
+
 	var sshConfigBuilder strings.Builder
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
 	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
@@ -139,7 +146,10 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
 		ProxyHost:           s.proxyHost,
 
-		TBotMuxCommand:    true,
+		TBotMux:           true,
+		TBotMuxCommand:    muxCommand,
+		TBotMuxSubcommand: muxSubcommand,
+		TBotMuxData:       `{"host":"%h","port":"%p"}`,
 		TBotMuxSocketPath: path.Join(dest.Path, sshMuxSocketName),
 		ExecutablePath:    executablePath,
 	})
@@ -334,6 +344,21 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	}
 }
 
+type multiplexingRequest struct {
+	Host string `json:"host"`
+	Port string `json:"port"`
+}
+
+func (m multiplexingRequest) Validate() error {
+	switch {
+	case m.Host == "":
+		return trace.BadParameter("host: must be specified")
+	case m.Port == "":
+		return trace.BadParameter("port: must be specified")
+	}
+	return nil
+}
+
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	downstream net.Conn,
@@ -346,27 +371,39 @@ func (s *SSHMultiplexerService) handleConn(
 	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 
-	// The first thing downstream will send is the hostport of the target,
-	// followed by a newline.
+	// The first thing downstream will send is the multiplexingRequest JSON.
 	buf := bufio.NewReader(downstream)
-	hostPort, err := buf.ReadString('\n')
+	reqBytes, err := buf.ReadBytes('\n')
 	if err != nil {
-		return trace.Wrap(err, "reading hostport from downstream")
+		return trace.Wrap(err, "reading request from downstream")
 	}
-	hostPort = hostPort[:len(hostPort)-1] // Strip off \n
-
-	s.log.Info("Handling new connection", "host_port", hostPort)
-	defer s.log.Info("Finished handling connection", "host_port", hostPort)
-
-	host, port, err := net.SplitHostPort(hostPort)
-	if err != nil {
-		return trace.Wrap(err, "splitting host and port")
+	req := multiplexingRequest{}
+	if err := json.Unmarshal(reqBytes, &req); err != nil {
+		return trace.Wrap(err, "unmarshaling request %q", reqBytes)
 	}
+
+	log := s.log.With(
+		slog.Group("req",
+			"host", req.Host,
+			"port", req.Port,
+		),
+	)
+
+	log.Info("Received multiplexing request")
+	defer log.Info("Finished handling multiplex request")
+
+	if err := req.Validate(); err != nil {
+		return trace.Wrap(err, "validating multiplexing request")
+	}
+	host := req.Host
+	port := req.Port
 
 	clusterName := s.clusterName
-	expanded, matched := s.tshConfig.ProxyTemplates.Apply(hostPort)
+	expanded, matched := s.tshConfig.ProxyTemplates.Apply(
+		net.JoinHostPort(req.Host, req.Port),
+	)
 	if matched {
-		s.log.DebugContext(
+		log.DebugContext(
 			ctx,
 			"Proxy templated matched",
 			"populated_template", expanded,
@@ -390,7 +427,7 @@ func (s *SSHMultiplexerService) handleConn(
 			return trace.Wrap(err, "resolving target host")
 		}
 
-		s.log.DebugContext(
+		log.DebugContext(
 			ctx,
 			"Found matching SSH host",
 			"host_uuid", node.GetName(),
@@ -405,12 +442,12 @@ func (s *SSHMultiplexerService) handleConn(
 		return trace.Wrap(err)
 	}
 	if s.cfg.SessionResumptionEnabled() {
-		s.log.DebugContext(ctx, "Enabling session resumption")
+		log.DebugContext(ctx, "Enabling session resumption")
 		upstream, err = resumption.WrapSSHClientConn(
 			ctx,
 			upstream,
 			func(ctx context.Context, hostID string) (net.Conn, error) {
-				s.log.DebugContext(ctx, "Resuming connection")
+				log.DebugContext(ctx, "Resuming connection")
 				// if the connection is being resumed, it means that
 				// we didn't need the agent in the first place
 				var noAgent agent.ExtendedAgent
