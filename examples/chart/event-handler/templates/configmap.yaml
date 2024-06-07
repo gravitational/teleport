@@ -10,14 +10,12 @@ data:
     timeout = {{ .Values.eventHandler.timeout | toJson }}
     batch = {{ .Values.eventHandler.batch }}
     window-size = {{ default "24h" .Values.eventHandler.windowSize | quote }}
+    debugLogging = {{ default "false" .Values.eventHandler.debugLogger }}
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"
     identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
     refresh.enabled = true
-    {{- if .Values.teleport.debug }}
-    debug = {{ .Values.teleport.debug }}
-    {{- end}}
 
     [forward.fluentd]
     url = "{{ .Values.fluentd.url }}"
