@@ -187,7 +187,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	// Load in any proxy templates if a path to them has been provided.
 	tshConfig := &libclient.TSHConfig{}
 	if s.cfg.ProxyTemplatesPath != "" {
-		s.log.Info("Loading proxy templates", "path", s.cfg.ProxyTemplatesPath)
+		s.log.InfoContext(ctx, "Loading proxy templates", "path", s.cfg.ProxyTemplatesPath)
 		var err error
 		tshConfig, err = libclient.LoadTSHConfig(s.cfg.ProxyTemplatesPath)
 		if err != nil {
@@ -483,7 +483,7 @@ func (s *SSHMultiplexerService) handleConn(
 			"port", req.Port,
 		),
 	)
-	log.Info("Received multiplexing request")
+	log.InfoContext(ctx, "Received multiplexing request")
 
 	if err := req.Validate(); err != nil {
 		return trace.Wrap(err, "validating multiplexing request")
@@ -556,10 +556,14 @@ func (s *SSHMultiplexerService) handleConn(
 	// We don't need to defer close upstream here as this is handled by
 	// ProxyConn
 
-	log.Info("Proxying connection for multiplexing request")
+	log.InfoContext(ctx, "Proxying connection for multiplexing request")
 	startedProxying := time.Now()
 	err = utils.ProxyConn(ctx, downstream, upstream)
-	log.Info("Finished proxying connection multiplexing request", "proxied_duration", time.Since(startedProxying))
+	log.InfoContext(
+		ctx,
+		"Finished proxying connection multiplexing request",
+		"proxied_duration", time.Since(startedProxying),
+	)
 	if err != nil {
 		return trace.Wrap(err, "proxying connection")
 	}
