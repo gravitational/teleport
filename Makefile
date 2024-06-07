@@ -313,14 +313,15 @@ $(BUILDDIR)/tsh:
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
-/tmp/tplaceholder.rs:
-	echo 'fn main() { println!("tplaceholder hello world!"); }' > $@
+/tmp/tplaceholder/src/main.rs:
+	mkdir -pv "$(@D)"
+	cd "$(@D)/../" && cargo init && cargo update
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
-$(BUILDDIR)/tplaceholder: /tmp/tplaceholder.rs
-	mkdir -pv "$(@D)"
-	rustc $< -o $@
-	$@
+$(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
+	cd /tmp/tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
+	install /tmp/tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
+	$(BUILDDIR)/tplaceholder
 
 #
 # BPF support (IF ENABLED)
