@@ -194,7 +194,7 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", path.Join(dest.Path, "socks5.sock")))
+		fmt.Sprintf("unix://%s", path.Join(dest.Path, "tbot_ssh_proxy.v1.sock")))
 	if err != nil {
 		return trace.Wrap(err)
 	}
