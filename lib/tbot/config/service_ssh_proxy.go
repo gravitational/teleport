@@ -25,10 +25,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
-const SSHProxyServiceType = "ssh-proxy"
+const SSHMultiplexerServiceType = "ssh-multiplexer"
 
-// SSHProxyService is the configuration for the `ssh-proxy` service
-type SSHProxyService struct {
+// SSHMultiplexerService is the configuration for the `ssh-proxy` service
+type SSHMultiplexerService struct {
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
 	Destination bot.Destination `yaml:"destination"`
@@ -44,29 +44,29 @@ type SSHProxyService struct {
 	ProxyTemplatesPath string `yaml:"proxy_templates_path"`
 }
 
-func (s *SSHProxyService) SessionResumptionEnabled() bool {
+func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {
 	if s.EnableResumption == nil {
 		return true
 	}
 	return *s.EnableResumption
 }
 
-func (s *SSHProxyService) Type() string {
-	return SSHProxyServiceType
+func (s *SSHMultiplexerService) Type() string {
+	return SSHMultiplexerServiceType
 }
 
-func (s *SSHProxyService) MarshalYAML() (interface{}, error) {
-	type raw SSHProxyService
-	return withTypeHeader((*raw)(s), SSHProxyServiceType)
+func (s *SSHMultiplexerService) MarshalYAML() (interface{}, error) {
+	type raw SSHMultiplexerService
+	return withTypeHeader((*raw)(s), SSHMultiplexerServiceType)
 }
 
-func (s *SSHProxyService) UnmarshalYAML(node *yaml.Node) error {
+func (s *SSHMultiplexerService) UnmarshalYAML(node *yaml.Node) error {
 	dest, err := extractOutputDestination(node)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Alias type to remove UnmarshalYAML to avoid recursion
-	type raw SSHProxyService
+	type raw SSHMultiplexerService
 	if err := node.Decode((*raw)(s)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *SSHProxyService) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (s *SSHProxyService) CheckAndSetDefaults() error {
+func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}

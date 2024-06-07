@@ -178,11 +178,11 @@ func Run(args []string, stdout io.Writer) error {
 	sshProxyCmd.Flag("proxy-templates", "The path to a file containing proxy templates to be evaluated.").StringVar(&cf.TSHConfigPath)
 	sshProxyCmd.Flag("resume", "Enable SSH connection resumption").BoolVar(&cf.EnableResumption)
 
-	sshProxyConnectCmd := app.Command("ssh-proxy-command-connect", "An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-proxy service").Hidden()
-	var sshProxyConnectSocketPath string
-	var sshProxyConnectTarget string
-	sshProxyConnectCmd.Arg("path", "Path to the listener socket.").Required().StringVar(&sshProxyConnectSocketPath)
-	sshProxyConnectCmd.Arg("target", "Connection target.").Required().StringVar(&sshProxyConnectTarget)
+	sshMultiplexProxyCmd := app.Command("ssh-multiplexer-proxy-command", "An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service").Hidden()
+	var sshMultiplexSocket string
+	var sshMultiplexData string
+	sshMultiplexProxyCmd.Arg("path", "Path to the listener socket.").Required().StringVar(&sshMultiplexSocket)
+	sshMultiplexProxyCmd.Arg("data", "Connection target.").Required().StringVar(&sshMultiplexData)
 
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
@@ -313,8 +313,8 @@ func Run(args []string, stdout io.Writer) error {
 		return onConfigure(ctx, cf, stdout)
 	case sshProxyCmd.FullCommand():
 		return onSSHProxyCommand(ctx, &cf)
-	case sshProxyConnectCmd.FullCommand():
-		return onSSHProxyCommandConnect(ctx, sshProxyConnectSocketPath, sshProxyConnectTarget)
+	case sshMultiplexProxyCmd.FullCommand():
+		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)

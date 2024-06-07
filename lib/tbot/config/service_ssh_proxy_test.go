@@ -27,10 +27,10 @@ import (
 func TestSSHProxyService_YAML(t *testing.T) {
 	t.Parallel()
 
-	tests := []testYAMLCase[SSHProxyService]{
+	tests := []testYAMLCase[SSHMultiplexerService]{
 		{
 			name: "full",
-			in: SSHProxyService{
+			in: SSHMultiplexerService{
 				Destination: &DestinationDirectory{
 					Path: "/opt/machine-id",
 				},
@@ -43,11 +43,11 @@ func TestSSHProxyService_YAML(t *testing.T) {
 func TestSSHProxyService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCheckAndSetDefaultsCase[*SSHProxyService]{
+	tests := []testCheckAndSetDefaultsCase[*SSHMultiplexerService]{
 		{
 			name: "valid",
-			in: func() *SSHProxyService {
-				return &SSHProxyService{
+			in: func() *SSHMultiplexerService {
+				return &SSHMultiplexerService{
 					Destination: &DestinationDirectory{
 						Path:     "/opt/machine-id",
 						ACLs:     botfs.ACLOff,
@@ -58,8 +58,8 @@ func TestSSHProxyService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "missing destination",
-			in: func() *SSHProxyService {
-				return &SSHProxyService{
+			in: func() *SSHMultiplexerService {
+				return &SSHMultiplexerService{
 					Destination: nil,
 				}
 			},
@@ -67,8 +67,8 @@ func TestSSHProxyService_CheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "wrong destination type",
-			in: func() *SSHProxyService {
-				return &SSHProxyService{
+			in: func() *SSHMultiplexerService {
+				return &SSHMultiplexerService{
 					Destination: &DestinationMemory{},
 				}
 			},

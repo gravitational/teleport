@@ -61,9 +61,9 @@ func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
 	return trace.Wrap(tbot.ProxySSH(ctx, proxySSHConfig))
 }
 
-// onSSHProxyCommandConnect connects to an existing long-lived SSH proxy service
-// as opposed to onSSHProxyCommand which completes this on-the-fly.
-func onSSHProxyCommandConnect(ctx context.Context, socketPath string, target string) error {
+// onSSHMultiplexProxyCommand connects to an existing long-lived SSH multiplexer
+// service as opposed to onSSHProxyCommand which completes this on-the-fly.
+func onSSHMultiplexProxyCommand(ctx context.Context, socketPath string, target string) error {
 	outConn, err := net.FileConn(os.Stdout)
 	if err != nil {
 		return trace.Wrap(err)
@@ -80,7 +80,7 @@ func onSSHProxyCommandConnect(ctx context.Context, socketPath string, target str
 	}
 	defer c.Close()
 
-	if _, err := fmt.Fprintf(c, "%v\n", target); err != nil {
+	if _, err := fmt.Fprintln(c, target); err != nil {
 		return trace.Wrap(err)
 	}
 
