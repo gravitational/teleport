@@ -78,6 +78,9 @@ const cfg = {
   // access list, and access monitoring.
   isIgsEnabled: false,
 
+  // isPolicyEnabled refers to the Teleport Policy product
+  isPolicyEnabled: false,
+
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,

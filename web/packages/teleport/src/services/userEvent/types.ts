@@ -74,6 +74,7 @@ export enum IntegrationEnrollKind {
   MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
+  EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
 }
 
 // These constants should match the constant defined in backend found in:
@@ -259,6 +260,7 @@ export enum CtaEvent {
   CTA_ACCESS_MONITORING = 9,
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
   CTA_OKTA_USER_SYNC = 11,
+  CTA_ENTRA_ID = 12,
 }
 
 export enum Feature {
