@@ -34,7 +34,7 @@ export const IntegrationTile = styled(Flex)`
   cursor: pointer;
 
   ${props => {
-    const pointerEvents = props.disabled || props.$exists ? 'none' : null;
+    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
       return { pointerEvents };
     }

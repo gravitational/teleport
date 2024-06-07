@@ -5,7 +5,7 @@
       "title": "Home",
       "entries": [
         {
-          "title": "Get Started with Teleport",
+          "title": "Introduction to Teleport",
           "slug": "/"
         },
         {
@@ -157,6 +157,10 @@
           "slug": "/deploy-a-cluster/introduction/",
           "forScopes": ["oss", "enterprise"]
         },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
@@ -865,7 +869,7 @@
       ]
     },
     {
-      "title": "Run Teleport Agents",
+      "title": "Protect Infrastructure",
       "icon": "layers",
       "entries": [
         {
@@ -873,7 +877,7 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy via Terraform",
+          "title": "Deploy Agents via Terraform",
           "slug": "/agents/deploy-agents-terraform/"
         },
         {
@@ -1922,7 +1926,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.3.7",
+      "version": "15.4.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

@@ -34,10 +34,6 @@ export interface ReloginRequest extends api.ReloginRequest {
 }
 export type SendNotificationRequest = api.SendNotificationRequest;
 
-export type PromptMfaRequest = api.PromptMFARequest & {
-  rootClusterUri: uri.RootClusterUri;
-};
-
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest {
   rootClusterUri: uri.RootClusterUri;
@@ -222,6 +218,10 @@ function createService(logger: Logger): {
 
     getUsageReportingSettings: (call, callback) => {
       processEvent('getUsageReportingSettings', call, callback);
+    },
+
+    reportUnexpectedVnetShutdown: (call, callback) => {
+      processEvent('reportUnexpectedVnetShutdown', call, callback);
     },
   };
 
