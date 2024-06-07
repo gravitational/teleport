@@ -76,6 +76,25 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 
 // SemaphoreLock provides a convenient interface for managing
 // semaphore lease keepalive operations.
+// SemaphoreLock implements the [context.Context] interface
+// and can be used to propagate cancellation when the parent
+// context is canceled or when the lease expires.
+//
+//		lease,err := AcquireSemaphoreLock(ctx, cfg)
+//		if err != nil {
+//			... handle error ...
+//		}
+//		defer func(){
+//			lease.Stop()
+//			err := lease.Wait()
+//			if err != nil {
+//				... handle error ...
+//			}
+//		}()
+//
+//	 newCtx,cancel := context.WithCancel(ctx)
+//	 defer cancel()
+//	 ... do work with newCtx ...
 type SemaphoreLock struct {
 	// ctx is the parent context for the lease keepalive operation.
 	// it's used to propagate deadline cancellations from the parent
