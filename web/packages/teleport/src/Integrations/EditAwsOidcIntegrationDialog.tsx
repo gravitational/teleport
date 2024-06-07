@@ -218,7 +218,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     setConfirmed(e.target.checked);
                   }}
                 />
-                I have ran the command
+                I ran the command
               </Box>
             )}
 
