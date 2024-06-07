@@ -92,14 +92,10 @@ type SSHMultiplexerService struct {
 	resolver          reversetunnelclient.Resolver
 
 	// Fields below here are initialized by the service itself on startup.
-	authClient  *authclient.Client
-	identity    *identity.Facade
-	proxyClient *proxyclient.Client
-	proxyHost   string
-	tshConfig   *libclient.TSHConfig
+	identity *identity.Facade
 }
 
-func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity.Identity) error {
+func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
 	// TODO(noah): identity.SaveIdentity outputs artifacts we don't necessarily
@@ -120,7 +116,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 		ctx,
 		s.botAuthClient,
 		[]string{id.ClusterName},
-		s.proxyHost,
+		proxyHost,
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating known hosts")
@@ -149,7 +145,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 		KnownHostsPath:      path.Join(dest.Path, ssh.KnownHostsName),
 		IdentityFilePath:    path.Join(dest.Path, identity.PrivateKeyKey),
 		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
-		ProxyHost:           s.proxyHost,
+		ProxyHost:           proxyHost,
 
 		TBotMux:           true,
 		TBotMuxCommand:    muxCommand,
@@ -169,19 +165,23 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 	return nil
 }
 
-func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
-	nopClose := func() {}
-
+func (s *SSHMultiplexerService) setup(ctx context.Context) (
+	_ *authclient.Client,
+	_ *proxyclient.Client,
+	proxyHost string,
+	_ *libclient.TSHConfig,
+	_ error,
+) {
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
 		connectionsHandledCounter,
 		inflightConnectionsGauge,
 	); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
 
 	if err := s.cfg.Destination.Init(ctx, []string{}); err != nil {
-		return nil, trace.Wrap(err, "initializing destination")
+		return nil, nil, "", nil, trace.Wrap(err, "initializing destination")
 	}
 
 	// Load in any proxy templates if a path to them has been provided.
@@ -191,44 +191,39 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 		var err error
 		tshConfig, err = libclient.LoadTSHConfig(s.cfg.ProxyTemplatesPath)
 		if err != nil {
-			return nil, trace.Wrap(err, "loading proxy templates")
+			return nil, nil, "", nil, trace.Wrap(err, "loading proxy templates")
 		}
 	}
-	s.tshConfig = tshConfig
 
 	// Generate our initial identity and write the artifacts to the destination.
 	id, err := s.generateIdentity(ctx)
 	if err != nil {
-		return nopClose, trace.Wrap(err, "generating initial identity")
+		return nil, nil, "", nil, trace.Wrap(err, "generating initial identity")
 	}
 	s.identity = identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	if err := s.writeArtifacts(ctx, id); err != nil {
-		return nopClose, trace.Wrap(err, "writing initial identity artifacts")
-	}
 
 	sshConfig, err := s.identity.SSHClientConfig()
 	if err != nil {
-		return nopClose, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
 
 	// Ping the proxy and determine if we need to upgrade the connection.
 	proxyPing, err := s.proxyPingCache.ping(ctx)
 	if err != nil {
-		return nopClose, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
 	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
-	proxyHost, _, err := net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyHost, _, err = net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return nopClose, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	s.proxyHost = proxyHost
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
 			ctx, proxyAddr, s.botCfg.Insecure,
 		)
 		if err != nil {
-			return nopClose, trace.Wrap(err, "determining if ALPN upgrade is required")
+			return nil, nil, "", nil, trace.Wrap(err, "determining if ALPN upgrade is required")
 		}
 	}
 
@@ -265,23 +260,18 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 		DialContext: newDialCycling(100),
 	})
 	if err != nil {
-		return nopClose, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	s.proxyClient = proxyClient
 
 	authClient, err := clientForFacade(
 		ctx, s.log, s.botCfg, s.identity, s.resolver,
 	)
 	if err != nil {
 		_ = proxyClient.Close()
-		return nopClose, trace.Wrap(err)
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	s.authClient = authClient
 
-	return func() {
-		_ = authClient.Close()
-		_ = proxyClient.Close()
-	}, nil
+	return authClient, proxyClient, proxyHost, tshConfig, nil
 }
 
 // generateIdentity generates our impersonated identity which we will write to
@@ -303,7 +293,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	return ident, err
 }
 
-func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context) error {
+func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHost string) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
@@ -323,7 +313,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context) error {
 			id, err = s.generateIdentity(ctx)
 			if err == nil {
 				s.identity.Set(id)
-				err = s.writeArtifacts(ctx, id)
+				err = s.writeArtifacts(ctx, proxyHost, id)
 				if err == nil {
 					break
 				}
@@ -381,11 +371,12 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 
-	closer, err := s.setup(ctx)
+	authClient, proxyClient, proxyHost, tshConfig, err := s.setup(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer closer()
+	defer authClient.Close()
+	defer proxyClient.Close()
 
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 	l, err := createListener(
@@ -424,7 +415,9 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 
 			go func() {
 				inflightConnectionsGauge.Inc()
-				err := s.handleConn(egCtx, downstream)
+				err := s.handleConn(
+					egCtx, tshConfig, authClient, proxyClient, proxyHost, downstream,
+				)
 				inflightConnectionsGauge.Dec()
 				status := "OK"
 				if err != nil {
@@ -436,7 +429,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 		}
 	})
 	eg.Go(func() error {
-		return s.identityRenewalLoop(egCtx)
+		return s.identityRenewalLoop(egCtx, proxyHost)
 	})
 
 	return eg.Wait()
@@ -459,6 +452,10 @@ func (m multiplexingRequest) Validate() error {
 
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
+	tshConfig *libclient.TSHConfig,
+	authClient *authclient.Client,
+	proxyClient *proxyclient.Client,
+	proxyHost string,
 	downstream net.Conn,
 ) (err error) {
 	ctx, span := tracer.Start(
@@ -486,9 +483,7 @@ func (s *SSHMultiplexerService) handleConn(
 			"port", req.Port,
 		),
 	)
-
 	log.Info("Received multiplexing request")
-	defer log.Info("Finished handling multiplex request")
 
 	if err := req.Validate(); err != nil {
 		return trace.Wrap(err, "validating multiplexing request")
@@ -497,7 +492,7 @@ func (s *SSHMultiplexerService) handleConn(
 	port := req.Port
 
 	clusterName := s.identity.Get().ClusterName
-	expanded, matched := s.tshConfig.ProxyTemplates.Apply(
+	expanded, matched := tshConfig.ProxyTemplates.Apply(
 		net.JoinHostPort(req.Host, req.Port),
 	)
 	if matched {
@@ -517,10 +512,10 @@ func (s *SSHMultiplexerService) handleConn(
 
 	var target string
 	if expanded == nil || (len(expanded.Search) == 0 && expanded.Query == "") {
-		host = cleanTargetHost(host, s.proxyHost, clusterName)
+		host = cleanTargetHost(host, proxyHost, clusterName)
 		target = net.JoinHostPort(host, port)
 	} else {
-		node, err := resolveTargetHostWithClient(ctx, s.authClient, expanded.Search, expanded.Query)
+		node, err := resolveTargetHostWithClient(ctx, authClient, expanded.Search, expanded.Query)
 		if err != nil {
 			return trace.Wrap(err, "resolving target host")
 		}
@@ -535,7 +530,7 @@ func (s *SSHMultiplexerService) handleConn(
 		target = net.JoinHostPort(node.GetName(), "0")
 	}
 
-	upstream, _, err := s.proxyClient.DialHost(ctx, target, clusterName, nil)
+	upstream, _, err := proxyClient.DialHost(ctx, target, clusterName, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -549,7 +544,7 @@ func (s *SSHMultiplexerService) handleConn(
 				// if the connection is being resumed, it means that
 				// we didn't need the agent in the first place
 				var noAgent agent.ExtendedAgent
-				conn, _, err := s.proxyClient.DialHost(
+				conn, _, err := proxyClient.DialHost(
 					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
 				)
 				return conn, err
@@ -561,7 +556,14 @@ func (s *SSHMultiplexerService) handleConn(
 	// We don't need to defer close upstream here as this is handled by
 	// ProxyConn
 
-	return trace.Wrap(utils.ProxyConn(ctx, downstream, upstream), "proxying connection")
+	log.Info("Proxying connection for multiplexing request")
+	startedProxying := time.Now()
+	err = utils.ProxyConn(ctx, downstream, upstream)
+	log.Info("Finished proxying connection multiplexing request", "proxied_duration", time.Since(startedProxying))
+	if err != nil {
+		return trace.Wrap(err, "proxying connection")
+	}
+	return nil
 }
 
 func (s *SSHMultiplexerService) String() string {
