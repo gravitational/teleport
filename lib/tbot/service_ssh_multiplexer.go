@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -39,11 +41,18 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	sshMuxSocketName = "tbot_ssh_multiplexer.v1.sock"
 )
 
 var (
@@ -81,6 +90,70 @@ type SSHMultiplexerService struct {
 	clusterName string
 }
 
+func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity.Identity) error {
+	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	if err := dest.Write(ctx, "tbot_ssh_multiplexer.v1.sock", []byte("")); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(noah): identity.SaveIdentity outputs artifacts we don't necessarily
+	// want. For now, I've just manually output them here but we may want to
+	// revisit how this is implemented.
+	if err := dest.Write(ctx, identity.SSHCertKey, id.CertBytes); err != nil {
+		return trace.Wrap(err, "writing %s", identity.SSHCertKey)
+	}
+	if err := dest.Write(ctx, identity.PrivateKeyKey, id.PrivateKeyBytes); err != nil {
+		return trace.Wrap(err, "writing %s", identity.PrivateKeyKey)
+	}
+	if err := dest.Write(ctx, identity.PublicKeyKey, id.PublicKeyBytes); err != nil {
+		return trace.Wrap(err, "writing %s", identity.PublicKeyKey)
+	}
+
+	// Generate known hosts
+	knownHosts, err := ssh.GenerateKnownHosts(
+		ctx,
+		s.authClient,
+		[]string{s.clusterName},
+		s.proxyHost,
+	)
+	if err != nil {
+		return trace.Wrap(err, "generating known hosts")
+	}
+	if err := dest.Write(ctx, ssh.KnownHostsName, []byte(knownHosts)); err != nil {
+		return trace.Wrap(err, "writing %s", ssh.KnownHostsName)
+	}
+
+	// Generate SSH config
+	// TODO: Allow hyperspeed mux client to be enabled.
+	executablePath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "determining executable path")
+	}
+	var sshConfigBuilder strings.Builder
+	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
+	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+		AppName:             openssh.TbotApp,
+		ClusterNames:        []string{s.clusterName},
+		KnownHostsPath:      path.Join(dest.Path, ssh.KnownHostsName),
+		IdentityFilePath:    path.Join(dest.Path, identity.PrivateKeyKey),
+		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
+		ProxyHost:           s.proxyHost,
+
+		TBotMuxCommand:    true,
+		TBotMuxSocketPath: path.Join(dest.Path, sshMuxSocketName),
+		ExecutablePath:    executablePath,
+	})
+	if err != nil {
+		return trace.Wrap(err, "generating SSH config")
+
+	}
+	if err := dest.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
+		return trace.Wrap(err, "writing %s", ssh.ConfigName)
+	}
+
+	return nil
+}
+
 func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
 
@@ -90,6 +163,10 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 		inflightConnectionsGauge,
 	); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.cfg.Destination.Init(ctx, []string{}); err != nil {
+		return nil, trace.Wrap(err, "initializing destination")
 	}
 
 	// Load in any proxy templates if a path to them has been provided.
@@ -190,10 +267,17 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	}
 	s.authClient = authClient
 
-	return func() {
+	closer := func() {
 		_ = authClient.Close()
 		_ = proxyClient.Close()
-	}, nil
+	}
+
+	if err := s.writeArtifacts(ctx, facade.Get()); err != nil {
+		closer()
+		return nopClose, trace.Wrap(err)
+	}
+
+	return closer, nil
 }
 
 func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
@@ -213,7 +297,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", path.Join(dest.Path, "tbot_ssh_multiplexer.v1.sock")))
+		fmt.Sprintf("unix://%s", path.Join(dest.Path, sshMuxSocketName)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
