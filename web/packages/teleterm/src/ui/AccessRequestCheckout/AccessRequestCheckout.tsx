@@ -86,6 +86,7 @@ export function AccessRequestCheckout() {
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
+    shouldShowClusterNameColumn,
     suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
@@ -138,7 +139,11 @@ export function AccessRequestCheckout() {
                 {data
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
-                    let resource = { name: c.name, Icon: undefined };
+                    let resource = {
+                      name: c.name,
+                      key: `${c.clusterName}-${c.kind}-${c.id}`,
+                      Icon: undefined,
+                    };
                     switch (c.kind) {
                       case 'app':
                         resource.Icon = Icon.Application;
@@ -155,14 +160,14 @@ export function AccessRequestCheckout() {
                       case 'role':
                         break;
                       default:
-                        c.kind satisfies never;
+                        c satisfies never;
                     }
                     return resource;
                   })
                   .map(c => (
                     <Label
                       kind="secondary"
-                      key={c.name}
+                      key={c.key}
                       css={`
                         display: flex;
                         align-items: center;
@@ -228,6 +233,7 @@ export function AccessRequestCheckout() {
             }
             reset={reset}
             data={data}
+            showClusterNameColumn={shouldShowClusterNameColumn}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
             fetchResourceRequestRolesAttempt={fetchResourceRolesAttempt}
