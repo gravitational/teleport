@@ -110,7 +110,7 @@ func (c *Cloner) Clone(ctx context.Context) error {
 			return trace.Errorf("unable to clone data to destination with existing data; this may be overriden by configuring 'force: true'")
 		}
 	} else {
-		c.log.Warn("Skipping check for existing data in destination.")
+		c.log.WarnContext(ctx, "Skipping check for existing data in destination.")
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
