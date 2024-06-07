@@ -299,21 +299,22 @@ func Run(args []string, stdout io.Writer) error {
 	case migrateCmd.FullCommand():
 		return onMigrate(ctx, cf, stdout)
 	case versionCmd.FullCommand():
-		err = onVersion()
+		return onVersion()
 	case spiffeInspectCmd.FullCommand():
-		err = onSPIFFEInspect(ctx, spiffeInspectPath)
+		return onSPIFFEInspect(ctx, spiffeInspectPath)
 	case tpmIdentifyCommand.FullCommand():
 		query, err := tpm.Query(ctx, log)
 		if err != nil {
 			return trace.Wrap(err, "querying TPM")
 		}
 		tpm.PrintQuery(query, cf.Debug, os.Stdout)
+		return nil
 	case configureCmd.FullCommand():
-		err = onConfigure(ctx, cf, stdout)
+		return onConfigure(ctx, cf, stdout)
 	case sshProxyCmd.FullCommand():
-		err = onSSHProxyCommand(ctx, &cf)
+		return onSSHProxyCommand(ctx, &cf)
 	case sshProxyConnectCmd.FullCommand():
-		err = onSSHProxyCommandConnect(ctx, sshProxyConnectSocketPath, sshProxyConnectTarget)
+		return onSSHProxyCommandConnect(ctx, sshProxyConnectSocketPath, sshProxyConnectTarget)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)

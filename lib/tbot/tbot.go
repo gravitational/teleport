@@ -296,10 +296,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			svcIdentity := &config.UnstableClientCredentialOutput{}
 			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
 			svc := &SSHProxyService{
-				resolver:    resolver,
-				botCfg:      b.cfg,
-				cfg:         svcCfg,
-				svcIdentity: svcIdentity,
+				resolver:         resolver,
+				botCfg:           b.cfg,
+				cfg:              svcCfg,
+				svcIdentity:      svcIdentity,
+				proxyPingCache:   proxyPingCache,
+				alpnUpgradeCache: alpnUpgradeCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

@@ -26,6 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"path"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -80,6 +81,9 @@ type SSHProxyService struct {
 
 func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
+
+	// TODO: Load proxy templates??
+	s.tshConfig = &libclient.TSHConfig{}
 
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
@@ -186,7 +190,10 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	defer closer()
 
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
-	l, err := createListener(ctx, s.log, fmt.Sprintf("unix://%s", dest.Path))
+	l, err := createListener(
+		ctx,
+		s.log,
+		fmt.Sprintf("unix://%s", path.Join(dest.Path, "sock")))
 	if err != nil {
 		return trace.Wrap(err)
 	}
