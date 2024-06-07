@@ -1,8 +1,7 @@
-package clone
+package backend
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync/atomic"
 	"time"
@@ -11,8 +10,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/backend"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 )
 
@@ -21,88 +18,38 @@ const (
 	bufferSize = 10000
 )
 
-// Cloner manages cloning data between two [backend.Backend] interfaces.
-type Cloner struct {
-	src      backend.Backend
-	dst      backend.Backend
-	parallel int
-	force    bool
-	migrated atomic.Int64
-	log      *slog.Logger
-}
-
-// Config contains the configuration for cloning a [backend.Backend].
+// CloneConfig contains the configuration for cloning a [Backend].
 // All items from the source are copied to the destination. All Teleport Auth
 // Service instances should be stopped when running clone to avoid data
 // inconsistencies.
-type Config struct {
-	// Source is the backend [backend.Config] items are cloned from.
-	Source backend.Config `yaml:"src"`
-	// Destination is the [backend.Config] items are cloned to.
-	Destination backend.Config `yaml:"dst"`
+type CloneConfig struct {
+	// Source is the backend [Config] items are cloned from.
+	Source Config `yaml:"src"`
+	// Destination is the [Config] items are cloned to.
+	Destination Config `yaml:"dst"`
 	// Parallel is the number of items that will be cloned in parallel.
 	Parallel int `yaml:"parallel"`
 	// Force indicates whether to clone data regardless of whether data already
-	// exists in the destination [backend.Backend].
+	// exists in the destination [Backend].
 	Force bool `yaml:"force"`
-	// Log logs the progress of cloning.
-	Log *slog.Logger
 }
 
-// New returns a [Cloner] based on the provided [Config].
-func New(ctx context.Context, config Config) (*Cloner, error) {
-	src, err := backend.New(ctx, config.Source.Type, config.Source.Params)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create source backend")
-	}
-	dst, err := backend.New(ctx, config.Destination.Type, config.Destination.Params)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create destination backend")
-	}
-	cloner := &Cloner{
-		src:      src,
-		dst:      dst,
-		parallel: config.Parallel,
-		force:    config.Force,
-		log:      config.Log,
-	}
-	if cloner.parallel <= 0 {
-		cloner.parallel = 1
-	}
-	if cloner.log == nil {
-		cloner.log = slog.With(teleport.ComponentKey, "backend.clone")
-	}
-	return cloner, nil
-}
+// Clone copies all items from a source to a destination [Backend].
+func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) error {
+	log := slog.With(teleport.ComponentKey, "clone")
+	itemC := make(chan Item, bufferSize)
+	start := Key("")
+	migrated := &atomic.Int32{}
 
-// Close ensures the source and destination backends are closed.
-func (c *Cloner) Close() error {
-	var errs []error
-	if c.src != nil {
-		err := c.src.Close()
-		if err != nil {
-			errs = append(errs, err)
-		}
+	if parallel <= 0 {
+		parallel = 1
 	}
-	if c.dst != nil {
-		err := c.dst.Close()
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return trace.NewAggregate(errs...)
-}
-
-// Run runs backend cloning until complete.
-func (c *Cloner) Clone(ctx context.Context) error {
-	itemC := make(chan backend.Item, bufferSize)
-	start := backend.Key("")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if !c.force {
-		result, err := c.dst.GetRange(ctx, start, backend.RangeEnd(start), 1)
+	if !force {
+		result, err := dst.GetRange(ctx, start, RangeEnd(start), 1)
 		if err != nil {
 			return trace.Wrap(err, "failed to check destination for existing data")
 		}
@@ -110,21 +57,21 @@ func (c *Cloner) Clone(ctx context.Context) error {
 			return trace.Errorf("unable to clone data to destination with existing data; this may be overriden by configuring 'force: true'")
 		}
 	} else {
-		c.log.WarnContext(ctx, "Skipping check for existing data in destination.")
+		log.WarnContext(ctx, "Skipping check for existing data in destination.")
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
 	// Add 1 to ensure a goroutine exists for getting items.
-	group.SetLimit(c.parallel + 1)
+	group.SetLimit(parallel + 1)
 
 	group.Go(func() error {
-		var result *backend.GetResult
+		var result *GetResult
 		pageKey := start
 		defer close(itemC)
 		for {
 			err := retry(ctx, 3, func() error {
 				var err error
-				result, err = c.src.GetRange(ctx, pageKey, backend.RangeEnd(start), bufferSize)
+				result, err = src.GetRange(ctx, pageKey, RangeEnd(start), bufferSize)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -143,12 +90,12 @@ func (c *Cloner) Clone(ctx context.Context) error {
 			if len(result.Items) < bufferSize {
 				return nil
 			}
-			pageKey = backend.RangeEnd(result.Items[len(result.Items)-1].Key)
+			pageKey = RangeEnd(result.Items[len(result.Items)-1].Key)
 		}
 	})
 
 	logProgress := func() {
-		c.log.InfoContext(ctx, "Backend clone still in progress", "items_copied" c.migrated.Load()))
+		log.InfoContext(ctx, "Backend clone still in progress", "items_copied", migrated.Load())
 	}
 	defer logProgress()
 	go func() {
@@ -166,14 +113,14 @@ func (c *Cloner) Clone(ctx context.Context) error {
 		item := item
 		group.Go(func() error {
 			if err := retry(ctx, 3, func() error {
-				if _, err := c.dst.Put(ctx, item); err != nil {
+				if _, err := dst.Put(ctx, item); err != nil {
 					return trace.Wrap(err)
 				}
 				return nil
 			}); err != nil {
 				return trace.Wrap(err)
 			}
-			c.migrated.Add(1)
+			migrated.Add(1)
 			return nil
 		})
 		if err := ctx.Err(); err != nil {
