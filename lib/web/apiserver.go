@@ -954,7 +954,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// The Integration DELETE endpoint already sets the expected named param after `/integrations/`
 	// It must be re-used here, otherwise the router will not start.
 	// See https://github.com/julienschmidt/httprouter/issues/364
-	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
+	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
 	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// SAML IDP integration endpoints

@@ -982,7 +982,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deleting the AWS App Access should return an error because it was not created yet.
-	deleteEndpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
+	deleteEndpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "aws-app-access", "my-integration")
 	_, err = pack.clt.Delete(ctx, deleteEndpoint)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "not found")
