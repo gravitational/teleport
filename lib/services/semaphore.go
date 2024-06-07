@@ -85,11 +85,11 @@ type SemaphoreLock struct {
 	// it's used to propagate deadline cancellations from the parent
 	// context and to carry values for the context interface.
 	ctx       context.Context
+	cancelCtx context.CancelFunc
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
 	ticker    clockwork.Ticker
-	doneC     chan struct{}
 	closeOnce sync.Once
 	renewalC  chan struct{}
 	cond      *sync.Cond
@@ -114,7 +114,7 @@ func (l *SemaphoreLock) finish(err error) {
 // If the parent context is canceled, the lease
 // will be released and done will be closed.
 func (l *SemaphoreLock) Done() <-chan struct{} {
-	return l.doneC
+	return l.ctx.Done()
 }
 
 // Deadline returns the deadline of the parent context if it exists.
@@ -150,7 +150,7 @@ func (l *SemaphoreLock) Wait() error {
 func (l *SemaphoreLock) Stop() {
 	l.closeOnce.Do(func() {
 		l.ticker.Stop()
-		close(l.doneC)
+		l.cancelCtx()
 	})
 }
 
@@ -164,9 +164,8 @@ func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 	var nodrop bool
 	var err error
 	lease := l.lease0
-	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		cancel()
+		l.cancelCtx()
 		l.Stop()
 		defer l.finish(err)
 		if nodrop {
@@ -290,15 +289,16 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	lock := &SemaphoreLock{
-		ctx:      ctx,
-		cfg:      cfg,
-		lease0:   *lease,
-		retry:    retry,
-		ticker:   cfg.Clock.NewTicker(cfg.TickRate),
-		doneC:    make(chan struct{}),
-		renewalC: make(chan struct{}),
-		cond:     sync.NewCond(&sync.Mutex{}),
+		ctx:       ctx,
+		cancelCtx: cancel,
+		cfg:       cfg,
+		lease0:    *lease,
+		retry:     retry,
+		ticker:    cfg.Clock.NewTicker(cfg.TickRate),
+		renewalC:  make(chan struct{}),
+		cond:      sync.NewCond(&sync.Mutex{}),
 	}
 	go lock.keepAlive(ctx)
 	return lock, nil
