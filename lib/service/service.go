@@ -284,15 +284,6 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
-const (
-	// embeddingInitialDelay is the time to wait before the first embedding
-	// routine is started.
-	embeddingInitialDelay = 10 * time.Second
-	// embeddingPeriod is the time between two embedding routines.
-	// A seventh jitter is applied on the period.
-	embeddingPeriod = 20 * time.Minute
-)
-
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {

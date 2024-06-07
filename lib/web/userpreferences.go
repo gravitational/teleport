@@ -201,18 +201,6 @@ func clusterPreferencesResponse(prefs *userpreferencesv1.ClusterUserPreferences)
 	return resp
 }
 
-// assistUserPreferencesResponse creates a JSON response for the assist user preferences.
-func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences) AssistUserPreferencesResponse {
-	jsonResp := AssistUserPreferencesResponse{
-		PreferredLogins: make([]string, 0, len(resp.PreferredLogins)),
-		ViewMode:        resp.ViewMode,
-	}
-
-	jsonResp.PreferredLogins = append(jsonResp.PreferredLogins, resp.PreferredLogins...)
-
-	return jsonResp
-}
-
 // unifiedResourcePreferencesResponse creates a JSON response for the assist user preferences.
 func unifiedResourcePreferencesResponse(resp *userpreferencesv1.UnifiedResourcePreferences) UnifiedResourcePreferencesResponse {
 	return UnifiedResourcePreferencesResponse{
