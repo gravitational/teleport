@@ -43,26 +43,34 @@ type grpcClientConnInterfaceCloser = interface {
 	io.Closer
 }
 
-func dialCycling(
+func newDialCycling(
+	cycleCount int32,
+) func(
 	ctx context.Context, target string, opts ...grpc.DialOption,
 ) (grpcClientConnInterfaceCloser, error) {
-	cc := &cyclingConn{
-		target: target,
-		opts:   opts,
-	}
+	return func(
+		ctx context.Context, target string, opts ...grpc.DialOption,
+	) (grpcClientConnInterfaceCloser, error) {
+		cc := &cyclingConn{
+			target:     target,
+			opts:       opts,
+			cycleCount: cycleCount,
+		}
 
-	inner, err := cc.dial(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cc.inner = inner
+		inner, err := cc.dial(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cc.inner = inner
 
-	return cc, nil
+		return cc, nil
+	}
 }
 
 type cyclingConn struct {
-	target string
-	opts   []grpc.DialOption
+	target     string
+	opts       []grpc.DialOption
+	cycleCount int32
 
 	inner   *cyclingInner
 	mu      sync.Mutex
@@ -97,7 +105,7 @@ func (c *cyclingConn) Invoke(ctx context.Context, method string, args any, reply
 	}
 	inner := c.inner
 	c.started++
-	if c.started >= 100 {
+	if c.started >= c.cycleCount {
 		c.inner = nil
 	} else {
 		inner.active.Add(1)
@@ -127,7 +135,7 @@ func (c *cyclingConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, meth
 	}
 	inner := c.inner
 	c.started++
-	if c.started >= 100 {
+	if c.started >= c.cycleCount {
 		c.inner = nil
 	} else {
 		inner.active.Add(1)
