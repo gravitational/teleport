@@ -30,6 +30,8 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -167,7 +169,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 
 func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	_ *authclient.Client,
-	_ *proxyclient.Client,
+	_ *cyclingHostDialClient,
 	proxyHost string,
 	_ *libclient.TSHConfig,
 	_ error,
@@ -228,7 +230,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	}
 
 	// Create Proxy and Auth clients
-	proxyClient, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
+	proxyClient := newCyclingHostDialClient(100, proxyclient.ClientConfig{
 		ProxyAddress:      proxyAddr,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
@@ -253,21 +255,12 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		SSHConfig:               sshConfig,
 		InsecureSkipVerify:      s.botCfg.Insecure,
 		ALPNConnUpgradeRequired: connUpgradeRequired,
-
-		// Here we use a special dial context that will create a new connection
-		// after the cycleCount has been reached. This prevents too many SSH
-		// connections from sharing the same upstream connection.
-		DialContext: newDialCycling(100),
 	})
-	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
-	}
 
 	authClient, err := clientForFacade(
 		ctx, s.log, s.botCfg, s.identity, s.resolver,
 	)
 	if err != nil {
-		_ = proxyClient.Close()
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
 
@@ -371,12 +364,11 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 
-	authClient, proxyClient, proxyHost, tshConfig, err := s.setup(ctx)
+	authClient, hostDialer, proxyHost, tshConfig, err := s.setup(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer authClient.Close()
-	defer proxyClient.Close()
 
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 	l, err := createListener(
@@ -416,7 +408,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 			go func() {
 				inflightConnectionsGauge.Inc()
 				err := s.handleConn(
-					egCtx, tshConfig, authClient, proxyClient, proxyHost, downstream,
+					egCtx, tshConfig, authClient, hostDialer, proxyHost, downstream,
 				)
 				inflightConnectionsGauge.Dec()
 				status := "OK"
@@ -454,7 +446,7 @@ func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	tshConfig *libclient.TSHConfig,
 	authClient *authclient.Client,
-	proxyClient *proxyclient.Client,
+	hostDialer *cyclingHostDialClient,
 	proxyHost string,
 	downstream net.Conn,
 ) (err error) {
@@ -530,7 +522,7 @@ func (s *SSHMultiplexerService) handleConn(
 		target = net.JoinHostPort(node.GetName(), "0")
 	}
 
-	upstream, _, err := proxyClient.DialHost(ctx, target, clusterName, nil)
+	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -544,7 +536,7 @@ func (s *SSHMultiplexerService) handleConn(
 				// if the connection is being resumed, it means that
 				// we didn't need the agent in the first place
 				var noAgent agent.ExtendedAgent
-				conn, _, err := proxyClient.DialHost(
+				conn, _, err := hostDialer.DialHost(
 					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
 				)
 				return conn, err
@@ -576,15 +568,68 @@ func (s *SSHMultiplexerService) String() string {
 
 // cyclingHostDialClient
 type cyclingHostDialClient struct {
-	max    int
+	max    int32
 	config proxyclient.ClientConfig
-	inner  *proxyclient.Client
+
+	mu         sync.Mutex
+	started    int32
+	currentClt *refCountProxyClient
 }
 
-func newCyclingHostDialClient(max int32, config *proxyclient.ClientConfig) *cyclingHostDialClient {
+type refCountProxyClient struct {
+	clt      *proxyclient.Client
+	refCount atomic.Int32
+}
+
+type refCountConn struct {
+	net.Conn
+	parent atomic.Pointer[refCountProxyClient]
+}
+
+func (r *refCountConn) Close() error {
+	err := r.Conn.Close()
+	// Swap operation ensures only one of the conns closes the underlying
+	// client.
+	if parent := r.parent.Swap(nil); parent != nil {
+		if parent.refCount.Add(-1) <= 0 {
+			go parent.clt.Close()
+		}
+	}
+	return trace.Wrap(err)
+}
+
+func newCyclingHostDialClient(max int32, config proxyclient.ClientConfig) *cyclingHostDialClient {
 	return &cyclingHostDialClient{max: max, config: config}
 }
 
 func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
-	return s.inner.DialHost(ctx, target, cluster, keyring)
+	s.mu.Lock()
+	if s.currentClt == nil {
+		clt, err := proxyclient.NewClient(ctx, s.config)
+		if err != nil {
+			s.mu.Unlock()
+			return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
+		}
+		s.currentClt = &refCountProxyClient{clt: clt}
+		s.started = 0
+	}
+
+	currentClt := s.currentClt
+	s.started++
+	if s.started > s.max {
+		s.currentClt = nil
+	}
+	s.mu.Unlock()
+
+	innerConn, details, err := currentClt.clt.DialHost(ctx, target, cluster, keyring)
+	if err != nil {
+		return nil, details, trace.Wrap(err)
+	}
+	currentClt.refCount.Add(1)
+
+	wrappedConn := &refCountConn{
+		Conn: innerConn,
+	}
+	wrappedConn.parent.Store(currentClt)
+	return wrappedConn, details, nil
 }

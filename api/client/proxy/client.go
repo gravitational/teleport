@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/asn1"
-	"io"
 	"net"
 	"slices"
 	"sync/atomic"
@@ -74,21 +73,11 @@ type ClientConfig struct {
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	PROXYHeaderGetter client.PROXYHeaderGetter
 
-	// DialContext allows a custom grpc.ClientConnInterface to be used by the
-	// client. This allows for more customized behavior (e.g cycling the
-	// underlying connection every X connections).
-	DialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (grpcClientConnInterfaceCloser, error)
-
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
 	creds func(cluster string) (credentials.TransportCredentials, error)
 	// The client credentials to use when establishing the connection to auth.
 	clientCreds func(cluster string) (client.Credentials, error)
-}
-
-type grpcClientConnInterfaceCloser = interface {
-	grpc.ClientConnInterface
-	io.Closer
 }
 
 // CheckAndSetDefaults ensures required options are present and
@@ -286,14 +275,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
-	dialContext := cfg.DialContext
-	if dialContext == nil {
-		dialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (grpcClientConnInterfaceCloser, error) {
-			return grpc.DialContext(ctx, target, opts...)
-		}
-	}
-
-	conn, err := dialContext(
+	conn, err := grpc.DialContext(
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
