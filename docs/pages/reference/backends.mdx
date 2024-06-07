@@ -399,10 +399,10 @@ teleport:
     type: postgresql
     auth_mode: gcp-cloudsql
 
-    # GCP connection name is in format of <project>:<location>:<instance>.
+    # GCP connection name has the format <project>:<location>:<instance>.
     gcp_connection_name: <Var name="project:location:instance"/>
 
-    # Type of IP for GCP connections. Valid options are:
+    # The type of IP address to use for connecting to the Cloud SQL instance. Valid options are:
     # - "" (default to "public")
     # - "public"
     # - "private"
@@ -417,20 +417,20 @@ teleport:
 ```
 
 To enable IAM authentication and logical replication for Cloud SQL, make sure
-flag `cloudsql.iam_authentication` and flag `cloudsql.logical_decoding` and are
-set to `on` for the Cloud SQL instance. The database user must also have the
+flags `cloudsql.iam_authentication` and `cloudsql.logical_decoding` are set to
+`on` for the Cloud SQL instance. The database user must also have the
 `REPLICATION` role attribute for using the logical decoding features. See [set
 up logical replication and
 decoding](https://cloud.google.com/sql/docs/postgres/replication/configure-logical-replication)
 for more details.
 
-In order for Teleport to use [Cloud SQL Go
+In order for Teleport to use the [Cloud SQL Go
 Connector](https://cloud.google.com/sql/docs/mysql/connect-connectors) with IAM
-authentication, the service account of the target databse user must have "Cloud
+authentication, the service account of the target database user must have "Cloud
 SQL Client"/`roles/cloudsql.client` and "Cloud SQL Instance
 User"/`roles/cloudsql.instanceUser` roles assigned to the service account.
 
-Teleport will make use of the credentials specified through
+Teleport will make use of the credentials specified through the
 [`GOOGLE_APPLICATION_CREDENTIALS` environment
 variable](https://cloud.google.com/docs/authentication/application-default-credentials#GAC),
 [Workload Identity
