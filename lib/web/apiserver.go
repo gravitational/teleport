@@ -961,7 +961,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	// SAML IDP integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
-	// AWS OIDC Integration specific endpoints:
+	// Azure OIDC integration endpoints
+	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))
+
+	// OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
@@ -1737,6 +1740,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// TODO(mcbattirola): remove isTeam when it is no longer used
 	isTeam := clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM
 
+	policy := clusterFeatures.GetPolicy()
+
 	webCfg := webclient.WebConfig{
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
@@ -1752,6 +1757,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
+		IsPolicyEnabled:                policy != nil && policy.Enabled,
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),

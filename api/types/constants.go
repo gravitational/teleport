@@ -635,6 +635,10 @@ const (
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
 
+	// OriginEntraID indicates that the resource was imported
+	// from the Entra ID directory.
+	OriginEntraID = common.OriginEntraID
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -974,6 +978,22 @@ const (
 
 	// OktaRoleNameLabel is the human readable name for a role sourced from Okta.
 	OktaRoleNameLabel = TeleportInternalLabelPrefix + "okta-role-name"
+
+	// EntraTenantIDLabel is the label for the Entra tenant ID.
+	EntraTenantIDLabel = TeleportInternalLabelPrefix + "entra-tenant"
+
+	// EntraUniqueIDLabel is the label for the unique identifier of the object in the Entra ID directory.
+	EntraUniqueIDLabel = TeleportInternalLabelPrefix + "entra-unique-id"
+
+	// EntraUPNLabel is the label for the user principal name in Entra ID.
+	EntraUPNLabel = TeleportInternalLabelPrefix + "entra-upn"
+
+	// EntraDisplayNameLabel is the label for the display name of the object in the Entra ID directory.
+	// The display name may not be unique.
+	EntraDisplayNameLabel = TeleportInternalLabelPrefix + "entra-display-name"
+
+	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
+	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
 )
 
 const (
