@@ -654,219 +654,6 @@
       ]
     },
     {
-      "icon": "wrench",
-      "title": "Manage your Cluster",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/management/"
-        },
-        {
-          "title": "Using Dynamic Resources",
-          "slug": "/management/dynamic-resources/",
-          "entries": [
-            {
-              "title": "Managing Users and Roles",
-              "slug": "/management/dynamic-resources/user-and-role/"
-            },
-            {
-              "title": "Registering Agentless OpenSSH",
-              "slug": "/management/dynamic-resources/agentless-ssh-servers/"
-            },
-            {
-              "title": "Managing Access Lists",
-              "slug": "/management/dynamic-resources/access-list/"
-            },
-            {
-              "title": "Kubernetes Operator",
-              "slug": "/management/dynamic-resources/teleport-operator/"
-            },
-            {
-              "title": "Kubernetes Operator in teleport-cluster Helm chart",
-              "slug": "/management/dynamic-resources/teleport-operator-helm/",
-              "forScopes": ["oss","enterprise"]
-            },
-            {
-              "title": "Standalone Kubernetes Operator",
-              "slug": "/management/dynamic-resources/teleport-operator-standalone/"
-            },
-            {
-              "title": "Set up the Terraform Provider",
-              "slug": "/management/dynamic-resources/terraform-provider/"
-            }
-          ]
-        },
-        {
-          "title": "Admin Guides",
-          "slug": "/management/admin/",
-          "entries": [
-            {
-              "title": "Trusted Clusters",
-              "slug": "/management/admin/trustedclusters/"
-            },
-            {
-              "title": "Labels",
-              "slug": "/management/admin/labels/"
-            },
-            {
-              "title": "Local Users",
-              "slug": "/management/admin/users/"
-            },
-            {
-              "title": "Troubleshooting",
-              "slug": "/management/admin/troubleshooting/"
-            },
-            {
-              "title": "Run Teleport as a Daemon",
-              "slug": "/management/admin/daemon/"
-            },
-            {
-              "title": "Run Teleport with Self-Signed Certificates",
-              "slug": "/management/admin/self-signed-certs/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Uninstall Teleport",
-              "slug": "/management/admin/uninstall-teleport/"
-            }
-          ]
-        },
-        {
-          "title": "Operations",
-          "slug": "/management/operations/",
-          "entries": [
-            {
-              "title": "Scaling",
-              "slug": "/management/operations/scaling/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Backup and Restore",
-              "slug": "/management/operations/backup-restore/"
-            },
-            {
-              "title": "Cert Authority Rotation",
-              "slug": "/management/operations/ca-rotation/"
-            },
-            {
-              "title": "Database Cert Authority Rotation",
-              "slug": "/management/operations/db-ca-rotation/"
-            },
-            {
-              "title": "TLS Routing Migration",
-              "slug": "/management/operations/tls-routing/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Proxy Peering Migration",
-              "slug": "/management/operations/proxy-peering/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "Database CA Migrations",
-              "slug": "/management/operations/db-ca-migrations/"
-            }
-          ]
-        },
-        {
-          "title": "Secure Practices",
-          "slug": "/management/security/",
-          "entries": [
-            {
-              "title": "Restrict Access for Privileged Accounts",
-              "slug": "/management/security/restrict-privileges/"
-            },
-            {
-              "title": "Reducing the Blast Radius of Attacks",
-              "slug": "/management/security/reduce-blast-radius/"
-            },
-            {
-              "title": "PROXY Protocol",
-              "slug": "/management/security/proxy-protocol/",
-              "forScopes": [
-                "enterprise",
-                "oss"
-              ]
-            }
-          ]
-        },
-        {
-          "title": "Integrations",
-          "slug": "/management/guides/",
-          "entries": [
-            {
-              "title": "EC2 Tags",
-              "slug": "/management/guides/ec2-tags/"
-            },
-            {
-              "title": "GCP Tags and Labels",
-              "slug": "/management/guides/gcp-tags/"
-            },
-            {
-              "title": "Using Teleport's CA with GitHub",
-              "slug": "/management/guides/ssh-key-extensions/"
-            },
-            {
-              "title": "AWS OIDC Integration",
-              "slug": "/management/guides/awsoidc-integration/"
-            }
-          ]
-        },
-        {
-          "title": "Diagnostics",
-          "slug": "/management/diagnostics/",
-          "entries": [
-            {
-              "title": "Health Monitoring",
-              "slug": "/management/diagnostics/monitoring/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            },
-            {
-              "title": "Metrics",
-              "slug": "/management/diagnostics/metrics/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            },
-            {
-              "title": "Collecting Profiles",
-              "slug": "/management/diagnostics/profiles/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            },
-            {
-              "title": "Distributed Tracing",
-              "slug": "/management/diagnostics/tracing/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            }
-          ]
-        },
-        {
-          "title": "Exporting Audit Events",
-          "slug": "/management/export-audit-events/",
-          "entries": [
-            {
-              "title": "Export Audit Events to Fluentd",
-              "slug": "/management/export-audit-events/fluentd/"
-            },
-            {
-              "title": "Export Audit Events to Datadog",
-              "slug": "/management/export-audit-events/datadog/"
-            },
-            {
-              "title": "Export Audit Events to the Elastic Stack",
-              "slug": "/management/export-audit-events/elastic-stack/"
-            },
-            {
-              "title": "Export Audit Events to Panther",
-              "slug": "/management/export-audit-events/panther/"
-            },
-            {
-              "title": "Export Audit Events to Splunk",
-              "slug": "/management/export-audit-events/splunk/"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "icon": "connect",
       "title": "Connect your Client",
       "entries": [
@@ -1719,142 +1506,6 @@
       "icon": "book",
       "title": "Reference",
       "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/reference/introduction/"
-        },
-        {
-          "title": "Config File",
-          "slug": "/reference/config/"
-        },
-        {
-          "title": "Config Resources",
-          "slug": "/reference/resources/"
-        },
-        {
-          "title": "Command Line",
-          "slug": "/reference/cli/",
-          "entries": [
-            {
-              "title": "teleport",
-              "slug": "/reference/cli/teleport/"
-            },
-            {
-              "title": "tsh",
-              "slug": "/reference/cli/tsh/"
-            },
-            {
-              "title": "tctl",
-              "slug": "/reference/cli/tctl/"
-            },
-            {
-              "title": "tbot",
-              "slug": "/reference/cli/tbot/"
-            }
-          ]
-        },
-        {
-          "title": "Metrics",
-          "slug": "/reference/metrics/"
-        },
-        {
-          "title": "Terraform Resources",
-          "slug": "/reference/terraform-provider/"
-        },
-        {
-          "title": "Audit Events and Records",
-          "slug": "/reference/audit/"
-        },
-        {
-          "title": "Authentication",
-          "slug": "/reference/authentication/"
-        },
-        {
-          "title": "Storage Backends",
-          "slug": "/reference/backends/",
-          "forScopes": ["oss", "enterprise"]
-        },
-        {
-          "title": "Join Methods",
-          "slug": "/reference/join-methods/"
-        },
-        {
-          "title": "Networking",
-          "slug": "/reference/networking/"
-        },
-        {
-          "title": "Predicate Language",
-          "slug": "/reference/predicate-language/"
-        },
-        {
-          "title": "Signals",
-          "slug": "/reference/signals/"
-        },
-        {
-          "title": "User Types",
-          "slug": "/reference/user-types/"
-        },
-        {
-          "title": "Helm Charts",
-          "slug": "/reference/helm-reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/reference/helm-reference/teleport-cluster/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/reference/helm-reference/teleport-kube-agent/"
-            },
-            {
-              "title": "teleport-operator",
-              "slug": "/reference/helm-reference/teleport-operator/"
-            },
-            {
-              "title": "teleport-access-graph",
-              "slug": "/reference/helm-reference/teleport-access-graph/",
-              "forScopes": [
-                "enterprise"
-              ]
-            },
-            {
-              "title": "teleport-plugin-event-handler",
-              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
-            },
-            {
-              "title": "teleport-plugin-discord",
-              "slug": "/reference/helm-reference/teleport-plugin-discord/"
-            },
-            {
-              "title": "teleport-plugin-email",
-              "slug": "/reference/helm-reference/teleport-plugin-email/"
-            },
-            {
-              "title": "teleport-plugin-jira",
-              "slug": "/reference/helm-reference/teleport-plugin-jira/"
-            },
-            {
-              "title": "teleport-plugin-mattermost",
-              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
-            },
-            {
-              "title": "teleport-plugin-msteams",
-              "slug": "/reference/helm-reference/teleport-plugin-msteams/"
-            },
-            {
-              "title": "teleport-plugin-pagerduty",
-              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
-            },
-            {
-              "title": "teleport-plugin-slack",
-              "slug": "/reference/helm-reference/teleport-plugin-slack/"
-            }
-          ]
-        },
 	{
 	    "title": "All Topics",
 	    "slug": "/reference/"
@@ -2049,21 +1700,6 @@
     {
       "source": "/kubernetes-access/helm/guides/migration/",
       "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/",
-      "destination": "/reference/helm-reference/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/teleport-cluster/",
-      "destination": "/reference/helm-reference/teleport-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
-      "destination": "/reference/helm-reference/teleport-kube-agent/",
       "permanent": true
     },
     {
@@ -2312,48 +1948,8 @@
       "permanent": true
     },
     {
-      "source": "/setup/admin/daemon/",
-      "destination": "/management/admin/daemon/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/labels/",
-      "destination": "/management/admin/labels/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/troubleshooting/",
-      "destination": "/management/admin/troubleshooting/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/trustedclusters/",
-      "destination": "/management/admin/trustedclusters/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/users/",
-      "destination": "/management/admin/users/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/",
-      "destination": "/management/guides/",
-      "permanent": true
-    },
-    {
       "source": "/setup/guides/docker/",
       "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/ec2-tags/",
-      "destination": "/management/guides/ec2-tags/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/fluentd/",
-      "destination": "/management/export-audit-events/fluentd/",
       "permanent": true
     },
     {
@@ -2367,133 +1963,13 @@
       "permanent": true
     },
     {
-      "source": "/setup/guides/ssh-key-extensions/",
-      "destination": "/management/guides/ssh-key-extensions/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/",
-      "destination": "/management/operations/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/backup-restore/",
-      "destination": "/management/operations/backup-restore/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/ca-rotation/",
-      "destination": "/management/operations/ca-rotation/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/proxy-peering/",
-      "destination": "/management/operations/proxy-peering/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/scaling/",
-      "destination": "/management/operations/scaling/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/operations/tls-routing/",
-      "destination": "/management/operations/tls-routing/",
-      "permanent": true
-    },
-    {
       "source": "/setup/operations/upgrading/",
       "destination": "/upgrading/",
       "permanent": true
     },
     {
-      "source": "/setup/security/",
-      "destination": "/management/security/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/security/reduce-blast-radius/",
-      "destination": "/management/security/reduce-blast-radius/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/audit/",
-      "destination": "/reference/audit/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/authentication/",
-      "destination": "/reference/authentication/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/backends/",
-      "destination": "/reference/backends/",
-      "permanent": true
-    },
-    {
       "source": "/setup/reference/cli/",
       "destination": "/reference/cli/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/config/",
-      "destination": "/reference/config/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-reference/",
-      "destination": "/reference/helm-reference/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-reference/teleport-cluster/",
-      "destination": "/reference/helm-reference/teleport-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-reference/teleport-kube-agent/",
-      "destination": "/reference/helm-reference/teleport-kube-agent/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/metrics/",
-      "destination": "/reference/metrics/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/networking/",
-      "destination": "/reference/networking/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/predicate-language/",
-      "destination": "/reference/predicate-language/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/resources/",
-      "destination": "/reference/resources/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/signals/",
-      "destination": "/reference/signals/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/terraform-provider/",
-      "destination": "/reference/terraform-provider/",
       "permanent": true
     },
     {
@@ -2582,16 +2058,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/fluentd/",
-      "destination": "/management/export-audit-events/fluentd/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/elastic-stack/",
-      "destination": "/management/export-audit-events/elastic-stack/",
-      "permanent": true
-    },
-    {
       "source": "/application-access/guides/aws-console/",
       "destination": "/application-access/cloud-apis/aws-console/",
       "permanent": true
@@ -2659,11 +2125,6 @@
     {
       "source": "/management/guides/joining-nodes-aws-iam/",
       "destination": "/agents/join-services-to-your-cluster/aws-iam/",
-      "permanent": true
-    },
-    {
-      "source": "/management/admin/adding-nodes/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
@@ -2737,16 +2198,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/get-started/",
       "destination": "/",
       "permanent": true
@@ -2784,16 +2235,6 @@
     {
       "source": "/management/join-services-to-your-cluster/kubernetes/",
       "destination": "/agents/join-services-to-your-cluster/kubernetes/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
       "permanent": true
     },
     {
@@ -2888,11 +2329,6 @@
     },
     {
       "source": "/management/operations/upgrading/",
-      "destination": "/upgrading/",
-      "permanent": true
-    },
-    {
-      "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
       "permanent": true
     },
