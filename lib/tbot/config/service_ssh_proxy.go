@@ -32,6 +32,9 @@ type SSHProxyService struct {
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
 	Destination bot.Destination `yaml:"destination"`
+	// EnableResumption controls whether to enable session resumption for the
+	// SSH proxy.
+	EnableResumption bool `yaml:"enable_resumption"`
 }
 
 func (s *SSHProxyService) Type() string {
