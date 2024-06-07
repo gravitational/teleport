@@ -2740,7 +2740,7 @@ func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit local login failure event.")
 			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
+			return nil, trace.AccessDenied("User secret information is not available from remote access")
 		}
 	} else {
 		if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
