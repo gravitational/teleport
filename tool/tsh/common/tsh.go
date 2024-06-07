@@ -225,6 +225,8 @@ type CLIConf struct {
 	DaemonAgentsDir string
 	// DaemonPid is the PID to be stopped by tsh daemon stop.
 	DaemonPid int
+	// DaemonInstallationID is a unique ID identifying a specific Teleport Connect installation.
+	DaemonInstallationID string
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
@@ -773,6 +775,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local machine vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
+	ssh.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
+	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s)", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
@@ -788,6 +792,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
+	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -904,6 +909,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.Labels)
+	dbList.Alias(dbListHelp)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
@@ -947,8 +953,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
-	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
-	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
@@ -2997,6 +3001,8 @@ func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, a
 		rows:    rows,
 		verbose: verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, w, len(rows))
 }
 
 func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
@@ -3017,6 +3023,8 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 		showProxyAndCluster: true,
 		verbose:             cf.Verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, cf.Stdout(), len(rows))
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {

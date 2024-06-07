@@ -401,6 +401,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
+	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
@@ -785,7 +786,7 @@ func onConfigDump(flags dumpFlags) error {
 		return nil
 	}
 
-	if modules.GetModules().BuildType() != modules.BuildOSS {
+	if modules.GetModules().IsEnterpriseBuild() {
 		flags.LicensePath = filepath.Join(flags.DataDir, "license.pem")
 	}
 
@@ -846,7 +847,7 @@ func onConfigDump(flags dumpFlags) error {
 		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
 		fmt.Fprintf(flags.stdout, "\nA Teleport configuration file has been created at %q.\n", configPath)
-		if modules.GetModules().BuildType() != modules.BuildOSS {
+		if modules.GetModules().IsEnterpriseBuild() {
 			fmt.Fprintf(flags.stdout, "Add your Teleport license file to %q.\n", flags.LicensePath)
 		}
 		fmt.Fprintf(flags.stdout, "To start Teleport with this configuration file, run:\n\n")

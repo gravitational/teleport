@@ -5331,8 +5331,8 @@ message SessionTrackerSpecV1 {
   // purpose.
   string Reason = 7 [(gogoproto.jsontag) = "reason,omitempty"];
 
-  // Invited is a list of invited users, this field is interpreted by different
-  // clients on a best-effort basis and used for delivering notifications to invited users.
+  // Invited is a list of invited users, this field can be used by
+  // clients to deliver notifications to invited users.
   repeated string Invited = 8 [(gogoproto.jsontag) = "invited,omitempty"];
 
   // Hostname identifies the target this session is connected to.

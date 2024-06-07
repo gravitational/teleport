@@ -40,18 +40,6 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the listener, set up the server.
-
-	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
-		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
-		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
-	)
-
 	// Create Terminal and VNet services.
 
 	serviceHandler, err := handler.New(
@@ -66,10 +54,24 @@ func New(cfg Config) (*APIServer, error) {
 	vnetService, err := vnet.New(vnet.Config{
 		DaemonService:      cfg.Daemon,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		ClusterIDCache:     cfg.ClusterIDCache,
+		InstallationID:     cfg.InstallationID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Create the listener, set up the server.
+
+	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
+		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
+	)
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)

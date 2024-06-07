@@ -547,19 +547,22 @@ const IncludedResourcesSelector = ({
     const formData = new FormData(e.currentTarget);
     const availabilityOptionsForm = formData.getAll('availabilityOptions');
 
-    // We selected all or nothing.
-    if (
-      availabilityOptionsForm.length === 0 ||
-      availabilityOptionsForm.length === 2
-    ) {
-      onChange('all');
-    } else {
-      onChange(availabilityOptionsForm.at(0) as IncludedResourceMode);
+    if (availabilityOptionsForm.length === 0) {
+      onChange('none');
+      return;
     }
+    if (availabilityOptionsForm.length === 2) {
+      onChange('all');
+      return;
+    }
+
+    onChange(availabilityOptionsForm.at(0) as IncludedResourceMode);
   }
 
   function isCheckboxPreSelected(option: IncludedResourceMode): boolean {
-    return availabilityFilter.mode === option;
+    return (
+      availabilityFilter.mode === option || availabilityFilter.mode === 'all'
+    );
   }
 
   return (
@@ -577,7 +580,7 @@ const IncludedResourcesSelector = ({
           Availability
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
           {availabilityFilter.canRequestAll === true &&
-            availabilityFilter.mode !== 'all' && <FiltersExistIndicator />}
+            availabilityFilter.mode !== 'none' && <FiltersExistIndicator />}
         </ButtonSecondary>
       </HoverTooltip>
       <Menu

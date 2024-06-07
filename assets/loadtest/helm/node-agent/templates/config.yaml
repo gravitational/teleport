@@ -24,16 +24,20 @@ data:
       enabled: false
     ssh_service:
       enabled: true
+      {{ if .Values.labels }}
+      labels: {{- toYaml .Values.labels | nindent 8 }}
+      {{- end }}
       commands:
         - name: fullname
-          command: ['bash', '-c', 'echo "$HOSTNAME-$REPLICA"']
+          command: ['sh', '-c', 'echo "$HOSTNAME-$REPLICA"']
       # listen_addr set at runtime to avoid conflicts in the same pod
       # listen_addr: 0.0.0.0:3022
   entrypoint.sh: |2
-    #!/bin/bash
+    #!/busybox/sh
     set -euxo pipefail
+    sed -i 's!/sbin/nologin!/busybox/sh!' /etc/passwd
     cp /etc/teleport-config/teleport.yaml /etc/teleport.yaml
     echo "  listen_addr: '0.0.0.0:30$REPLICA'" >> /etc/teleport.yaml
     HOST="$(hostname)-$REPLICA"
     cat /etc/teleport.yaml
-    exec teleport start -c /etc/teleport.yaml --nodename $HOST
+    exec dumb-init --rewrite 15:3 -- teleport start -c /etc/teleport.yaml --nodename $HOST
