@@ -70,7 +70,7 @@ func New(ctx context.Context, config Config) (*Cloner, error) {
 		cloner.parallel = 1
 	}
 	if cloner.log == nil {
-		cloner.log = logutils.NewPackageLogger(teleport.ComponentKey, "backend.clone")
+		cloner.log = slog.With(teleport.ComponentKey, "backend.clone")
 	}
 	return cloner, nil
 }
