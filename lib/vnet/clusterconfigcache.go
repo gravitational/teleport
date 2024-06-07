@@ -32,11 +32,20 @@ import (
 type getClusterClientFunc = func(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
 
 type clusterConfig struct {
-	clusterName     string
+	// clusterName is the name of the cluster as reported by Ping.
+	clusterName string
+	// proxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
+	// just the hostname. This is often but not always identical to the clusterName. For root clusters this
+	// will be the same as the profile name (the profile is named after the proxy public addr).
 	proxyPublicAddr string
-	dnsZones        []string
-	ipv4CIDRRange   string
-	expires         time.Time
+	// dnsZones is the list of DNS zones that are valid for this cluster, this includes proxyPublicAddr *and*
+	// any configured custom DNS zones for the cluster.
+	dnsZones []string
+	// ipv4CIDRRange is the CIDR range that IPv4 addresses should be assigned from for apps in this cluster.
+	ipv4CIDRRange string
+	// expires is the time at which this information should be considered stale and refetched. Stale data may
+	// be used if a subsequent fetch fails.
+	expires time.Time
 }
 
 func (e *clusterConfig) stale(clock clockwork.Clock) bool {
