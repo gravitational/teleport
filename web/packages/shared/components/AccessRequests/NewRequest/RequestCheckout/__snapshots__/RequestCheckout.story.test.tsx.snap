@@ -928,7 +928,7 @@ exports[`failed state 1`] = `
           <tbody>
             <tr>
               <td>
-                app
+                Application
               </td>
               <td>
                 app-name
@@ -954,7 +954,7 @@ exports[`failed state 1`] = `
             </tr>
             <tr>
               <td>
-                db
+                Database
               </td>
               <td>
                 app-name
@@ -980,7 +980,7 @@ exports[`failed state 1`] = `
             </tr>
             <tr>
               <td>
-                kube_cluster
+                Kubernetes
               </td>
               <td>
                 kube-name
@@ -1006,7 +1006,7 @@ exports[`failed state 1`] = `
             </tr>
             <tr>
               <td>
-                user_group
+                User Group
               </td>
               <td>
                 user-group-name
@@ -1032,7 +1032,7 @@ exports[`failed state 1`] = `
             </tr>
             <tr>
               <td>
-                windows_desktop
+                Desktop
               </td>
               <td>
                 desktop-name
@@ -2394,7 +2394,7 @@ exports[`loaded state 1`] = `
           <tbody>
             <tr>
               <td>
-                app
+                Application
               </td>
               <td>
                 app-name
@@ -2420,7 +2420,7 @@ exports[`loaded state 1`] = `
             </tr>
             <tr>
               <td>
-                db
+                Database
               </td>
               <td>
                 app-name
@@ -2446,7 +2446,7 @@ exports[`loaded state 1`] = `
             </tr>
             <tr>
               <td>
-                kube_cluster
+                Kubernetes
               </td>
               <td>
                 kube-name
@@ -2472,7 +2472,7 @@ exports[`loaded state 1`] = `
             </tr>
             <tr>
               <td>
-                user_group
+                User Group
               </td>
               <td>
                 user-group-name
@@ -2498,7 +2498,7 @@ exports[`loaded state 1`] = `
             </tr>
             <tr>
               <td>
-                windows_desktop
+                Desktop
               </td>
               <td>
                 desktop-name
