@@ -34,7 +34,15 @@ type SSHProxyService struct {
 	Destination bot.Destination `yaml:"destination"`
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
-	EnableResumption bool `yaml:"enable_resumption"`
+	// Call `SessionResumptionEnabled` to get the value with defaults applied.
+	EnableResumption *bool `yaml:"enable_resumption"`
+}
+
+func (s *SSHProxyService) SessionResumptionEnabled() bool {
+	if s.EnableResumption == nil {
+		return true
+	}
+	return *s.EnableResumption
 }
 
 func (s *SSHProxyService) Type() string {
