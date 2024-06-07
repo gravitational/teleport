@@ -53,6 +53,7 @@ import (
 
 const (
 	stableCloudChannelRepo = "stable/cloud"
+	HeaderTokenName        = "X-Teleport-TokenName"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -90,6 +91,50 @@ type scriptSettings struct {
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
 func automaticUpgrades(features proto.Features) bool {
 	return features.AutomaticUpgrades && features.Cloud
+}
+
+// Currently we aren't paginating this endpoint as we don't
+// expect many tokens to exist at a time. I'm leaving it in a "paginated" form
+// without a nextKey for now so implementing pagination won't change the response shape
+// TODO (avatus) implement pagination
+
+// GetTokensResponse returns a list of JoinTokens.
+type GetTokensResponse struct {
+	Items []ui.JoinToken `json:"items"`
+}
+
+func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, err := clt.GetTokens(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return GetTokensResponse{
+		Items: ui.MakeJoinTokens(tokens),
+	}, nil
+}
+
+func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	token := r.Header.Get(HeaderTokenName)
+	if token == "" {
+		return nil, trace.BadParameter("requires a token to delete")
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.DeleteToken(r.Context(), token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
