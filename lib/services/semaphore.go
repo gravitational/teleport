@@ -77,6 +77,10 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 // SemaphoreLock provides a convenient interface for managing
 // semaphore lease keepalive operations.
 type SemaphoreLock struct {
+	// ctx is the parent context for the lease keepalive operation.
+	// it's used to propagate deadline cancellations from the parent
+	// context and to carry values for the context interface.
+	ctx       context.Context
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
@@ -103,8 +107,27 @@ func (l *SemaphoreLock) finish(err error) {
 
 // Done signals that lease keepalive operations
 // have stopped.
+// If the parent context is canceled, the lease
+// will be released and done will be closed.
 func (l *SemaphoreLock) Done() <-chan struct{} {
 	return l.doneC
+}
+
+// Deadline returns the deadline of the parent context if it exists.
+func (l *SemaphoreLock) Deadline() (time.Time, bool) {
+	return l.ctx.Deadline()
+}
+
+// Value returns the value associated with the key in the parent context.
+func (l *SemaphoreLock) Value(key interface{}) interface{} {
+	return l.ctx.Value(key)
+}
+
+// Error returns the final error value.
+func (l *SemaphoreLock) Err() error {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
+	return l.err
 }
 
 // Wait blocks until the final result is available.  Note that
@@ -264,6 +287,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		return nil, trace.Wrap(err)
 	}
 	lock := &SemaphoreLock{
+		ctx:      ctx,
 		cfg:      cfg,
 		lease0:   *lease,
 		retry:    retry,
