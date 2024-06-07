@@ -317,7 +317,7 @@ $(BUILDDIR)/tbot:
 
 /tmp/tplaceholder/src/main.rs:
 	mkdir -pv "$(@D)"
-	cd "$(@D)/../" && cargo init && cargo update
+	cd "$(@D)/../" && cargo init && cargo update && rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
 $(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
