@@ -208,8 +208,6 @@ type ConfigureCmdConfig struct {
 
 	// Length is RSA key length
 	Length int `help:"Key length" enum:"1024,2048,4096" default:"4096"`
-
-
 }
 
 // CLI represents command structure
