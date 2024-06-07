@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 
@@ -37,10 +38,26 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+var (
+	connectionsHandledCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tbot_proxy_ssh_connections_total",
+			Help: "Number of SSH connections proxied",
+		}, []string{"status"},
+	)
+	inflightConnectionsGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "tbot_proxy_ssh_connections_in_flight",
+			Help: "Number of SSH connections currently being proxied",
+		},
+	)
 )
 
 // SSHProxyService
@@ -64,6 +81,16 @@ type SSHProxyService struct {
 func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
 
+	// Register service metrics. Expected to always work.
+	if err := metrics.RegisterPrometheusCollectors(
+		connectionsHandledCounter,
+		inflightConnectionsGauge,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Wait for the output service to provide us with an impersonated client
+	// credential.
 	select {
 	case <-ctx.Done():
 		return nopClose, ctx.Err()
@@ -183,10 +210,15 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 		}
 
 		go func() {
+			inflightConnectionsGauge.Inc()
 			err := s.handleConn(ctx, downstream)
+			inflightConnectionsGauge.Dec()
+			status := "OK"
 			if err != nil {
+				status = "ERROR"
 				s.log.WarnContext(ctx, "Handler exited", "error", err)
 			}
+			connectionsHandledCounter.WithLabelValues(status).Inc()
 		}()
 	}
 }
