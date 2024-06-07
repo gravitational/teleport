@@ -211,10 +211,6 @@ export interface SendPendingHeadlessAuthenticationResponse {
  */
 export interface PromptMFARequest {
     /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
-    /**
      * @generated from protobuf field: string reason = 2;
      */
     reason: string;
@@ -226,6 +222,10 @@ export interface PromptMFARequest {
      * @generated from protobuf field: bool webauthn = 4;
      */
     webauthn: boolean;
+    /**
+     * @generated from protobuf field: string cluster_uri = 5;
+     */
+    clusterUri: string;
 }
 /**
  * Response for PromptMFA.
@@ -779,18 +779,18 @@ export const SendPendingHeadlessAuthenticationResponse = new SendPendingHeadless
 class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptMFARequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
         message.reason = "";
         message.totp = false;
         message.webauthn = false;
+        message.clusterUri = "";
         if (value !== undefined)
             reflectionMergePartial<PromptMFARequest>(this, message, value);
         return message;
@@ -800,9 +800,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
                 case /* string reason */ 2:
                     message.reason = reader.string();
                     break;
@@ -811,6 +808,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                     break;
                 case /* bool webauthn */ 4:
                     message.webauthn = reader.bool();
+                    break;
+                case /* string cluster_uri */ 5:
+                    message.clusterUri = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -824,9 +824,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         return message;
     }
     internalBinaryWrite(message: PromptMFARequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
         /* string reason = 2; */
         if (message.reason !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.reason);
@@ -836,6 +833,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* bool webauthn = 4; */
         if (message.webauthn !== false)
             writer.tag(4, WireType.Varint).bool(message.webauthn);
+        /* string cluster_uri = 5; */
+        if (message.clusterUri !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.clusterUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

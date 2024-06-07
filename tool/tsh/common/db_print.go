@@ -141,3 +141,28 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 	}
 	return ""
 }
+
+func shouldShowListDatabasesHint(cf *CLIConf, numRows int) bool {
+	selector := newDatabaseResourceSelectors(cf)
+
+	return numRows >= minNumRowsToShowListDatabasesHint &&
+		cf.command == "db ls" &&
+		cf.SearchKeywords == "" &&
+		selector.IsEmpty()
+}
+
+func maybeShowListDatabasesHint(cf *CLIConf, w io.Writer, numRows int) {
+	if !shouldShowListDatabasesHint(cf, numRows) {
+		return
+	}
+
+	fmt.Fprint(w, listDatabaseHint)
+}
+
+// minNumRowsToShowListDatabasesHint is an arbitrary number selected to show
+// filtering hint for `tsh db ls` command when too many databases are listed.
+const minNumRowsToShowListDatabasesHint = 20
+
+const listDatabaseHint = "" +
+	"hint: use 'tsh db ls --search foo,bar' to search keywords\n" +
+	"      use 'tsh db ls key1=value1,key2=value2' to filter databases by labels\n\n"
