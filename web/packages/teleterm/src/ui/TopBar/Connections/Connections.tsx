@@ -36,7 +36,7 @@ export function Connections() {
   const { status: vnetStatus } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
-    vnetStatus === 'running';
+    vnetStatus.value === 'running';
 
   useKeyboardShortcuts(
     useMemo(

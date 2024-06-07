@@ -18,10 +18,13 @@
 
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
+import Logger from 'teleterm/logger';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext
 ): TshdEventContextBridgeService {
+  const logger = new Logger('tshd events UI');
+
   return {
     relogin: async ({ request, onRequestCancelled }) => {
       await ctx.reloginService.relogin(request, onRequestCancelled);
@@ -86,6 +89,17 @@ export function createTshdEventsContextBridgeService(
           enabled: ctx.configService.get('usageReporting.enabled').value,
         },
       };
+    },
+
+    reportUnexpectedVnetShutdown: async ({ request }) => {
+      if (!ctx.unexpectedVnetShutdownListener) {
+        logger.warn(
+          `Dropping unexpected VNet shutdown event, no listener present; error: ${request.error}`
+        );
+      } else {
+        ctx.unexpectedVnetShutdownListener(request);
+      }
+      return {};
     },
   };
 }
