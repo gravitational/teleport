@@ -48,7 +48,7 @@ export default function useUserDialog(props: Props) {
     const traitsToSave = {};
     for (const trait of configuredTraits) {
       if (trait.trait.value === '' || trait.traitValues.length === 0) {
-        continue
+        continue;
       }
       traitsToSave[trait.trait.value] = trait.traitValues.map(t => t.value);
     }

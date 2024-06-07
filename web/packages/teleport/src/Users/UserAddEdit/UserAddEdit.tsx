@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import React, { useEffect, Dispatch, SetStateAction } from 'react';
 import {
   ButtonPrimary,
   ButtonSecondary,
@@ -169,7 +169,6 @@ function TraitsEditor({
   configuredTraits,
   setConfiguredTraits,
 }: TraitEditorProps) {
-
   const availableTraitNames = [
     'aws_role_arns',
     'azure_identities',
@@ -182,8 +181,8 @@ function TraitsEditor({
     'kubernetes_groups',
     'kubernetes_users',
     'logins',
-    'windows_logins'
-  ]
+    'windows_logins',
+  ];
 
   useEffect(() => {
     let newTrait = [];
@@ -233,28 +232,34 @@ function TraitsEditor({
 
   function addTrait() {
     const newTraits = [...configuredTraits];
-    newTraits.push({trait: {value: '', label: ''}, traitValues: []})
-    setConfiguredTraits(newTraits)
+    newTraits.push({ trait: { value: '', label: '' }, traitValues: [] });
+    setConfiguredTraits(newTraits);
   }
 
   function removeTrait(index: number) {
     const newTraits = [...configuredTraits];
     newTraits.splice(index, 1);
-    setConfiguredTraits(newTraits)
+    setConfiguredTraits(newTraits);
   }
 
+  const addLabelText =
+    configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
   return (
     <Box>
-      <Text bold>Traits</Text>
-      <Flex mt={2}>
-        <Box width="265px">
-          <Text fontSize={1}>Trait Name</Text>
-        </Box>
+      {configuredTraits.length > 0 && (
+        <>
+          <Text>Traits</Text>
+          <Flex mt={2}>
+            <Box width="265px">
+              <Text fontSize={1}>Trait Name</Text>
+            </Box>
 
-        <Text fontSize={1} ml={4}>
-          Trait Value
-        </Text>
-      </Flex>
+            <Text fontSize={1} ml={4}>
+              Trait Value
+            </Text>
+          </Flex>
+        </>
+      )}
 
       <Box>
         {configuredTraits.map(({ trait, traitValues }, index) => {
@@ -267,10 +272,10 @@ function TraitsEditor({
                       value: r,
                       label: r,
                     }))}
-                    placeholder="trait-key"
+                    placeholder="Select or type new trait name"
                     autoFocus
                     isSearchable
-                    value={trait}
+                    value={trait.value === '' ? null : trait}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option,
@@ -287,13 +292,14 @@ function TraitsEditor({
                     css={`
                       background: ${props => props.theme.colors.levels.surface};
                     `}
-                    placeholder="trait values"
+                    placeholder="Type a new trait value and enter"
                     defaultValue={traitValues.map(r => ({
                       value: r,
                       label: r,
                     }))}
                     isMulti
                     isSearchable
+                    isClearable={false}
                     value={traitValues}
                     onChange={e => {
                       handleInputChange({
@@ -304,7 +310,6 @@ function TraitsEditor({
                     }}
                     isDisabled={false}
                     createOptionPosition="last"
-                    formatCreateLabel={(i: string) => `"${i}"`}
                   />
                 </Box>
                 <ButtonIcon
@@ -331,7 +336,7 @@ function TraitsEditor({
       <Box mt={4}>
         <ButtonTextWithAddIcon
           onClick={addTrait}
-          label={'Add another trait'}
+          label={addLabelText}
           disabled={false}
         />
       </Box>
