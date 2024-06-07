@@ -157,7 +157,7 @@ type Client struct {
 	// connect and interact with the Proxy.
 	cfg *ClientConfig
 	// grpcConn is the established gRPC connection to the Proxy.
-	grpcConn grpcClientConnInterfaceCloser
+	grpcConn *grpc.ClientConn
 	// transport is the transportv1.Client
 	transport *transportv1.Client
 	// clusterName as determined by inspecting the certificate presented by
