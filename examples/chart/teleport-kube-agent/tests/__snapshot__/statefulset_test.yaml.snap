@@ -1115,7 +1115,7 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-alpha.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1193,7 +1193,7 @@ should mount jamfCredentialsSecret.name when role is jamf:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-alpha.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
