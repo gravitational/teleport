@@ -55,9 +55,6 @@ type TeleportConfig struct {
 	// TeleportIdentityFile is a path to Teleport identity file
 	TeleportIdentityFile string `help:"Teleport identity file" type:"existingfile" name:"teleport-identity" env:"FDFWD_TELEPORT_IDENTITY"`
 
-	// TeleportDebugEnabled allows for debug logging
-	TeleporDebugEnabled bool `help:"Configures debug logging on" name:"teleport-debug" env:"FDFWD_DEBUG"`
-
 	// TeleportRefreshEnabled will reload the identity file from disk on the
 	// configured interval.
 	TeleportRefreshEnabled bool `help:"Configures the identity file to be reloaded from disk at a configured interval." env:"FDFWD_TELEPORT_REFRESH_ENABLED"`
@@ -155,6 +152,9 @@ type IngestConfig struct {
 
 	//WindowSize is the size of the window to process events
 	WindowSize time.Duration `help:"Window size to process events" default:"24h"`
+
+	// DebugEnabled allows for debug logging
+	DebugLoggingEnabled bool `help:"Configures debug logging on" name:"debugLogging" env:"FDFWD_DEBUG"`
 }
 
 // LockConfig represents locking configuration
@@ -208,6 +208,8 @@ type ConfigureCmdConfig struct {
 
 	// Length is RSA key length
 	Length int `help:"Key length" enum:"1024,2048,4096" default:"4096"`
+
+
 }
 
 // CLI represents command structure
