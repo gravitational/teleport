@@ -91,7 +91,7 @@ func enableLogDebug() {
 // start spawns the main process
 func start() error {
 
-	if !cli.Debug && cli.Start.TeleportConfig.TeleporDebugEnabled {
+	if !cli.Debug && cli.Start.IngestConfig.DebugLoggingEnabled {
 		enableLogDebug()
 	}
 
