@@ -312,7 +312,7 @@ type SemaphoreLockConfigWithRetry struct {
 	Retry retryutils.LinearConfig
 }
 
-// AcquireSemaphoreLock attempts to acquire and hold a semaphore lease. If successfully acquired,
+// AcquireSemaphoreLockWithRetry attempts to acquire and hold a semaphore lease. If successfully acquired,
 // background keepalive processes are started and an associated lock handle is returned.
 // If the lease cannot be acquired, the operation is retried according to the retry schedule until
 // it succeeds or the context expires.  Canceling the supplied context releases the semaphore.
