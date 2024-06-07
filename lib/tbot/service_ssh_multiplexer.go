@@ -48,23 +48,23 @@ import (
 var (
 	connectionsHandledCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "tbot_proxy_ssh_connections_total",
+			Name: "tbot_ssh_multiplexer_connections_total",
 			Help: "Number of SSH connections proxied",
 		}, []string{"status"},
 	)
 	inflightConnectionsGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "tbot_proxy_ssh_connections_in_flight",
+			Name: "tbot_ssh_multiplexer_connections_in_flight",
 			Help: "Number of SSH connections currently being proxied",
 		},
 	)
 )
 
-// SSHProxyService is a long-lived local SSH proxy. It listens on a local Unix
+// SSHMultiplexerService is a long-lived local SSH proxy. It listens on a local Unix
 // socket and has a special client with support for FDPassing with OpenSSH.
 // It places an emphasis on high performance.
-type SSHProxyService struct {
-	cfg              *config.SSHProxyService
+type SSHMultiplexerService struct {
+	cfg              *config.SSHMultiplexerService
 	botCfg           *config.BotConfig
 	svcIdentity      *config.UnstableClientCredentialOutput
 	log              *slog.Logger
@@ -80,7 +80,7 @@ type SSHProxyService struct {
 	clusterName string
 }
 
-func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
+func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
 
 	// Register service metrics. Expected to always work.
@@ -195,7 +195,7 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	}, nil
 }
 
-func (s *SSHProxyService) Run(ctx context.Context) error {
+func (s *SSHMultiplexerService) Run(ctx context.Context) error {
 	closer, err := s.setup(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -206,7 +206,7 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", path.Join(dest.Path, "tbot_ssh_proxy.v1.sock")))
+		fmt.Sprintf("unix://%s", path.Join(dest.Path, "tbot_ssh_multiplexer.v1.sock")))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -243,7 +243,7 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	}
 }
 
-func (s *SSHProxyService) handleConn(
+func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	downstream net.Conn,
 ) (err error) {
@@ -334,6 +334,6 @@ func (s *SSHProxyService) handleConn(
 	return trace.Wrap(utils.ProxyConn(ctx, downstream, upstream), "proxying connection")
 }
 
-func (s *SSHProxyService) String() string {
-	return config.SSHProxyServiceType
+func (s *SSHMultiplexerService) String() string {
+	return config.SSHMultiplexerServiceType
 }
