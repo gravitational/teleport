@@ -196,7 +196,7 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINS_default = teleport tctl tsh tbot
+BINS_default = teleport tctl tsh tbot tplaceholder
 BINS_windows = tsh
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
@@ -312,6 +312,15 @@ $(BUILDDIR)/tsh:
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
+
+/tmp/tplaceholder.rs:
+	echo 'fn main() { println!("tplaceholder hello world!"); }' > $@
+
+.PHONY: $(BUILDDIR)/tplaceholder.rs
+$(BUILDDIR)/tplaceholder: /tmp/tplaceholder.rs
+	mkdir -pv "$(@D)"
+	rustc $< -o $@
+	$@
 
 #
 # BPF support (IF ENABLED)
@@ -525,6 +534,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	lipo -create -output $(BUILDDIR)/tplaceholder $(BUILDDIR_arm64)/tplaceholder $(BUILDDIR_amd64)/tplaceholder
 	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
