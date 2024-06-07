@@ -187,8 +187,14 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 	if err != nil {
 		return trace.Wrap(err, "getting TUN name")
 	}
-	if err := sendTUNNameAndFd(socketPath, tunName, tun.File().Fd()); err != nil {
+	if err := sendTUNNameAndFd(socketPath, tunName, tun.File()); err != nil {
 		return trace.Wrap(err, "sending TUN over socket")
+	}
+
+	// Admin process is now done with the TUN, the file descriptor has been written to the socket, and we can
+	// now safely close it.
+	if err := tun.Close(); err != nil {
+		return trace.Wrap(err, "closing TUN")
 	}
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
