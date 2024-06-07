@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 )
 
@@ -100,7 +101,7 @@ func (u *baseUser) CheckAndSetDefaults() error {
 		u.clock = clockwork.NewRealClock()
 	}
 	if u.log == nil {
-		u.log = logrus.WithField(trace.Component, "clouduser")
+		u.log = logrus.WithField(teleport.ComponentKey, "clouduser")
 	}
 	return nil
 }

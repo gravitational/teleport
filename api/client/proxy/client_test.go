@@ -508,7 +508,9 @@ func TestClient_DialCluster(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-			authCfg := clt.ClientConfig(ctx, "cluster")
+			authCfg, err := clt.ClientConfig(ctx, "cluster")
+			require.NoError(t, err)
+
 			authCfg.DialOpts = []grpc.DialOption{
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithReturnConnectionError(),

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { routing, GatewayTargetUri } from 'teleterm/ui/uri';
+
 import { GatewayCLICommand } from './types';
 
 /**
@@ -25,7 +27,7 @@ import { GatewayCLICommand } from './types';
  * include just the args.
  */
 export function getCliCommandArgs(cliCommand: GatewayCLICommand): string[] {
-  const [, ...args] = cliCommand.argsList;
+  const [, ...args] = cliCommand.args;
   return args;
 }
 
@@ -34,7 +36,7 @@ export function getCliCommandArgs(cliCommand: GatewayCLICommand): string[] {
  * We are safe to use this as the presentational command name.
  */
 export function getCliCommandArgv0(cliCommand: GatewayCLICommand): string {
-  return cliCommand.argsList[0];
+  return cliCommand.args[0];
 }
 
 /**
@@ -46,6 +48,25 @@ export function getCliCommandEnv(
   cliCommand: GatewayCLICommand
 ): Record<string, string> {
   return Object.fromEntries(
-    cliCommand.envList.map(nameEqualsValue => nameEqualsValue.split('='))
+    cliCommand.env.map(nameEqualsValue => nameEqualsValue.split('='))
+  );
+}
+
+/**
+ * getTargetNameFromUri extracts the name of the gateway target from the target URI.
+ *
+ * Defaults to the target URI itself if the target URI doesn't seem to match any of the supported
+ * URI types.
+ *
+ * If possible, the target name should be acquired from the gateway object itself.
+ * getTargetNameFromUri is reserved for situations where a gateway is not available, but we still
+ * want to display a pretty name in the UI.
+ */
+export function getTargetNameFromUri(targetUri: GatewayTargetUri): string {
+  return (
+    routing.parseDbUri(targetUri)?.params['dbId'] ||
+    routing.parseKubeUri(targetUri)?.params['kubeId'] ||
+    routing.parseAppUri(targetUri)?.params['appId'] ||
+    targetUri
   );
 }

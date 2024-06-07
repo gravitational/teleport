@@ -36,6 +36,17 @@ const (
 	UserTypeLocal UserType = "local"
 )
 
+// Match checks if the given user matches this filter.
+func (f *UserFilter) Match(user *UserV2) bool {
+	if len(f.SearchKeywords) != 0 {
+		if !user.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
@@ -80,8 +91,6 @@ type User interface {
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
 	SetLocked(until time.Time, reason string)
-	// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
-	SetRecoveryAttemptLockExpires(until time.Time, reason string)
 	// ResetLocks resets lock related fields to empty values.
 	ResetLocks()
 	// SetRoles sets user roles
@@ -130,6 +139,17 @@ type User interface {
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
 	BotGenerationLabel() string
+	// GetPasswordState reflects what the system knows about the user's password.
+	// Note that this is a "best effort" property, in that it can be UNSPECIFIED
+	// for users who were created before this property was introduced and didn't
+	// perform any password-related activity since then. See RFD 0159 for details.
+	// Do NOT use this value for authentication purposes!
+	GetPasswordState() PasswordState
+	// SetPasswordState updates the information about user's password. Note that
+	// this is a "best effort" property, in that it can be UNSPECIFIED for users
+	// who were created before this property was introduced and didn't perform any
+	// password-related activity since then. See RFD 0159 for details.
+	SetPasswordState(PasswordState)
 }
 
 // NewUser creates new empty user
@@ -169,16 +189,6 @@ func (u *UserV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (u *UserV2) SetSubKind(s string) {
 	u.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (u *UserV2) GetResourceID() int64 {
-	return u.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (u *UserV2) SetResourceID(id int64) {
-	u.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -527,23 +537,24 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
-// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
-func (u *UserV2) SetRecoveryAttemptLockExpires(until time.Time, reason string) {
-	u.Spec.Status.RecoveryAttemptLockExpires = until
-	u.SetLocked(until, reason)
-}
-
 // ResetLocks resets lock related fields to empty values.
 func (u *UserV2) ResetLocks() {
 	u.Spec.Status.IsLocked = false
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
-	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
 }
 
 // DeepCopy creates a clone of this user value.
 func (u *UserV2) DeepCopy() User {
 	return utils.CloneProtoMsg(u)
+}
+
+func (u *UserV2) GetPasswordState() PasswordState {
+	return u.Status.PasswordState
+}
+
+func (u *UserV2) SetPasswordState(state PasswordState) {
+	u.Status.PasswordState = state
 }
 
 // IsEmpty returns true if there's no info about who created this user

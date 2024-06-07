@@ -141,6 +141,10 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
+
+  DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
+
+  DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -207,6 +211,14 @@ message UIDiscoverDatabaseRDSEnrollEvent {
   int64 selected_resources_count = 4;
 }
 
+// UIDiscoverKubeEKSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of EKS clusters.
+message UIDiscoverKubeEKSEnrollEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 // UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
 message UICallToActionClickEvent {
   CTA cta = 1;
@@ -229,6 +241,7 @@ enum CTA {
   CTA_ACCESS_MONITORING = 9;
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
+  CTA_ENTRA_ID = 12;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -270,6 +283,29 @@ message UIDiscoverDeployServiceEvent {
   }
 
   DeployType deploy_type = 5;
+}
+
+// UIDiscoverCreateDiscoveryConfigEvent is emitted when a discovery config is successfully created.
+message UIDiscoverCreateDiscoveryConfigEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+
+  // ConfigMethod describes how the discovery config is configured.
+  enum ConfigMethod {
+    // CONFIG_METHOD_UNSPECIFIED means config method unspecified/unset.
+    CONFIG_METHOD_UNSPECIFIED = 0;
+    // CONFIG_METHOD_SSM means EC2 auto discovery configured with ssm.
+    CONFIG_METHOD_AWS_EC2_SSM = 1;
+    // CONFIG_METHOD_SSM means auto discovery configured for EC2 using EICE.
+    CONFIG_METHOD_AWS_EC2_EICE = 2;
+    // CONFIG_METHOD_SSM means auto discovery configured for RDS using ECS.
+    CONFIG_METHOD_AWS_RDS_ECS = 3;
+    // CONFIG_METHOD_SSM means auto discovery configured for EKS.
+    CONFIG_METHOD_AWS_EKS = 4;
+  }
+
+  ConfigMethod config_method = 4;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -528,6 +564,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
+  INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -700,6 +737,8 @@ message UsageEventOneOf {
     AccessListReviewCreate access_list_review_create = 52;
     AccessListReviewDelete access_list_review_delete = 53;
     DiscoveryFetchEvent discovery_fetch_event = 54;
+    UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 55;
+    UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 56;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

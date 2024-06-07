@@ -26,7 +26,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentKubeClient,
+	teleport.ComponentKey: teleport.ComponentKubeClient,
 })
 
 // CheckIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user

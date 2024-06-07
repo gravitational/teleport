@@ -123,7 +123,7 @@ function FormPassword(props: Props) {
           />
           {mfaEnabled && (
             <Flex alignItems="flex-end" mb={4}>
-              <Box width="50%" data-testid="mfa-select">
+              <Box width="60%" data-testid="mfa-select">
                 <FieldSelect
                   label="Two-factor Type"
                   value={mfaType}
@@ -134,7 +134,7 @@ function FormPassword(props: Props) {
                   isDisabled={isProcessing}
                 />
               </Box>
-              <Box width="50%">
+              <Box width="40%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     label="Authenticator Code"

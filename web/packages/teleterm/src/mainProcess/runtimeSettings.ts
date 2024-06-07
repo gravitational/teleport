@@ -23,11 +23,9 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
-import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
-import { getAgentsDir } from './createAgentConfigFile';
 
 const { argv, env } = process;
 
@@ -36,13 +34,13 @@ const RESOURCES_PATH = app.isPackaged
   : path.join(__dirname, '../../../../');
 
 const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
-// __dirname of this file in dev mode is webapps/packages/teleterm/build/app/dist/main
-// We default to webapps/../teleport/build/tsh.
+// __dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
+// We default to teleport/build/tsh.
 // prettier-ignore
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   __dirname,
-  '..', '..', '..', '..', '..', '..', '..', '..',
-  'teleport', 'build', 'tsh',
+  '..', '..', '..', '..', '..', '..',
+  'build', 'tsh',
 );
 
 // Refer to the docs of RuntimeSettings type for an explanation behind dev, debug and insecure.
@@ -76,24 +74,14 @@ export function getRuntimeSettings(): RuntimeSettings {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   const logsDir = path.join(userDataDir, 'logs');
-  // DO NOT expose agentsDir through RuntimeSettings. See the comment in getAgentsDir.
-  const agentsDir = getAgentsDir(userDataDir);
+  const installationId = loadInstallationId(
+    path.resolve(app.getPath('userData'), 'installation_id')
+  );
 
   const tshd = {
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
-    flags: [
-      'daemon',
-      'start',
-      // grpc-js requires us to pass localhost:port for TCP connections,
-      // for tshd we have to specify the protocol as well.
-      `--addr=${tshAddress}`,
-      `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${staticConfig.prehogAddress}`,
-      `--kubeconfigs-dir=${kubeConfigsDir}`,
-      `--agents-dir=${agentsDir}`,
-    ],
   };
   const sharedProcess = {
     requestedNetworkAddress: sharedAddress,
@@ -110,13 +98,6 @@ export function getRuntimeSettings(): RuntimeSettings {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
-
-  if (insecure) {
-    tshd.flags.unshift('--insecure');
-  }
-  if (debug) {
-    tshd.flags.unshift('--debug');
-  }
 
   return {
     dev,
@@ -135,9 +116,7 @@ export function getRuntimeSettings(): RuntimeSettings {
     kubeConfigsDir,
     logsDir,
     platform: process.platform,
-    installationId: loadInstallationId(
-      path.resolve(app.getPath('userData'), 'installation_id')
-    ),
+    installationId,
     arch: os.arch(),
     osVersion: os.release(),
     appVersion,

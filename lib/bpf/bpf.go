@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
@@ -117,12 +118,8 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedSessionConfig) (BPF, error) {
+func New(config *servicecfg.BPFConfig) (BPF, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := restrictedSession.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -141,6 +138,7 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 	// Create a cgroup controller to add/remote cgroups.
 	cgroup, err := controlgroup.New(&controlgroup.Config{
 		MountPath: config.CgroupPath,
+		RootPath:  config.RootPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -185,10 +183,8 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 	}
 
 	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
-		"and cgroup mount path: %v. Took %v.",
+		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
 		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
-		*restrictedSession.EventsBufferSize,
 		s.CgroupPath, time.Since(start))
 
 	go s.processNetworkEvents()
@@ -304,6 +300,10 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return trace.NewAggregate(errs...)
 }
 
+func (s *Service) Enabled() bool {
+	return true
+}
+
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
 func (s *Service) processAccessEvents() {
@@ -393,6 +393,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				Code: events.SessionCommandCode,
 			},
 			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   ossteleport.Version,
 				ServerID:        ctx.ServerID,
 				ServerHostname:  ctx.ServerHostname,
 				ServerNamespace: ctx.Namespace,
@@ -451,6 +452,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			Code: events.SessionDiskCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -505,6 +507,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -561,6 +564,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -590,7 +594,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 func ipv4HostToIP(addr uint32) net.IP {
 	val := make([]byte, 4)
 	binary.LittleEndian.PutUint32(val, addr)
-	return net.IP(val)
+	return val
 }
 
 func ipv6HostToIP(addr [4]uint32) net.IP {
@@ -599,7 +603,7 @@ func ipv6HostToIP(addr [4]uint32) net.IP {
 	binary.LittleEndian.PutUint32(val[4:], addr[1])
 	binary.LittleEndian.PutUint32(val[8:], addr[2])
 	binary.LittleEndian.PutUint32(val[12:], addr[3])
-	return net.IP(val)
+	return val
 }
 
 // unmarshalEvent will unmarshal the perf event.

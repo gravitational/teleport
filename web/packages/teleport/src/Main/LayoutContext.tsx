@@ -21,21 +21,40 @@ import React, {
   PropsWithChildren,
   useContext,
   useState,
+  useEffect,
+  useRef,
 } from 'react';
 
 interface LayoutContextValue {
   hasDockedElement: boolean;
   setHasDockedElement: (value: boolean) => void;
+  currentWidth: number;
 }
 
 const LayoutContext = createContext<LayoutContextValue>(null);
 
 export function LayoutContextProvider(props: PropsWithChildren<unknown>) {
   const [hasDockedElement, setHasDockedElement] = useState(false);
+  const [currentWidth, setCurrentWidth] = useState(window.innerWidth);
+  const containerRef = useRef<HTMLDivElement>();
+
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(entries => {
+      const container = entries[0];
+      setCurrentWidth(container?.contentRect.width || 0);
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   return (
-    <LayoutContext.Provider value={{ hasDockedElement, setHasDockedElement }}>
-      {props.children}
+    <LayoutContext.Provider
+      value={{ hasDockedElement, setHasDockedElement, currentWidth }}
+    >
+      <div ref={containerRef}>{props.children}</div>
     </LayoutContext.Provider>
   );
 }

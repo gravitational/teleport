@@ -26,7 +26,7 @@ import Dialog, {
 } from 'design/Dialog';
 import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -43,7 +43,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onChangeName,
     onChangeRoles,
     onClose,
-    roles,
+    fetchRoles,
     attempt,
     name,
     selectedRoles,
@@ -55,11 +55,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
   if (attempt.status === 'success' && isNew) {
     return <UserTokenLink onClose={onClose} token={token} asInvite={true} />;
   }
-
-  const selectOptions: Option[] = roles.map(r => ({
-    value: r,
-    label: r,
-  }));
 
   function save(validator) {
     if (!validator.validate()) {
@@ -98,7 +93,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               onChange={e => onChangeName(e.target.value)}
               readonly={isNew ? false : true}
             />
-            <FieldSelect
+            <FieldSelectAsync
               menuPosition="fixed"
               label="User Roles"
               rule={requiredField('At least one role is required')}
@@ -109,7 +104,11 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               isClearable={false}
               value={selectedRoles}
               onChange={values => onChangeRoles(values as Option[])}
-              options={selectOptions}
+              noOptionsMessage={() => 'No roles found'}
+              loadOptions={async input => {
+                const roles = await fetchRoles(input);
+                return roles.map(r => ({ value: r, label: r }));
+              }}
               elevated={true}
             />
           </DialogContent>

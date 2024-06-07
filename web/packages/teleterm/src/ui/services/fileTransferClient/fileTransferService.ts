@@ -18,55 +18,42 @@
 
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 
-import {
-  FileTransferDirection,
-  FileTransferRequest,
-  TshClient,
-} from 'teleterm/services/tshd/types';
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
+import { FileTransferRequest } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export class FileTransferService {
   constructor(
-    private tshClient: TshClient,
+    private tshClient: TshdClient,
     private usageService: UsageService
   ) {}
 
   transferFile(
-    options: FileTransferRequest,
+    request: FileTransferRequest,
     abortController: AbortController
   ): FileTransferListeners {
-    const abortSignal = {
-      aborted: false,
-      addEventListener: (cb: (...args: any[]) => void) => {
-        abortController.signal.addEventListener('abort', cb);
-      },
-      removeEventListener: (cb: (...args: any[]) => void) => {
-        abortController.signal.removeEventListener('abort', cb);
-      },
-    };
-    abortController.signal.addEventListener(
-      'abort',
-      () => {
-        abortSignal.aborted = true;
-      },
-      { once: true }
-    );
-    const listeners = this.tshClient.transferFile(options, abortSignal);
-    if (
-      options.direction ===
-      FileTransferDirection.FILE_TRANSFER_DIRECTION_DOWNLOAD
-    ) {
-      this.usageService.captureFileTransferRun(options.serverUri, {
+    const stream = this.tshClient.transferFile(request, {
+      abort: cloneAbortSignal(abortController.signal),
+    });
+    if (request.direction === FileTransferDirection.DOWNLOAD) {
+      this.usageService.captureFileTransferRun(request.serverUri, {
         isUpload: false,
       });
     }
-    if (
-      options.direction === FileTransferDirection.FILE_TRANSFER_DIRECTION_UPLOAD
-    ) {
-      this.usageService.captureFileTransferRun(options.serverUri, {
+    if (request.direction === FileTransferDirection.UPLOAD) {
+      this.usageService.captureFileTransferRun(request.serverUri, {
         isUpload: true,
       });
     }
-    return listeners;
+    return {
+      onProgress(callback: (progress: number) => void) {
+        stream.responses.onMessage(data => callback(data.percentage));
+      },
+      onComplete: stream.responses.onComplete,
+      onError: stream.responses.onError,
+    };
   }
 }

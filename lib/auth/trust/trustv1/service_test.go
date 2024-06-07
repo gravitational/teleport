@@ -63,26 +63,41 @@ func newTestPack(t *testing.T) *testPack {
 }
 
 type fakeAuthorizer struct {
-	checker *fakeChecker
+	authzCtx *authz.Context
+	checker  *fakeChecker
 }
 
 func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	if f.authzCtx != nil {
+		return f.authzCtx, nil
+	}
+
 	return &authz.Context{
-		Checker:               f.checker,
-		AdminActionAuthorized: true,
+		Checker:              f.checker,
+		AdminActionAuthState: authz.AdminActionAuthMFAVerified,
 	}, nil
 }
 
-type fakeHostCertSigner struct {
-	data map[string]struct {
+type fakeAuthServer struct {
+	clusterName          types.ClusterName
+	generateHostCertData map[string]struct {
 		cert []byte
 		err  error
 	}
+	rotateCertAuthorityData map[string]error
 }
 
-func (f *fakeHostCertSigner) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	data := f.data[hostID]
+func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return f.clusterName, nil
+}
+
+func (f *fakeAuthServer) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	data := f.generateHostCertData[hostID]
 	return data.cert, data.err
+}
+
+func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
+	return f.rotateCertAuthorityData[string(req.Type)]
 }
 
 type fakeChecker struct {
@@ -91,7 +106,7 @@ type fakeChecker struct {
 	checks []check
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string) error {
 	c := check{rule, verb}
 	f.checks = append(f.checks, c)
 	if f.allow[c] {
@@ -399,7 +414,7 @@ func TestRBAC(t *testing.T) {
 				Cache:      trust,
 				Backend:    trust,
 				Authorizer: &test.authorizer,
-				AuthServer: &fakeHostCertSigner{},
+				AuthServer: &fakeAuthServer{},
 			}
 
 			service, err := NewService(cfg)
@@ -433,7 +448,7 @@ func TestGetCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -468,7 +483,7 @@ func TestGetCertAuthority(t *testing.T) {
 			assertion: func(t *testing.T, authority types.CertAuthority, err error) {
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(authority, ca,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
@@ -488,7 +503,7 @@ func TestGetCertAuthority(t *testing.T) {
 			},
 			assertion: func(t *testing.T, authority types.CertAuthority, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(authority, ca, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				require.Empty(t, cmp.Diff(authority, ca, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
 		},
 	}
@@ -522,7 +537,7 @@ func TestGetCertAuthorities(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -561,7 +576,7 @@ func TestGetCertAuthorities(t *testing.T) {
 			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
 					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
 					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
@@ -583,7 +598,7 @@ func TestGetCertAuthorities(t *testing.T) {
 			},
 			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
 		},
 	}
@@ -616,7 +631,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -638,7 +653,12 @@ func TestDeleteCertAuthority(t *testing.T) {
 				Domain: "unknown",
 			},
 			assertion: func(t *testing.T, err error) {
-				require.True(t, trace.IsNotFound(err))
+				// ca deletion doesn't generate not found errors. this is a quirk of
+				// the fact that deleting active and inactive CAs simultanesouly
+				// is difficult to do conditionally without introducing odd edge
+				// cases (e.g. having a delete fail while appearing to succeed if it
+				// races with a concurrent activation/deactivation).
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -685,7 +705,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -742,6 +762,195 @@ func TestUpsertCertAuthority(t *testing.T) {
 	}
 }
 
+func TestRotateCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbCreate}: true,
+				{types.KindCertAuthority, types.VerbUpdate}: true,
+			},
+		},
+	}
+
+	fakeErr := trace.BadParameter("bad thing happened")
+	authServer := &fakeAuthServer{
+		rotateCertAuthorityData: map[string]error{
+			"success": nil,
+			"fail":    fakeErr,
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+		AuthServer: authServer,
+	}
+
+	tests := []struct {
+		name    string
+		req     *trustpb.RotateCertAuthorityRequest
+		wantErr error
+	}{
+		{
+			name: "success",
+			req: &trustpb.RotateCertAuthorityRequest{
+				Type: "success",
+			},
+		},
+		{
+			name: "fail",
+			req: &trustpb.RotateCertAuthorityRequest{
+				Type: "fail",
+			},
+			wantErr: fakeErr,
+		},
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.RotateCertAuthority(ctx, test.req)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRotateExternalCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+	trust := local.NewCAService(p.mem)
+
+	localCA := newCertAuthority(t, types.HostCA, "local").(*types.CertAuthorityV2)
+	externalCA := newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2)
+	require.NoError(t, trust.UpsertCertAuthority(ctx, externalCA))
+
+	authorizedCtx := &authz.Context{
+		UnmappedIdentity: authz.BuiltinRole{},
+		Checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbRotate}: true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		authzCtx    *authz.Context
+		ca          *types.CertAuthorityV2
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name: "NOK unauthorized user",
+			authzCtx: &authz.Context{
+				UnmappedIdentity: authz.LocalUser{},
+				Checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbRotate}: true,
+					},
+				},
+			},
+			ca: externalCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		}, {
+			name: "NOK unauthorized service",
+			authzCtx: &authz.Context{
+				UnmappedIdentity: authz.BuiltinRole{},
+				Checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbRotate}: false,
+					},
+				},
+			},
+			ca: externalCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		}, {
+			name:     "NOK no ca",
+			authzCtx: authorizedCtx,
+			ca:       nil,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK invalid ca",
+			authzCtx: authorizedCtx,
+			ca:       &types.CertAuthorityV2{},
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK rotate local ca",
+			authzCtx: authorizedCtx,
+			ca:       localCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK nonexistent ca",
+			authzCtx: authorizedCtx,
+			ca:       newCertAuthority(t, types.HostCA, "na").(*types.CertAuthorityV2),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		}, {
+			name:        "OK rotate external ca",
+			authzCtx:    authorizedCtx,
+			ca:          newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2),
+			assertError: require.NoError,
+		}, {
+			name:        "OK equivalent external ca",
+			authzCtx:    authorizedCtx,
+			ca:          externalCA,
+			assertError: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &ServiceConfig{
+				Cache:   trust,
+				Backend: trust,
+				Authorizer: &fakeAuthorizer{
+					authzCtx: test.authzCtx,
+				},
+				AuthServer: &fakeAuthServer{
+					clusterName: &types.ClusterNameV2{
+						Spec: types.ClusterNameSpecV2{
+							ClusterName: "local",
+						},
+					},
+				},
+			}
+
+			service, err := NewService(cfg)
+			require.NoError(t, err)
+
+			_, err = service.RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+				CertAuthority: test.ca,
+			})
+			test.assertError(t, err, "RotateExternalCertAuthority error mismatch")
+		})
+	}
+}
+
 func TestGenerateHostCert(t *testing.T) {
 	t.Parallel()
 
@@ -756,8 +965,8 @@ func TestGenerateHostCert(t *testing.T) {
 		},
 	}
 
-	hostCertSigner := &fakeHostCertSigner{
-		data: map[string]struct {
+	hostCertSigner := &fakeAuthServer{
+		generateHostCertData: map[string]struct {
 			cert []byte
 			err  error
 		}{

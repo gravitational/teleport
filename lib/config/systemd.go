@@ -44,15 +44,18 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
+Restart=always
+RestartSec=5
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
-ExecReload=/bin/kill -HUP $MAINPID
+# systemd before 239 needs an absolute path
+ExecReload=/bin/sh -c "exec pkill -HUP -L -F {{ .PIDFile }}"
 PIDFile={{ .PIDFile }}
 LimitNOFILE={{ .FileDescriptorLimit }}
 
 [Install]
-WantedBy=multi-user.target`))
+WantedBy=multi-user.target
+`))
 
 // SystemdFlags specifies configuration parameters for a systemd unit file.
 type SystemdFlags struct {

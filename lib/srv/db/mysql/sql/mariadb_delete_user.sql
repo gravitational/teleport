@@ -22,12 +22,12 @@ BEGIN
             CALL teleport_deactivate_user(username);
         ELSE
             SET state = 'TP003';
-            SET @sql := CONCAT('DROP ROLE ', QUOTE(CONCAT("tp-role-", username)));
+            SET @sql := CONCAT('DROP ROLE IF EXISTS', QUOTE(CONCAT("tp-role-", username)));
             PREPARE stmt FROM @sql;
             EXECUTE stmt;
             DEALLOCATE PREPARE stmt;
 
-            SET @sql := CONCAT('DROP USER ', QUOTE(username));
+            SET @sql := CONCAT('DROP USER IF EXISTS', QUOTE(username));
             PREPARE stmt FROM @sql;
             EXECUTE stmt;
             DEALLOCATE PREPARE stmt;

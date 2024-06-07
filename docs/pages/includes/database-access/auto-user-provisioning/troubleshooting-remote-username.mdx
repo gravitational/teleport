@@ -1,0 +1,12 @@
+You may encounter the following error when connecting to a database in a remote
+cluster:
+```shell
+> tsh db connect --db-name <database> example
+ERROR: please use your mapped remote username ("remote-<your-teleport-username>-<root-cluster-name>") to connect instead of "<database-user>"
+```
+
+When you access resources in a remote cluster, the remote cluster will receive
+the name `remote-<your-teleport-username>-<root-cluster-name>` from the local
+cluster. This is to prevent any naming collisions with users in the remote
+cluster. Please use the username from the error message as the database
+username for when connecting through `tsh` or GUI clients.

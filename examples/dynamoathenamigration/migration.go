@@ -165,15 +165,14 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 		dynamoClient: dynamodb.NewFromConfig(awsCfg),
 		s3Downloader: manager.NewDownloader(s3Client),
 		eventsEmitter: athena.NewPublisher(athena.PublisherConfig{
-			TopicARN: cfg.TopicARN,
-			SNSPublisher: sns.NewFromConfig(awsCfg, func(o *sns.Options) {
+			MessagePublisher: athena.SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(awsCfg, func(o *sns.Options) {
 				o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
 					so.MaxAttempts = 30
 					so.MaxBackoff = 1 * time.Minute
 					// Use bigger rate limit to handle default sdk throttling: https://github.com/aws/aws-sdk-go-v2/issues/1665
 					so.RateLimiter = ratelimit.NewTokenRateLimit(1000000)
 				})
-			}),
+			})),
 			Uploader:      manager.NewUploader(s3Client),
 			PayloadBucket: cfg.LargePayloadBucket,
 			PayloadPrefix: cfg.LargePayloadPrefix,
@@ -723,7 +722,7 @@ func mergeFiles(files []*os.File, outputFile *os.File) error {
 		}
 
 		nextLine, err := readLine(min.Dec)
-		if trace.Unwrap(err) == io.EOF {
+		if errors.Is(trace.Unwrap(err), io.EOF) {
 			// EOF means that file no longer has events. Continue with other files.
 			continue
 		} else if err != nil {

@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -121,7 +121,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 	a = &LocalKeyAgent{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentKeyAgent,
+			teleport.ComponentKey: teleport.ComponentKeyAgent,
 		}),
 		ExtendedAgent: conf.Agent,
 		clientStore:   conf.ClientStore,
@@ -320,7 +320,7 @@ func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 // SaveTrustedCerts adds the given trusted CA TLS certificates and SSH host keys to the store.
 // Existing TLS certificates for the given trusted certs will be overwritten, while host keys
 // will be appended to existing entries.
-func (a *LocalKeyAgent) SaveTrustedCerts(certAuthorities []auth.TrustedCerts) error {
+func (a *LocalKeyAgent) SaveTrustedCerts(certAuthorities []authclient.TrustedCerts) error {
 	return a.clientStore.SaveTrustedCerts(a.proxyHost, certAuthorities)
 }
 
@@ -517,6 +517,15 @@ func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
 	if len(key.KubeTLSCerts) == 0 {
 		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
+	}
+	return a.addKey(key)
+}
+
+// AddAppKey activates a new signed app key by adding it into the keystore.
+// key must contain at least one app cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddAppKey(key *Key) error {
+	if len(key.AppTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one App access certificate")
 	}
 	return a.addKey(key)
 }

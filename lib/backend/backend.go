@@ -92,6 +92,14 @@ type Backend interface {
 	// ConditionalDelete deletes the item by key if the revision matches the stored revision.
 	ConditionalDelete(ctx context.Context, key []byte, revision string) error
 
+	// AtomicWrite executes a batch of conditional actions atomically s.t. all actions happen if all
+	// conditions are met, but no actions happen if any condition fails to hold. If one or more conditions
+	// failed to hold, [ErrConditionFailed] is returned. The number of conditional actions must not
+	// exceed [MaxAtomicWriteSize] and no two conditional actions may point to the same key. If successful,
+	// the returned revision is the new revision associated with all [Put] actions that were part of the
+	// operation (the revision value has no meaning outside of the context of puts).
+	AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error)
+
 	// NewWatcher returns a new event watcher
 	NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 
@@ -123,19 +131,28 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 
 // IterateRange is a helper for stepping over a range
 func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
+	if limit == 0 || limit > 10_000 {
+		limit = 10_000
+	}
 	for {
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
+		// we load an extra item here so that we can be certain we have a correct
+		// start key for the next range.
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		stop, err := fn(rslt.Items)
+		end := limit
+		if len(rslt.Items) < end {
+			end = len(rslt.Items)
+		}
+		stop, err := fn(rslt.Items[0:end])
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if stop || len(rslt.Items) < limit {
+		if stop || len(rslt.Items) <= limit {
 			return nil
 		}
-		startKey = nextKey(rslt.Items[limit-1].Key)
+		startKey = rslt.Items[limit].Key
 	}
 }
 
@@ -180,9 +197,6 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageS
 type Lease struct {
 	// Key is the resource identifier.
 	Key []byte
-	// ID is a lease ID, could be empty.
-	// Deprecated: use Revision instead
-	ID int64
 	// Revision is the last known version of the object.
 	Revision string
 }
@@ -243,9 +257,6 @@ type Item struct {
 	Value []byte
 	// Expires is an optional record expiry time
 	Expires time.Time
-	// ID is a record ID, newer records have newer ids
-	// Deprecated: use Revision instead
-	ID int64
 	// Revision is the last known version of the object.
 	Revision string
 }

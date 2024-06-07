@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -75,6 +76,181 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 
 			assignment := newOktaAssignment(t, test.startStatus)
 			errAssertionFunc(t, assignment.SetStatus(test.nextStatus))
+		})
+	}
+}
+
+func TestOktAssignmentIsEqual(t *testing.T) {
+	newAssignment := func(changeFns ...func(*OktaAssignmentV1)) *OktaAssignmentV1 {
+		assignment := &OktaAssignmentV1{
+			ResourceHeader: ResourceHeader{
+				Kind:    KindOktaAssignment,
+				Version: V1,
+				Metadata: Metadata{
+					Name: "name",
+				},
+			},
+			Spec: OktaAssignmentSpecV1{
+				User: "user",
+				Targets: []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP},
+				},
+				CleanupTime:    time.Time{},
+				Status:         OktaAssignmentSpecV1_PENDING,
+				LastTransition: time.Time{},
+				Finalized:      true,
+			},
+		}
+		require.NoError(t, assignment.CheckAndSetDefaults())
+
+		for _, fn := range changeFns {
+			fn(assignment)
+		}
+
+		return assignment
+	}
+	tests := []struct {
+		name     string
+		o1       *OktaAssignmentV1
+		o2       *OktaAssignmentV1
+		expected bool
+	}{
+		{
+			name:     "empty equals",
+			o1:       &OktaAssignmentV1{},
+			o2:       &OktaAssignmentV1{},
+			expected: true,
+		},
+		{
+			name:     "nil equals",
+			o1:       nil,
+			o2:       (*OktaAssignmentV1)(nil),
+			expected: true,
+		},
+		{
+			name:     "one is nil",
+			o1:       &OktaAssignmentV1{},
+			o2:       (*OktaAssignmentV1)(nil),
+			expected: false,
+		},
+		{
+			name:     "populated equals",
+			o1:       newAssignment(),
+			o2:       newAssignment(),
+			expected: true,
+		},
+		{
+			name: "resource header is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.ResourceHeader.Kind = "different-kind"
+			}),
+			expected: false,
+		},
+		{
+			name: "user is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.User = "different-user"
+			}),
+			expected: false,
+		},
+		{
+			name: "targets different id",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "2", Type: OktaAssignmentTargetV1_APPLICATION},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP},
+				}
+			}),
+			expected: false,
+		},
+		{
+			name: "targets different type",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_GROUP},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP},
+				}
+			}),
+			expected: false,
+		},
+		{
+			name: "targets different sizes",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION},
+				}
+			}),
+			expected: false,
+		},
+		{
+			name: "targets both nil",
+			o1: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = nil
+			}),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = nil
+			}),
+			expected: true,
+		},
+		{
+			name: "targets o1 is nil",
+			o1: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = nil
+			}),
+			o2:       newAssignment(),
+			expected: false,
+		},
+		{
+			name: "targets o2 is nil",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = nil
+			}),
+			expected: false,
+		},
+		{
+			name: "cleanup time is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.CleanupTime = time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
+			}),
+			expected: false,
+		},
+		{
+			name: "status is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Status = OktaAssignmentSpecV1_PROCESSING
+			}),
+			expected: false,
+		},
+		{
+			name: "last transition is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.CleanupTime = time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
+			}),
+			expected: false,
+		},
+		{
+			name: "finalized is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Finalized = false
+			}),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.o1.IsEqual(test.o2))
 		})
 	}
 }

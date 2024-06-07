@@ -50,9 +50,9 @@ func TestMain(m *testing.M) {
 var commonEtcdParams = backend.Params{
 	"peers":         []string{etcdTestEndpoint()},
 	"prefix":        examplePrefix,
-	"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
-	"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
-	"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
+	"tls_key_file":  "../../../fixtures/etcdcerts/client-key.pem",
+	"tls_cert_file": "../../../fixtures/etcdcerts/client-cert.pem",
+	"tls_ca_file":   "../../../fixtures/etcdcerts/ca-cert.pem",
 }
 
 var commonEtcdOptions = []Option{
@@ -177,9 +177,9 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	bk, err := New(context.Background(), backend.Params{
 		"peers":                          []string{etcdTestEndpoint()},
 		"prefix":                         "/teleport",
-		"tls_key_file":                   "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file":                  "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":                    "../../../examples/etcd/certs/ca-cert.pem",
+		"tls_key_file":                   "../../../fixtures/etcdcerts/client-key.pem",
+		"tls_cert_file":                  "../../../fixtures/etcdcerts/client-cert.pem",
+		"tls_ca_file":                    "../../../fixtures/etcdcerts/ca-cert.pem",
 		"dial_timeout":                   500 * time.Millisecond,
 		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
 	}, commonEtcdOptions...)
@@ -217,15 +217,20 @@ func TestLeaseBucketing(t *testing.T) {
 	require.NoError(t, err)
 	defer bk.Close()
 
-	leases := make(map[int64]struct{})
+	buckets := make(map[int64]struct{})
 	for i := 0; i < count; i++ {
-		lease, err := bk.Put(ctx, backend.Item{
-			Key:     backend.Key(pfx, fmt.Sprintf("%d", i)),
+		key := backend.Key(pfx, fmt.Sprintf("%d", i))
+		_, err := bk.Put(ctx, backend.Item{
+			Key:     key,
 			Value:   []byte(fmt.Sprintf("val-%d", i)),
 			Expires: time.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
-		leases[lease.ID] = struct{}{}
+
+		item, err := bk.Get(ctx, key)
+		require.NoError(t, err)
+
+		buckets[item.Expires.Unix()] = struct{}{}
 		time.Sleep(time.Millisecond * 200)
 	}
 
@@ -237,8 +242,8 @@ func TestLeaseBucketing(t *testing.T) {
 
 	// ensure that we averaged more than 1 item per lease, but
 	// also spanned more than one bucket.
-	require.NotEmpty(t, leases)
-	require.Less(t, len(leases), count/2)
+	require.NotEmpty(t, buckets)
+	require.Less(t, len(buckets), count/2)
 }
 
 func etcdTestEnabled() bool {

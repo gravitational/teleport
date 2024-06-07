@@ -79,7 +79,7 @@ export default class MenuActionIcon extends React.Component<
             horizontal: 'right',
           }}
           anchorOrigin={{
-            vertical: 'center',
+            vertical: 'bottom',
             horizontal: 'right',
           }}
           {...menuProps}

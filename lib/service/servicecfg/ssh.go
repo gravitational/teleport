@@ -30,7 +30,6 @@ type SSHConfig struct {
 	Enabled               bool
 	Addr                  utils.NetAddr
 	Namespace             string
-	Shell                 string
 	Limiter               limiter.Config
 	Labels                map[string]string
 	CmdLabels             services.CommandLabels
@@ -44,9 +43,6 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *BPFConfig
-
-	// RestrictedSession holds kernel objects restrictions for Teleport.
-	RestrictedSession *RestrictedSessionConfig
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool

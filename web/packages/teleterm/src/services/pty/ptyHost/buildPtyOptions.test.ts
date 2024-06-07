@@ -18,7 +18,11 @@
 
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import { ShellCommand, GatewayCliClientCommand } from '../types';
+import {
+  ShellCommand,
+  TshLoginCommand,
+  GatewayCliClientCommand,
+} from '../types';
 
 import { getPtyProcessOptions } from './buildPtyOptions';
 
@@ -43,6 +47,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions(
         makeRuntimeSettings(),
+        { noResume: false },
         cmd,
         processEnv
       );
@@ -71,6 +76,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions(
         makeRuntimeSettings(),
+        { noResume: false },
         cmd,
         processEnv
       );
@@ -78,6 +84,31 @@ describe('getPtyProcessOptions', () => {
       expect(env.processExclusive).toBe('process');
       expect(env.cmdExclusive).toBe('cmd');
       expect(env.shared).toBe('fromCmd');
+    });
+
+    it('disables SSH connection resumption on tsh ssh invocations if the option is set', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: TshLoginCommand = {
+        kind: 'pty.tsh-login',
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        login: 'bob',
+        serverId: '01234567-89ab-cdef-0123-456789abcdef',
+        rootClusterId: 'baz',
+        leafClusterId: undefined,
+      };
+
+      const { args } = getPtyProcessOptions(
+        makeRuntimeSettings(),
+        { noResume: true },
+        cmd,
+        processEnv
+      );
+
+      expect(args).toContain('--no-resume');
     });
   });
 });

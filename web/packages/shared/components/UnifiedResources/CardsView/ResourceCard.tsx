@@ -31,6 +31,7 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import { getBackgroundColor } from '../shared/getBackgroundColor';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -60,6 +61,7 @@ export function ResourceCard({
   pinned,
   pinResource,
   selectResource,
+  requiresRequest,
   selected,
 }: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
@@ -70,8 +72,8 @@ export function ResourceCard({
 
   const [hovered, setHovered] = useState(false);
 
-  const innerContainer = useRef<Element | null>(null);
-  const labelsInnerContainer = useRef(null);
+  const innerContainer = useRef<HTMLElement | null>(null);
+  const labelsInnerContainer = useRef<HTMLElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -82,6 +84,15 @@ export function ResourceCard({
 
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
+
+      // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
+      // none` to `display: flex`. This callback is then fired with the height reported as zero.
+      //
+      // As such, when checking whether to show the "More labels" button, we should consider only
+      // values other than zero.
+      if (container.contentRect.height === 0) {
+        return;
+      }
 
       // We're taking labelRowHeight * 1.5 just in case some glitch adds or
       // removes a pixel here and there.
@@ -158,6 +169,7 @@ export function ResourceCard({
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
+          requiresRequest={requiresRequest}
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
@@ -192,6 +204,9 @@ export function ResourceCard({
             width="45px"
             height="45px"
             ml={2}
+            css={`
+              opacity: ${requiresRequest ? '0.5' : '1'};
+            `}
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
@@ -289,7 +304,8 @@ const CardOuterContainer = styled(Box)`
     `}
   transition: all 150ms;
 
-  ${CardContainer}:hover & {
+  // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
+  ${CardContainer}:hover && {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
@@ -328,16 +344,6 @@ const CardInnerContainer = styled(Flex)`
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
-
-const getBackgroundColor = props => {
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
-  }
-  return 'transparent';
-};
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;

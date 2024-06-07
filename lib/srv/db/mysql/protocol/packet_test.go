@@ -20,6 +20,7 @@ package protocol
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -471,5 +472,5 @@ func TestParsePacket(t *testing.T) {
 }
 
 func isUnexpectedEOFError(err error) bool {
-	return trace.Unwrap(err) == io.ErrUnexpectedEOF
+	return errors.Is(trace.Unwrap(err), io.ErrUnexpectedEOF)
 }

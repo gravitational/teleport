@@ -62,7 +62,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = logrus.WithField(trace.Component, "transport")
+		c.log = logrus.WithField(teleport.ComponentKey, "transport")
 	}
 
 	return nil

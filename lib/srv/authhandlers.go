@@ -140,7 +140,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: log.WithField(trace.Component, config.Component),
+		log: log.WithField(teleport.ComponentKey, config.Component),
 	}
 	ah.loginChecker = &ahLoginChecker{
 		log: ah.log,
@@ -300,7 +300,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
-	log := h.log.WithField(trace.ComponentFields, log.Fields{
+	log := h.log.WithField(teleport.ComponentFields, log.Fields{
 		"local":       conn.LocalAddr(),
 		"remote":      conn.RemoteAddr(),
 		"user":        conn.User(),
@@ -646,7 +646,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// allow joining if cluster wide MFA is not required
-		if state.MFARequired != services.MFARequiredAlways {
+		if state.MFARequired == services.MFARequiredNever {
 			return nil
 		}
 

@@ -49,7 +49,7 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -140,10 +140,9 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	pong, err := a.checkTeleportVersion(ctx)
@@ -317,11 +316,8 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("on-call schedules not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 // createIncident posts an incident with request information.
@@ -403,15 +399,19 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
 	}
+	log.Debugf("Checking the following shifts to see if the requester is on-call: %s", serviceNames)
 
 	onCallUsers, err := a.getOnCallUsers(ctx, serviceNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.Debugf("Users on-call are: %s", onCallUsers)
 
 	if userIsOnCall := slices.Contains(onCallUsers, req.GetUser()); !userIsOnCall {
+		log.Debugf("User %q is not on-call, not approving the request %q.", req.GetUser(), req.GetName())
 		return nil
 	}
+	log.Debugf("User %q is on-call. Auto-approving the request %q.", req.GetUser(), req.GetName())
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{

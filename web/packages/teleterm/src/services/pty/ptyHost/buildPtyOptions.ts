@@ -25,6 +25,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import {
   PtyCommand,
   PtyProcessCreationStatus,
+  SshOptions,
   TshKubeLoginCommand,
 } from '../types';
 
@@ -35,6 +36,7 @@ import {
 
 export async function buildPtyOptions(
   settings: RuntimeSettings,
+  sshOptions: SshOptions,
   cmd: PtyCommand
 ): Promise<{
   processOptions: PtyProcessOptions;
@@ -64,7 +66,12 @@ export async function buildPtyOptions(
       };
 
       return {
-        processOptions: getPtyProcessOptions(settings, cmd, combinedEnv),
+        processOptions: getPtyProcessOptions(
+          settings,
+          sshOptions,
+          cmd,
+          combinedEnv
+        ),
         creationStatus,
       };
     });
@@ -72,6 +79,7 @@ export async function buildPtyOptions(
 
 export function getPtyProcessOptions(
   settings: RuntimeSettings,
+  sshOptions: SshOptions,
   cmd: PtyCommand,
   env: typeof process.env
 ): PtyProcessOptions {
@@ -129,14 +137,17 @@ export function getPtyProcessOptions(
         ? `${cmd.login}@${cmd.serverId}`
         : cmd.serverId;
 
+      const args = [
+        `--proxy=${cmd.rootClusterId}`,
+        'ssh',
+        ...(sshOptions.noResume ? ['--no-resume'] : []),
+        '--forward-agent',
+        loginHost,
+      ];
+
       return {
         path: settings.tshd.binaryPath,
-        args: [
-          `--proxy=${cmd.rootClusterId}`,
-          'ssh',
-          '--forward-agent',
-          loginHost,
-        ],
+        args,
         env,
       };
     }

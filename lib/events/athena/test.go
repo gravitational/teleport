@@ -106,6 +106,7 @@ func (a *AthenaContext) GetLog() *Log {
 // AthenaContextConfig is optional config to override defaults in athena context.
 type AthenaContextConfig struct {
 	MaxBatchSize int
+	BypassSNS    bool
 }
 
 type InfraOutputs struct {
@@ -200,12 +201,16 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 		region = "eu-central-1"
 	}
 
+	topicARN := infraOut.TopicARN
+	if cfg.BypassSNS {
+		topicARN = topicARNBypass
+	}
 	log, err := New(ctx, Config{
 		Region:           region,
 		Clock:            clock,
 		Database:         ac.Database,
 		TableName:        ac.TableName,
-		TopicARN:         infraOut.TopicARN,
+		TopicARN:         topicARN,
 		QueueURL:         infraOut.QueueURL,
 		LocationS3:       ac.s3eventsLocation,
 		QueryResultsS3:   ac.S3ResultsLocation,

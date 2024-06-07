@@ -24,8 +24,7 @@ above.
 ## Prerequisites
 
 1. A Teleport Enterprise Cloud account. If you do not have one, [sign
-   up](https://goteleport.com/signup/) for a Teleport Team account and upgrade
-   to Teleport Enterprise Cloud.
+   up](https://goteleport.com/signup/) for a free trial.
 1. To store and query audit events and session recordings, you need to set up
    the following four components in an AWS account of your choosing. The
    Teleport Web UI walks you through the infrastructure you need to create, but
@@ -41,9 +40,7 @@ above.
    - A transient storage S3 bucket that temporarily holds the results of Athena
      queries.
 1. Currently it is a requirement that the AWS infrastructure is hosted in the
-   same AWS region as the Teleport Auth Service for your cluster. Historically
-   this has always been us-west-2, but new clusters may be deployed to other
-   regions in the future.
+   same AWS region as the Teleport Auth Service for your cluster.
 
 ## Step 1/2. Configure RBAC
 

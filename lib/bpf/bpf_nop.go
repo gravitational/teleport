@@ -30,7 +30,7 @@ type Service struct {
 }
 
 // New returns a new NOP service. Note this function does nothing.
-func New(_ *servicecfg.BPFConfig, _ *servicecfg.RestrictedSessionConfig) (BPF, error) {
+func New(_ *servicecfg.BPFConfig) (BPF, error) {
 	return &NOP{}, nil
 }
 

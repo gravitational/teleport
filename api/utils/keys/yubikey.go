@@ -1,4 +1,4 @@
-//go:build piv
+//go:build piv && !pivtest
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -330,7 +330,10 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	const pivGenericAuthErrCodeString = "6982"
 
 	signature, err := signer.Sign(rand, digest, opts)
-	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) && manualRetryWithPIN {
+	switch {
+	case err == nil:
+		return signature, nil
+	case manualRetryWithPIN && strings.Contains(err.Error(), pivGenericAuthErrCodeString):
 		pin, err := promptPIN()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -338,14 +341,11 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		if err := yk.VerifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signature, err = signer.Sign(rand, digest, opts)
-	}
-
-	if err != nil {
+		signature, err := signer.Sign(rand, digest, opts)
+		return signature, trace.Wrap(err)
+	default:
 		return nil, trace.Wrap(err)
 	}
-
-	return signature, nil
 }
 
 func (y *YubiKeyPrivateKey) toPrivateKey() (*PrivateKey, error) {
@@ -782,7 +782,7 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 // YubiKey 5 nano (5.2.7) and a YubiKey NFC (5.4.3).
 const (
 	// piv.ECDSAPrivateKey.Sign consistently takes ~70 milliseconds. However, 200ms
-	// should be imperceptible the the user and should avoid misfired prompts for
+	// should be imperceptible to the user and should avoid misfired prompts for
 	// slower cards (if there are any).
 	signTouchPromptDelay = time.Millisecond * 200
 )

@@ -68,14 +68,7 @@ function renderRootLabelCell({ clusterId }: Cluster) {
 function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   const $items = [] as React.ReactNode[];
 
-  const showResourcesLink =
-    flags.showNodes ||
-    flags.showApps ||
-    flags.showKubes ||
-    flags.showDatabases ||
-    flags.showDesktops;
-
-  if (showResourcesLink) {
+  if (flags.showResources) {
     $items.push(
       renderMenuItem('Resources', cfg.getUnifiedResourcesRoute(clusterId))
     );
@@ -109,13 +102,9 @@ type Props = {
 };
 
 type MenuFlags = {
-  showNodes: boolean;
+  showResources: boolean;
   showAudit: boolean;
   showRecordings: boolean;
-  showApps: boolean;
-  showDatabases: boolean;
-  showKubes: boolean;
-  showDesktops: boolean;
 };
 
 const StyledTable = styled(Table)`

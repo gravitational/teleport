@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gobwas/ws"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -164,12 +166,23 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		wantError     bool
 	}{
 		{
-			name:          "connection upgrade",
-			serverHandler: mockConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
+			// TODO(greedy52) DELETE in 17.0
+			name:          "connection upgrade (legacy)",
+			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
 		},
 		{
-			name:          "connection upgrade with ping",
-			serverHandler: mockConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
+			// TODO(greedy52) DELETE in 17.0
+			name:          "connection upgrade with ping (legacy)",
+			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
+			withPing:      true,
+		},
+		{
+			name:          "connection upgrade (WebSocket)",
+			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
+		},
+		{
+			name:          "connection upgrade with ping (WebSocket)",
+			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
 			withPing:      true,
 		},
 		{
@@ -230,11 +243,27 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 }
 
 func mustReadConnData(t *testing.T, conn net.Conn, wantText string) {
-	data := make([]byte, len(wantText)*2)
+	t.Helper()
+
+	require.NotEmpty(t, wantText)
+
+	// Use a small buffer.
+	bufferSize := len(wantText) - 1
+	data := make([]byte, bufferSize)
 	n, err := conn.Read(data)
 	require.NoError(t, err)
-	require.Len(t, wantText, n)
-	require.Equal(t, wantText, string(data[:n]))
+	require.Equal(t, bufferSize, n)
+	actualText := string(data)
+
+	// Now read it again to get the full text. This tests
+	// websocketALPNClientConn.readBuffer is implemented correctly.
+	data = make([]byte, bufferSize)
+	n, err = conn.Read(data)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	actualText += string(data[:1])
+
+	require.Equal(t, wantText, actualText)
 }
 
 type mockALPNServer struct {
@@ -291,15 +320,15 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 	return m
 }
 
-// mockConnUpgradeHandler mocks the server side implementation to handle an
-// upgrade request and sends back some data inside the tunnel.
-func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
+// mockLegacyConnUpgradeHandler mocks the server side implementation to handle
+// an upgrade request and sends back some data inside the tunnel.
+func mockLegacyConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
-		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeHeader))
-		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeTeleportHeader))
+		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeHeader), upgradeType)
+		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeTeleportHeader), upgradeType)
 		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 
 		hj, ok := w.(http.Hijacker)
@@ -334,6 +363,49 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 	})
 }
 
+// mockWebSocketConnUpgradeHandler mocks the server side implementation to handle
+// a WebSocket upgrade request and sends back some data inside the tunnel.
+func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
+		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeHeader), "websocket")
+		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
+		require.Equal(t, upgradeType, r.Header.Get("Sec-Websocket-Protocol"))
+		require.Equal(t, "13", r.Header.Get("Sec-Websocket-Version"))
+
+		challengeKey := r.Header.Get("Sec-Websocket-Key")
+		challengeKeyDecoded, err := base64.StdEncoding.DecodeString(challengeKey)
+		require.NoError(t, err)
+		require.Len(t, challengeKeyDecoded, 16)
+
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok)
+
+		conn, _, err := hj.Hijack()
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Upgrade response.
+		response := &http.Response{
+			StatusCode: http.StatusSwitchingProtocols,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     make(http.Header),
+		}
+		response.Header.Set("Upgrade", "websocket")
+		response.Header.Set("Sec-WebSocket-Protocol", upgradeType)
+		response.Header.Set("Sec-WebSocket-Accept", computeWebSocketAcceptKey(challengeKey))
+		require.NoError(t, response.Write(conn))
+
+		// Upgraded.
+		frame := ws.NewFrame(ws.OpBinary, true, write)
+		frame.Header.Masked = true
+		require.NoError(t, ws.WriteFrame(conn, frame))
+	})
+}
+
 func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
 	t.Helper()
 
@@ -349,4 +421,44 @@ func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
 	handler := &testhelpers.ProxyHandler{}
 	go http.Serve(listener, handler)
 	return handler, url
+}
+
+func Test_connUpgradeMode(t *testing.T) {
+	tests := []struct {
+		envVarValue      string
+		wantUseWebSocket require.BoolAssertionFunc
+		wantUseLegacy    require.BoolAssertionFunc
+	}{
+		{
+			envVarValue:      "",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.True,
+		},
+		{
+			envVarValue:      "WebSocket",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.False,
+		},
+		{
+			envVarValue:      "websocket",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.False,
+		},
+		{
+			envVarValue:      "legacy",
+			wantUseWebSocket: require.False,
+			wantUseLegacy:    require.True,
+		},
+		{
+			envVarValue:      "default",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.True,
+		},
+	}
+
+	for _, test := range tests {
+		mode := connUpgradeMode(test.envVarValue)
+		test.wantUseWebSocket(t, mode.useWebSocket())
+		test.wantUseLegacy(t, mode.useLegacy())
+	}
 }

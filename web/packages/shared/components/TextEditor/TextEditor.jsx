@@ -17,11 +17,19 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import ace from 'ace-builds/src-min-noconflict/ace';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
 import 'ace-builds/src-noconflict/ext-searchbox';
+import { ButtonSecondary } from 'design/Button';
+import Flex from 'design/Flex';
+import { Copy, Download } from 'design/Icon';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
+
+import { downloadObject } from 'shared/utils/download';
+
 import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
@@ -104,15 +112,40 @@ class TextEditor extends React.Component {
 
   render() {
     const { bg = 'levels.sunken' } = this.props;
+    const hasButton = this.props.copyButton || this.props.downloadButton;
+
     return (
       <StyledTextEditor bg={bg}>
         <div ref={e => (this.ace_viewer = e)} />
+        {hasButton && (
+          <ButtonSection>
+            {this.props.copyButton && (
+              <EditorButton
+                title="Copy to clipboard"
+                onClick={() => copyToClipboard(this.editor.session.getValue())}
+              >
+                <Copy size="medium" />
+              </EditorButton>
+            )}
+            {this.props.downloadButton && (
+              <EditorButton
+                title="Download"
+                onClick={() =>
+                  downloadObject(
+                    this.props.downloadFileName,
+                    this.editor.session.getValue()
+                  )
+                }
+              >
+                <Download size="medium" />
+              </EditorButton>
+            )}
+          </ButtonSection>
+        )}
       </StyledTextEditor>
     );
   }
 }
-
-export default TextEditor;
 
 function getMode(docType) {
   if (docType === 'json') {
@@ -121,3 +154,17 @@ function getMode(docType) {
 
   return 'ace/mode/yaml';
 }
+
+const EditorButton = styled(ButtonSecondary)`
+  padding: ${({ theme }) => theme.space[2]}px;
+  background-color: transparent;
+`;
+
+const ButtonSection = styled(Flex)`
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+`;
+
+export default TextEditor;

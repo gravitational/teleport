@@ -29,3 +29,13 @@ export function pluralize(num: number, word: string) {
 
   return word;
 }
+
+/**
+ * capitalizeFirstLetter uppercases the first letter in the string.
+ */
+export function capitalizeFirstLetter(str: string) {
+  if (!str) {
+    return '';
+  }
+  return str[0].toUpperCase() + str.slice(1);
+}

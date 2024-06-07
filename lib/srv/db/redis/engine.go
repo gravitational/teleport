@@ -33,6 +33,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -526,14 +527,14 @@ func (e *Engine) isIAMAuthError(err error) bool {
 
 // isRedisError returns true is error comes from Redis, ex, nil, bad command, etc.
 func isRedisError(err error) bool {
-	_, ok := err.(redis.RedisError)
-	return ok
+	var redisError redis.RedisError
+	return errors.As(err, &redisError)
 }
 
 // isTeleportErr returns true if error comes from Teleport itself.
 func isTeleportErr(err error) bool {
-	_, ok := err.(trace.Error)
-	return ok
+	var error trace.Error
+	return errors.As(err, &error)
 }
 
 // driverLogger implements go-redis driver's internal logger using logrus and
@@ -548,6 +549,6 @@ func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
 
 func init() {
 	redis.SetLogger(&driverLogger{
-		Entry: logrus.WithField(trace.Component, "go-redis"),
+		Entry: logrus.WithField(teleport.ComponentKey, "go-redis"),
 	})
 }

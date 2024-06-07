@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -38,9 +39,8 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -73,7 +73,7 @@ func withEditor(editor func(string) error) optionsFunc {
 	}
 }
 
-func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) *authclient.Client {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -103,7 +103,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 type cliCommand interface {
 	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
+	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
@@ -171,6 +171,12 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
+func runIdPSAMLCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &IdPCommand{}
+	args = append([]string{"idp"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
@@ -178,23 +184,24 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	return out
 }
 
-func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
+	t.Helper()
 	decoder := yaml.NewDecoder(r)
 	for {
 		var entry T
 		if err := decoder.Decode(&entry); err != nil {
 			// Break when there are no more documents to decode
-			if err != io.EOF {
-				return err
+			if !errors.Is(err, io.EOF) {
+				require.FailNow(t, "error decoding YAML: %v", err)
 			}
 			break
 		}
 		*out = append(*out, entry)
 	}
-	return nil
 }
 
 func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	t.Helper()
 	var out T
 	err := yaml.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
@@ -271,7 +278,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
 	}

@@ -21,6 +21,12 @@ import { ServerDuplexStream } from '@grpc/grpc-js';
 import Logger from 'teleterm/logger';
 
 import {
+  ptyEventOneOfIsData,
+  ptyEventOneOfIsResize,
+  ptyEventOneOfIsStart,
+} from 'teleterm/helpers';
+
+import {
   PtyClientEvent,
   PtyEventData,
   PtyEventExit,
@@ -43,7 +49,7 @@ export class PtyEventsStreamHandler {
     private readonly ptyProcesses: Map<string, PtyProcess>
   ) {
     this.ptyId = stream.metadata.get('ptyId')[0].toString();
-    this.ptyProcess = ptyProcesses.get(this.ptyId);
+    this.ptyProcess = ptyProcesses.get(this.ptyId)!;
     this.logger = new Logger(`PtyEventsStreamHandler (id: ${this.ptyId})`);
 
     stream.addListener('data', event => this.handleStreamData(event));
@@ -52,49 +58,70 @@ export class PtyEventsStreamHandler {
   }
 
   private handleStreamData(event: PtyClientEvent): void {
-    switch (event.getEventCase()) {
-      case PtyClientEvent.EventCase.START:
-        return this.handleStartEvent(event.getStart());
-      case PtyClientEvent.EventCase.DATA:
-        return this.handleDataEvent(event.getData());
-      case PtyClientEvent.EventCase.RESIZE:
-        return this.handleResizeEvent(event.getResize());
+    if (ptyEventOneOfIsStart(event.event)) {
+      return this.handleStartEvent(event.event.start);
+    }
+
+    if (ptyEventOneOfIsData(event.event)) {
+      return this.handleDataEvent(event.event.data);
+    }
+
+    if (ptyEventOneOfIsResize(event.event)) {
+      return this.handleResizeEvent(event.event.resize);
     }
   }
 
   private handleStartEvent(event: PtyEventStart): void {
     this.ptyProcess.onData(data =>
       this.stream.write(
-        new PtyServerEvent().setData(new PtyEventData().setMessage(data))
+        PtyServerEvent.create({
+          event: {
+            oneofKind: 'data',
+            data: PtyEventData.create({ message: data }),
+          },
+        })
       )
     );
     this.ptyProcess.onOpen(() =>
-      this.stream.write(new PtyServerEvent().setOpen(new PtyEventOpen()))
+      this.stream.write(
+        PtyServerEvent.create({
+          event: {
+            oneofKind: 'open',
+            open: PtyEventOpen.create(),
+          },
+        })
+      )
     );
     this.ptyProcess.onExit(({ exitCode, signal }) =>
       this.stream.write(
-        new PtyServerEvent().setExit(
-          new PtyEventExit().setExitCode(exitCode).setSignal(signal)
-        )
+        PtyServerEvent.create({
+          event: {
+            oneofKind: 'exit',
+            exit: PtyEventExit.create({ exitCode, signal }),
+          },
+        })
       )
     );
     this.ptyProcess.onStartError(message => {
       this.stream.write(
-        new PtyServerEvent().setStartError(
-          new PtyEventStartError().setMessage(message)
-        )
+        PtyServerEvent.create({
+          event: {
+            oneofKind: 'startError',
+            startError: PtyEventStartError.create({ message }),
+          },
+        })
       );
     });
-    this.ptyProcess.start(event.getColumns(), event.getRows());
+    this.ptyProcess.start(event.columns, event.rows);
     this.logger.info(`stream has started`);
   }
 
   private handleDataEvent(event: PtyEventData): void {
-    this.ptyProcess.write(event.getMessage());
+    this.ptyProcess.write(event.message);
   }
 
   private handleResizeEvent(event: PtyEventResize): void {
-    this.ptyProcess.resize(event.getColumns(), event.getRows());
+    this.ptyProcess.resize(event.columns, event.rows);
   }
 
   private handleStreamError(error: Error): void {

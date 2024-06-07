@@ -31,9 +31,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -63,7 +64,7 @@ type UsersService interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
 }
@@ -97,9 +98,6 @@ type Identity interface {
 	// GetUserByGithubIdentity returns a user by its specified Github identity
 	GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error)
 
-	// UpsertPasswordHash upserts user password hash
-	UpsertPasswordHash(user string, hash []byte) error
-
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
 
@@ -110,8 +108,14 @@ type Identity interface {
 	// GetUsedTOTPToken returns the last successfully used TOTP token.
 	GetUsedTOTPToken(user string) (string, error)
 
-	// UpsertPassword upserts new password and OTP token
+	// UpsertPassword upserts a new password. It also sets the user's
+	// `PasswordState` status flag accordingly. Returns an error if the user
+	// doesn't exist.
 	UpsertPassword(user string, password []byte) error
+
+	// DeletePassword deletes user's password and sets the `PasswordState` status
+	// flag accordingly.
+	DeletePassword(ctx context.Context, username string) error
 
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.
@@ -134,11 +138,11 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.
 	// Session data is expected to expire according to backend settings.
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 
 	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 
 	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
 	// not expired.
@@ -148,12 +152,12 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication challenge.
 	// Session data is expected to expire according to backend settings.
 	// Used for passwordless challenges.
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
 
 	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
 	// if it exists and has not expired.
 	// Used for passwordless challenges.
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
 
 	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
 	// and has not expired.
@@ -266,20 +270,11 @@ type Identity interface {
 	// GetRecoveryCodes gets a user's recovery codes.
 	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
 
-	// CreateUserRecoveryAttempt logs user recovery attempt.
-	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
-
-	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
-	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
-
-	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
-
 	// UpsertKeyAttestationData upserts a verified public key attestation response.
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
 	// GetKeyAttestationData gets a verified public key attestation response.
-	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
+	GetKeyAttestationData(ctx context.Context, pubDer []byte) (*keys.AttestationData, error)
 
 	HeadlessAuthenticationService
 

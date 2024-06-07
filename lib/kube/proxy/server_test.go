@@ -42,7 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,7 +50,7 @@ import (
 )
 
 func TestServeConfigureError(t *testing.T) {
-	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}}
+	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}, closeContext: context.Background()}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer listener.Close()
@@ -275,7 +275,7 @@ func TestHeartbeat(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 	type args struct {
-		kubeClusterGetter func(auth.ClientI) []string
+		kubeClusterGetter func(authclient.ClientI) []string
 	}
 	tests := []struct {
 		name      string
@@ -285,7 +285,7 @@ func TestHeartbeat(t *testing.T) {
 		{
 			name: "List KubeServers",
 			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
+				kubeClusterGetter: func(authClient authclient.ClientI) []string {
 					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
 						ResourceType: types.KindKubeServer,
 						Limit:        10,

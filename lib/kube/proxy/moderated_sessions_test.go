@@ -459,6 +459,9 @@ func TestModeratedSessions(t *testing.T) {
 				if errors.Is(err, io.ErrClosedPipe) {
 					return nil
 				}
+				if tt.args.moderatorForcedClose && isSessionTerminatedError(err) {
+					return nil
+				}
 				return trace.Wrap(err)
 			})
 			// wait for every go-routine to finish without errors returned.

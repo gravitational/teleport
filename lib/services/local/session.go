@@ -69,9 +69,9 @@ func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (t
 	return session, nil
 }
 
-// maxPageSize is the maximum number of app sessions allowed in a page
+// maxSessionPageSize is the maximum number of app sessions allowed in a page
 // returned by ListAppSessions
-const maxPageSize = 200
+const maxSessionPageSize = 200
 
 // ListAppSessions gets a paginated list of application web sessions.
 func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
@@ -108,8 +108,8 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
 
 	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > maxPageSize {
-		pageSize = maxPageSize
+	if pageSize <= 0 || pageSize > maxSessionPageSize {
+		pageSize = maxSessionPageSize
 	}
 
 	// Increment pageSize to allow for the extra item represented by nextKey.
@@ -230,7 +230,7 @@ func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.
 	var token string
 
 	for {
-		sessions, nextToken, err := s.ListAppSessions(ctx, maxPageSize, token, req.Username)
+		sessions, nextToken, err := s.ListAppSessions(ctx, maxSessionPageSize, token, req.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -257,7 +257,7 @@ func (s *IdentityService) DeleteUserSAMLIdPSessions(ctx context.Context, user st
 	var token string
 
 	for {
-		sessions, nextToken, err := s.ListSAMLIdPSessions(ctx, maxPageSize, token, user)
+		sessions, nextToken, err := s.ListSAMLIdPSessions(ctx, maxSessionPageSize, token, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}

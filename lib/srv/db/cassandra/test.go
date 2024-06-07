@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -142,8 +143,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		tlsConfig: tlsConfig,
 		server:    server,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolCassandra,
-			"name":          config.Name,
+			teleport.ComponentKey: defaults.ProtocolCassandra,
+			"name":                config.Name,
 		}),
 	}
 	for _, opt := range opts {

@@ -20,17 +20,20 @@ package tbot
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -136,10 +139,11 @@ func Test_filterCAEvent(t *testing.T) {
 		},
 	}
 
-	log := utils.NewLoggerForTests()
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ignoreReason := filterCAEvent(log, tt.event, clusterName)
+			ignoreReason := filterCAEvent(ctx, log, tt.event, clusterName)
 			require.Equal(t, tt.expectedIgnoreReason, ignoreReason)
 		})
 	}
@@ -177,11 +181,11 @@ func TestChannelBroadcaster(t *testing.T) {
 }
 
 func rotate( //nolint:unused // used in skipped test
-	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
+	ctx context.Context, t *testing.T, log *slog.Logger, svc *service.TeleportProcess, phase string,
 ) {
 	t.Helper()
-	log.Infof("Triggering rotation: %s", phase)
-	err := svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	log.InfoContext(ctx, "Triggering rotation", "phase", phase)
+	err := svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		// only rotate Host CA as to avoid race condition serverside when
 		// multiple CAs are rotated at once and the database closes off.
 		Type:        types.HostCA,
@@ -189,23 +193,33 @@ func rotate( //nolint:unused // used in skipped test
 		TargetPhase: phase,
 	})
 	if err != nil {
-		log.WithError(err).Infof("Error occurred during triggering rotation: %s", phase)
+		log.InfoContext(
+			ctx,
+			"Error occurred during triggering rotation",
+			"phase", phase,
+			"error", err,
+		)
 	}
 	require.NoError(t, err)
-	log.Infof("Triggered rotation: %s", phase)
+	log.InfoContext(ctx, "Triggered rotation: %s", "phase", phase)
 }
 
-func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
-) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
+func setupServerForCARotationTest(
+	ctx context.Context,
+	log *slog.Logger,
+	t *testing.T,
+	wg *sync.WaitGroup,
+	//nolint:unused // used in skipped test
+) (*authclient.Client, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = log
+	cfg.Logger = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	svcC := make(chan *service.TeleportProcess)
 	wg.Add(1)
@@ -254,7 +268,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 		}
 	}()
 
-	return testhelpers.MakeDefaultAuthClient(t, log, fc), func() *service.TeleportProcess {
+	return testhelpers.MakeDefaultAuthClient(t, fc), func() *service.TeleportProcess {
 		activeSvcMu.Lock()
 		defer activeSvcMu.Unlock()
 		return activeSvc
@@ -274,11 +288,11 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// wg and context manage the cancellation of long running processes e.g
 	// teleport and tbot in the test.
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
-		log.Infof("Shutting down long running test processes..")
+		log.InfoContext(ctx, "Shutting down long running test processes..")
 		cancel()
 		wg.Wait()
 	})
@@ -286,7 +300,9 @@ func TestBot_Run_CARotation(t *testing.T) {
 	client, teleportProcess, fc := setupServerForCARotationTest(ctx, log, t, wg)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, client, "test", "access")
+	botParams, _ := testhelpers.MakeBot(
+		t, client, "test", "access",
+	)
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, nil,
 		testhelpers.DefaultBotConfigOpts{
 			UseAuthServer: true,
@@ -295,19 +311,30 @@ func TestBot_Run_CARotation(t *testing.T) {
 	)
 	b := New(botConfig, log)
 
+	resolver, err := reversetunnelclient.CachingResolver(
+		ctx,
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: b.cfg.AuthServer,
+			Insecure:  b.cfg.Insecure,
+		}),
+		nil /* clock */)
+	require.NoError(t, err, "creating tunnel resolver")
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		err := b.Run(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	// Allow time for bot to start running and watching for CA rotations
 	// TODO: We should modify the bot to emit events that may be useful...
 	time.Sleep(10 * time.Second)
+	facade := b.botIdentitySvc.facade
 
 	// fetch initial host cert
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)
-	initialCAs := [][]byte{}
+	var initialCAs [][]byte
 	copy(initialCAs, b.BotIdentity().TLSCACertsBytes)
 
 	// Begin rotating through all of the phases, testing the client after
@@ -316,24 +343,25 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// TODO: These sleeps allow the client time to rotate. They could be
 	// replaced if tbot emitted a CA rotation/renewal event.
 	time.Sleep(time.Second * 30)
-	_, err := clientForIdentity(ctx, log, botConfig, b.BotIdentity())
+
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
 	time.Sleep(time.Second * 30)
 	// Ensure both sets of CA certificates are now available locally
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 3)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
 	time.Sleep(time.Second * 30)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
 	time.Sleep(time.Second * 30)
-	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
+	_, err = clientForFacade(ctx, log, botConfig, facade, resolver)
 	require.NoError(t, err)
 
 	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)

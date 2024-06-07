@@ -158,7 +158,7 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 		_, err = cluster.GetClient()
 		assert.NoError(t, err, "cluster not yet available")
 	},
-		30*time.Second,
+		90*time.Second,
 		time.Second,
 		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)

@@ -39,7 +39,7 @@ import (
 // run as part of normal CI.
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentVersionControl,
+	teleport.ComponentKey: teleport.ComponentVersionControl,
 })
 
 // Visit uses the supplied visitor to aggregate release info from the github releases api.

@@ -29,6 +29,7 @@ import (
 	"github.com/microsoft/go-mssqldb/msdsn"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -133,8 +134,8 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		return nil, trace.Wrap(err)
 	}
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolSQLServer,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolSQLServer,
+		"name":                config.Name,
 	})
 	server := &TestServer{
 		cfg:      config,

@@ -64,7 +64,7 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, sp))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, sp))
 	default:
 		return nil, trace.BadParameter("unsupported SAML IdP service provider resource %T", sp)
 	}
@@ -92,9 +92,6 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)
 		}
@@ -104,24 +101,6 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported SAML IdP service provider resource version %q", h.Version)
-}
-
-// GenerateIdPServiceProviderFromFields takes `name` and `entityDescriptor` fields and returns a SAMLIdPServiceProvider.
-func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) (types.SAMLIdPServiceProvider, error) {
-	if len(name) == 0 {
-		return nil, trace.BadParameter("missing name")
-	}
-	if len(entityDescriptor) == 0 {
-		return nil, trace.BadParameter("missing entity descriptor")
-	}
-
-	var s types.SAMLIdPServiceProviderV1
-	s.SetName(name)
-	s.SetEntityDescriptor(entityDescriptor)
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &s, nil
 }
 
 // supportedACSBindings is the set of AssertionConsumerService bindings that teleport supports.
@@ -150,13 +129,15 @@ func ValidateAssertionConsumerService(acs saml.IndexedEndpoint) error {
 // or are using a non-https endpoint. We perform filtering rather than outright rejection because it is generally
 // expected that a service provider will successfully support a given ACS so long as they have at least one
 // compatible binding.
-func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor) error {
+func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 	var originalCount int
 	var filteredCount int
 	for i := range ed.SPSSODescriptors {
 		filtered := slices.DeleteFunc(ed.SPSSODescriptors[i].AssertionConsumerServices, func(acs saml.IndexedEndpoint) bool {
 			if err := ValidateAssertionConsumerService(acs); err != nil {
-				log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				if !quiet {
+					log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				}
 				return true
 			}
 

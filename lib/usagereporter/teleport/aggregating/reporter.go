@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -186,7 +187,10 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,
-			*usagereporter.ResourceHeartbeatEvent:
+			*usagereporter.ResourceHeartbeatEvent,
+			*usagereporter.UserCertificateIssuedEvent,
+			*usagereporter.BotJoinEvent,
+			*usagereporter.SPIFFESVIDIssuedEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -367,6 +371,20 @@ Ingest:
 		case *usagereporter.ResourceHeartbeatEvent:
 			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
+		case *usagereporter.SPIFFESVIDIssuedEvent:
+			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+		case *usagereporter.BotJoinEvent:
+			botUserName := machineidv1.BotResourceName(te.BotName)
+			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
+		case *usagereporter.UserCertificateIssuedEvent:
+			// Note: kind is poorly defined for this event type, so we'll assume
+			// unspecified even though non-bot users are almost certainly human.
+			kind := prehogv1alpha.UserKind_USER_KIND_UNSPECIFIED
+			if te.IsBot {
+				kind = prehogv1alpha.UserKind_USER_KIND_BOT
+			}
+
+			userRecord(te.UserName, kind).CertificatesIssued++
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -379,7 +397,7 @@ Ingest:
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
+		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -392,17 +410,16 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	for len(records) > 0 {
-		report, err := prepareUserActivityReport(r.clusterName, r.hostID, startTime, records)
-		if err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(records),
-			}).Error("Failed to prepare user activity report, dropping data.")
-			return
-		}
-		records = records[len(report.Records):]
+	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare user activity report, dropping data.")
+		return
+	}
 
+	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,

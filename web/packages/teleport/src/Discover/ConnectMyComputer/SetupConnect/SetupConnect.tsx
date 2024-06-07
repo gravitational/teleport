@@ -20,12 +20,15 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
-import { Platform, getPlatform } from 'design/platform';
+import { getPlatform } from 'design/platform';
 import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'shared/components/DownloadConnect/DownloadConnect';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -64,7 +67,8 @@ export function SetupConnect(
   const connectMyComputerDeepLink = makeDeepLinkWithSafeInput({
     proxyHost: cluster.publicURL,
     username,
-    path: Path.ConnectMyComputer,
+    path: '/connect_my_computer',
+    searchParams: {},
   });
   const [showHint, setShowHint] = useState(false);
 
@@ -319,64 +323,3 @@ export const usePollForConnectMyComputerNode = (args: {
 
   return { node, isPolling };
 };
-
-type DownloadLink = { text: string; url: string };
-
-const DownloadConnect = (props: { downloadLinks: Array<DownloadLink> }) => {
-  if (props.downloadLinks.length === 1) {
-    const downloadLink = props.downloadLinks[0];
-    return (
-      <ButtonSecondary as="a" href={downloadLink.url}>
-        Download Teleport Connect
-      </ButtonSecondary>
-    );
-  }
-
-  return (
-    <MenuButton buttonText="Download Teleport Connect">
-      {props.downloadLinks.map(link => (
-        <MenuItem key={link.url} as="a" href={link.url}>
-          {link.text}
-        </MenuItem>
-      ))}
-    </MenuButton>
-  );
-};
-
-function getConnectDownloadLinks(
-  platform: Platform,
-  proxyVersion: string
-): Array<DownloadLink> {
-  switch (platform) {
-    case Platform.Windows:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect Setup-${proxyVersion}.exe`,
-        },
-      ];
-    case Platform.macOS:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect-${proxyVersion}.dmg`,
-        },
-      ];
-    case Platform.Linux:
-      return [
-        {
-          text: 'DEB',
-          url: `https://cdn.teleport.dev/teleport-connect_${proxyVersion}_amd64.deb`,
-        },
-        {
-          text: 'RPM',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}.x86_64.rpm`,
-        },
-
-        {
-          text: 'tar.gz',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}-x64.tar.gz`,
-        },
-      ];
-  }
-}

@@ -25,8 +25,6 @@ export const isAbortError = (err: any): boolean => {
     return true;
   }
 
-  // handles Connect abort error (specifically gRPC cancel error)
-  // the error has only the message field that contains the following string:
-  // '1 CANCELLED: Cancelled on client'
-  return err instanceof Error && err.message?.includes('CANCELLED');
+  // handles Connect abort error (specifically gRPC cancel error), see TshdRpcError
+  return err?.code === 'CANCELLED';
 };

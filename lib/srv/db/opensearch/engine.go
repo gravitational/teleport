@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -147,7 +148,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
 		Clock:             e.Clock,
-		Session:           awsSession,
+		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
 		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
@@ -190,6 +191,11 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
 	msgFromClient.Inc()
 
+	if req.Body != nil {
+		// make sure we close the incoming request's body. ignore any close error.
+		defer req.Body.Close()
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	}
 	reqCopy, payload, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,11 +338,14 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint3
 
 // sendResponse sends the response back to the OpenSearch client.
 func (e *Engine) sendResponse(serverResponse *http.Response) error {
+	if serverResponse.Body != nil {
+		defer serverResponse.Body.Close()
+		serverResponse.Body = io.NopCloser(io.LimitReader(serverResponse.Body, teleport.MaxHTTPResponseSize))
+	}
 	payload, err := utils.GetAndReplaceResponseBody(serverResponse)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// serverResponse may be HTTP2 response, but we should reply with HTTP 1.1
 	clientResponse := &http.Response{
 		ProtoMajor:    1,

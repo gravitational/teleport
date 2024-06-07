@@ -170,12 +170,6 @@ var (
 		"kms:GenerateDataKey",
 		"kms:Decrypt",
 	}
-	// ec2Actions is a list of actions used for EC2 auto-discovery
-	ec2Actions = []string{
-		"ec2:DescribeInstances",
-		"ssm:GetCommandInvocation",
-		"ssm:SendCommand",
-	}
 	// stsActions is a list of actions used for assuming an AWS role.
 	stsActions = []string{
 		"sts:AssumeRole",
@@ -336,8 +330,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
 				SharedConfigState: awssession.SharedConfigEnable,
 				Config: aws.Config{
-					EC2MetadataEnableFallback: aws.Bool(false),
-					UseFIPSEndpoint:           useFIPSEndpoint,
+					UseFIPSEndpoint: useFIPSEndpoint,
 				},
 			})
 			if err != nil {
@@ -369,9 +362,8 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					}
 					session, err := awssession.NewSessionWithOptions(awssession.Options{
 						Config: aws.Config{
-							Region:                    &region,
-							EC2MetadataEnableFallback: aws.Bool(false),
-							UseFIPSEndpoint:           useFIPSEndpoint,
+							Region:          &region,
+							UseFIPSEndpoint: useFIPSEndpoint,
 						},
 						SharedConfigState: awssession.SharedConfigEnable,
 					})
@@ -666,13 +658,20 @@ func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
 // which is necessary to attach policies to the identity.
 // Rather than returning errors about why it failed, this message suggests a
 // simple fix for the user to specify a role or user to attach policies to.
-const failedToResolveAssumeRoleARN = "Running with assumed-role credentials. Policies cannot be attached to an assumed-role. Provide the name or ARN of the IAM user or role to attach policies to."
+func failedToResolveAssumeRoleARN(roleIdentity string) string {
+	return fmt.Sprintf("Running with assumed-role credentials for %s. "+
+		"Policies cannot be attached to an assumed-role. "+
+		"Provide the name or ARN of the IAM user (--atttach-to-user) or role (--atttach-to-role) to attach policies to. ",
+		roleIdentity)
+}
 
 // getRoleARNForAssumedRole attempts to resolve assumed-role credentials to
 // the underlying role ARN using IAM API.
 // This is necessary since the assumed-role ARN does not include the role path,
 // so we cannot reliably reconstruct the role ARN from the assumed-role ARN.
 func getRoleARNForAssumedRole(iamClient iamiface.IAMAPI, identity awslib.Identity) (awslib.Identity, error) {
+	failedToResolveAssumeRoleARN := failedToResolveAssumeRoleARN(identity.GetName())
+
 	roleOutput, err := iamClient.GetRole(&iam.GetRoleInput{RoleName: aws.String(identity.GetName())})
 	if err != nil || roleOutput == nil || roleOutput.Role == nil || roleOutput.Role.Arn == nil {
 		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
@@ -801,7 +800,7 @@ func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetCo
 			ssmCreator := awsSSMDocumentCreator{
 				ssm:      ssm[region],
 				Name:     matcher.SSM.DocumentName,
-				Contents: EC2DiscoverySSMDocument(proxyAddr),
+				Contents: awslib.EC2DiscoverySSMDocument(proxyAddr),
 			}
 			creators = append(creators, &ssmCreator)
 		}
@@ -1011,11 +1010,7 @@ func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error)
 // EC2 instance auto-discovery.
 func buildEC2AutoDiscoveryStatements() []*awslib.Statement {
 	return []*awslib.Statement{
-		{
-			Effect:    awslib.EffectAllow,
-			Actions:   ec2Actions,
-			Resources: []string{"*"},
-		},
+		awslib.StatementForEC2SSMAutoDiscover(),
 	}
 }
 

@@ -20,6 +20,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
@@ -57,7 +58,7 @@ export default function useReAuthenticate(props: Props) {
 
     if ('onMfaResponse' in props) {
       auth
-        .getWebauthnResponse()
+        .getWebauthnResponse(props.challengeScope)
         .then(webauthnResponse =>
           props.onMfaResponse({ webauthn_response: webauthnResponse })
         )
@@ -103,7 +104,7 @@ export default function useReAuthenticate(props: Props) {
 const defaultActionText = 'performing this action';
 
 type BaseProps = {
-  onClose: () => void;
+  onClose?: () => void;
   /**
    * The text that will be appended to the text in the re-authentication dialog.
    *
@@ -121,6 +122,10 @@ type BaseProps = {
 // authentication has been done at this point.
 type MfaResponseProps = BaseProps & {
   onMfaResponse(res: MfaAuthnResponse): void;
+  /**
+   * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
+   */
+  challengeScope: MfaChallengeScope;
   onAuthenticated?: never;
 };
 
@@ -131,6 +136,7 @@ type MfaResponseProps = BaseProps & {
 type DefaultProps = BaseProps & {
   onAuthenticated(privilegeTokenId: string): void;
   onMfaResponse?: never;
+  challengeScope?: never;
 };
 
 export type Props = MfaResponseProps | DefaultProps;

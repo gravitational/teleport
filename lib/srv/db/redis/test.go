@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -128,8 +129,8 @@ func NewTestServer(t testing.TB, config common.TestServerConfig, opts ...TestSer
 		return nil, trace.Wrap(err)
 	}
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolRedis,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolRedis,
+		"name":                config.Name,
 	})
 	server := &TestServer{
 		cfg: config,

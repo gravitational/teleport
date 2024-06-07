@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
+import "google/protobuf/duration.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
 // WorkloadIdentityService provides the signing of workload identity documents.
@@ -28,8 +30,8 @@ service WorkloadIdentityService {
 
 // The request for an individual x509 SVID.
 message SVIDRequest {
-  // A PEM wrapped PKIX, ASN.1 DER encoded public key that should be included
-  // in the x509 SVID.
+  // A PKIX, ASN.1 DER encoded public key that should be included in the x509
+  // SVID.
   // Required.
   bytes public_key = 1;
   // The path that should be included in the SPIFFE ID.
@@ -46,11 +48,16 @@ message SVIDRequest {
   // user configured and are sent back to the actual workload.
   // Optional.
   string hint = 5;
+  // The TTL to use for the x509 SVID. A maximum value is enforced on this
+  // field. Callers should inspect the returned cert to determine if their
+  // requested TTL has been met, and if not, adjust their behaviour. If not
+  // supplied, the default TTL will be the maximum value.
+  google.protobuf.Duration ttl = 6;
 }
 
 // The generated x509 SVID.
 message SVIDResponse {
-  // The signed x509 SVID.
+  // A ASN.1 DER encoded x509 SVID.
   bytes certificate = 1;
   // The full SPIFFE ID that was included in the x509 SVID.
   string spiffe_id = 2;

@@ -29,14 +29,14 @@ import (
 )
 
 // NewKubeCLICommand creates CLI commands for kube gateways.
-func NewKubeCLICommand(g gateway.Gateway) (*exec.Cmd, error) {
+func NewKubeCLICommand(g gateway.Gateway) (Cmds, error) {
 	kube, err := gateway.AsKube(g)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return Cmds{}, trace.Wrap(err)
 	}
 
 	// Use kubectl version as placeholders. Only env should be used.
 	cmd := exec.Command("kubectl", "version")
 	cmd.Env = []string{fmt.Sprintf("%v=%v", teleport.EnvKubeConfig, kube.KubeconfigPath())}
-	return cmd, nil
+	return Cmds{Exec: cmd, Preview: cmd}, nil
 }

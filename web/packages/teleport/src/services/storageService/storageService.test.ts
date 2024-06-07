@@ -57,4 +57,13 @@ describe('localStorage', () => {
     ls.clear();
     expect(localStorage).toHaveLength(0);
   });
+
+  test('parses JSON configuration values', () => {
+    localStorage.setItem('key1', '{"foo": "bar"}');
+    localStorage.setItem('key2', 'true');
+
+    expect(ls.getParsedJSONValue('key1', null)).toEqual({ foo: 'bar' });
+    expect(ls.getParsedJSONValue('key2', null)).toBe(true);
+    expect(ls.getParsedJSONValue('not-a-key', 'default')).toBe('default');
+  });
 });

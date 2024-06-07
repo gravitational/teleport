@@ -51,6 +51,32 @@ type PTYReqParams struct {
 	Modes string
 }
 
+// ForwardedTCPIPRequest specifies parameters for opening a port forwarding
+// channel from the server.
+type ForwardedTCPIPRequest struct {
+	Addr     string
+	Port     uint32
+	OrigAddr string
+	OrigPort uint32
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (req *ForwardedTCPIPRequest) CheckAndSetDefaults() error {
+	if req.Addr == "" {
+		return trace.BadParameter("missing field Addr")
+	}
+	if req.Port == 0 {
+		return trace.BadParameter("missing field Port")
+	}
+	if req.OrigAddr == "" {
+		return trace.BadParameter("missing field OrigAddr")
+	}
+	if req.OrigPort == 0 {
+		return trace.BadParameter("missing field OrigPort")
+	}
+	return nil
+}
+
 // TerminalModes converts encoded terminal modes into a ssh.TerminalModes map.
 // The encoding is described in: https://tools.ietf.org/html/rfc4254#section-8
 //

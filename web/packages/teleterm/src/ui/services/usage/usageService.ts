@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_pb';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
-import {
-  Cluster,
-  ReportUsageEventRequest,
-  TshClient,
-} from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';
@@ -30,15 +30,29 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 type PrehogEventReq = Omit<
-  ReportUsageEventRequest['prehogReq'],
+  SubmitConnectEventRequest,
   'distinctId' | 'timestamp'
 >;
+
+/**
+ * Origin denotes which part of Connect UI was used to access a resource.
+ *
+ * 'vnet' is a special case this signals that a resource was opened through means other than Connect
+ * UI itself. Either the user copied the address from Connect or they deduced the name from seeing
+ * other VNet addresses, or perhaps the address is saved in some other app or source code.
+ */
+type Origin = DocumentOrigin | 'vnet';
+/**
+ * AccessThrough describes whether a resource was accessed by speaking to the proxy service
+ * directly, through a local proxy or through VNet.
+ */
+type AccessThrough = 'proxy_service' | 'local_proxy' | 'vnet';
 
 export class UsageService {
   private logger = new Logger('UsageService');
 
   constructor(
-    private tshClient: TshClient,
+    private tshClient: TshdClient,
     private configService: ConfigService,
     private notificationsService: NotificationsService,
     // `findCluster` function - it is a workaround that allows to use `UsageEventService` in `ClustersService`.
@@ -59,23 +73,43 @@ export class UsageService {
     }
     const { arch, platform, osVersion, appVersion } = this.runtimeSettings;
     this.reportEvent(clusterProperties.authClusterId, {
-      clusterLogin: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        connectorType,
-        arch,
-        os: platform,
-        osVersion,
-        appVersion,
+      event: {
+        oneofKind: 'clusterLogin',
+        clusterLogin: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          connectorType,
+          arch,
+          os: platform,
+          osVersion,
+          appVersion,
+        },
       },
     });
   }
 
-  captureProtocolUse(
-    uri: ClusterOrResourceUri,
-    protocol: 'ssh' | 'kube' | 'db',
-    origin: DocumentOrigin
-  ): void {
+  captureProtocolUse({
+    uri,
+    protocol,
+    origin,
+    accessThrough,
+  }: {
+    /**
+     * uri is used to find details of the root cluster. As such, it can be URI of any resource
+     * belonging to a root cluster or one of its leaves.
+     */
+    uri: ClusterOrResourceUri;
+    protocol: 'ssh' | 'kube' | 'db' | 'app';
+    /**
+     * origin denotes which part of Connect UI was used to access a resource.
+     */
+    origin: Origin;
+    /**
+     * accessThrough describes whether a resource was accessed by speaking to the proxy service
+     * directly, through a local proxy or through VNet.
+     */
+    accessThrough: AccessThrough;
+  }): void {
     const clusterProperties = this.getClusterProperties(uri);
     if (!clusterProperties) {
       this.logger.warn(
@@ -84,11 +118,15 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      protocolUse: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        protocol,
-        origin,
+      event: {
+        oneofKind: 'protocolUse',
+        protocolUse: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          protocol,
+          origin,
+          accessThrough,
+        },
       },
     });
   }
@@ -105,10 +143,13 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestCreate: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        kind,
+      event: {
+        oneofKind: 'accessRequestCreate',
+        accessRequestCreate: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          kind,
+        },
       },
     });
   }
@@ -122,9 +163,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestReview: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'accessRequestReview',
+        accessRequestReview: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -138,9 +182,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestAssumeRole: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'accessRequestAssumeRole',
+        accessRequestAssumeRole: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -157,18 +204,24 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      fileTransferRun: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        isUpload,
+      event: {
+        oneofKind: 'fileTransferRun',
+        fileTransferRun: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          isUpload,
+        },
       },
     });
   }
 
   captureUserJobRoleUpdate(jobRole: string): void {
     this.reportNonAnonymizedEvent({
-      userJobRoleUpdate: {
-        jobRole,
+      event: {
+        oneofKind: 'userJobRoleUpdate',
+        userJobRoleUpdate: {
+          jobRole,
+        },
       },
     });
   }
@@ -185,12 +238,16 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerSetup: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        success: properties.success,
-        failedStep:
-          (properties.success === false && properties.failedStep) || undefined,
+      event: {
+        oneofKind: 'connectMyComputerSetup',
+        connectMyComputerSetup: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          success: properties.success,
+          failedStep:
+            (properties.success === false && properties.failedStep) ||
+            undefined,
+        },
       },
     });
   }
@@ -204,9 +261,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerAgentStart: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'connectMyComputerAgentStart',
+        connectMyComputerAgentStart: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -232,7 +292,7 @@ export class UsageService {
         authClusterId,
         prehogReq: {
           distinctId: this.runtimeSettings.installationId,
-          timestamp: new Date(),
+          timestamp: Timestamp.now(),
           ...prehogEventReq,
         },
       });

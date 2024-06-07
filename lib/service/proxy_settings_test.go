@@ -27,14 +27,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type accessPointMock struct{}
 
 // GetClusterNetworkingConfig returns a cluster config.
-func (a *accessPointMock) GetClusterNetworkingConfig(_ context.Context, _ ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (a *accessPointMock) GetClusterNetworkingConfig(_ context.Context) (types.ClusterNetworkingConfig, error) {
 	return &types.ClusterNetworkingConfigV2{
 		Spec: types.ClusterNetworkingConfigSpecV2{
 			RoutingStrategy: types.RoutingStrategy_MOST_RECENT,

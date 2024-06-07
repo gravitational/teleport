@@ -39,10 +39,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -65,7 +65,7 @@ type SrvCtx struct {
 	signer     ssh.Signer
 	server     *auth.TestServer
 	clock      clockwork.FakeClock
-	nodeClient *auth.Client
+	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
 	wtmpPath   string
@@ -315,7 +315,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
-		[]ssh.Signer{s.signer},
+		sshutils.StaticHostSigners(s.signer),
 		s.nodeClient,
 		nodeDir,
 		"",
@@ -324,7 +324,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
-		regular.SetShell("/bin/sh"),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
@@ -336,7 +335,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			}, nil,
 		),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),

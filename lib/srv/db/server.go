@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -59,7 +61,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -76,6 +80,7 @@ func init() {
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
 }
 
 // Config is the configuration for a database proxy server.
@@ -85,9 +90,9 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.DatabaseAccessPoint
+	AccessPoint authclient.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// NewAudit allows to override audit logger in tests.
@@ -382,7 +387,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
+		log:              logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
@@ -615,13 +620,12 @@ func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
 	defer s.mu.RUnlock()
 	// don't call s.getProxiedDatabases() as this will call RLock and
 	// potentially deadlock.
-	for _, db := range s.proxiedDatabases {
-		if db.GetName() == name {
-			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
-		}
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return nil, trace.NotFound("%q not found among registered databases: %v",
+			name, s.proxiedDatabases)
 	}
-	return nil, trace.NotFound("%q not found among registered databases: %v",
-		name, s.proxiedDatabases)
+	return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
 }
 
 // copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -893,16 +897,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	var errors []error
+	var errs []error
 	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
 		<-ctx.Done()
 
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			errors = append(errors, err)
+		if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			errs = append(errs, err)
 		}
 	}
 
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(errs...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -937,7 +941,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
-	err := tlsConn.Handshake()
+	err := tlsConn.HandshakeContext(s.closeContext)
 	if err != nil {
 		log.WithError(err).Error("Failed to perform TLS handshake.")
 		return
@@ -1103,6 +1107,15 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
+		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			db, found := s.proxiedDatabases[name]
+			if !found {
+				return trace.NotFound("%q not found among registered databases", name)
+			}
+			return trace.Wrap(doUpdate(db))
+		},
 	})
 }
 
@@ -1173,7 +1186,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 	// Try to extract the engine version for AWS metadata labels.
 	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		version := discoverycommon.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
 			return nil

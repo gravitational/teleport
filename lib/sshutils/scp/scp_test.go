@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,7 +48,7 @@ func TestSend(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logrus.WithField(trace.Component, "t:send")
+	logger := logrus.WithField(teleport.ComponentKey, "t:send")
 	testCases := []struct {
 		desc   string
 		config Config
@@ -111,7 +112,7 @@ func TestReceive(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logrus.WithField(trace.Component, "t:recv")
+	logger := logrus.WithField(teleport.ComponentKey, "t:recv")
 	testCases := []struct {
 		desc       string
 		config     Config

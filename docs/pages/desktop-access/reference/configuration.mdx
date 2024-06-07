@@ -43,3 +43,26 @@ desktop sessions are performed over this tunnel. To enable this mode, ensure
 that `windows_desktop_service.listen_addr` is *unset*, and point
 `teleport.proxy_server` at a Teleport Proxy.
 
+## Screen size
+
+By default, Teleport will set the screen size of the remote desktop session
+based on the size of your browser window. In some cases, you may wish to
+configure specific hosts to use a specific screen size. To do this, set the
+`screen_size` attribute on the `windows_desktop` resource:
+
+```yaml
+kind: windows_desktop
+metadata:
+  name: fixed-screen-size
+spec:
+  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
+  addr: 192.168.1.153:3389
+  non_ad: true
+
+  # Optional - ensures that all sessions use the same screen size,
+  # no matter what the size of the browser window is.
+  # Leave blank to use the size of the browser window.
+  screen_size:
+    width: 1024
+    height: 768
+```

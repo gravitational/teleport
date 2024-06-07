@@ -31,7 +31,7 @@ func GetSortByFromString(sortStr string) SortBy {
 	vals := strings.Split(sortStr, ":")
 	if vals[0] != "" {
 		sortBy.Field = vals[0]
-		if len(vals) > 1 && vals[1] == "desc" {
+		if len(vals) > 1 && strings.ToLower(vals[1]) == "desc" {
 			sortBy.IsDesc = true
 		}
 	}

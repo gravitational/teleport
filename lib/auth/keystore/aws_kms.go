@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -52,13 +54,20 @@ const (
 	pendingKeyTimeout           = 30 * time.Second
 )
 
+type CloudClientProvider interface {
+	// GetAWSSTSClient returns AWS STS client for the specified region.
+	GetAWSSTSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (stsiface.STSAPI, error)
+	// GetAWSKMSClient returns AWS KMS client for the specified region.
+	GetAWSKMSClient(ctx context.Context, region string, opts ...cloud.AWSOptionsFn) (kmsiface.KMSAPI, error)
+}
+
 // AWSKMSConfig holds configuration parameters specific to AWS KMS keystores.
 type AWSKMSConfig struct {
 	Cluster    string
 	AWSAccount string
 	AWSRegion  string
 
-	CloudClients cloud.Clients
+	CloudClients CloudClientProvider
 	clock        clockwork.Clock
 }
 
@@ -75,11 +84,7 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("AWS region is required")
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
+		return trace.BadParameter("CloudClients is required")
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -121,6 +126,12 @@ func newAWSKMSKeystore(ctx context.Context, cfg *AWSKMSConfig, logger logrus.Fie
 		clock:      cfg.clock,
 		logger:     logger,
 	}, nil
+}
+
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (a *awsKMSKeystore) keyTypeDescription() string {
+	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
 // generateRSA creates a new RSA private key and returns its identifier and
@@ -298,7 +309,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 
 // DeleteUnusedKeys deletes all keys readable from the AWS KMS account and
 // region if they:
-// 1. Are not included in the argument activeKys
+// 1. Are not included in the argument activeKeys
 // 2. Are labeled in AWS KMS as being created by this Teleport cluster
 // 3. Were not created in the past 5 minutes.
 //
@@ -310,7 +321,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // 1. A different auth server (auth2) creates a new key in GCP KMS
 // 2. This function (running on auth1) deletes that new key
 // 3. auth2 saves the id of this deleted key to the backend CA
-func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	activeAWSKMSKeys := make(map[string]int)
 	for _, activeKey := range activeKeys {
 		keyIsRelevent, err := a.canSignWithKey(ctx, activeKey, keyType(activeKey))
@@ -381,7 +392,7 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			a.logger.WithFields(logrus.Fields{
 				"key_arn":   keyARN,
 				"key_state": keyState,
-			}).Info("DeleteUnusedKeys skipping AWS KMS key which is not in enabled state.")
+			}).Info("deleteUnusedKeys skipping AWS KMS key which is not in enabled state.")
 			return nil
 		}
 		creationDate := aws.TimeValue(describeOutput.KeyMetadata.CreationDate)
@@ -391,7 +402,7 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// the backend CA yet (which is why they don't appear in activeKeys).
 			a.logger.WithFields(logrus.Fields{
 				"key_arn": keyARN,
-			}).Info("DeleteUnusedKeys skipping AWS KMS key which was created in the past 5 minutes.")
+			}).Info("deleteUnusedKeys skipping AWS KMS key which was created in the past 5 minutes.")
 			return nil
 		}
 

@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,7 +76,7 @@ func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaServic
 	}
 
 	return &OktaService{
-		log:           logrus.WithFields(logrus.Fields{trace.Component: "okta:local-service"}),
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "okta:local-service"}),
 		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,

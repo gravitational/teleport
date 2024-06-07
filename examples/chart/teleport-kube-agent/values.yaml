@@ -172,7 +172,7 @@ appResources: []
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../database-access/guides/rds.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -212,7 +212,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../database-access/guides/azure-postgres-mysql.mdx#step-46-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
@@ -381,9 +381,13 @@ databaseResources: []
 # The Discovery Service is enabled when the agent `roles` contains "discovery".
 # The Discovery service automatically detects Kubernetes Services and configures
 # the agent to provide access to them. See [the Kubernetes App Discovery
-# documentation](../../../application-access/enroll-kubernetes-applications/architecture.mdx)
+# documentation](../../../auto-discovery/kubernetes-applications/architecture.mdx)
 # for more details.
 #
+# <Admonition type="note">
+# The Discovery mechanism ignores Kubernetes services running in the `kube-system` and
+# `kube-public` namespaces.
+# </Admonition>
 # The default value will try to discover all apps running in Kubernetes.
 # The discovery can be restricted through this value. For example:
 #
@@ -579,9 +583,45 @@ updater:
     # Account name. When unset, it defaults to `<kube agent sa name>-updater`
     name: ""
 
+  # updater.pullCredentials(string) -- configures how the updater attempts to
+  # get the image pull credentials used to validate the image signature.
+  #
+  # This is not required when pulling images from official public Teleport
+  # registries (chart's default).
+  #
+  # Supported values are `amazon`, `google`, `docker` and `none`.
+  pullCredentials: ""
+
   # updater.extraArgs(list) -- contains additional arguments to pass to the updater
   # binary.
   extraArgs: []
+
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
 
 # existingDataVolume(string) -- is the name of an existing Kubernetes Persistent
 # Volume that should be mounted at `/var/lib/teleport`.
@@ -774,7 +814,7 @@ adminClusterRoleBinding:
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.
@@ -799,7 +839,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   to pull the image.
 #
 #   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic upgrades by default.
+#   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
 # Since version 13, hardened distroless images are used by default.
@@ -1154,29 +1194,37 @@ resources: {}
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
 #
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+#
 # To unset the security context, set it to `null` or `~`.
 initSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # securityContext(object) -- sets the container security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
+#
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 #
 # To unset the security context, set it to `null` or `~`.
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)

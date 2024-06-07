@@ -34,10 +34,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 type loginRuleTestingPrimitives struct {
 	setup *TestSetup
+	reconcilers.ResourceWithoutLabelsAdapter[*resourcesv1.LoginRuleResource]
 }
 
 func (l *loginRuleTestingPrimitives) Init(setup *TestSetup) {

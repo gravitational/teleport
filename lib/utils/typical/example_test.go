@@ -31,7 +31,7 @@ type expressionEnv struct {
 }
 
 func Example() {
-	parser, err := typical.NewParser[expressionEnv, bool](typical.ParserSpec{
+	parser, err := typical.NewParser[expressionEnv, bool](typical.ParserSpec[expressionEnv]{
 		Variables: map[string]typical.Variable{
 			"traits": typical.DynamicVariable(func(e expressionEnv) (map[string][]string, error) {
 				return e.traits, nil

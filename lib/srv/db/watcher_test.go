@@ -289,7 +289,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	// Test an AWS fetcher. Note that status AWS can be set by Metadata
 	// service.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
-	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
+	redshiftServerlessDatabase, err := discovery.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
@@ -343,7 +343,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 		sort.Sort(d)
 		require.Equal(t, len(d), len(databases))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
@@ -405,7 +405,7 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 			FullyQualifiedDomainName: to.Ptr("localhost"),
 		},
 	}
-	database, err := services.NewDatabaseFromAzureSQLServer(server)
+	database, err := discovery.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
 	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database

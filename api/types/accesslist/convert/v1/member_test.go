@@ -93,14 +93,6 @@ func TestMemberFromProtoNils(t *testing.T) {
 			mutate:   func(m *accesslistv1.Member) { m.Spec.AddedBy = "" },
 			checkErr: require.Error,
 		},
-		{
-			name:     "membership",
-			mutate:   func(m *accesslistv1.Member) { m.Spec.Membership = "" },
-			checkErr: require.NoError,
-			checkVal: func(t *testing.T, m *accesslist.AccessListMember) {
-				require.Equal(t, accesslist.InclusionExplicit, m.Spec.Membership)
-			},
-		},
 	}
 
 	for _, tt := range testCases {

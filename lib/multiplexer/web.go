@@ -21,6 +21,7 @@ package multiplexer
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -65,7 +67,7 @@ func NewWebListener(cfg WebListenerConfig) (*WebListener, error) {
 	}
 	context, cancel := context.WithCancel(context.Background())
 	return &WebListener{
-		log:         logrus.WithField(trace.Component, "mxweb"),
+		log:         logrus.WithField(teleport.ComponentKey, "mxweb"),
 		cfg:         cfg,
 		webListener: newListener(context, cfg.Listener.Addr()),
 		dbListener:  newListener(context, cfg.Listener.Addr()),
@@ -135,8 +137,8 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 		return
 	}
 
-	if err := conn.Handshake(); err != nil {
-		if trace.Unwrap(err) != io.EOF {
+	if err := conn.HandshakeContext(l.context); err != nil {
+		if !errors.Is(trace.Unwrap(err), io.EOF) {
 			l.log.WithFields(logrus.Fields{
 				"src_addr": conn.RemoteAddr(),
 				"dst_addr": conn.LocalAddr(),

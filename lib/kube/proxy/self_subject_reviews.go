@@ -241,7 +241,8 @@ func parseSelfSubjectAccessReviewRequest(decoder runtime.Decoder, req *http.Requ
 	req.Body.Close()
 
 	req.Body = io.NopCloser(bytes.NewReader(payload))
-	obj, err := decodeAndSetGVK(decoder, payload)
+	gvk := authv1.SchemeGroupVersion.WithKind("SelfSubjectAccessReview")
+	obj, err := decodeAndSetGVK(decoder, payload, &gvk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

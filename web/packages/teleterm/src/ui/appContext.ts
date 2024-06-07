@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { debounce } from 'shared/utils/highbar';
+
 import {
   MainProcessClient,
   ElectronGlobals,
@@ -38,8 +40,8 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshClient } from 'teleterm/services/tshd/types';
-import { IAppContext } from 'teleterm/ui/types';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
+import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
@@ -60,7 +62,8 @@ export default class AppContext implements IAppContext {
   connectionTracker: ConnectionTrackerService;
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
-  tshd: TshClient;
+  tshd: TshdClient;
+  vnet: VnetClient;
   /**
    * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
    * that's going to be called every time a client makes a particular RPC to the tshd events
@@ -79,11 +82,15 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  private _unexpectedVnetShutdownListener:
+    | UnexpectedVnetShutdownListener
+    | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.logger = new Logger('AppContext');
     this.tshd = tshClient;
+    this.vnet = config.vnetClient;
     this.setupTshdEventContextBridgeService =
       config.setupTshdEventContextBridgeService;
     this.mainProcessClient = mainProcessClient;
@@ -166,8 +173,37 @@ export default class AppContext implements IAppContext {
     );
 
     this.subscribeToDeepLinkLaunch();
+    this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+  }
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function which
+   * removes the listener.
+   */
+  addUnexpectedVnetShutdownListener(
+    listener: UnexpectedVnetShutdownListener
+  ): () => void {
+    this._unexpectedVnetShutdownListener = listener;
+
+    return () => {
+      this._unexpectedVnetShutdownListener = undefined;
+    };
+  }
+
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  // To force callsites to use addUnexpectedVnetShutdownListener instead of setting the property
+  // directly on appContext, we use a getter which exposes a private property.
+  get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
+    return this._unexpectedVnetShutdownListener;
   }
 
   private subscribeToDeepLinkLaunch() {
@@ -185,5 +221,24 @@ export default class AppContext implements IAppContext {
         });
       };
     }
+  }
+
+  private notifyMainProcessAboutClusterListChanges() {
+    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
+    // than one notification per frame. The main process doesn't need to be notified absolutely
+    // immediately after a change in the cluster list.
+    //
+    // The clusters map in ClustersService gets updated a bunch of times during the start of the
+    // app. After each update, the renderer tells the main process to refresh the list. The main
+    // process sends a request to list root clusters and cancels any pending ones. Debouncing here
+    // helps to minimize those cancellations.
+    const refreshClusterList = debounce(
+      this.mainProcessClient.refreshClusterList,
+      16
+    );
+    this.clustersService.subscribeWithSelector(
+      state => state.clusters,
+      refreshClusterList
+    );
   }
 }

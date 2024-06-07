@@ -20,10 +20,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,9 +40,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -271,6 +273,9 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+					return fakeClientCache{}, nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -449,6 +454,9 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+					return fakeClientCache{}, nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -467,7 +475,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				return tt.fnErrs[fnCallCount-1]
 			}
 
-			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
+			err = daemon.RetryWithRelogin(ctx, &api.ReloginRequest{}, fn)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
@@ -499,6 +507,9 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+			return fakeClientCache{}, nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -611,7 +622,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if err != grpc.ErrServerStopped {
+		if !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
 	})
@@ -647,6 +658,9 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
+			return fakeClientCache{}, nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -654,7 +668,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		name         string
 		inputGateway gateway.Gateway
 		checkError   require.ErrorAssertionFunc
-		checkCmd     func(*testing.T, *exec.Cmd)
+		checkCmds    func(*testing.T, cmd.Cmds)
 	}{
 		{
 			name: "unsupported gateway",
@@ -662,7 +676,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 				targetURI: uri.NewClusterURI("profile").AppendServer("server"),
 			},
 			checkError: require.Error,
-			checkCmd:   func(*testing.T, *exec.Cmd) {},
+			checkCmds:  func(*testing.T, cmd.Cmds) {},
 		},
 		{
 			name: "database gateway",
@@ -671,10 +685,12 @@ func TestGetGatewayCLICommand(t *testing.T) {
 				subresourceName: "subresource-name",
 			},
 			checkError: require.NoError,
-			checkCmd: func(t *testing.T, cmd *exec.Cmd) {
+			checkCmds: func(t *testing.T, cmds cmd.Cmds) {
 				t.Helper()
-				require.Len(t, cmd.Args, 2)
-				require.Contains(t, cmd.Args[1], "subresource-name")
+				require.Len(t, cmds.Exec.Args, 2)
+				require.Contains(t, cmds.Exec.Args[1], "subresource-name")
+				require.Len(t, cmds.Preview.Args, 2)
+				require.Contains(t, cmds.Preview.Args[1], "subresource-name")
 			},
 		},
 		{
@@ -683,18 +699,19 @@ func TestGetGatewayCLICommand(t *testing.T) {
 				targetURI: uri.NewClusterURI("profile").AppendKube("kube"),
 			},
 			checkError: require.NoError,
-			checkCmd: func(t *testing.T, cmd *exec.Cmd) {
+			checkCmds: func(t *testing.T, cmds cmd.Cmds) {
 				t.Helper()
-				require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmd.Env)
+				require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmds.Exec.Env)
+				require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmds.Preview.Env)
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd, err := daemon.GetGatewayCLICommand(test.inputGateway)
+			cmds, err := daemon.GetGatewayCLICommand(test.inputGateway)
 			test.checkError(t, err)
-			test.checkCmd(t, cmd)
+			test.checkCmds(t, cmds)
 		})
 	}
 }
@@ -722,4 +739,12 @@ type fakeStorage struct {
 
 func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	return &clusters.Cluster{}, &client.TeleportClient{}, nil
+}
+
+type fakeClientCache struct {
+	ClientCache
+}
+
+func (f fakeClientCache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+	return &client.ClusterClient{}, nil
 }

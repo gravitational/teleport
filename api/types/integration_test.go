@@ -28,22 +28,38 @@ import (
 )
 
 func TestIntegrationJSONMarshalCycle(t *testing.T) {
-	ig, err := NewIntegrationAWSOIDC(
+	aws, err := NewIntegrationAWSOIDC(
 		Metadata{Name: "some-integration"},
 		&AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/DevTeams",
+			RoleARN:     "arn:aws:iam::123456789012:role/DevTeams",
+			IssuerS3URI: "s3://my-bucket/my-prefix",
 		},
 	)
 	require.NoError(t, err)
 
-	bs, err := json.Marshal(ig)
+	azure, err := NewIntegrationAzureOIDC(
+		Metadata{Name: "some-integration"},
+		&AzureOIDCIntegrationSpecV1{
+			TenantID: "foo-bar",
+			ClientID: "baz-quux",
+		},
+	)
 	require.NoError(t, err)
 
-	var ig2 IntegrationV1
-	err = json.Unmarshal(bs, &ig2)
-	require.NoError(t, err)
+	allIntegrations := []*IntegrationV1{aws, azure}
 
-	require.Equal(t, ig, &ig2)
+	for _, ig := range allIntegrations {
+		t.Run(ig.SubKind, func(t *testing.T) {
+			bs, err := json.Marshal(ig)
+			require.NoError(t, err)
+
+			var ig2 IntegrationV1
+			err = json.Unmarshal(bs, &ig2)
+			require.NoError(t, err)
+
+			require.Equal(t, &ig2, ig)
+		})
+	}
 }
 
 func TestIntegrationCheckAndSetDefaults(t *testing.T) {
@@ -58,14 +74,15 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 		expectedErrorIs     func(error) bool
 	}{
 		{
-			name: "valid",
+			name: "aws-oidc: valid",
 			integration: func(name string) (*IntegrationV1, error) {
 				return NewIntegrationAWSOIDC(
 					Metadata{
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN: "some arn role",
+						RoleARN:     "some arn role",
+						IssuerS3URI: "s3://my-issuer/my-prefix",
 					},
 				)
 			},
@@ -83,7 +100,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					Spec: IntegrationSpecV1{
 						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
-								RoleARN: "some arn role",
+								RoleARN:     "some arn role",
+								IssuerS3URI: "s3://my-issuer/my-prefix",
 							},
 						},
 					},
@@ -101,9 +119,37 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					nil,
 				)
 			},
-			expectedErrorIs: func(err error) bool {
-				return trace.IsBadParameter(err)
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws-oidc: error when issuer is not a valid url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:     "some-role",
+						IssuerS3URI: "not-a-url",
+					},
+				)
 			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws-oidc: issuer is not an s3 url",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:     "some-role",
+						IssuerS3URI: "http://localhost:8080",
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
 		},
 		{
 			name: "aws-oidc: error when no role is provided",
@@ -115,9 +161,71 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					&AWSOIDCIntegrationSpecV1{},
 				)
 			},
-			expectedErrorIs: func(err error) bool {
-				return trace.IsBadParameter(err)
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "azure-oidc: valid",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAzureOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AzureOIDCIntegrationSpecV1{
+						ClientID: "baz-quux",
+						TenantID: "foo-bar",
+					},
+				)
 			},
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindAzureOIDC,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_AzureOIDC{
+							AzureOIDC: &AzureOIDCIntegrationSpecV1{
+								ClientID: "baz-quux",
+								TenantID: "foo-bar",
+							},
+						},
+					},
+				}
+			},
+			expectedErrorIs: noErrorFunc,
+		},
+		{
+			name: "azure-oidc: error when no tenant id is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAzureOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AzureOIDCIntegrationSpecV1{
+						ClientID: "baz-quux",
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "azure-oidc: error when no client id is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAzureOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AzureOIDCIntegrationSpecV1{
+						TenantID: "foo-bar",
+					},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,5 +1,5 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
-{{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName -}}
+{{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName $proxy.ingress.enabled -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
 {{- if and $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
@@ -13,7 +13,11 @@ kind: Deployment
 metadata:
   name: {{ .Release.Name }}-proxy
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.deployment }}
+    {{- toYaml $proxy.extraLabels.deployment | nindent 4 }}
+    {{- end }}
 {{- if $proxy.annotations.deployment }}
   annotations: {{- toYaml $proxy.annotations.deployment | nindent 4 }}
 {{- end }}
@@ -49,7 +53,11 @@ spec:
 {{- if $proxy.annotations.pod }}
   {{- toYaml $proxy.annotations.pod | nindent 8 }}
 {{- end }}
-      labels: {{- include "teleport-cluster.proxy.labels" . | nindent 8 }}
+      labels:
+        {{- include "teleport-cluster.proxy.labels" . | nindent 8 }}
+        {{- if $proxy.extraLabels.pod }}
+        {{- toYaml $proxy.extraLabels.pod | nindent 8 }}
+        {{- end }}
     spec:
 {{- if $proxy.nodeSelector }}
       nodeSelector: {{- toYaml $proxy.nodeSelector | nindent 8 }}
@@ -108,7 +116,18 @@ spec:
             - teleport
             - wait
             - no-resolve
-            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.{{ include "teleport-cluster.clusterDomain" . }}'
+# propagating through the limits from the main resources section would double the requested amounts
+# and may prevent scheduling on the cluster. as such, we hardcode small limits for this tiny container.
+{{- if $proxy.resources }}
+          resources:
+            requests:
+              cpu: 0.1
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 512Mi
+{{- end }}
 {{- if $proxy.securityContext }}
           securityContext: {{- toYaml $proxy.securityContext | nindent 12 }}
 {{- end }}
@@ -305,6 +324,9 @@ spec:
 {{- end }}
 {{- if $proxy.priorityClassName }}
       priorityClassName: {{ $proxy.priorityClassName }}
+{{- end }}
+{{- if $proxy.podSecurityContext }}
+      securityContext: {{- toYaml $proxy.podSecurityContext | nindent 8 }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.proxy.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $proxy.terminationGracePeriodSeconds }}

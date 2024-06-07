@@ -1,0 +1,7 @@
+clusterName: helm-lint
+podSecurityContext:
+  fsGroup: 99
+  fsGroupChangePolicy: OnRootMismatch
+  runAsGroup: 99
+  runAsNonRoot: true
+  runAsUser: 99

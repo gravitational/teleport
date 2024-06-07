@@ -20,6 +20,8 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import session from 'teleport/services/websession';
 
+import { WebauthnAssertionResponse } from '../auth';
+
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
@@ -60,13 +62,24 @@ const service = {
     return api.put(cfg.getUsersUrl(), user).then(makeUser);
   },
 
-  createUser(user: User) {
-    return api.post(cfg.getUsersUrl(), user).then(makeUser);
+  createUser(user: User, webauthnResponse?: WebauthnAssertionResponse) {
+    return api
+      .post(cfg.getUsersUrl(), user, null, webauthnResponse)
+      .then(makeUser);
   },
 
-  createResetPasswordToken(name: string, type: ResetPasswordType) {
+  createResetPasswordToken(
+    name: string,
+    type: ResetPasswordType,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
     return api
-      .post(cfg.api.resetPasswordTokenPath, { name, type })
+      .post(
+        cfg.api.resetPasswordTokenPath,
+        { name, type },
+        null,
+        webauthnResponse
+      )
       .then(makeResetToken);
   },
 

@@ -18,18 +18,51 @@
 
 import React from 'react';
 
-import { Reconnect } from './Reconnect';
+import * as types from 'teleterm/ui/services/workspacesService';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+
+import { DocumentGatewayKube } from './DocumentGatewayKube';
 
 export default {
   title: 'Teleterm/DocumentGatewayKube',
 };
 
-export function Retry() {
+const offlineDocumentGatewayProps: types.DocumentGatewayKube = {
+  kind: 'doc.gateway_kube',
+  rootClusterId: '',
+  leafClusterId: '',
+  targetUri: '/clusters/bar/kubes/quux',
+  origin: 'resource_table',
+  status: '',
+  uri: '/docs/123',
+  title: 'quux',
+};
+
+const rootClusterUri = '/clusters/bar';
+
+export function Offline() {
+  const appContext = new MockAppContext();
+  appContext.clustersService.createGateway = () =>
+    Promise.reject(new Error('failed to create gateway'));
+
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [offlineDocumentGatewayProps],
+      location: offlineDocumentGatewayProps.uri,
+      accessRequests: undefined,
+    };
+  });
+
   return (
-    <Reconnect
-      kubeId="test-kube-id"
-      statusText="failed to create kube gateway"
-      reconnect={() => {}}
-    />
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <DocumentGatewayKube doc={offlineDocumentGatewayProps} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
   );
 }

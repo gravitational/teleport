@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.userpreferences.v1;
 
 import "google/protobuf/empty.proto";
+import "teleport/userpreferences/v1/access_graph.proto";
 import "teleport/userpreferences/v1/assist.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/onboard.proto";
@@ -37,6 +38,8 @@ message UserPreferences {
   v1.ClusterUserPreferences cluster_preferences = 4;
   // unified_resource_preferences are user preferences saved for the Unified Resource web UI
   UnifiedResourcePreferences unified_resource_preferences = 5;
+  // access_graph is the preferences for Access Graph.
+  AccessGraphUserPreferences access_graph = 6;
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.

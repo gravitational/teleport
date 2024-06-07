@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -44,13 +45,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -81,6 +83,8 @@ type Auth interface {
 	GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+	GetSpannerTokenSource(ctx context.Context, sessionCtx *Session) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
@@ -140,7 +144,7 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "db:auth")
+		c.Log = logrus.WithField(teleport.ComponentKey, "db:auth")
 	}
 	return nil
 }
@@ -371,31 +375,85 @@ Make sure that IAM role %q has permissions to generate credentials. Here is a sa
 // GetCloudSQLAuthToken returns authorization token that will be used as a
 // password when connecting to Cloud SQL databases.
 func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
-	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	//   https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
+	scopes := []string{
+		"https://www.googleapis.com/auth/sqlservice.admin",
+	}
+	ts, err := a.getCloudTokenSource(ctx, sessionCtx, scopes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
-	resp, err := gcpIAM.GenerateAccessToken(ctx,
+	tok, err := ts.Token()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tok.AccessToken, nil
+}
+
+// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *Session) (oauth2.TokenSource, error) {
+	// https://developers.google.com/identity/protocols/oauth2/scopes#spanner
+	scopes := []string{
+		"https://www.googleapis.com/auth/spanner.data",
+	}
+	ts, err := a.getCloudTokenSource(ctx, sessionCtx, scopes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// refreshes the credentials as needed.
+	return oauth2.ReuseTokenSource(nil, ts), nil
+}
+
+func (a *dbAuth) getCloudTokenSource(ctx context.Context, sessionCtx *Session, scopes []string) (*cloudTokenSource, error) {
+	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serviceAccountName := sessionCtx.DatabaseUser
+	if !strings.HasSuffix(serviceAccountName, ".gserviceaccount.com") {
+		serviceAccountName = serviceAccountName + ".gserviceaccount.com"
+	}
+	return &cloudTokenSource{
+		ctx:            ctx,
+		client:         gcpIAM,
+		log:            a.cfg.Log.WithField("session", sessionCtx.String()),
+		serviceAccount: serviceAccountName,
+		scopes:         scopes,
+	}, nil
+}
+
+// cloudTokenSource implements [oauth2.TokenSource] and logs each time it's
+// used to fetch a token.
+type cloudTokenSource struct {
+	ctx            context.Context
+	client         *gcpcredentials.IamCredentialsClient
+	log            logrus.FieldLogger
+	serviceAccount string
+	scopes         []string
+}
+
+// Token returns a token or an error.
+// Token must be safe for concurrent use by multiple goroutines.
+// The returned Token must not be modified.
+func (l *cloudTokenSource) Token() (*oauth2.Token, error) {
+	l.log.Debug("Generating GCP auth token")
+	resp, err := l.client.GenerateAccessToken(l.ctx,
 		&gcpcredentialspb.GenerateAccessTokenRequest{
 			// From GenerateAccessToken docs:
 			//
 			// The resource name of the service account for which the credentials
 			// are requested, in the following format:
 			//   projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
-			Name: fmt.Sprintf("projects/-/serviceAccounts/%v.gserviceaccount.com", sessionCtx.DatabaseUser),
+			Name: fmt.Sprintf("projects/-/serviceAccounts/%v", l.serviceAccount),
 			// From GenerateAccessToken docs:
 			//
 			// Code to identify the scopes to be included in the OAuth 2.0 access
 			// token:
 			//   https://developers.google.com/identity/protocols/oauth2/scopes
-			//   https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
-			Scope: []string{
-				"https://www.googleapis.com/auth/sqlservice.admin",
-			},
+			Scope: l.scopes,
 		})
 	if err != nil {
-		return "", trace.AccessDenied(`Could not generate GCP IAM auth token:
+		return nil, trace.AccessDenied(`Could not generate GCP IAM auth token:
 
   %v
 
@@ -403,7 +461,10 @@ Make sure Teleport db service has "Service Account Token Creator" GCP IAM role,
 or "iam.serviceAccounts.getAccessToken" IAM permission.
 `, err)
 	}
-	return resp.AccessToken, nil
+	return &oauth2.Token{
+		AccessToken: resp.AccessToken,
+		Expiry:      resp.ExpireTime.AsTime(),
+	}, nil
 }
 
 // GetCloudSQLPassword updates the specified database user's password to a
@@ -417,7 +478,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx)
-	token, err := utils.CryptoRandomHex(libauth.TokenLenBytes)
+	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -449,12 +510,19 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL gcp.SQLAdminClient, user *sqladmin.User) error {
 	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
 	if err != nil {
+		// Note that mysql client has a 1024 char limit for displaying errors
+		// so we need to keep the message short when possible. This message
+		// does get cut off when sessionCtx.DatabaseUser or err is long.
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
   %v
 
-Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
-"cloudsql.users.update" IAM permission.
+If the db user uses IAM authentication, please use the full service account email
+ID as "--db-user", or grant the Teleport Database Service the
+"cloudsql.users.get" IAM permission so it can discover the user type.
+
+If the db user uses passwords, make sure Teleport Database Service has "Cloud
+SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 `, sessionCtx.DatabaseUser, err)
 	}
 	return nil
@@ -754,6 +822,9 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 
 	case types.DatabaseTypeOpenSearch:
 		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
+		return true
+	case types.DatabaseTypeSpanner:
+		// Spanner is hosted on GCP.
 		return true
 	}
 	return false

@@ -1,0 +1,17 @@
+{{- if .Values.persistentVolumeClaim.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "event-handler.fullname" . }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.persistentVolumeClaim.storageClassName }}
+  storageClassName: "{{ .Values.persistentVolumeClaim.storageClassName }}"
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistentVolumeClaim.size }}
+{{- end -}}

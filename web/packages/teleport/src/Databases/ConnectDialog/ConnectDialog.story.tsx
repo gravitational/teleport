@@ -24,11 +24,55 @@ export default {
   title: 'Teleport/Databases/Connect',
 };
 
-export const Connect = () => (
+export const ConnectDbNameFlagRequired = () => (
   <ConnectDialog
     username="yassine"
     dbName="aurora"
     dbProtocol="postgres"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+  />
+);
+
+export const ConnectDbNameFlagOptional = () => (
+  <ConnectDialog
+    username="yassine"
+    dbName="cockroach"
+    dbProtocol="cockroachdb"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+  />
+);
+
+export const ConnectNoDbNameFlag = () => (
+  <ConnectDialog
+    username="yassine"
+    dbName="cassandra"
+    dbProtocol="cassandra"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+  />
+);
+
+export const ConnectDynamodb = () => (
+  <ConnectDialog
+    username="yassine"
+    dbName="dynamo"
+    dbProtocol="dynamodb"
+    clusterId="im-a-cluster"
+    onClose={() => null}
+    authType="local"
+  />
+);
+
+export const ConnectSpanner = () => (
+  <ConnectDialog
+    username="gavin"
+    dbName="spanner1"
+    dbProtocol="spanner"
     clusterId="im-a-cluster"
     onClose={() => null}
     authType="local"

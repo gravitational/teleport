@@ -29,13 +29,7 @@ import EventDialog from '../EventDialog';
 import renderTypeCell from './EventTypeCell';
 
 export default function EventList(props: Props) {
-  const {
-    clusterId,
-    events = [],
-    fetchMore,
-    fetchStatus,
-    pageSize = 50,
-  } = props;
+  const { events = [], fetchMore, fetchStatus, pageSize = 50 } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
   return (
     <>
@@ -46,7 +40,7 @@ export default function EventList(props: Props) {
             key: 'codeDesc',
             headerText: 'Type',
             isSortable: true,
-            render: event => renderTypeCell(event, clusterId),
+            render: event => renderTypeCell(event),
           },
           {
             key: 'message',
@@ -109,7 +103,6 @@ export function renderDescCell({ message }: Event) {
 }
 
 type Props = {
-  clusterId: State['clusterId'];
   events: State['events'];
   fetchMore: State['fetchMore'];
   fetchStatus: State['fetchStatus'];

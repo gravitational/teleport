@@ -51,28 +51,33 @@ func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareUserActivityReport(
+func prepareUserActivityReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.UserActivityRecord,
-) (*prehogv1.UserActivityReport, error) {
-	reportUUID := uuid.New()
-	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      timestamppb.New(startTime),
-		Records:        records,
-	}
-
-	for proto.Size(report) > maxItemSize {
-		if len(report.Records) <= 1 {
-			return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+) (reports []*prehogv1.UserActivityReport, err error) {
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.UserActivityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+			Records:        records,
 		}
 
-		report.Records = report.Records[:len(report.Records)/2]
+		for proto.Size(report) > maxItemSize {
+			if len(report.Records) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+			}
+
+			report.Records = report.Records[:len(report.Records)/2]
+		}
+
+		records = records[len(report.Records):]
+		reports = append(reports, report)
 	}
 
-	return report, nil
+	return reports, nil
 }
 
 // resourcePresenceReportKey returns the backend key for a resource presence report with
@@ -235,8 +240,17 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
+	lockKey := backend.Key(userActivityReportsLock)
+	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
+	// but it will explicitly delete expired items on a Get; in addition, reads
+	// are cheaper than writes in most backends, so we do a Get here first
+	if _, err := r.b.Get(ctx, lockKey); err == nil {
+		return trace.AlreadyExists(userActivityReportsLock + " already exists")
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
 	if _, err := r.b.Create(ctx, backend.Item{
-		Key:     backend.Key(userActivityReportsLock),
+		Key:     lockKey,
 		Value:   payload,
 		Expires: r.b.Clock().Now().UTC().Add(ttl),
 	}); err != nil {

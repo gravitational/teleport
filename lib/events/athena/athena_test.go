@@ -236,7 +236,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				cfg.TableName = "table with space"
 				return cfg
 			},
-			wantErr: "TableName can contains only alphanumeric or underscore character",
+			wantErr: "TableName can only contain alphanumeric or underscore character",
 		},
 		{
 			name: "missing topicARN",
@@ -335,7 +335,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxSNSMessageSize),
+			Code: strings.Repeat("d", 2*maxDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -418,8 +418,8 @@ func TestPublisherConsumer(t *testing.T) {
 			fq := newFakeQueue()
 			p := &publisher{
 				PublisherConfig: PublisherConfig{
-					SNSPublisher: fq,
-					Uploader:     fS3,
+					MessagePublisher: fq,
+					Uploader:         fS3,
 				},
 			}
 			cfg := validCollectCfgForTests(t)

@@ -275,7 +275,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	}
 
 	l := log.WithFields(log.Fields{
-		trace.Component: teleport.Component(teleport.ComponentFirestore),
+		teleport.ComponentKey: teleport.Component(teleport.ComponentFirestore),
 	})
 	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())

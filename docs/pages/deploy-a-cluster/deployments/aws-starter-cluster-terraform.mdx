@@ -168,15 +168,16 @@ cluster from scratch, so choose carefully. A good example might be something lik
 ### ami_name
 
 ```code
-$ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)"
+$ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
 Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
 release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
-where `<type>` is either `oss` or `ent` (Enterprise), `version` is the version of Teleport e.g. `(=teleport.version=)`,
-and `arch` is either `x86_64` or `arm64`.
+where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
+and `<arch>` is either `x86_64` or `arm64`.
 
-FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix.
+FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix after `<arch>`,
+e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
 
 The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
 the example `awscli` commands below. The output is in JSON format by default.

@@ -18,16 +18,17 @@
 
 import React, { useState } from 'react';
 import { components } from 'react-select';
-import 'react-day-picker/lib/style.css';
+import 'react-day-picker/dist/style.css';
 import { Text, Box } from 'design';
 import Dialog from 'design/DialogConfirmation';
 import { displayDate } from 'shared/services/loc';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import Select, { Option } from 'shared/components/Select';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 
-import CustomRange from './Custom';
+import { CustomRange } from './Custom';
 import { EventRange } from './utils';
 
 export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
@@ -35,6 +36,11 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   const [rangeOptions] = useState(() =>
     ranges.map(range => ({ value: range, label: range.name }))
   );
+
+  const dayPickerRef = useRefClickOutside<HTMLDivElement>({
+    open: isPickerOpen,
+    setOpen: openDayPicker,
+  });
 
   function handleOnChange(option: Option<EventRange>) {
     if (option.value.isCustom) {
@@ -71,10 +77,9 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
         open={isPickerOpen}
       >
         <CustomRange
-          from={range.from}
-          to={range.to}
+          initialRange={{ from: range.from, to: range.to }}
           onChange={onSetCustomRange}
-          onClosePicker={onClosePicker}
+          ref={dayPickerRef}
         />
       </Dialog>
     </>

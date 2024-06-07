@@ -1,0 +1,44 @@
+suite: Operator CRDs
+templates:
+  - crds.yaml
+tests:
+  - it: creates no CRDs when installCRDs is "never"
+    set:
+      installCRDs: "never"
+      enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates CRDs when installCRDs is "always"
+    set:
+      installCRDs: "always"
+      enabled: false
+    asserts:
+      - containsDocument:
+          apiVersion: apiextensions.k8s.io/v1
+          kind: CustomResourceDefinition
+          name: teleportrolesv7.resources.teleport.dev
+  - it: labels CRDs
+    set:
+      installCRDs: "always"
+      enabled: false
+    asserts:
+      - equal:
+          path: metadata.labels.[teleport.dev/release]
+          value: NAMESPACE_RELEASE-NAME
+  - it: creates CRDs when installCRDs is "dynamic" and operator enabled
+    set:
+      installCRDs: "dynamic"
+      enabled: true
+    asserts:
+      - containsDocument:
+          apiVersion: apiextensions.k8s.io/v1
+          kind: CustomResourceDefinition
+          name: teleportrolesv7.resources.teleport.dev
+  - it: creates no CRDs when installCRDs is "dynamic" and operator disabled (and no existing CRD)
+    set:
+      installCRDs: "dynamic"
+      enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

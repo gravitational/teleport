@@ -159,27 +159,25 @@ func TestFromProtoNils(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("membership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Membership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
-	})
-
-	t.Run("ownership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Ownership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
-	})
-
 	t.Run("owner_grants", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
 		msg.Spec.OwnerGrants = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+
+	t.Run("status", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+
+	t.Run("member_count", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status.MemberCount = nil
 
 		_, err := FromProto(msg)
 		require.NoError(t, err)
@@ -189,6 +187,7 @@ func TestFromProtoNils(t *testing.T) {
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	t.Helper()
 
+	memberCount := uint32(10)
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
@@ -240,5 +239,34 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 		},
 	)
 	require.NoError(t, err)
+
+	accessList.Status = accesslist.Status{
+		MemberCount: &memberCount,
+	}
+
 	return accessList
+}
+
+func TestNextAuditDateZeroTime(t *testing.T) {
+	// When a proto message without expiration is converted to an AL
+	// we expect next audit date to be mapped to golang's zero time. Then
+	// AccessList.CheckAndSetDefaults will set a time in the future based on
+	// the recurrence rules.
+	accessList := ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Audit.NextAuditDate = nil
+	converted, err := FromProto(accessList)
+
+	require.NoError(t, err)
+	require.NotZero(
+		t,
+		converted.Spec.Audit.NextAuditDate.Unix(),
+		"next audit date should not be epoch",
+	)
+
+	converted.Spec.Audit.NextAuditDate = time.Time{}
+	// When an Access List without next audit date is converted to protobuf
+	// it should be nil.
+	convertedTwice := ToProto(converted)
+
+	require.Nil(t, convertedTwice.Spec.Audit.NextAuditDate)
 }

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -235,15 +236,27 @@ func readDMIInfoCached() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "setting up state dir")
 	}
 
-	f, err := os.Open(stateDir.dmiJSONPath)
+	path := stateDir.dmiJSONPath
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer f.Close()
 
 	var dmiInfo linux.DMIInfo
-	err = json.NewDecoder(f).Decode(&dmiInfo)
-	return &dmiInfo, trace.Wrap(err)
+	const cachedFileLimitBytes = 1024 * 1024 // 1MB should be plenty
+	dec := json.NewDecoder(io.LimitReader(f, cachedFileLimitBytes))
+	if err := dec.Decode(&dmiInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if dec.More() {
+		log.
+			WithField("Path", path).
+			Warn("DMI cache file contains multiple JSON entries, only one expected")
+		// Warn but keep going.
+	}
+
+	return &dmiInfo, nil
 }
 
 func readDMIInfoEscalated() (*linux.DMIInfo, error) {

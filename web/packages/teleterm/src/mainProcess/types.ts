@@ -67,7 +67,6 @@ export type RuntimeSettings = {
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
-    flags: string[];
   };
   sharedProcess: {
     requestedNetworkAddress: string;
@@ -136,6 +135,7 @@ export type MainProcessClient = {
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
   downloadAgent(): Promise<void>;
+  verifyAgent(): Promise<void>;
   createAgentConfigFile(args: CreateAgentConfigFileArgs): Promise<void>;
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
@@ -156,6 +156,7 @@ export type MainProcessClient = {
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
   signalUserInterfaceReadiness(args: { success: boolean }): void;
+  refreshClusterList(): void;
 };
 
 export type ChildProcessAddresses = {
@@ -267,6 +268,9 @@ export enum RendererIpc {
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
+  RefreshClusterList = 'main-process-refresh-cluster-list',
+  DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
+  VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
 }
 
 export enum WindowsManagerIpc {

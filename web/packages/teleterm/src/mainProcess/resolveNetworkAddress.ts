@@ -127,7 +127,7 @@ function waitForMatchInStdout(
   });
 }
 
-class ResolveError extends Error {
+export class ResolveError extends Error {
   constructor(requestedAddress: string, process: ChildProcess, reason: string) {
     super(
       `Could not resolve address (${requestedAddress}) for process ${process.spawnfile}: ${reason}.`

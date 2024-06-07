@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -187,15 +188,15 @@ func TestPingConnection(t *testing.T) {
 						for {
 							n, err := r.Read(buf)
 							if err != nil {
-								switch err {
+								switch {
 								// Since we're partially reading the message, the last
 								// read will return an EOF. In this case, do nothing
 								// and send the remaining bytes.
-								case io.EOF:
+								case errors.Is(err, io.EOF):
 								// The connection will be closed only if the test is
 								// completed. The read result will be empty, so return
 								// the function to complete the goroutine.
-								case io.ErrClosedPipe:
+								case errors.Is(err, io.ErrClosedPipe):
 									return
 								// Any other error should fail the test and complete the
 								// goroutine.
@@ -378,7 +379,7 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 		tlsConnChan <- struct {
 			*tls.Conn
 			error
-		}{tlsConn, tlsConn.Handshake()}
+		}{tlsConn, tlsConn.HandshakeContext(ctx)}
 	}()
 
 	// Client
@@ -387,7 +388,7 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 		tlsConnChan <- struct {
 			*tls.Conn
 			error
-		}{tlsConn, tlsConn.Handshake()}
+		}{tlsConn, tlsConn.HandshakeContext(ctx)}
 	}()
 
 	tlsConnSlice := make([]*tls.Conn, 2)

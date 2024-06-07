@@ -18,16 +18,6 @@
 
 package webauthn
 
-import (
-	"encoding/base64"
-
-	"github.com/go-webauthn/webauthn/protocol"
-	wan "github.com/go-webauthn/webauthn/webauthn"
-	"github.com/gravitational/trace"
-
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-)
-
 // scopeLogin identifies session data stored for login.
 // It is used as the scope for global session data and as the sessionID for
 // per-user session data.
@@ -38,27 +28,3 @@ const scopeLogin = "login"
 // Only one in-flight registration is supported per-user, baring registrations
 // that use in-memory storage.
 const scopeSession = "registration"
-
-func sessionToPB(sd *wan.SessionData) (*wanpb.SessionData, error) {
-	rawChallenge, err := base64.RawURLEncoding.DecodeString(sd.Challenge)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO(codingllama): Record extensions in stored session data.
-	return &wanpb.SessionData{
-		Challenge:        rawChallenge,
-		UserId:           sd.UserID,
-		AllowCredentials: sd.AllowedCredentialIDs,
-		UserVerification: string(sd.UserVerification),
-	}, nil
-}
-
-func sessionFromPB(sd *wanpb.SessionData) *wan.SessionData {
-	// TODO(codingllama): Record extensions in stored session data.
-	return &wan.SessionData{
-		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
-		UserID:               sd.UserId,
-		AllowedCredentialIDs: sd.AllowCredentials,
-		UserVerification:     protocol.UserVerificationRequirement(sd.UserVerification),
-	}
-}

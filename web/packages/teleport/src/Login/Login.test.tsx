@@ -17,18 +17,23 @@
  */
 
 import React from 'react';
+import { userEvent, UserEvent } from '@testing-library/user-event';
+import selectEvent from 'react-select-event';
 import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 
-import Login from './Login';
+import { Login } from './Login';
+
+let user: UserEvent;
 
 beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  user = userEvent.setup();
 });
 
 test('basic rendering', () => {
@@ -40,7 +45,7 @@ test('basic rendering', () => {
 });
 
 test('login with redirect', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue(null);
+  jest.spyOn(auth, 'login').mockResolvedValue({});
 
   render(<Login />);
 
@@ -54,6 +59,34 @@ test('login with redirect', async () => {
   fireEvent.click(screen.getByText('Sign In'));
   await waitFor(() => {
     expect(auth.login).toHaveBeenCalledWith('username', '123', '');
+  });
+  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
+});
+
+test('login with MFA, changing method to OTP', async () => {
+  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
+  jest.spyOn(auth, 'login').mockResolvedValue({});
+
+  render(<Login />);
+
+  // fill form
+  const username = screen.getByLabelText(/username/i);
+  const password = screen.getByLabelText(/password/i);
+  const mfaType = screen.getByLabelText(/multi-factor type/i);
+  await user.type(username, 'username');
+  await user.type(password, '123');
+
+  expect(
+    screen.queryByLabelText(/authenticator code/i)
+  ).not.toBeInTheDocument();
+  await selectEvent.select(mfaType, 'Authenticator App');
+  const authCode = screen.getByLabelText(/authenticator code/i);
+  await user.type(authCode, '987654');
+
+  // test login and redirect
+  fireEvent.click(screen.getByText('Sign In'));
+  await waitFor(() => {
+    expect(auth.login).toHaveBeenCalledWith('username', '123', '987654');
   });
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
@@ -78,6 +111,19 @@ test('login with SSO', () => {
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true
   );
+});
+
+test('passwordless login', async () => {
+  jest.spyOn(cfg, 'getPrimaryAuthType').mockReturnValue('passwordless');
+  jest.spyOn(auth, 'loginWithWebauthn').mockResolvedValue({});
+
+  render(<Login />);
+
+  await user.click(
+    screen.getByRole('button', { name: 'Sign in with a Passkey' })
+  );
+  expect(auth.loginWithWebauthn).toHaveBeenCalledWith(undefined); // No credentials
+  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
 describe('test MOTD', () => {

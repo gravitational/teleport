@@ -17,40 +17,25 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
-import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_pb';
-import * as apiService from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
-import * as protobuf from 'google-protobuf';
+import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
 import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
-import { TshdEventContextBridgeService } from 'teleterm/types';
-import { filterSensitiveProperties } from 'teleterm/services/tshd/middleware';
+import {
+  ExtractRequestType,
+  ExtractResponseType,
+  TshdEventContextBridgeService,
+} from 'teleterm/types';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 
-export interface ReloginRequest extends api.ReloginRequest.AsObject {
+export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
-  gatewayCertExpired?: GatewayCertExpired;
 }
-export interface GatewayCertExpired extends api.GatewayCertExpired.AsObject {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-
-export interface SendNotificationRequest
-  extends api.SendNotificationRequest.AsObject {
-  cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
-}
-export interface CannotProxyGatewayConnection
-  extends api.CannotProxyGatewayConnection.AsObject {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-
-export type PromptMfaRequest = api.PromptMFARequest.AsObject & {
-  rootClusterUri: uri.RootClusterUri;
-};
+export type SendNotificationRequest = api.SendNotificationRequest;
 
 export interface SendPendingHeadlessAuthenticationRequest
-  extends api.SendPendingHeadlessAuthenticationRequest.AsObject {
+  extends api.SendPendingHeadlessAuthenticationRequest {
   rootClusterUri: uri.RootClusterUri;
 }
 
@@ -77,17 +62,7 @@ export async function createTshdEventsServer(
   );
   const { service, setupTshdEventContextBridgeService } = createService(logger);
 
-  server.addService(
-    apiService.TshdEventsServiceService,
-    // Whatever we use for generating protobufs generated wrong types. The types say that
-    // server.addService expects an UntypedServiceImplementation as the second argument.
-    // ITshdEventsServiceService does implement UntypedServiceImplementation.
-    //
-    // However, what we actually need to pass as the second argument needs to have the shape of
-    // ITshdEventsServiceServer. That's why we ignore the error below.
-    // @ts-expect-error The generated protobuf types seem to be wrong.
-    service
-  );
+  server.addService(apiService.tshdEventsServiceDefinition, service);
 
   return { resolvedAddress, setupTshdEventContextBridgeService };
 }
@@ -134,7 +109,7 @@ async function createServer(
  * See the JSDoc for TshdEventContextBridgeService for more details.
  */
 function createService(logger: Logger): {
-  service: apiService.ITshdEventsServiceServer;
+  service: apiService.ITshdEventsService;
   setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
   ) => void;
@@ -155,18 +130,19 @@ function createService(logger: Logger): {
    * through the context bridge) to a class instance (as expected by grpc-js).
    */
   function processEvent<
-    RpcName extends keyof apiService.ITshdEventsServiceServer,
-    Request extends protobuf.Message,
-    Response extends protobuf.Message
+    RpcName extends keyof apiService.ITshdEventsService,
+    Request extends ExtractRequestType<
+      Parameters<apiService.ITshdEventsService[RpcName]>[0]
+    >,
+    Response extends ExtractResponseType<
+      Parameters<apiService.ITshdEventsService[RpcName]>[1]
+    >,
   >(
     rpcName: RpcName,
     call: grpc.ServerUnaryCall<Request, Response>,
-    callback: (error: Error, response: Response) => void,
-    mapResponseObjectToResponseInstance: (
-      responseObject: ReturnType<Response['toObject']>
-    ) => Response
+    callback: (error: Error | null, response: Response | null) => void
   ) {
-    const request = call.request.toObject();
+    const request = call.request;
 
     logger.info(`got ${rpcName}`, filterSensitiveProperties(request));
 
@@ -190,18 +166,13 @@ function createService(logger: Logger): {
       throw new Error(`No context bridge handler for ${rpcName}`);
     }
 
-    contextBridgeHandler({
-      // `as` is a workaround. We'd have to tell TypeScript somehow that `Request` is the same
-      // between `contextBridgeService` and `processEvent`, but it's not clear how to achieve that.
-      request: request as ReturnType<Request['toObject']>,
-      onRequestCancelled,
-    }).then(
+    contextBridgeHandler({ request, onRequestCancelled }).then(
       response => {
         if (call.cancelled) {
           return;
         }
 
-        callback(null, mapResponseObjectToResponseInstance(response));
+        callback(null, response);
 
         logger.info(
           `replied to ${rpcName}`,
@@ -232,30 +203,25 @@ function createService(logger: Logger): {
     );
   }
 
-  const service: apiService.ITshdEventsServiceServer = {
-    relogin: (call, callback) =>
-      processEvent('relogin', call, callback, () => new api.ReloginResponse()),
+  const service: apiService.ITshdEventsService = {
+    relogin: (call, callback) => processEvent('relogin', call, callback),
 
     sendNotification: (call, callback) =>
-      processEvent(
-        'sendNotification',
-        call,
-        callback,
-        () => new api.SendNotificationResponse()
-      ),
+      processEvent('sendNotification', call, callback),
 
     sendPendingHeadlessAuthentication: (call, callback) =>
-      processEvent(
-        'sendPendingHeadlessAuthentication',
-        call,
-        callback,
-        () => new api.SendPendingHeadlessAuthenticationResponse()
-      ),
+      processEvent('sendPendingHeadlessAuthentication', call, callback),
 
     promptMFA: (call, callback) => {
-      processEvent('promptMFA', call, callback, response =>
-        new api.PromptMFAResponse().setTotpCode(response.totpCode)
-      );
+      processEvent('promptMFA', call, callback);
+    },
+
+    getUsageReportingSettings: (call, callback) => {
+      processEvent('getUsageReportingSettings', call, callback);
+    },
+
+    reportUnexpectedVnetShutdown: (call, callback) => {
+      processEvent('reportUnexpectedVnetShutdown', call, callback);
     },
   };
 

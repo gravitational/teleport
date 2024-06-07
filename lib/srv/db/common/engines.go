@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
@@ -102,7 +102,7 @@ type EngineConfig struct {
 	// Audit emits database access audit events.
 	Audit Audit
 	// AuthClient is the cluster auth server client.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// CloudClients provides access to cloud API clients.
 	CloudClients cloud.Clients
 	// Context is the database server close context.
@@ -117,6 +117,11 @@ type EngineConfig struct {
 	DataDir string
 	// GetUserProvisioner is automatic database users creation handler.
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
+	// UpdateProxiedDatabase finds the proxied database by name and uses the
+	// provided function to update the database's status. Returns
+	// trace.NotFound if the name is not found otherwise forwards the error
+	// from the provided callback function.
+	UpdateProxiedDatabase func(string, func(types.Database) error) error
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

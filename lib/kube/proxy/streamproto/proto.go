@@ -19,6 +19,8 @@
 package streamproto
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -74,6 +76,7 @@ type SessionStream struct {
 	closed      int32
 	MFARequired bool
 	Mode        types.SessionParticipantMode
+	isClient    bool
 }
 
 // NewSessionStream creates a new session stream.
@@ -89,6 +92,7 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 
 	clientHandshake, isClient := handshake.(ClientHandshake)
 	serverHandshake, ok := handshake.(ServerHandshake)
+	s.isClient = isClient
 
 	if !isClient && !ok {
 		return nil, trace.BadParameter("Handshake must be either client or server handshake, got %T", handshake)
@@ -165,8 +169,18 @@ func (s *SessionStream) readTask() {
 
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
-			if err != io.EOF && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
 				log.WithError(err).Warn("Failed to read message from websocket")
+			}
+
+			var closeErr *websocket.CloseError
+			// If it's a close error, we want to send a message to the stdout
+			if s.isClient && errors.As(err, &closeErr) && closeErr.Text != "" {
+				select {
+				case s.in <- []byte(fmt.Sprintf("\r\n---\r\nConnection closed: %v\r\n", closeErr.Text)):
+				case <-s.done:
+					return
+				}
 			}
 
 			return

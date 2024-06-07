@@ -21,6 +21,7 @@ package pgevents
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -31,13 +32,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,42 +58,39 @@ const (
 
 // URL parameters for configuration.
 const (
-	authModeParam = "auth_mode"
+	authModeParam          = "auth_mode"
+	gcpConnectionNameParam = "gcp_connection_name"
+	gcpIPTypeParam         = "gcp_ip_type"
 
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
 )
 
-// AuthMode determines if we should use some environment-specific authentication
-// mechanism or credentials.
-type AuthMode string
-
 const (
-	// FixedAuth uses the static credentials as defined in the connection
-	// string.
-	FixedAuth AuthMode = ""
-	// AzureADAuth gets a connection token from Azure and uses it as the
-	// password when connecting.
-	AzureADAuth AuthMode = "azure"
+	schemaV1Table = `CREATE TABLE events (
+		event_time timestamptz NOT NULL,
+		event_id uuid NOT NULL,
+		event_type text NOT NULL,
+		session_id uuid NOT NULL,
+		event_data json NOT NULL,
+		creation_time timestamptz NOT NULL DEFAULT now(),
+		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
+	);
+	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
+		WHERE session_id != '00000000-0000-0000-0000-000000000000';`
+	dateIndex                       = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
+	schemaV1TableWithDateIndex      = schemaV1Table + "\n" + dateIndex
+	schemaV1CockroachSetRowExpiry   = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + (%d * INTERVAL ''1 microsecond'')) AT TIME ZONE ''UTC'' ');"
+	schemaV1CockroachUnsetRowExpiry = "ALTER TABLE events RESET (ttl_expiration_expression);"
 )
-
-// Check returns an error if the AuthMode is invalid.
-func (a AuthMode) Check() error {
-	switch a {
-	case FixedAuth, AzureADAuth:
-		return nil
-	default:
-		return trace.BadParameter("invalid authentication mode %q", a)
-	}
-}
 
 // Config is the configuration struct to pass to New.
 type Config struct {
-	Log        logrus.FieldLogger
-	PoolConfig *pgxpool.Config
+	pgcommon.AuthConfig
 
-	AuthMode AuthMode
+	Log        *slog.Logger
+	PoolConfig *pgxpool.Config
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -120,7 +119,9 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	}
 	c.PoolConfig = poolConfig
 
-	c.AuthMode = AuthMode(params.Get(authModeParam))
+	c.AuthMode = pgcommon.AuthMode(params.Get(authModeParam))
+	c.GCPConnectionName = params.Get(gcpConnectionNameParam)
+	c.GCPIPType = pgcommon.GCPIPType(params.Get(gcpIPTypeParam))
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -156,7 +157,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing pool config")
 	}
 
-	if err := c.AuthMode.Check(); err != nil {
+	if err := c.AuthConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -175,7 +176,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, componentName)
+		c.Log = slog.With(teleport.ComponentKey, componentName)
 	}
 
 	return nil
@@ -188,15 +189,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.PoolConfig.BeforeConnect = bc
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err, "registering prometheus collectors")
 	}
 
-	cfg.Log.Info("Setting up events backend.")
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.Log.InfoContext(ctx, "Setting up events backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, cfg.PoolConfig, cfg.Log)
 
@@ -205,7 +206,19 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := pgcommon.SetupAndMigrate(ctx, cfg.Log, pool, "audit_version", schemas); err != nil {
+	var isCockroach bool
+
+	// We're a bit hacky here, we must not start the cleanup job if we're
+	// running on cockroach (rows have TTLs). To avoid running another query,
+	// the builder function detects and reports if it's a cockroach via a shared
+	// variable. This works because everything is synchronous.
+	schemaBuilder := func(conn *pgx.Conn) ([]string, error) {
+		isCockroach = conn.PgConn().ParameterStatus("crdb_version") != ""
+
+		return buildSchema(isCockroach, &cfg)
+	}
+
+	if err := pgcommon.SetupAndMigrateDynamic(ctx, cfg.Log, pool, "audit_version", schemaBuilder); err != nil {
 		pool.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -217,19 +230,63 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		cancel: cancel,
 	}
 
-	if !cfg.DisableCleanup {
-		l.wg.Add(1)
-		go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+	if isCockroach {
+		err = configureCockroachDBRetention(ctx, &cfg, pool)
+		if err != nil {
+			return nil, trace.Wrap(err, "configuring CockroachDB retention")
+		}
+	} else {
+		// Regular PostgreSQL that doesn't support expiring rows, we must run a
+		// periodic cleanup job.
+		if !cfg.DisableCleanup {
+			cfg.Log.DebugContext(
+				ctx, "Starting periodic cleanup background worker.",
+				"retention", cfg.RetentionPeriod.String(),
+				"cleanup_interval", cfg.CleanupInterval)
+			l.wg.Add(1)
+			go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+		}
 	}
 
-	l.log.Info("Started events backend.")
+	l.log.InfoContext(ctx, "Started events backend.")
 
 	return l, nil
 }
 
+func configureCockroachDBRetention(ctx context.Context, cfg *Config, pool *pgxpool.Pool) error {
+	// Arbitrary timeout to make sure we don't end up hanging for some reason
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var expiryQuery string
+	if cfg.DisableCleanup {
+		cfg.Log.DebugContext(ctx, "Disabling CockroachDB native row expiry")
+		expiryQuery = schemaV1CockroachUnsetRowExpiry
+	} else {
+		cfg.Log.DebugContext(ctx, "Configuring CockroachDB native row expiry")
+		expiryQuery = fmt.Sprintf(schemaV1CockroachSetRowExpiry, cfg.RetentionPeriod)
+	}
+	_, err := pool.Exec(ctx, expiryQuery, pgx.QueryExecModeExec)
+	return trace.Wrap(err)
+
+}
+
+func buildSchema(isCockroach bool, cfg *Config) (schemas []string, err error) {
+	// If this is a real postgres, we cannot use self-expiring rows and we need
+	// to create an index for the deletion job to run. This index type is not
+	// supported by CockroachDB at the time of writing
+	// (see https://github.com/cockroachdb/cockroach/issues/41293)
+	if !isCockroach {
+		return []string{schemaV1TableWithDateIndex}, nil
+	}
+
+	cfg.Log.DebugContext(context.TODO(), "CockroachDB detected.")
+	return []string{schemaV1Table}, nil
+}
+
 // Log is an external [events.AuditLogger] backed by a PostgreSQL database.
 type Log struct {
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	pool *pgxpool.Pool
 
 	cancel context.CancelFunc
@@ -242,21 +299,6 @@ func (l *Log) Close() error {
 	l.wg.Wait()
 	l.pool.Close()
 	return nil
-}
-
-var schemas = []string{
-	`CREATE TABLE events (
-		event_time timestamptz NOT NULL,
-		event_id uuid NOT NULL,
-		event_type text NOT NULL,
-		session_id uuid NOT NULL,
-		event_data json NOT NULL,
-		creation_time timestamptz NOT NULL DEFAULT now(),
-		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
-	);
-	CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
-	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
-		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
 }
 
 // periodicCleanup removes events past the retention period from the table,
@@ -274,7 +316,8 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		case <-tk.C:
 		}
 
-		l.log.Debug("Executing periodic cleanup.")
+		l.log.DebugContext(ctx, "Executing periodic cleanup.")
+		start := time.Now()
 		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
@@ -286,10 +329,14 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 
 			return tag.RowsAffected(), nil
 		})
+		batchDeleteLatencies.Observe(time.Since(start).Seconds())
+
 		if err != nil {
-			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
+			batchDeleteRequestsFailure.Inc()
+			l.log.ErrorContext(ctx, "Failed to execute periodic cleanup.", "error", err)
 		} else {
-			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
+			batchDeleteRequestsSuccess.Inc()
+			l.log.DebugContext(ctx, "Executed periodic cleanup.", "deleted", deleted)
 		}
 	}
 }
@@ -315,9 +362,10 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 
 	eventID := uuid.New()
 
+	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
-	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
+	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
 				" VALUES ($1, $2, $3, $4, $5)"+
@@ -325,9 +373,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
 		)
 		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
+	})
+
+	writeLatencies.Observe(time.Since(start).Seconds())
+
+	if err != nil {
+		writeRequestsFailure.Inc()
 		return trace.Wrap(err)
 	}
+	writeRequestsSuccess.Inc()
 
 	return nil
 }
@@ -423,8 +477,9 @@ func (l *Log) searchEvents(
 	var endTime time.Time
 	var endID uuid.UUID
 
+	transactionStart := time.Now()
 	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
+	err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
 		AccessMode: pgx.ReadOnly,
 	}, idempotent, func(tx pgx.Tx) error {
 		evs = nil
@@ -490,9 +545,14 @@ func (l *Log) searchEvents(
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	batchReadLatencies.Observe(time.Since(transactionStart).Seconds())
+
+	if err != nil {
+		batchReadRequestsFailure.Inc()
 		return nil, "", trace.Wrap(err)
 	}
+	batchReadRequestsSuccess.Inc()
 
 	var nextKey string
 	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {

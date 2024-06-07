@@ -151,13 +151,27 @@ export const apps = [
     awsConsole: true,
     awsRoles: [
       {
+        name: 'role name',
         arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
         display: 'EC2FullAccess',
       },
       {
+        name: 'other role name',
+        arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+        display: 'ReallyLonReallyLonggggggEC2FullAccess',
+      },
+      {
+        name: 'thisthing',
         arn: 'arn:aws:iam::joe123:role/EC2ReadOnly',
         display: 'EC2ReadOnly',
       },
+      ...new Array(20).fill(undefined).map((_, index) => {
+        return {
+          name: `long-${index}`,
+          arc: `arn:aws:iam::${index}`,
+          display: `LONG${index}`,
+        };
+      }),
     ],
     clusterId: 'one',
     fqdn: 'awsconsole-1.com',

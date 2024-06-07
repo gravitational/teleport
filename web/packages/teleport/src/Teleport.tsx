@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
 import { Route, Router, Switch } from 'teleport/components/Router';
@@ -32,10 +32,23 @@ import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
+import { AppLauncher } from './AppLauncher';
+import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
+import { LoginSuccess } from './Login/LoginSuccess';
+import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
+import { LoginClose } from './Login/LoginClose';
+import { Login } from './Login';
+import { Welcome } from './Welcome';
+
+import { ConsoleWithContext as Console } from './Console';
+import { Player } from './Player';
+import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+
+import { HeadlessRequest } from './HeadlessRequest';
+
+import { Main } from './Main';
 
 import type { History } from 'history';
-
-const AppLauncher = lazy(() => import('./AppLauncher'));
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -74,19 +87,6 @@ const Teleport: React.FC<Props> = props => {
   );
 };
 
-const LoginFailed = lazy(() => import('./Login/LoginFailed'));
-const LoginSuccess = lazy(() => import('./Login/LoginSuccess'));
-const Login = lazy(() => import('./Login'));
-const Welcome = lazy(() => import('./Welcome'));
-
-const Console = lazy(() => import('./Console'));
-const Player = lazy(() => import('./Player'));
-const DesktopSession = lazy(() => import('./DesktopSession'));
-
-const HeadlessRequest = lazy(() => import('./HeadlessRequest'));
-
-const Main = lazy(() => import('./Main'));
-
 function publicOSSRoutes() {
   return [
     <Route
@@ -118,6 +118,18 @@ export function getSharedPublicRoutes() {
       title="Success"
       path={cfg.routes.loginSuccess}
       component={LoginSuccess}
+    />,
+    <Route
+      key="terminal"
+      title="Finish Login in Terminal"
+      path={cfg.routes.loginTerminalRedirect}
+      component={LoginTerminalRedirect}
+    />,
+    <Route
+      key="autoclose"
+      title="Working on SSO login"
+      path={cfg.routes.loginClose}
+      component={LoginClose}
     />,
     <Route
       key="invite"

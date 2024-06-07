@@ -126,9 +126,10 @@ export default function createMainProcessClient(): MainProcessClient {
       return ipcRenderer.sendSync('main-process-should-use-dark-colors');
     },
     downloadAgent() {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-download-agent'
-      );
+      return ipcRenderer.invoke(MainProcessIpc.DownloadConnectMyComputerAgent);
+    },
+    verifyAgent() {
+      return ipcRenderer.invoke(MainProcessIpc.VerifyConnectMyComputerAgent);
     },
     createAgentConfigFile(args: CreateAgentConfigFileArgs) {
       return ipcRenderer.invoke(
@@ -186,6 +187,9 @@ export default function createMainProcessClient(): MainProcessClient {
      */
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
+    },
+    refreshClusterList() {
+      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
     },
   };
 }

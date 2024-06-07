@@ -71,6 +71,12 @@ func TestRun_Configure(t *testing.T) {
 				"--fips",
 			}...),
 		},
+		{
+			name: "all parameters provided",
+			args: append(baseArgs, []string{
+				"--proxy-server", "proxy.example.com:443",
+			}...),
+		},
 	}
 
 	for _, tt := range tests {

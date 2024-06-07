@@ -56,9 +56,9 @@ const (
 	modifyPluginDataBackoffMax = time.Second
 	// webhookIssueAPIRetryInterval is the time the plugin will wait before grabbing,
 	// the jira issue again if the webhook payload and jira API disagree on the issue status.
-	webhookIssueAPIRetryInterval = time.Second
+	webhookIssueAPIRetryInterval = 5 * time.Second
 	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
-	webhookIssueAPIRetryTimeout = 5 * time.Second
+	webhookIssueAPIRetryTimeout = time.Minute
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)

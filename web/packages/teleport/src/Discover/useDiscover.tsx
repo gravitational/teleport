@@ -28,21 +28,22 @@ import {
   DiscoverServiceDeployMethod,
   DiscoverServiceDeploy,
   DiscoverServiceDeployType,
+  DiscoverDiscoveryConfigMethod,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import { DiscoveryConfig } from 'teleport/services/discovery';
-
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
+import type { App } from 'teleport/services/apps';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { ResourceLabel } from 'teleport/services/agents';
@@ -84,6 +85,7 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 type DiscoverProviderProps = {
@@ -147,6 +149,15 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
@@ -155,6 +166,7 @@ export function DiscoverProvider({
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });
@@ -295,7 +307,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
@@ -492,7 +504,7 @@ type BaseMeta = {
     // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
     // If this is empty, then a user can skip deploying db agents.
     // If >0, auto discovery requires deploying db agents.
-    requiredVpcsAndSubnets: Record<string, string[]>;
+    requiredVpcsAndSubnets?: Record<string, string[]>;
   };
 };
 
@@ -500,7 +512,7 @@ type BaseMeta = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ice?: Ec2InstanceConnectEndpoint;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 // DbMeta describes the fields for a db resource
@@ -523,6 +535,43 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+/**
+ * EksMeta describes the fields for a kube resource
+ * that needs to be preserved throughout the flow.
+ */
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+/**
+ * AppMeta describes the fields for a app resource
+ * that needs to be preserved throughout the flow.
+ */
+export type AppMeta = BaseMeta & {
+  app: App;
+};
+
+// SamlMeta describes the fields for SAML IdP
+// service provider resource that needs to be
+// preserved throughout the flow.
+export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
+
+// GcpWorkforceMeta describes the fields for SAML
+// GCP workforce pool resource that needs to be
+// preserved throughout the flow.
+export type SamlGcpWorkforceMeta = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
+
+export type AgentMeta =
+  | DbMeta
+  | NodeMeta
+  | KubeMeta
+  | EksMeta
+  | SamlMeta
+  | AppMeta;
 
 export type State = ReturnType<typeof useDiscover>;

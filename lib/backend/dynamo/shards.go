@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -163,7 +164,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					return trace.BadParameter("empty shard ID")
 				}
 				delete(set, event.shardID)
-				if event.err != io.EOF {
+				if !errors.Is(event.err, io.EOF) {
 					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
 					return trace.Wrap(event.err)
 				}
@@ -323,7 +324,6 @@ func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 				Key:      trimPrefix(r.FullPath),
 				Value:    r.Value,
 				Expires:  expires,
-				ID:       r.ID,
 				Revision: r.Revision,
 			},
 		}, nil

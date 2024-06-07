@@ -27,6 +27,12 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
         return JSON.parse(JSON.stringify(val));
       };
     }
+
+    // TODO(gzdunek): Remove this once JSDOM provides scrollIntoView.
+    // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
+    if (!global.Element.prototype.scrollIntoView) {
+      global.Element.prototype.scrollIntoView = () => {};
+    }
   }
 }
 export const TestEnvironment = PatchedJSDOMEnvironment;

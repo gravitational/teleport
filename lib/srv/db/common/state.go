@@ -33,7 +33,7 @@ const (
 	// attributes.
 	SQLStateUsernameDoesNotMatch = "TP001"
 	// SQLStateRolesChanged is the SQLSTATE raised by activation procedure when
-	// the user has active connections but roles has changed.
+	// the user has active connections but roles have changed.
 	SQLStateRolesChanged = "TP002"
 	// SQLStateUserDropped is the SQLSTATE returned by the delete procedure
 	// indicating the user was dropped.
@@ -41,4 +41,7 @@ const (
 	// SQLStateUserDeactivated is the SQLSTATE returned by the delete procedure
 	// indicating was deactivated.
 	SQLStateUserDeactivated = "TP004"
+	// SQLStatePermissionsChanged is the SQLSTATE raised by permissions update procedure when
+	// the user has active connections for current database but permissions have changed.
+	SQLStatePermissionsChanged = "TP005"
 )

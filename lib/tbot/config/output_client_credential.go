@@ -96,6 +96,16 @@ func (o *UnstableClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, e
 	return o.facade.SSHClientConfig()
 }
 
+// Facade returns the underlying facade
+func (o *UnstableClientCredentialOutput) Facade() (*identity.Facade, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.facade == nil {
+		return nil, trace.BadParameter("credentials not yet ready")
+	}
+	return o.facade, nil
+}
+
 // Render implements the Destination interface and is called regularly by the
 // bot with new credentials. Render passes these credentials down to the
 // underlying facade so that they can be used in TLS/SSH configs.

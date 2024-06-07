@@ -27,6 +27,8 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+var _ Backend = (*Wrapper)(nil)
+
 // Wrapper wraps a Backend implementation that can fail
 // on demand.
 type Wrapper struct {
@@ -119,6 +121,10 @@ func (s *Wrapper) ConditionalDelete(ctx context.Context, key []byte, revision st
 // DeleteRange deletes range of items
 func (s *Wrapper) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
 	return s.backend.DeleteRange(ctx, startKey, endKey)
+}
+
+func (s *Wrapper) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
+	return s.backend.AtomicWrite(ctx, condacts)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,

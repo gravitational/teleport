@@ -29,19 +29,26 @@ export default {
 };
 
 const singleFlow = { default: [Body1, Body2] };
-export const SingleFlowInPlaceSlider = () => {
+export const SingleFlowInPlaceSlider = (props: {
+  defaultStepIndex?: number;
+}) => {
   return (
     <Card my="5" mx="auto" width={464}>
-      <Text typography="h3" pt={5} textAlign="center" color="text.main">
+      <Text typography="h1" pt={5} textAlign="center" color="text.main">
         Static Title
       </Text>
       <StepSlider<typeof singleFlow>
         flows={singleFlow}
         currFlow={'default'}
         testProp="I'm that test prop"
+        defaultStepIndex={props.defaultStepIndex}
       />
     </Card>
   );
+};
+
+export const SingleFlowWithDefaultStepIndex = () => {
+  return <SingleFlowInPlaceSlider defaultStepIndex={1} />;
 };
 
 type MultiFlow = 'primary' | 'secondary';
@@ -52,7 +59,7 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiFlowWheelSlider = () => {
+export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -71,6 +78,7 @@ export const MultiFlowWheelSlider = () => {
       onSwitchFlow={onSwitchFlow}
       newFlow={newFlow}
       changeFlow={onNewFlow}
+      defaultStepIndex={props.defaultStepIndex}
     />
   );
 };
@@ -110,7 +118,7 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   );
 }
 
-function MainStep2({ next, prev, refCallback }: ViewProps) {
+function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary2">
       <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
@@ -157,6 +165,14 @@ function MainStep2({ next, prev, refCallback }: ViewProps) {
           }}
         >
           Go Back
+        </ButtonLink>
+        <ButtonLink
+          onClick={e => {
+            e.preventDefault();
+            changeFlow({ flow: 'secondary' });
+          }}
+        >
+          Switch Secondary Flow
         </ButtonLink>
       </Box>
     </OnboardCard>
@@ -236,6 +252,9 @@ function Body1({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body1">
+      <Text typography="h2" mb={3}>
+        Step 1
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -273,6 +292,9 @@ function Body2({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body2">
+      <Text typography="h2" mb={3}>
+        Step 2
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim

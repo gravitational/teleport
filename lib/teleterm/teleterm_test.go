@@ -120,6 +120,7 @@ func TestStart(t *testing.T) {
 				ListeningC:     listeningC,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				InstallationID: "foo",
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -212,9 +213,14 @@ func dialTCP(t *testing.T, addr utils.NetAddr, certsDir string, createClientTLSC
 func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	// Hardcoded filenames under which Connect expects certs. In this test suite, we're trying to
 	// reach the tsh gRPC server, so we need to use the renderer cert as the client cert.
+	// The main process cert is created as well as the gRPC server is configured to expect both.
 	clientCertPath := filepath.Join(certsDir, rendererCertFileName)
+	mainProcessCertPath := filepath.Join(certsDir, mainProcessCertFileName)
 	serverCertPath := filepath.Join(certsDir, tshdCertFileName)
+
 	clientCert, err := generateAndSaveCert(clientCertPath, x509.ExtKeyUsageClientAuth)
+	require.NoError(t, err)
+	_, err = generateAndSaveCert(mainProcessCertPath, x509.ExtKeyUsageClientAuth)
 	require.NoError(t, err)
 
 	tlsConfig, err := createClientTLSConfig(clientCert, serverCertPath)

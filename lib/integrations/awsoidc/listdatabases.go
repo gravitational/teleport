@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 var (
@@ -103,59 +104,6 @@ func NewListDatabasesClient(ctx context.Context, req *AWSClientRequest) (ListDat
 	return newRDSClient(ctx, req)
 }
 
-// ListAllDatabases collects dbs until end of pages for all supported RDS engines and types.
-func ListAllDatabases(ctx context.Context, clt ListDatabasesClient, region string) (*ListDatabasesResponse, error) {
-	fetchedRDSs := []types.Database{}
-
-	// Get all rds instances.
-	nextToken := ""
-	for {
-		resp, err := ListDatabases(ctx,
-			clt,
-			ListDatabasesRequest{
-				Region:    region,
-				Engines:   []string{services.RDSEngineMySQL, services.RDSEngineMariaDB, services.RDSEnginePostgres},
-				RDSType:   rdsTypeInstance,
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
-	}
-
-	// Get all rds clusters.
-	nextToken = ""
-	for {
-		resp, err := ListDatabases(ctx,
-			clt,
-			ListDatabasesRequest{
-				Region:    region,
-				Engines:   []string{services.RDSEngineAuroraMySQL, services.RDSEngineAuroraPostgres},
-				RDSType:   rdsTypeCluster,
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
-	}
-
-	return &ListDatabasesResponse{Databases: fetchedRDSs}, nil
-}
-
 // ListDatabases calls the following AWS API:
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -205,11 +153,11 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBInstances))
 	for _, db := range rdsDBs.DBInstances {
-		if !services.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+		if !cloudaws.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
 			continue
 		}
 
-		dbServer, err := services.NewDatabaseFromRDSV2Instance(&db)
+		dbServer, err := common.NewDatabaseFromRDSV2Instance(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -243,7 +191,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBClusters))
 	for _, db := range rdsDBs.DBClusters {
-		if !services.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
+		if !cloudaws.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
 			continue
 		}
 
@@ -256,7 +204,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 			return nil, trace.Wrap(err)
 		}
 
-		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
+		awsDB, err := common.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

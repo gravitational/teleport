@@ -18,9 +18,7 @@ The steps below describe how to use Teleport with Mattermost. You can also
 
 <Notice type="warning">
 
-This guide requires a commercial edition of Teleport. The open source edition of
-Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as an
-SSO provider.
+Dual Authorization requires Teleport Enterprise.
 
 </Notice>
 
@@ -42,7 +40,7 @@ SSO provider.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Set up a Teleport bot
+## Step 1/2. Set up a Teleport bot
 
 ### Create a bot within Mattermost
 
@@ -79,8 +77,8 @@ We'll reference the exported file(s) later when configuring the plugin.
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-mattermost-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-mattermost
   $ ./install
   ```
@@ -89,9 +87,10 @@ We'll reference the exported file(s) later when configuring the plugin.
   To install from source you need `git` and `go >= (=teleport.golang=)` installed.
 
   ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/mattermost
+  # Checkout the Teleport repo and go in the mattermost access plugin directory
+  $ git clone https://github.com/gravitational/teleport.git
+  $ cd teleport/integrations/access/mattermost
+  $ git checkout (=teleport.plugin.version=)
   $ make
   ```
 </TabItem>
@@ -107,7 +106,7 @@ Update the config with the Teleport address, Mattermost URL, and a bot token:
 (!examples/resources/plugins/teleport-mattermost-cloud.toml!)
 ```
 
-## Step 2/3. Configure dual authorization
+## Step 2/2. Configure dual authorization
 
 In this section, we will use an example to show you how to require dual
 authorization for a user to assume a role.

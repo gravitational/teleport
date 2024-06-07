@@ -27,11 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-var log = logrus.WithField(trace.Component, "cluster_auth_test")
+var log = logrus.WithField(teleport.ComponentKey, "cluster_auth_test")
 
 func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}

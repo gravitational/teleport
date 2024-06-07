@@ -23,11 +23,13 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToApp,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
 import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
 import { routing } from 'teleterm/ui/uri';
+import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -42,36 +44,67 @@ export interface ParametrizedAction {
   searchResult: SearchResult;
   preventAutoClose?: boolean;
   parameter: {
-    getSuggestions(): Promise<string[]>;
+    getSuggestions(): Promise<Parameter[]>;
+    /** Disables providing new values. */
+    allowOnlySuggestions?: boolean;
+    /**
+     * Displayed when the suggestions list is empty and `allowOnlySuggestions`
+     * is true.
+     */
+    noSuggestionsAvailableMessage?: string;
     placeholder: string;
   };
+  perform(parameter: Parameter): void;
+}
 
-  perform(parameter: string): void;
+export interface Parameter {
+  /** Value of the parameter. It is used as a list key, so it should be unique. */
+  value: string;
+  /**
+   * Text that should be displayed in the UI.
+   * The input value provided by the user will be matched against this field.
+   */
+  displayText: string;
 }
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
 export function mapToAction(
   ctx: IAppContext,
+  launchVnet: () => Promise<[void, Error]>,
   searchContext: SearchContext,
   result: SearchResult
 ): SearchAction {
   switch (result.kind) {
     case 'server': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () =>
-            ctx.clustersService.findClusterByResource(result.resource.uri)
-              ?.loggedInUser?.sshLoginsList,
+          getSuggestions: async () => {
+            const sshLogins = ctx.clustersService.findClusterByResource(
+              result.resource.uri
+            )?.loggedInUser?.sshLogins;
+            return sshLogins?.map(login => ({
+              value: login,
+              displayText: login,
+            }));
+          },
           placeholder: 'Provide login',
         },
         perform: login => {
           const { uri, hostname } = result.resource;
           return connectToServer(
             ctx,
-            { uri, hostname, login },
+            { uri, hostname, login: login.value },
             {
               origin: 'search_bar',
             }
@@ -80,6 +113,14 @@ export function mapToAction(
       };
     }
     case 'kube': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'simple-action',
         searchResult: result,
@@ -95,15 +136,73 @@ export function mapToAction(
         },
       };
     }
+    case 'app': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
+      if (result.resource.awsConsole) {
+        return {
+          type: 'parametrized-action',
+          searchResult: result,
+          parameter: {
+            getSuggestions: async () =>
+              result.resource.awsRoles.map(a => ({
+                value: a.arn,
+                displayText: a.display,
+              })),
+            allowOnlySuggestions: true,
+            noSuggestionsAvailableMessage: 'No roles found.',
+            placeholder: 'Select IAM Role',
+          },
+          perform: parameter =>
+            connectToApp(
+              ctx,
+              launchVnet,
+              result.resource,
+              {
+                origin: 'search_bar',
+              },
+              { arnForAwsApp: parameter.value }
+            ),
+        };
+      }
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        perform: () =>
+          connectToApp(ctx, launchVnet, result.resource, {
+            origin: 'search_bar',
+          }),
+      };
+    }
     case 'database': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
           getSuggestions: () =>
-            retryWithRelogin(ctx, result.resource.uri, () =>
-              ctx.resourcesService.getDbUsers(result.resource.uri)
-            ),
+            retryWithRelogin(ctx, result.resource.uri, async () => {
+              const dbUsers = await ctx.resourcesService.getDbUsers(
+                result.resource.uri
+              );
+              return dbUsers.map(dbUser => ({
+                value: dbUser,
+                displayText: dbUser,
+              }));
+            }),
           placeholder: 'Provide db username',
         },
         perform: dbUser => {
@@ -114,7 +213,7 @@ export function mapToAction(
               uri,
               name,
               protocol,
-              dbUser,
+              dbUser: dbUser.value,
             },
             {
               origin: 'search_bar',
@@ -193,5 +292,19 @@ export function mapToAction(
     }
     default:
       assertUnreachable(result);
+  }
+}
+
+async function addResourceToRequest(
+  ctx: IAppContext,
+  resource: ResourceRequest
+): Promise<void> {
+  const rootClusterUri = routing.ensureRootClusterUri(resource.resource.uri);
+  const { isAtDesiredWorkspace } =
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  if (isAtDesiredWorkspace) {
+    await ctx.workspacesService
+      .getWorkspaceAccessRequestsService(rootClusterUri)
+      .addResource(resource);
   }
 }

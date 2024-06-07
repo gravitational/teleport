@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -34,9 +35,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -151,7 +153,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case u.userAdd.FullCommand():
 		err = u.Add(ctx, client)
@@ -170,18 +172,18 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 }
 
 // ResetPassword resets user password and generates a token to setup new password
-func (u *UserCommand) ResetPassword(ctx context.Context, client auth.ClientI) error {
-	req := auth.CreateUserTokenRequest{
+func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
+	req := authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPassword,
+		Type: authclient.UserTokenTypeResetPassword,
 	}
 	token, err := client.CreateResetPasswordToken(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	err = u.PrintResetPasswordToken(token, u.format)
+	err = u.PrintResetPasswordToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,9 +192,8 @@ func (u *UserCommand) ResetPassword(ctx context.Context, client auth.ClientI) er
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format string) error {
+func (u *UserCommand) PrintResetPasswordToken(token types.UserToken) error {
 	err := u.printResetPasswordToken(token,
-		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
 	if err != nil {
@@ -203,9 +204,8 @@ func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format stri
 }
 
 // PrintResetPasswordTokenAsInvite prints ResetPasswordToken as Invite
-func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken, format string) error {
+func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken) error {
 	err := u.printResetPasswordToken(token,
-		format,
 		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,7 +215,7 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken, for
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) printResetPasswordToken(token types.UserToken, format string, messageFormat string) (err error) {
+func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageFormat string) (err error) {
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
@@ -234,7 +234,7 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
-func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
+func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error {
 	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
@@ -297,6 +297,14 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	user.SetTraits(traits)
 	user.SetRoles(u.allowedRoles)
 
+	// Prompt for admin action MFA if required, allowing reuse for CreateResetPasswordToken.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
 	if _, err := client.CreateUser(ctx, user); err != nil {
 		if trace.IsAlreadyExists(err) {
 			fmt.Printf(`NOTE: To update an existing local user:
@@ -307,16 +315,16 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
-		Type: auth.UserTokenTypeResetPasswordInvite,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := u.PrintResetPasswordTokenAsInvite(token, u.format); err != nil {
+	if err := u.PrintResetPasswordTokenAsInvite(token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -356,7 +364,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 }
 
 // Update updates existing user
-func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
+func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) error {
 	user, err := client.GetUser(ctx, u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -478,7 +486,7 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 }
 
 // List prints all existing user accounts
-func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
+func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error {
 	users, err := client.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -507,7 +515,7 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (u *UserCommand) Delete(ctx context.Context, client auth.ClientI) error {
+func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) error {
 	for _, l := range strings.Split(u.login, ",") {
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)

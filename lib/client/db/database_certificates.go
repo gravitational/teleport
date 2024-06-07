@@ -26,16 +26,24 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+type CertificateSigner interface {
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+}
 
 // GenerateDatabaseCertificatesRequest contains the required fields used to generate database certificates
 // Those certificates will be used by databases to set up mTLS authentication against Teleport
 type GenerateDatabaseCertificatesRequest struct {
-	ClusterAPI         auth.ClientI
+	ClusterAPI         CertificateSigner
 	Principals         []string
 	OutputFormat       identityfile.Format
 	OutputCanOverwrite bool
@@ -47,8 +55,8 @@ type GenerateDatabaseCertificatesRequest struct {
 	Password string
 }
 
-// GenerateDatabaseCertificates to be used by databases to set up mTLS authentication
-func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCertificatesRequest) ([]string, error) {
+// GenerateDatabaseServerCertificates to be used by databases to set up mTLS authentication
+func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabaseCertificatesRequest) ([]string, error) {
 
 	if len(req.Principals) == 0 ||
 		(len(req.Principals) == 1 && req.Principals[0] == "" && req.OutputFormat != identityfile.FormatSnowflake) {
@@ -65,6 +73,11 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 
 	subject := pkix.Name{CommonName: req.Principals[0]}
 
+	clusterNameType, err := req.ClusterAPI.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName := clusterNameType.GetClusterName()
 	if req.OutputFormat == identityfile.FormatMongo {
 		// Include Organization attribute in MongoDB certificates as well.
 		//
@@ -77,12 +90,7 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 		// MongoDB cluster members so set it to the Teleport cluster name
 		// to avoid hardcoding anything.
 
-		clusterNameType, err := req.ClusterAPI.GetClusterName()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		subject.Organization = []string{clusterNameType.GetClusterName()}
+		subject.Organization = []string{clusterName}
 	}
 
 	if req.Key == nil {
@@ -114,8 +122,27 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 		return nil, trace.Wrap(err)
 	}
 
+	// For CockroachDB we provide node.crt, node.key, ca.crt, and ca-client.crt,
+	// and the user must use their own CA to issue client.node.crt,
+	// client.node.key, and add their own CA's cert to ca-client.crt.
+	// The response CA certs are for Teleport DB Client CA, so fetch the
+	// Teleport Database CA certs as well.
+	var additionalCACerts [][]byte
+	if req.OutputFormat == identityfile.FormatCockroach {
+		dbServerCA, err := req.ClusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.DatabaseCA,
+			DomainName: clusterName,
+		}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, keyPair := range dbServerCA.GetTrustedTLSKeyPairs() {
+			additionalCACerts = append(additionalCACerts, keyPair.Cert)
+		}
+	}
+
 	req.Key.TLSCert = resp.Cert
-	req.Key.TrustedCerts = []auth.TrustedCerts{{
+	req.Key.TrustedCerts = []authclient.TrustedCerts{{
 		ClusterName:     req.Key.ClusterName,
 		TLSCertificates: resp.CACerts,
 	}}
@@ -126,6 +153,7 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 		OverwriteDestination: req.OutputCanOverwrite,
 		Writer:               req.IdentityFileWriter,
 		Password:             req.Password,
+		AdditionalCACerts:    additionalCACerts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

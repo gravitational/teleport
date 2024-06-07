@@ -30,6 +30,7 @@ import (
 	"github.com/opensearch-project/opensearch-go/v2"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -70,8 +71,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolOpenSearch,
-			"name":          config.Name,
+			teleport.ComponentKey: defaults.ProtocolOpenSearch,
+			"name":                config.Name,
 		}),
 	}
 

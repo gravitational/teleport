@@ -21,6 +21,7 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -103,7 +104,7 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 	case configPath == "" && clusterName != "":
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
-			if err == rest.ErrNotInCluster {
+			if errors.Is(err, rest.ErrNotInCluster) {
 				return nil, trace.NotFound("not running inside of a Kubernetes pod")
 			}
 			return nil, trace.Wrap(err)
@@ -217,29 +218,18 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	return []types.KubeCluster(sorted)
 }
 
-// CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane
-// default based on registered clusters.
-//
-// If no clusters are registered, a NotFound error is returned.
-func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName, teleportClusterName string) (string, error) {
+// CheckKubeCluster validates kubeClusterName is registered with this Teleport cluster.
+func CheckKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName string) error {
+	if kubeClusterName == "" {
+		return trace.BadParameter("kube cluster name should not be empty.")
+	}
 	kubeClusterNames, err := KubeClusterNames(ctx, p)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err, "failed to get list of available Kubernetes clusters.")
 	}
-	if kubeClusterName != "" {
-		if !slices.Contains(kubeClusterNames, kubeClusterName) {
-			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
-		}
-		return kubeClusterName, nil
+	if !slices.Contains(kubeClusterNames, kubeClusterName) {
+		return trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 	}
-	// Default is the cluster with a name matching the Teleport cluster
-	// name (for backwards-compatibility with pre-5.0 behavior) or the
-	// first name alphabetically.
-	if len(kubeClusterNames) == 0 {
-		return "", trace.NotFound("no kubernetes clusters registered")
-	}
-	if slices.Contains(kubeClusterNames, teleportClusterName) {
-		return teleportClusterName, nil
-	}
-	return kubeClusterNames[0], nil
+
+	return nil
 }

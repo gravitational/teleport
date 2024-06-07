@@ -19,8 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Copy, Cross } from 'design/Icon';
-import { BrainIcon } from 'design/SVGIcon';
+import { ChatCircleSparkle, Copy, Cross } from 'design/Icon';
 
 interface Position {
   top: number;
@@ -94,7 +93,7 @@ export function ActionBar(props: ActionBarProps) {
       </Button>
 
       <Button onClick={handleAskAssist}>
-        <BrainIcon size={14} />
+        <ChatCircleSparkle size={14} />
         Ask Assist
       </Button>
 

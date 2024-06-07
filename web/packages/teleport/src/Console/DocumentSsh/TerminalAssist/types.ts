@@ -16,7 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Author } from 'teleport/Assist/types';
+export enum Author {
+  Teleport,
+  User,
+}
+
+export enum ServerMessageType {
+  Assist = 'CHAT_MESSAGE_ASSISTANT',
+  User = 'CHAT_MESSAGE_USER',
+  Error = 'CHAT_MESSAGE_ERROR',
+  Command = 'COMMAND',
+  CommandResult = 'COMMAND_RESULT',
+  CommandResultSummary = 'COMMAND_RESULT_SUMMARY',
+  CommandResultStream = 'COMMAND_RESULT_STREAM',
+  AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
+  AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
+  AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
+  AccessRequests = 'ACCESS_REQUESTS',
+  AccessRequest = 'ACCESS_REQUEST',
+  AccessRequestCreated = 'ACCESS_REQUEST_CREATED',
+}
+
+export interface ServerMessage {
+  type: ServerMessageType;
+  conversation_id: string;
+  payload: string;
+  created_time: string;
+}
 
 export enum MessageType {
   User,

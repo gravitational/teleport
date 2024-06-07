@@ -48,6 +48,12 @@ type RegisterIAMChallengeResponseFunc func(challenge string) (*proto.RegisterUsi
 // *proto.RegisterUsingAzureMethodRequest for a given challenge, or an error.
 type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error)
 
+// RegisterTPMChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingTPMMethod. It must return a
+// *proto.RegisterUsingTPMMethodChallengeResponse for a given challenge, or an
+// error.
+type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
@@ -124,4 +130,73 @@ func (c *JoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challe
 		return nil, trace.Wrap(err)
 	}
 	return certsResp.Certs, nil
+}
+
+// RegisterUsingTPMMethod registers the caller using the TPM join method and
+// returns signed certs to join the cluster. The caller must provide a
+// ChallengeResponseFunc which returns a *proto.RegisterUsingTPMMethodRequest
+// for a given challenge, or an error.
+func (c *JoinServiceClient) RegisterUsingTPMMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingTPMMethodInitialRequest,
+	solveChallenge RegisterTPMChallengeResponseFunc,
+) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream, err := c.grpcClient.RegisterUsingTPMMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_Init{
+			Init: initReq,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "sending initial request")
+	}
+
+	res, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err, "receiving challenge")
+	}
+
+	challenge := res.GetChallengeRequest()
+	if challenge == nil {
+		return nil, trace.BadParameter(
+			"expected ChallengeRequest payload, got %T",
+			res.Payload,
+		)
+	}
+
+	solution, err := solveChallenge(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err, "solving challenge")
+	}
+
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_ChallengeResponse{
+			ChallengeResponse: solution,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "sending solution")
+	}
+
+	res, err = stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err, "receiving certs")
+	}
+	certs := res.GetCerts()
+	if certs == nil {
+		return nil, trace.BadParameter(
+			"expected Certs payload, got %T",
+			res.Payload,
+		)
+	}
+
+	return certs, nil
 }

@@ -29,9 +29,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,12 +59,12 @@ func (m *mockAgent) GetProxyID() (string, bool) {
 }
 
 type mockClient struct {
-	auth.ClientI
+	authclient.ClientI
 	ssh.Signer
 	mockGetClusterNetworkingConfig func(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
-func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, _ ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if c.mockGetClusterNetworkingConfig != nil {
 		return c.mockGetClusterNetworkingConfig(ctx)
 	}

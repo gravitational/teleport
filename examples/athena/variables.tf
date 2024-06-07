@@ -69,3 +69,19 @@ variable "search_event_limiter_amount" {
   description = "Number of tokens added to the bucket during specific interval for rate limit used on top of search event API"
   default     = 5
 }
+
+variable "access_monitoring_trusted_relationship_role_arn" {
+  description = "AWS Role ARN that will be used to configure trusted relationship between provided role and Access Monitoring role allowing to assume Access Monitoring role by the provided role"
+  default     = ""
+}
+
+variable "access_monitoring" {
+  description = "Enabled Access Monitoring"
+  type        = bool
+  default     = false
+}
+
+variable "access_monitoring_prefix" {
+  description = "Prefix for resources created by Access Monitoring"
+  default     = ""
+}

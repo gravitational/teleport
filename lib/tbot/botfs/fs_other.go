@@ -22,6 +22,7 @@
 package botfs
 
 import (
+	"context"
 	"io"
 	"os/user"
 	"sync"
@@ -52,7 +53,11 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 		return nil, trace.BadParameter("cannot read with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
 		unsupportedPlatformWarning.Do(func() {
-			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+			log.WarnContext(
+				context.TODO(),
+				"Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message",
+				"path", path,
+			)
 		})
 	}
 
@@ -78,7 +83,11 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
 		unsupportedPlatformWarning.Do(func() {
-			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+			log.WarnContext(
+				context.TODO(),
+				"Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message",
+				"path", path,
+			)
 		})
 	}
 

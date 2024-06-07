@@ -58,12 +58,12 @@ proxy_service:
 ```
 
 </TabItem>
-<TabItem scope={["team","cloud"]} label="Cloud-Hosted">
+<TabItem label="Cloud-Hosted">
 
-Teleport Team and Teleport Enterprise Cloud automatically configure the Teleport
-Proxy Service with the following settings that are relevant to database access.
-This reference configuration uses `mytenant.teleport.sh` in place of your
-Teleport Team/Enterprise Cloud tenant address.
+Teleport Enterprise Cloud automatically configures the Teleport Proxy Service
+with the following settings that are relevant to database access. This reference
+configuration uses `example.teleport.sh` in place of your Teleport Enterprise
+Cloud tenant address:
 
 ```yaml
 proxy_service:
@@ -104,17 +104,42 @@ metadata:
     env: example
 
 spec:
-  # Database protocol.
+  # Database protocol. Valid options are:
+  # "cassandra"
+  # "clickhouse"
+  # "clickhouse-http"
+  # "cockroachdb"
+  # "dynamodb"
+  # "elasticsearch"
+  # "mongodb"
+  # "mysql"
+  # "oracle"
+  # "postgres"
+  # "redis"
+  # "snowflake"
+  # "spanner"
+  # "sqlserver"
   protocol: "postgres"
 
   # Database connection endpoint.
   uri: "localhost:5432"
 
-  # Optional CA for validating the database certificate.
-  ca_cert: |
-    -----BEGIN CERTIFICATE-----
-    ...
-    -----END CERTIFICATE-----
+  # Optional TLS configuration.
+  tls:
+    # TLS verification mode. Valid options are:
+    # 'verify-full' - performs full certificate validation (default).
+    # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+    # 'insecure' - accepts any certificate provided by database (not recommended).
+    mode: verify-full
+    # Optional database DNS server name. It allows to override the DNS name on
+    # a client certificate when connecting to a database.
+    # Use only with 'verify-full' mode.
+    server_name: db.example.com
+    # Optional CA for validating the database certificate.
+    ca_cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
 
   # Database admin user for automatic user provisioning.
   admin_user:
@@ -156,7 +181,7 @@ spec:
       # Redshift cluster identifier.
       cluster_id: "redshift-cluster-1"
 
-  # Optional GCP configuration for Cloud SQL.
+  # GCP configuration (required for Cloud SQL and Spanner databases).
   gcp:
     # GCP project ID.
     project_id: "xxx-1234"

@@ -39,8 +39,8 @@ type TeleportLoginRule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportLoginRuleSpec   `json:"spec,omitempty"`
-	Status TeleportLoginRuleStatus `json:"status,omitempty"`
+	Spec   TeleportLoginRuleSpec `json:"spec,omitempty"`
+	Status resources.Status      `json:"status,omitempty"`
 }
 
 // TeleportLoginRuleSpec matches the JSON of generated CRD spec
@@ -49,14 +49,6 @@ type TeleportLoginRuleSpec struct {
 	Priority         int32               `json:"priority,omitempty"`
 	TraitsExpression string              `json:"traits_expression,omitempty"`
 	TraitsMap        map[string][]string `json:"traits_map,omitempty"`
-}
-
-type TeleportLoginRuleStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -115,8 +107,8 @@ func (l *LoginRuleResource) SetOrigin(origin string) {
 	l.LoginRule.Metadata.SetOrigin(origin)
 }
 
-func (l *LoginRuleResource) GetMetadata() types.Metadata {
-	return *l.LoginRule.Metadata
+func (l *LoginRuleResource) Origin() string {
+	return l.LoginRule.Metadata.Origin()
 }
 
 func (l *LoginRuleResource) GetRevision() string {

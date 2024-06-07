@@ -33,7 +33,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 // TestTerminalReadFromClosedConn verifies that Teleport recovers
@@ -58,7 +58,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 			t.Errorf("couldn't upgrade websocket connection: %v", err)
 		}
 
-		envelope := Envelope{
+		envelope := terminal.Envelope{
 			Type:    defaults.WebsocketRaw,
 			Payload: "hello",
 		}
@@ -77,7 +77,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	stream := NewTerminalStream(ctx, TerminalStreamConfig{WS: conn, Logger: utils.NewLoggerForTests()})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewLoggerForTests()})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
@@ -87,9 +87,9 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 }
 
-type terminal struct {
+type testTerminal struct {
 	ws     *websocket.Conn
-	stream *TerminalStream
+	stream *terminal.Stream
 
 	sessionC chan session.Session
 }
@@ -102,11 +102,11 @@ type connectConfig struct {
 	participantMode   types.SessionParticipantMode
 	keepAliveInterval time.Duration
 	mfaCeremony       func(challenge client.MFAAuthenticateChallenge) []byte
-	handlers          map[string]WSHandlerFunc
-	pingHandler       func(WSConn, string) error
+	handlers          map[string]terminal.WSHandlerFunc
+	pingHandler       func(terminal.WSConn, string) error
 }
 
-func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
+func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error) {
 	req := TerminalRequest{
 		Server: cfg.host,
 		Login:  cfg.pack.login,
@@ -127,12 +127,11 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 	u := url.URL{
 		Host:   cfg.proxy,
 		Scheme: client.WSS,
-		Path:   "/v1/webapi/sites/-current-/connect",
+		Path:   "/v1/webapi/sites/-current-/connect/ws",
 	}
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, cfg.pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	header := http.Header{}
@@ -162,13 +161,17 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := makeAuthReqOverWS(ws, cfg.pack.session.Token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.pingHandler != nil {
 		ws.SetPingHandler(func(message string) error {
 			return cfg.pingHandler(ws, message)
 		})
 	}
 
-	t := &terminal{ws: ws, sessionC: make(chan session.Session, 1)}
+	t := &testTerminal{ws: ws, sessionC: make(chan session.Session, 1)}
 
 	// If MFA is expected, it should be performed prior to creating
 	// the TerminalStream to avoid messages being handled by multiple
@@ -180,11 +183,11 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 	}
 
 	if cfg.handlers == nil {
-		cfg.handlers = map[string]WSHandlerFunc{}
+		cfg.handlers = map[string]terminal.WSHandlerFunc{}
 	}
 
 	if _, ok := cfg.handlers[defaults.WebsocketSessionMetadata]; !ok {
-		cfg.handlers[defaults.WebsocketSessionMetadata] = func(ctx context.Context, envelope Envelope) {
+		cfg.handlers[defaults.WebsocketSessionMetadata] = func(ctx context.Context, envelope terminal.Envelope) {
 			if envelope.Type != defaults.WebsocketSessionMetadata {
 				return
 			}
@@ -198,7 +201,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 		}
 	}
 
-	t.stream = NewTerminalStream(ctx, TerminalStreamConfig{
+	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:       ws,
 		Logger:   utils.NewLogger(),
 		Handlers: cfg.handlers,
@@ -207,26 +210,34 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 	return t, nil
 }
 
-func (t *terminal) GetSession() session.Session {
+func (t *testTerminal) GetSession() session.Session {
 	sess := <-t.sessionC
 	t.sessionC <- sess
 
 	return sess
 }
 
-func (t *terminal) Close() error {
+func (t *testTerminal) Close() error {
 	return t.stream.Close()
 }
 
-func (t *terminal) Write(p []byte) (int, error) {
+func (t *testTerminal) Write(p []byte) (int, error) {
 	return t.stream.Write(p)
 }
 
-func (t *terminal) Read(p []byte) (int, error) {
+func (t *testTerminal) Read(p []byte) (int, error) {
 	return t.stream.Read(p)
 }
 
-func (t *terminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthenticateChallenge) []byte) error {
+func (t *testTerminal) SetReadDeadline(deadline time.Time) error {
+	return t.stream.SetReadDeadline(deadline)
+}
+
+func (t *testTerminal) SetWriteDeadline(deadline time.Time) error {
+	return t.stream.SetWriteDeadline(deadline)
+}
+
+func (t *testTerminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthenticateChallenge) []byte) error {
 	// Wait for websocket authn challenge event.
 	ty, raw, err := t.ws.ReadMessage()
 	if err != nil {
@@ -237,7 +248,7 @@ func (t *terminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthen
 		return trace.BadParameter("got unexpected websocket message type %d", ty)
 	}
 
-	var env Envelope
+	var env terminal.Envelope
 	if err := proto.Unmarshal(raw, &env); err != nil {
 		return trace.Wrap(err, "unmarshalling envelope")
 	}

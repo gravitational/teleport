@@ -18,76 +18,38 @@ package keys
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"encoding/pem"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-// TestParsePrivateKey tests that ParsePrivateKey successfully parses private key PEM.
-func TestParsePrivateKey(t *testing.T) {
-	for _, tt := range []struct {
-		desc        string
-		keyPEM      []byte
-		assertError require.ErrorAssertionFunc
-		assertKey   require.ValueAssertionFunc
-	}{
-		{
-			desc:   "invalid PEM",
-			keyPEM: []byte(`non-pem data`),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T", err)
-			},
-			assertKey: require.Nil,
-		},
-		{
-			desc:   "invalid key",
-			keyPEM: invalidKeyPEM,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T", err)
-			},
-			assertKey: require.Nil,
-		},
-		{
-			desc:        "rsa key",
-			keyPEM:      rsaKeyPEM,
-			assertError: require.NoError,
-			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				privateKey, ok := key.(*PrivateKey)
-				require.True(t, ok)
-				require.IsType(t, &rsa.PrivateKey{}, privateKey.Signer)
-			},
-		},
-		{
-			desc:        "ecdsa key",
-			keyPEM:      ecdsaKeyPEM,
-			assertError: require.NoError,
-			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				privateKey, ok := key.(*PrivateKey)
-				require.True(t, ok)
-				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.Signer)
-			},
-		},
-		{
-			desc:        "ed25519 key",
-			keyPEM:      ed25519KeyPEM,
-			assertError: require.NoError,
-			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				privateKey, ok := key.(*PrivateKey)
-				require.True(t, ok)
-				require.IsType(t, ed25519.PrivateKey{}, privateKey.Signer)
-			},
-		},
+func TestMarshalAndParsePrivateKey(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	for keyType, key := range map[string]crypto.Signer{
+		"rsa":     rsaKey,
+		"ecdsa":   ecKey,
+		"ed25519": edKey,
 	} {
-		t.Run(tt.desc, func(t *testing.T) {
-			priv, err := ParsePrivateKey(tt.keyPEM)
-			tt.assertError(t, err)
-			tt.assertKey(t, priv)
+		t.Run(keyType, func(t *testing.T) {
+			keyPEM, err := MarshalPrivateKey(key)
+			require.NoError(t, err)
+			gotKey, err := ParsePrivateKey(keyPEM)
+			require.NoError(t, err)
+			require.Equal(t, key, gotKey.Signer)
 		})
 	}
 }
@@ -129,9 +91,6 @@ func TestX509KeyPair(t *testing.T) {
 }
 
 var (
-	invalidKeyPEM = []byte(`-----BEGIN INVALID KEY-----
------END INVALID KEY-----
-`)
 	// generated with `openssl req -x509 -out rsa.crt -keyout rsa.key -newkey rsa:2048 -nodes -sha256`
 	rsaKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCudYRUc0u2xdQi
@@ -182,16 +141,4 @@ mg0exCUFW40aXpfm0z0dNNwoN+FPSefKMYMQ1LV87I6zGnmVTYH9Nix3REiuliIQ
 7XXnJc7A6tsc6yXdVG6IpGnKXuTvl/r4iIbH+JDv3MDSvZSCE5kzAPFjgB3zMAZ8
 Z0+424ERgom0Zdy75Y8I
 -----END CERTIFICATE-----`)
-	// generated with `openssl ecparam -genkey -name prime256v1 -noout -out ecdsa.key`
-	ecdsaKeyPEM = []byte(`-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIMDaz87Hngva0Wm+QkhCJ0Nz5o958+dsyH0DzsCe6Fl6oAoGCCqGSM49
-AwEHoUQDQgAEI06FHb4RKoYKcj+51w6WcN7kNI9OVSTp6H8BlljYYs2zxuIh6LQ3
-hXIC6UT+IOGQBnvq86SAbnPEWMLowtQc/Q==
------END EC PRIVATE KEY-----
-`)
-	// generated with `openssl genpkey -algorithm ed25519 -out ed25519.key`
-	ed25519KeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIGf81V4UAiKXFehNALvwlSlB8ZYb/RbRUMSdTG3mSZLN
------END PRIVATE KEY-----
-`)
 )

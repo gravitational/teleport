@@ -22,29 +22,22 @@ commands, and view your `kubectl`  activity in Teleport's audit log:
 
 ![Kubernetes access architecture](../../img/k8s/architecture-diagram.png)
 
+You can set up the Teleport Discovery Service to protect Kubernetes clusters
+with your Teleport automatically. Read more about [Teleport
+auto-discovery](../auto-discovery/kubernetes.mdx).
+
+Teleport protects Kubernetes clusters through the Teleport Kubernetes Service,
+which is a Teleport agent service. For more information on agent services, read
+[Teleport Agent Architecture](../architecture/agents.mdx). You can also learn
+how to deploy a [pool of Teleport agents](../agents/introduction.mdx) to run
+multiple agent services.
+
 ## Get started
 
 The fastest way to register a Kubernetes cluster with Teleport is to deploy a
 Teleport Kubernetes Service instance on the cluster you want to register.
 We'll show you how to do this in our [Getting Started
 Guide](getting-started.mdx).
-
-## Automatically register Kubernetes clusters
-
-Teleport can automatically discover Kubernetes clusters by communicating with
-your cloud provider. When you create or destroy a Kubernetes cluster, Teleport
-registers or deregisters the cluster so your access controls stay up to date
-with your infrastructure.
-
-[Read our overview](discovery.mdx) of how Teleport automatically discovers
-Kubernetes clusters.
-
-Read our guides to automatically registering Kubernetes clusters with Teleport
-on your cloud:
-
-- [AWS](./discovery/aws.mdx)
-- [Google Cloud](./discovery/google-cloud.mdx)
-- [Azure](./discovery/azure.mdx)
 
 ## Manually register Kubernetes clusters
 
@@ -66,13 +59,10 @@ manually when you create the cluster. There are a few ways to do this:
 Once you register a Kubernetes cluster with Teleport, you can apply fine-grained
 access controls to manage the way users access your cluster.
 
-Read our [Kubernetes RBAC guide](./manage-access/rbac.mdx) for step-by-step
+Read our [Kubernetes RBAC guide](./manage-access.mdx) for step-by-step
 instructions on giving your users the correct access to Kubernetes clusters,
 groups, users, and resources.
 
 For a comprehensive reference to configuring access controls in your
 Teleport-registered Kubernetes clusters, see our [Access Controls
 Reference](./controls.mdx).
-
-See how to federate your Kubernetes access controls using [Teleport Trusted
-Clusters](./manage-access/federation.mdx).

@@ -22,6 +22,8 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -32,15 +34,12 @@ import {
   APPLICATIONS,
   KUBERNETES,
   SERVERS,
-  WINDOWS_DESKTOPS,
 } from 'teleport/Discover/SelectResource/resources';
 import {
   DATABASES,
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
 } from 'teleport/Discover/SelectResource/databases';
-
-import { ClusterResource } from 'teleport/services/userPreferences/types';
 
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
@@ -55,7 +54,7 @@ beforeEach(() => {
 
 type createProps = {
   initialEntry?: string;
-  preferredResource?: ClusterResource;
+  preferredResource?: Resource;
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
@@ -96,9 +95,6 @@ test('displays all resources by default', () => {
       .getAllByTestId(ResourceKind.Server)
       .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
   ).toHaveLength(SERVERS.length);
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
   expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
     DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
   );
@@ -113,12 +109,8 @@ test('displays all resources by default', () => {
 test('location state applies filter/search', () => {
   create({
     initialEntry: 'desktop',
-    preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS,
+    preferredResource: Resource.WEB_APPLICATIONS,
   });
-
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
 
   expect(
     screen.queryByTestId(ResourceKind.Application)
@@ -139,7 +131,7 @@ describe('location state', () => {
     ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
-    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
+    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(4);
 
     expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
     expect(
@@ -152,10 +144,6 @@ describe('location state', () => {
 
   test('displays desktops when the location state is desktop', () => {
     create({ initialEntry: 'desktop' });
-
-    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-      WINDOWS_DESKTOPS.length
-    );
 
     expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
     expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();

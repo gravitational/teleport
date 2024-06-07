@@ -11,4 +11,4 @@ rules:
 - apiGroups: [""]
   # objects is "secrets"
   resources: ["secrets"]
-  verbs: ["create", "get", "update","patch"]
+  verbs: ["create", "get", "update", "patch"]

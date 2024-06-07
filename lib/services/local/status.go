@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,7 +41,7 @@ type StatusService struct {
 func NewStatusService(bk backend.Backend) *StatusService {
 	return &StatusService{
 		Backend: bk,
-		log:     logrus.WithField(trace.Component, "status"),
+		log:     logrus.WithField(teleport.ComponentKey, "status"),
 	}
 }
 

@@ -130,10 +130,8 @@ func TestTokens(t *testing.T) {
 		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.YAML})
 		require.NoError(t, err)
 		yamlOut := []listedToken{}
-		err = mustDecodeYAMLDocuments(t, buf, &yamlOut)
-		require.NoError(t, err)
+		mustDecodeYAMLDocuments(t, buf, &yamlOut)
 		require.Len(t, yamlOut, 5)
-
 		require.Equal(t, jsonOut, yamlOut)
 	})
 }

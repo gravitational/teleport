@@ -35,7 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -79,7 +79,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
-func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.nodeHeartbeats.FullCommand():
 		err = c.NodeHeartbeats(ctx, client)
@@ -91,7 +91,7 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 	return true, trace.Wrap(err)
 }
 
-func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.ClientI) error {
+func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient.Client) error {
 	infof := func(format string, args ...any) {
 		fmt.Fprintf(os.Stderr, "[i] "+format+"\n", args...)
 	}
@@ -211,7 +211,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 	}
 }
 
-func (c *LoadtestCommand) Watch(ctx context.Context, client auth.ClientI) error {
+func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	var kinds []types.WatchKind
 	for _, kind := range strings.Split(c.kind, ",") {
 		kind = strings.TrimSpace(kind)

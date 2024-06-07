@@ -24,7 +24,10 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
+
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
@@ -45,7 +48,7 @@ type PublicKeyCredentialRequestOptions struct {
 }
 
 func (a *PublicKeyCredentialRequestOptions) GetAllowedCredentialIDs() [][]byte {
-	var allowedCredentialIDs = make([][]byte, len(a.AllowedCredentials))
+	allowedCredentialIDs := make([][]byte, len(a.AllowedCredentials))
 	for i, credential := range a.AllowedCredentials {
 		allowedCredentialIDs[i] = credential.CredentialID
 	}
@@ -375,4 +378,51 @@ type Credential protocol.Credential
 // stable JSON marshal/unmarshal representation.
 type AuthenticationExtensionsClientOutputs struct {
 	AppID bool `json:"appid,omitempty"`
+}
+
+// SessionData is a clone of [webauthn.SessionData], materialized here to keep a
+// stable JSON marshal/unmarshal representation and add extensions.
+//
+// TODO(codingllama): Record extensions in stored session data.
+type SessionData struct {
+	// Raw challenge used for the ceremony.
+	Challenge []byte `json:"challenge,omitempty"`
+	// Raw User ID.
+	UserId []byte `json:"userId,omitempty"`
+	// Raw Credential IDs of the credentials allowed for the ceremony.
+	AllowCredentials [][]byte `json:"allowCredentials,omitempty"`
+	// True if resident keys were required by the server / Relying Party.
+	ResidentKey bool `json:"residentKey,omitempty"`
+	// Requested user verification requirement, either "discouraged" or
+	// "required".
+	// An empty value is treated equivalently to "discouraged".
+	UserVerification string `json:"userVerification,omitempty"`
+	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
+	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+}
+
+// SessionDataFromProtocol converts a [webauthn.SessionData] struct to an
+// internal SessionData struct.
+func SessionDataFromProtocol(sd *webauthn.SessionData) (*SessionData, error) {
+	rawChallenge, err := base64.RawURLEncoding.DecodeString(sd.Challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &SessionData{
+		Challenge:        rawChallenge,
+		UserId:           sd.UserID,
+		AllowCredentials: sd.AllowedCredentialIDs,
+		UserVerification: string(sd.UserVerification),
+	}, nil
+}
+
+// SessionDataFromProtocol converts an internal SessionData struct to a
+// [webauthn.SessionData] struct.
+func SessionDataToProtocol(sd *SessionData) *webauthn.SessionData {
+	return &webauthn.SessionData{
+		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
+		UserID:               sd.UserId,
+		AllowedCredentialIDs: sd.AllowCredentials,
+		UserVerification:     protocol.UserVerificationRequirement(sd.UserVerification),
+	}
 }

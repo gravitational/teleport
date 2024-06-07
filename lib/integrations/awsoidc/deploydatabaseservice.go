@@ -21,13 +21,12 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 )
 
 // DeployDatabaseServiceRequest contains the required fields to deploy multiple Teleport Databases Services.
@@ -47,10 +46,6 @@ type DeployDatabaseServiceRequest struct {
 	// Used to create names for Cluster and TaskDefinitions, and AWS resource tags.
 	TeleportClusterName string
 
-	// ProxyServerHostPort is the Teleport Proxy's Public.
-	// The Deployed services will connect to this service.
-	ProxyServerHostPort string
-
 	// IntegrationName is the integration name.
 	// Used for resource tagging when creating resources in AWS.
 	IntegrationName string
@@ -65,12 +60,12 @@ type DeployDatabaseServiceRequest struct {
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
 	ResourceCreationTags AWSTags
 
+	// DeploymentJoinTokenName is the Teleport IAM Join Token name that the deployed service must use to join the cluster.
+	DeploymentJoinTokenName string
+
 	// ecsClusterName is the ECS Cluster Name to be used.
 	// It is based on the Teleport Cluster's Name.
 	ecsClusterName string
-
-	// teleportIAMTokenNameForTask is the IAM Join Token name that the deployed service must use to join the cluster.
-	teleportIAMTokenNameForTask string
 
 	// accountID is the AWS Account ID.
 	// sts.GetCallerIdentity is used to obtain its value.
@@ -93,6 +88,10 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 		if len(deployment.SubnetIDs) == 0 {
 			return trace.BadParameter("at least one subnet is required in every deployment")
 		}
+
+		if deployment.DeployServiceConfig == "" {
+			return trace.BadParameter("deploy service config is required")
+		}
 	}
 
 	if r.TaskRoleARN == "" {
@@ -103,12 +102,12 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster name is required")
 	}
 
-	if r.ProxyServerHostPort == "" {
-		return trace.BadParameter("proxy address is required")
-	}
-
 	if r.IntegrationName == "" {
 		return trace.BadParameter("integration name is required")
+	}
+
+	if r.DeploymentJoinTokenName == "" {
+		return trace.BadParameter("invalid deployment join token name")
 	}
 
 	if r.TeleportVersionTag == "" {
@@ -120,8 +119,6 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)
-
-	r.teleportIAMTokenNameForTask = defaultTeleportIAMTokenName
 
 	return nil
 }
@@ -138,6 +135,10 @@ type DeployDatabaseServiceRequestDeployment struct {
 	// SecurityGroupIDs are the SecurityGroups that should be applied to the ECS Service.
 	// Optional. If empty, uses the VPC's default SecurityGroup.
 	SecurityGroupIDs []string
+
+	// DeployServiceConfig is the `teleport.yaml` configuration for the service to be deployed.
+	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
+	DeployServiceConfig string
 }
 
 // DeployDatabaseServiceResponse contains the ARNs of the Amazon resources used to deploy the Teleport Service.
@@ -197,49 +198,35 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 		region:         req.Region,
 		iamRole:        req.TaskRoleARN,
 		deploymentMode: DatabaseServiceDeploymentMode,
-		tokenName:      req.teleportIAMTokenNameForTask,
+		tokenName:      req.DeploymentJoinTokenName,
 	}
 	if err := upsertIAMJoinToken(ctx, upsertTokenReq, clt); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
-		"region":        req.Region,
-		"account-id":    req.accountID,
-		"integration":   req.IntegrationName,
-		"deployservice": DatabaseServiceDeploymentMode,
-		"ecs-cluster":   req.ecsClusterName,
-	})
+	log := slog.Default().With(
+		"region", req.Region,
+		"account_id", req.accountID,
+		"integration", req.IntegrationName,
+		"deployservice", DatabaseServiceDeploymentMode,
+		"ecs_cluster", req.ecsClusterName,
+	)
 
-	log.Debug("Upsert ECS Cluster")
+	log.DebugContext(ctx, "Upsert ECS Cluster")
 	cluster, err := upsertCluster(ctx, clt, req.ecsClusterName, req.ResourceCreationTags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, deployment := range req.Deployments {
-		teleportConfigString, err := generateTeleportConfigString(generateTeleportConfigParams{
-			ProxyServerHostPort:  req.ProxyServerHostPort,
-			TeleportIAMTokenName: req.teleportIAMTokenNameForTask,
-			DeploymentMode:       DatabaseServiceDeploymentMode,
-			DatabaseResourceMatcherLabels: types.Labels{
-				types.DiscoveryLabelRegion:    []string{req.Region},
-				types.DiscoveryLabelAccountID: []string{req.accountID},
-				types.DiscoveryLabelVPCID:     []string{deployment.VPCID},
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		taskName := ecsTaskName(req.TeleportClusterName, DatabaseServiceDeploymentMode, deployment.VPCID)
 		serviceName := ecsServiceName(DatabaseServiceDeploymentMode, deployment.VPCID)
 
-		log = log.WithFields(logrus.Fields{
-			"vpc-id":           deployment.VPCID,
-			"ecs-task-name":    taskName,
-			"ecs-service-name": serviceName,
-		})
+		logDeployment := log.With(
+			"vpc_id", deployment.VPCID,
+			"ecs_task_name", taskName,
+			"ecs_service_name", serviceName,
+		)
 
 		upsertTaskReq := upsertTaskRequest{
 			TaskName:             taskName,
@@ -249,9 +236,9 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 			TeleportVersionTag:   req.TeleportVersionTag,
 			ResourceCreationTags: req.ResourceCreationTags,
 			Region:               req.Region,
-			TeleportConfigB64:    teleportConfigString,
+			TeleportConfigB64:    deployment.DeployServiceConfig,
 		}
-		log.Debug("Upsert ECS TaskDefinition.")
+		logDeployment.DebugContext(ctx, "Upsert ECS TaskDefinition.")
 		taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -265,7 +252,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 			SubnetIDs:            deployment.SubnetIDs,
 			SecurityGroups:       deployment.SecurityGroupIDs,
 		}
-		log.Debug("Upsert ECS Service.")
+		logDeployment.DebugContext(ctx, "Upsert ECS Service.")
 		if _, err := upsertService(ctx, clt, upsertServiceReq, taskDefinitionARN); err != nil {
 			return nil, trace.Wrap(err)
 		}

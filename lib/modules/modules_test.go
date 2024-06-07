@@ -20,6 +20,7 @@ package modules_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 func TestOSSModules(t *testing.T) {
 	require.False(t, modules.GetModules().IsBoringBinary())
@@ -49,13 +55,12 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	authPref := types.DefaultAuthPreference()
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
+	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
-	require.EqualError(t, err, "cannot disable two-factor authentication on Cloud")
+	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
@@ -74,10 +79,10 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	})
 
 	recConfig := types.DefaultSessionRecordingConfig()
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	recConfig.SetMode(types.RecordAtProxy)
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = testServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.EqualError(t, err, "cannot set proxy recording mode on Cloud")
 }

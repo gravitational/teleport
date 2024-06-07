@@ -29,9 +29,48 @@
 // use matchPath, we'll likely have to sacrifice some type safety.
 // The underscore was chosen as a separator since resource kinds on the backend already use
 // underscores.
-export enum Path {
-  ConnectMyComputer = 'connect_my_computer',
-}
+export type Path = DeepURL['pathname'];
+
+/**
+ *
+ * BaseDeepURL is a parsed version of an URL.
+ *
+ * Since DeepLinkParseResult goes through IPC in Electron [1], anything included in it is subject to
+ * Structured Clone Algorithm [2]. As such, getters and setters are dropped which means were not
+ * able to pass whatwg.URL without casting it to an object.
+ *
+ * [1] https://www.electronjs.org/docs/latest/tutorial/ipc
+ * [2] https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm
+ */
+type BaseDeepURL = {
+  /**
+   * host is the hostname plus the port.
+   */
+  host: string;
+  /**
+   * hostname is the host without the port, e.g. if the host is "example.com:4321", the hostname is
+   * "example.com".
+   */
+  hostname: string;
+  port: string;
+  /**
+   * username is percent-decoded username from the URL. whatwg-url encodes usernames found in URLs.
+   * parseDeepLink decodes them so that other parts of the app don't have to deal with this.
+   */
+  username: string;
+};
+
+export type ConnectMyComputerDeepURL = BaseDeepURL & {
+  pathname: '/connect_my_computer';
+  searchParams: Record<string, never>;
+};
+
+export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
+  pathname: '/authenticate_web_device';
+  searchParams: { id: string; token: string };
+};
+
+export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;
 
 export const CUSTOM_PROTOCOL = 'teleport' as const;
 
@@ -41,15 +80,19 @@ export const CUSTOM_PROTOCOL = 'teleport' as const;
  * Important: This function does not perform any validation or parsing. It must not be called with
  * user-generated content.
  */
-export function makeDeepLinkWithSafeInput(args: {
+export function makeDeepLinkWithSafeInput<
+  Pathname extends DeepURL['pathname'],
+  URL extends Extract<DeepURL, { pathname: Pathname }>,
+>(args: {
   /**
    * proxyHost is the address and an optional port number of the proxy, e.g.
    * "bigco.cloud.gravitational.io" or "teleport-local.dev:3080". In the Web UI proxyHost is
    * commonly referred to as publicURL.
    */
   proxyHost: string;
-  path: Path;
+  path: Pathname;
   username: string | undefined;
+  searchParams: URL['searchParams'];
 }): string {
   // The username in a URL should be percend-encoded. [1]
   //
@@ -62,5 +105,13 @@ export function makeDeepLinkWithSafeInput(args: {
     ? encodeURIComponent(args.username) + '@'
     : '';
 
-  return `${CUSTOM_PROTOCOL}://${encodedUsername}${args.proxyHost}/${args.path}`;
+  const searchParamsString = Object.entries(args.searchParams)
+    .map(kv => kv.map(encodeURIComponent).join('='))
+    .join('&');
+
+  const url = `${CUSTOM_PROTOCOL}://${encodedUsername}${args.proxyHost}${args.path}`;
+  if (searchParamsString !== '') {
+    return url + '?' + searchParamsString;
+  }
+  return url;
 }

@@ -6,17 +6,31 @@ on:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
   merge_group:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
 
 jobs:
   lint:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
@@ -26,7 +40,7 @@ jobs:
           node --version
 
       - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+        run: bash web/packages/build/scripts/yarn-install-frozen-lockfile.sh
 
       - name: Build WASM
         run: yarn build-wasm

@@ -34,6 +34,9 @@ type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
 	ResourceWithOrigin
+
+	// SetMetadata sets the connector metadata
+	SetMetadata(Metadata)
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -95,6 +98,8 @@ type SAMLConnector interface {
 	GetAllowIDPInitiated() bool
 	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 	SetAllowIDPInitiated(bool)
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -129,16 +134,6 @@ func (o *SAMLConnectorV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (o *SAMLConnectorV2) SetSubKind(sk string) {
 	o.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (o *SAMLConnectorV2) GetResourceID() int64 {
-	return o.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (o *SAMLConnectorV2) SetResourceID(id int64) {
-	o.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -247,6 +242,11 @@ func (o *SAMLConnectorV2) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// SetMetadata sets object metadata
+func (o *SAMLConnectorV2) SetMetadata(m Metadata) {
+	o.Metadata = m
 }
 
 // Origin returns the origin value of the resource.
@@ -367,6 +367,14 @@ func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
 // SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
 	o.Spec.AllowIDPInitiated = allow
+}
+
+// GetClientRedirectSettings returns the client redirect settings.
+func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if o == nil {
+		return nil
+	}
+	return o.Spec.ClientRedirectSettings
 }
 
 // setStaticFields sets static resource header and metadata fields.

@@ -94,6 +94,18 @@ func TestClusterNetworkingConfig(t *testing.T) {
 	suite.ClusterNetworkingConfig(t)
 }
 
+func TestClusterAuditConfig(t *testing.T) {
+	tt := setupConfigContext(context.Background(), t)
+
+	clusterConfig, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS: clusterConfig,
+	}
+	suite.ClusterNetworkingConfig(t)
+}
+
 func TestSessionRecordingConfig(t *testing.T) {
 	tt := setupConfigContext(context.Background(), t)
 

@@ -5,7 +5,7 @@ description: Learn how to manage Trusted Devices
 
 ### Prerequisites
 
-(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -238,8 +238,7 @@ management.
 </Admonition>
 
 Following is an example of a role that grants permissions for the `device` resource is necessary to manage
-the inventory. Save the yaml below as `device-admin.yaml` and create it in your
-cluster:
+the inventory. Save the yaml below as `device-admin.yaml`:
 
 ```yaml
 version: v7
@@ -259,6 +258,8 @@ spec:
       - create_enroll_token
       - enroll
 ```
+
+Create the role:
 
 ```code
 $ tctl create -f device-admin.yaml

@@ -25,6 +25,7 @@ import { PrimaryAuthType } from 'shared/services';
 
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { routing } from 'teleterm/ui/uri';
 
 import LoginForm from './FormLogin';
@@ -113,12 +114,22 @@ function getPrimaryAuthType(auth: AuthSettings): PrimaryAuthType {
 }
 
 function Reason({ reason }: { reason: ClusterConnectReason }) {
+  const $targetDesc = getTargetDesc(reason);
+
+  return (
+    <Text px={4} pt={2} mb={0}>
+      You tried to connect to {$targetDesc} but your session has expired. Please
+      log in to refresh the session.
+    </Text>
+  );
+}
+
+const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
   switch (reason.kind) {
     case 'reason.gateway-cert-expired': {
       const { gateway, targetUri } = reason;
-      let $targetDesc: React.ReactNode;
       if (gateway) {
-        $targetDesc = (
+        return (
           <>
             <strong>{gateway.targetName}</strong>
             {gateway.targetUser && (
@@ -130,28 +141,22 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
           </>
         );
       } else {
-        const targetName = routing.parseDbUri(targetUri)?.params['dbId'];
-
-        if (targetName) {
-          $targetDesc = <strong>{targetName}</strong>;
-        } else {
-          $targetDesc = (
-            <>
-              a database server under <code>{targetUri}</code>
-            </>
-          );
-        }
+        return <strong>{getTargetNameFromUri(targetUri)}</strong>;
       }
+    }
+    case 'reason.vnet-cert-expired': {
+      const { targetUri } = reason;
+      const appName = routing.parseAppUri(targetUri)?.params['appId'];
 
-      return (
-        <Text px={4} pt={2} mb={0}>
-          You tried to connect to {$targetDesc} but your session has expired.
-          Please log in to refresh the session.
-        </Text>
-      );
+      if (appName) {
+        return <strong>{appName}</strong>;
+      } else {
+        return <strong>{targetUri}</strong>;
+      }
     }
     default: {
+      reason satisfies never;
       return;
     }
   }
-}
+};

@@ -19,24 +19,32 @@ that may target Teleport tenants by leveraging [AWS Shield](https://aws.amazon.c
 
 ## Managed Teleport Settings
 
-SSH sessions are recorded [on nodes](../../architecture/nodes.mdx).
+SSH sessions are recorded [on nodes](../../architecture/agents.mdx).
 Teleport Enterprise Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
 The Cloud Proxy terminates TLS for Application, Database, and Kubernetes sessions.
 
 ## Data retention
-Data retention cannot currently be configured by customers. All Teleport Enterprise Cloud
-customers have audit logs retained in DynamoDB for 1 year, cluster configuration
-retained in DynamoDB indefinitely, and session recordings retained in S3 indefinitely.
-When data retention policies are introduced, customers will be contacted and
-able to specify their preferred data retention schedules.
+All Teleport Enterprise Cloud customers have audit logs retained in S3 for 4 years, cluster
+configuration retained in DynamoDB indefinitely, and session recordings retained in S3 indefinitely.
 
 Customers whose subscriptions lapse will have all session recordings, audit logs, and
 cluster state deleted between 7 and 30 days after the lapse.
 
+Customers can configure [External Audit Storage](./external-audit-storage.mdx) to store audit logs and session recordings in their
+own AWS account where retention period can be managed independently.
+
 ## High Availability
 
 ### Auth Service
-The Teleport [Auth Service](../../architecture/authentication.mdx) is deployed within the AWS us-west-2 region in 4 availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
+The Teleport [Auth Service](../../architecture/authentication.mdx) is deployed in 2 AWS availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
+Teleport Enterprise Cloud can run in one of the following AWS regions:
+
+- us-west-2
+- us-east-1
+- eu-central-1
+- ap-south-1
+- ap-southeast-1
+- sa-east-1
 
 ### Proxies
 The Teleport [Proxy Service](../../architecture/proxy.mdx) is deployed to multiple AWS regions around the world for low-latency access to distributed infrastructure.

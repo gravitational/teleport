@@ -31,17 +31,22 @@ interface UsageReportingState {
   askedForUserJobRole: boolean;
 }
 
-export type WorkspacesPersistedState = Omit<WorkspacesState, 'workspaces'> & {
+export type WorkspacesPersistedState = Omit<
+  WorkspacesState,
+  'workspaces' | 'isInitialized'
+> & {
   workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
 };
 
-interface StatePersistenceState {
+export interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
   workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
   usageReporting: UsageReportingState;
+  vnet: { autoStart: boolean };
 }
 
+// Before adding new methods to this service, consider using usePersistedState instead.
 export class StatePersistenceService {
   constructor(private _fileStorage: FileStorage) {}
 
@@ -93,8 +98,11 @@ export class StatePersistenceService {
     return this.getState().usageReporting;
   }
 
-  private getState(): StatePersistenceState {
-    const defaultState: StatePersistenceState = {
+  getState(): StatePersistenceState {
+    // Some legacy callsites expected StatePersistenceService to manage the default state for them,
+    // but with the move towards usePersistedState, we should put the default state close to where
+    // it's going to be used. Hence the use of Partial<StatePersistenceState> here.
+    const defaultState: Partial<StatePersistenceState> = {
       connectionTracker: {
         connections: [],
       },
@@ -114,7 +122,7 @@ export class StatePersistenceService {
     };
   }
 
-  private putState(state: StatePersistenceState): void {
+  putState(state: StatePersistenceState): void {
     this._fileStorage.put('state', state);
   }
 }

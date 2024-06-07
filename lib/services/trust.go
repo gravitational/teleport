@@ -74,3 +74,23 @@ type Trust interface {
 	// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
 	UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error
 }
+
+// TrustInternal extends the Trust interface with local-only methods used by the
+// auth server for some local operations.
+type TrustInternal interface {
+	Trust
+	// CreateCertAuthorities creates multiple cert authorities atomically.
+	CreateCertAuthorities(context.Context, ...types.CertAuthority) (revision string, err error)
+
+	// UpdateCertAuthority updates an existing cert authority if the revisions match.
+	UpdateCertAuthority(context.Context, types.CertAuthority) (types.CertAuthority, error)
+
+	// DeleteCertAuthorities deletes multiple cert authorities atomically.
+	DeleteCertAuthorities(context.Context, ...types.CertAuthID) error
+
+	// ActivateCertAuthorities activates multiple cert authorities atomically.
+	ActivateCertAuthorities(context.Context, ...types.CertAuthID) error
+
+	// DeactivateCertAuthorities deactivates multiple cert authorities atomically.
+	DeactivateCertAuthorities(context.Context, ...types.CertAuthID) error
+}

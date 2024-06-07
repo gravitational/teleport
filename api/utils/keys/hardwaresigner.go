@@ -45,22 +45,12 @@ func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
 	return nil
 }
 
-// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
-func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
-	return priv.GetAttestationStatement(), nil
-}
-
 // GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
 func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	if attestedPriv, ok := k.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetPrivateKeyPolicy()
 	}
 	return PrivateKeyPolicyNone
-}
-
-// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
-func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
-	return priv.GetPrivateKeyPolicy()
 }
 
 // AttestationStatement is an attestation statement for a hardware private key
@@ -95,4 +85,6 @@ type AttestationData struct {
 	PublicKeyDER []byte `json:"public_key"`
 	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
 	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
 }

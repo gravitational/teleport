@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -75,7 +76,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Interval = 15 * time.Minute
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "clouduser")
+		c.Log = logrus.WithField(teleport.ComponentKey, "clouduser")
 	}
 	return nil
 }

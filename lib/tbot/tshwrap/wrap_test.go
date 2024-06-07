@@ -19,11 +19,9 @@
 package tshwrap
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,54 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
-
-// TestTSHSupported ensures that the tsh version check works as expected (and,
-// implicitly, that the version capture and parsing works.)
-func TestTSHSupported(t *testing.T) {
-	version := func(v string) []byte {
-		return []byte(fmt.Sprintf(`{"version": "%s"}`, v))
-	}
-
-	tests := []struct {
-		name   string
-		out    []byte
-		err    error
-		expect func(t require.TestingT, err error, msgAndArgs ...interface{})
-	}{
-		{
-			// Before `-f json` is supported
-			name:   "very old tsh",
-			err:    trace.Errorf("unsupported"),
-			expect: require.Error,
-		},
-		{
-			name:   "too old",
-			out:    version("9.2.0"),
-			expect: require.Error,
-		},
-		{
-			name:   "supported",
-			out:    version(TSHMinVersion),
-			expect: require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wrapper := Wrapper{
-				path: "tsh", // path is arbitrary here
-				capture: func(tshPaths string, args ...string) ([]byte, error) {
-					if tt.err != nil {
-						return nil, tt.err
-					}
-					return tt.out, nil
-				},
-			}
-
-			tt.expect(t, CheckTSHSupported(&wrapper))
-		})
-	}
-}
 
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
 // parameters needed for tsh wrappers to work.

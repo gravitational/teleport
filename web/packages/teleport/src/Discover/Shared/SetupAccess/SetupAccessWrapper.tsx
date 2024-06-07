@@ -47,6 +47,8 @@ export type Props = {
   children: React.ReactNode;
   infoContent?: React.ReactNode;
   wantAutoDiscover?: boolean;
+  /** A component below the header and above the main content. */
+  preContent?: React.ReactNode;
 };
 
 export function SetupAccessWrapper({
@@ -62,6 +64,7 @@ export function SetupAccessWrapper({
   onPrev,
   children,
   infoContent,
+  preContent,
   wantAutoDiscover = false,
 }: Props) {
   const canAddTraits = !isSsoUser && canEditUser;
@@ -132,10 +135,12 @@ export function SetupAccessWrapper({
       break;
   }
 
+  const ssoUserWithAutoDiscover = wantAutoDiscover && isSsoUser;
   return (
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
+      {preContent}
       <Box mb={3}>{$content}</Box>
       {infoContent}
       <ActionButtons
@@ -145,7 +150,14 @@ export function SetupAccessWrapper({
         disableProceed={
           attempt.status === 'failed' ||
           attempt.status === 'processing' ||
-          !hasTraits
+          // Only block on no traits, if the user is not a SSO user
+          // and did not enable auto discover.
+          // SSO user's cannot currently add traits and the SSO user
+          // may already have set upped traits in their roles, but we
+          // currently don't have a way to retrieve all the traits from
+          // users roles - in which the user can end up blocked on this step
+          // with "no traits".
+          (!ssoUserWithAutoDiscover && !hasTraits)
         }
       />
     </Box>

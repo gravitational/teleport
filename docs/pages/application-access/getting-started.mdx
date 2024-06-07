@@ -20,10 +20,6 @@ At a high level, configuring access for applications involves the following step
 - Install and configure Teleport on the application host.
 - Add a user to verify access to the application.
 
-The following diagram illustrates protecting access to Grafana using Teleport:
-
-![Teleport Application Access for Grafana](../../img/application-access/grafana-tutorial.png)
-
 ## Prerequisites
 
 For this tutorial, verify your environment meets the following requirements:
@@ -173,7 +169,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set authToken=${JOIN_TOKEN?} \
   --set "apps[0].name=grafana" \
   --set "apps[0].uri=http://example-grafana.example-grafana.svc.cluster.local" \
-  --set "labels.env=dev" \
+  --set "apps[0].labels.env=dev" \
   --version (=teleport.version=)
 ```
 

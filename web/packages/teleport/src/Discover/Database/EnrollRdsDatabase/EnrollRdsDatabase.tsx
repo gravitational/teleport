@@ -17,14 +17,13 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, Input, Text, Toggle } from 'design';
+import { Box, Text, Toggle } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
@@ -40,19 +39,25 @@ import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import cfg from 'teleport/config';
 import {
   DISCOVERY_GROUP_CLOUD,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
   DiscoveryConfig,
   createDiscoveryConfig,
 } from 'teleport/services/discovery';
 import useTeleport from 'teleport/useTeleport';
-import { Tabs } from 'teleport/components/Tabs';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActionButtons, Header, Mark, StyledBox } from '../../Shared';
+import {
+  AutoEnrollDialog,
+  ActionButtons,
+  Header,
+  Mark,
+  SelfHostedAutoDiscoverDirections,
+} from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
 import { DatabaseList } from './RdsDatabaseList';
-import { AutoEnrollDialog } from './AutoEnrollDialog';
 
 type TableData = {
   items: CheckedAwsRdsDatabase[];
@@ -106,7 +111,7 @@ export function EnrollRdsDatabase() {
   const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
   const [requiredVpcs, setRequiredVpcs] = useState<Record<string, string[]>>();
   const [discoveryGroupName, setDiscoveryGroupName] = useState(() =>
-    cfg.isCloud ? '' : 'aws-prod'
+    cfg.isCloud ? '' : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
   );
 
   function fetchDatabasesWithNewRegion(region: Regions) {
@@ -217,13 +222,11 @@ export function EnrollRdsDatabase() {
     if (!requiredVpcsAndSubnets) {
       try {
         const { spec, name: integrationName } = agentMeta.awsIntegration;
-        const accountId = spec.roleArn
-          .split('arn:aws:iam::')[1]
-          .substring(0, 12);
+        const { awsAccountId } = splitAwsIamArn(spec.roleArn);
         requiredVpcsAndSubnets =
           await integrationService.fetchAwsRdsRequiredVpcs(integrationName, {
             region: tableData.currRegion,
-            accountId,
+            accountId: awsAccountId,
           });
 
         setRequiredVpcs(requiredVpcsAndSubnets);
@@ -335,7 +338,9 @@ export function EnrollRdsDatabase() {
         close={() => setAutoDiscoverAttempt({ status: '' })}
         retry={handleOnProceed}
         region={tableData.currRegion}
-        skipDeployment={requiredVpcs && Object.keys(requiredVpcs).length === 0}
+        notifyAboutDelay={
+          requiredVpcs && Object.keys(requiredVpcs).length === 0
+        }
       />
     );
   }
@@ -374,7 +379,6 @@ export function EnrollRdsDatabase() {
             <ToggleSection
               wantAutoDiscover={wantAutoDiscover}
               toggleWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
-              isDisabled={tableData.items.length === 0}
               discoveryGroupName={discoveryGroupName}
               setDiscoveryGroupName={setDiscoveryGroupName}
               clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
@@ -435,24 +439,14 @@ function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
   }
 }
 
-const discoveryGroupToolTip = `Discovery group name is used to group discovered resources into different sets. \
-This parameter is used to prevent Discovery Agents watching different sets of cloud resources from \
-colliding against each other and deleting resources created by another services.`;
-
-const discoveryServiceToolTip = `The Discovery Service, is responsible for watching your \
-cloud provider and checking if there are any new databases or if there have been any \
-modifications to previously discovered databases.`;
-
 function ToggleSection({
   wantAutoDiscover,
   toggleWantAutoDiscover,
-  isDisabled,
   discoveryGroupName,
   setDiscoveryGroupName,
   clusterPublicUrl,
 }: {
   wantAutoDiscover: boolean;
-  isDisabled: boolean;
   toggleWantAutoDiscover(): void;
   discoveryGroupName: string;
   setDiscoveryGroupName(n: string): void;
@@ -460,11 +454,7 @@ function ToggleSection({
 }) {
   return (
     <Box mb={2}>
-      <Toggle
-        isToggled={wantAutoDiscover}
-        onToggle={toggleWantAutoDiscover}
-        disabled={isDisabled}
-      >
+      <Toggle isToggled={wantAutoDiscover} onToggle={toggleWantAutoDiscover}>
         <Box ml={2} mr={1}>
           Auto-enroll all databases for selected region
         </Box>
@@ -484,147 +474,3 @@ function ToggleSection({
     </Box>
   );
 }
-
-const SelfHostedAutoDiscoverDirections = ({
-  clusterPublicUrl,
-  discoveryGroupName,
-  setDiscoveryGroupName,
-}: {
-  clusterPublicUrl: string;
-  discoveryGroupName: string;
-  setDiscoveryGroupName(n: string): void;
-}) => {
-  const yamlContent = `version: v3
-teleport:
-  join_params:
-    token_name: "<YOUR_JOIN_TOKEN_FROM_STEP_1>"
-    method: token
-  proxy_server: "${clusterPublicUrl}"
-auth_service:
-  enabled: off
-proxy_service:
-  enabled: off
-ssh_service:
-  enabled: off
-discovery_service:
-  enabled: "yes"
-  discovery_group: "${discoveryGroupName}"`;
-
-  return (
-    <Box mt={2}>
-      <Flex alignItems="center">
-        <Text>
-          Auto-enrolling requires you to configure a{' '}
-          <Mark>Discovery Service</Mark>
-        </Text>
-        <ToolTipInfo children={discoveryServiceToolTip} />
-      </Flex>
-      <br />
-      <StyledBox mb={5}>
-        <Text bold>Step 1: Create a Join Token</Text>
-        <Text mb={2}>
-          Run the following command against your Teleport Auth Service and save
-          it in <Mark>/tmp/token</Mark> on the host that will run the Discovery
-          Service.
-        </Text>
-        <TextSelectCopyMulti
-          lines={[
-            {
-              text: `tctl tokens add --type=discovery`,
-            },
-          ]}
-        />
-      </StyledBox>
-      <StyledBox mb={5}>
-        <Flex alignItems="center">
-          <Text bold mr={1}>
-            Step 2: Define a Discovery Group name{' '}
-          </Text>
-          <ToolTipInfo children={discoveryGroupToolTip} />
-        </Flex>
-        <Box mt={3} width="260px">
-          <Input
-            value={discoveryGroupName}
-            onChange={e => setDiscoveryGroupName(e.target.value)}
-            hasError={discoveryGroupName.length == 0}
-          />
-        </Box>
-      </StyledBox>
-      <StyledBox mb={5}>
-        <Text bold mr={1}>
-          Step 3: Create a teleport.yaml file
-        </Text>
-        <Text mb={2}>
-          Use this template to create a <Mark>teleport.yaml</Mark> on the host
-          that will run the Discovery Service.
-        </Text>
-        <TextSelectCopyMulti lines={[{ text: yamlContent }]} bash={false} />
-      </StyledBox>
-      <StyledBox mb={5}>
-        <Text bold mr={1}>
-          Step 4: Start Discovery Service
-        </Text>
-        <Text mb={2}>
-          Configure the Discovery Service to start automatically when the host
-          boots up by creating a systemd service for it. The instructions depend
-          on how you installed the Discovery Service.
-        </Text>
-        <Tabs
-          tabs={[
-            {
-              title: 'Package Manager',
-              content: (
-                <Box px={2} pb={2}>
-                  <Text mb={2}>
-                    On the host where you will run the Discovery Service, enable
-                    and start Teleport:
-                  </Text>
-                  <TextSelectCopyMulti
-                    lines={[
-                      {
-                        text: `sudo systemctl enable teleport`,
-                      },
-                      {
-                        text: `sudo systemctl start teleport`,
-                      },
-                    ]}
-                  />
-                </Box>
-              ),
-            },
-            {
-              title: `TAR Archive`,
-              content: (
-                <Box px={2} pb={2}>
-                  <Text mb={2}>
-                    On the host where you will run the Discovery Service, create
-                    a systemd service configuration for Teleport, enable the
-                    Teleport service, and start Teleport:
-                  </Text>
-                  <TextSelectCopyMulti
-                    lines={[
-                      {
-                        text: `sudo teleport install systemd -o /etc/systemd/system/teleport.service`,
-                      },
-                      {
-                        text: `sudo systemctl enable teleport`,
-                      },
-                      {
-                        text: `sudo systemctl start teleport`,
-                      },
-                    ]}
-                  />
-                </Box>
-              ),
-            },
-          ]}
-        />
-        <Text mt={2}>
-          You can check the status of the Discovery Service with{' '}
-          <Mark>systemctl status teleport</Mark> and view its logs with{' '}
-          <Mark>journalctl -fu teleport</Mark>.
-        </Text>
-      </StyledBox>
-    </Box>
-  );
-};

@@ -31,6 +31,9 @@ export type UserGroup = {
   friendlyName?: string;
   // Applications is a list of associated applications.
   applications?: ApplicationAndFriendlyName[];
+  // userGroups won't ever have this flag, but the key is added here
+  // so it can appear on the common 'UnifiedResource' type
+  requiresRequest?: false;
 };
 
 export type ApplicationAndFriendlyName = {

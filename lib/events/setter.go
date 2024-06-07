@@ -22,6 +22,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -60,6 +61,10 @@ type PreparerConfig struct {
 
 	// ClusterName defines the name of this teleport cluster.
 	ClusterName string
+
+	// StartTime represents the time the recorder started. If not zero, this
+	// value is used to generate the events index.
+	StartTime time.Time
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -110,8 +115,7 @@ func (c *Preparer) PrepareSessionEvent(event apievents.AuditEvent) (apievents.Pr
 		srv.SetServerID(c.cfg.ServerID)
 	}
 
-	// ensure index is incremented and loaded atomically
-	event.SetIndex(int64(c.eventIndex.Add(1) - 1))
+	event.SetIndex(c.nextIndex())
 
 	preparedEvent := preparedSessionEvent{
 		event: event,
@@ -133,6 +137,14 @@ func (c *Preparer) PrepareSessionEvent(event apievents.AuditEvent) (apievents.Pr
 	c.lastPrintEvent = printEvent
 
 	return preparedEvent, nil
+}
+
+func (c *Preparer) nextIndex() int64 {
+	if !c.cfg.StartTime.IsZero() {
+		return c.cfg.Clock.Since(c.cfg.StartTime).Nanoseconds()
+	}
+
+	return int64(c.eventIndex.Add(1) - 1)
 }
 
 type preparedSessionEvent struct {

@@ -1,0 +1,409 @@
+---
+target_package_name: "tfschema"
+default_package_name: "github.com/gravitational/teleport/api/types"
+duration_custom_type: Duration
+use_state_for_unknown_by_default: true
+
+# Top-level type names to export
+types:
+    - "AppV3"
+    - "AuthPreferenceV2"
+    - "ClusterMaintenanceConfigV1"
+    - "ClusterNetworkingConfigV2"
+    - "DatabaseV3"
+    - "GithubConnectorV3"
+    - "OIDCConnectorV3"
+    - "OktaImportRuleV1"
+    - "RoleV6"
+    - "SAMLConnectorV2"
+    - "ServerV2"
+    - "SessionRecordingConfigV2"
+    - "TrustedClusterV2"
+    - "UserV2"
+
+# id field is required for integration tests. It is not used by provider. 
+# We have to add it manually (might be removed in the future versions).
+injected_fields:
+  AppV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  AuthPreferenceV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  ClusterMaintenanceConfigV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  ClusterNetworkingConfigV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  DatabaseV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  GithubConnectorV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  OIDCConnectorV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  OktaImportRuleV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  RoleV6:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  SAMLConnectorV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  ServerV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  SessionRecordingConfigV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  TrustedClusterV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  UserV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+
+# These fields will be excluded
+exclude_fields:
+    # Metadata (we id resources by name on our side)
+    - "Metadata.ID"
+
+    # AuthPreference
+    - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
+
+    # ClusterMaintenanceConfig
+    - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
+
+    # NetworkingConfig
+    - "ClusterNetworkingConfigV2.Metadata.Name" # It's a singleton resource
+
+    # Status
+    - "DatabaseV3.Status"
+
+    # Role
+    - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
+    - "RoleV6.Spec.Deny.Namespaces"
+
+    # Server
+    - "ServerSpecV2.CmdLabels"
+
+    # SessionRecordingConfig
+    - "SessionRecordingConfigV2.Metadata.Name" # It's a singleton resource
+
+    # User
+    - "UserSpecV2.LocalAuth" # We do not need to set user auth data
+    - "UserSpecV2.Expires"   # Those fields are Teleport side meta, we do not need to change them via Terraform
+    - "UserSpecV2.CreatedBy"
+    - "UserSpecV2.Status"
+
+name_overrides:
+
+# These fields will be marked as Computed: true
+computed_fields:
+    # Metadata
+    - "Metadata.Namespace"
+
+    # App
+    - "AppV3.Metadata.Labels"
+    - "AppV3.Kind"    
+
+    # Auth preference
+    - "AuthPreferenceV2.Spec.SecondFactor"
+    - "AuthPreferenceV2.Spec.Type"
+    - "AuthPreferenceV2.Spec.LockingMode"
+    - "AuthPreferenceV2.Metadata.Namespace"
+    - "AuthPreferenceV2.Metadata.Labels"
+    - "AuthPreferenceV2.Kind"
+
+    # ClusterMaintenanceConfig
+    - "ClusterMaintenanceConfigV1.Kind"
+
+    # Cluster networking
+    - "ClusterNetworkingConfigV2.Spec.KeepAliveCountMax"
+    - "ClusterNetworkingConfigV2.Spec.KeepAliveInterval"
+    - "ClusterNetworkingConfigV2.Kind"
+    - "ClusterNetworkingConfigV2.Version"
+
+    # Database
+    - "DatabaseV3.Kind"
+
+    # Github connector
+    - "GithubConnectorV3.Kind"
+
+    # OIDC connector
+    - "OIDCConnectorV3.Kind"
+
+    # Okta import rule
+    - "OktaImportRuleV1.Kind"
+
+    # Role
+    - "RoleV6.Spec.Options.MaxSessionTTL"
+    - "RoleV6.Spec.Options.CertificateFormat"
+    # KubernetesResources was added in v12
+    # When not set, the api returns kind:Pod/name:*/namespace:*
+    # We must include this as computed, otherwise terraform would complain about an unexpected field:
+    # https://developer.hashicorp.com/terraform/plugin/sdkv2/schemas/schema-behaviors#computed
+    # Computed is often used to represent values that are not user configurable or can not be known at time of terraform plan or apply,
+    #------------------------------------
+    # role_test.go:244: Step 1/8 error: Error running apply: exit status 1
+    #    
+    #     Error: Provider produced inconsistent result after apply
+    #    
+    #     When applying changes to teleport_role.upgrade, provider
+    #     "provider[\"registry.terraform.io/hashicorp/teleport\"]" produced an
+    #     unexpected new value: .spec.allow.kubernetes_resources: was null, but now
+    #     cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{"kind":cty.StringVal("pod"),
+    #     "name":cty.StringVal("*"), "namespace":cty.StringVal("*")})}).
+    #    
+    #     This is a bug in the provider, which should be reported in the provider's own
+    #     issue tracker.
+    #------------------------------------
+    # The following tests were added to validate the behavior:
+    # - TestTerraform/TestRoleVersionUpgrade
+    # - TestTerraform/TestRoleWithKubernetesResources
+    - "RoleV6.Spec.Allow.KubernetesResources"
+    - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
+    - "RoleV6.Spec.Options.BPF"
+    - "RoleV6.Kind"
+
+    # SAML connector
+    - "SAMLConnectorV2.Spec.Audience"
+    - "SAMLConnectorV2.Spec.Issuer"
+    - "SAMLConnectorV2.Spec.ServiceProviderIssuer"
+    - "SAMLConnectorV2.Spec.SSO"
+    - "SAMLConnectorV2.Spec.SigningKeyPair"
+    - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
+    - "SAMLConnectorV2.Spec.SigningKeyPair.Cert"
+    - "SAMLConnectorV2.Spec.EncryprionKeyPair"
+    - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
+    - "SAMLConnectorV2.Spec.EncryptionKeyPair.Cert"
+    - "SAMLConnectorV2.Kind"
+
+    # Server
+    - "ServerV2.Kind"
+    # Name is not required for servers, this is a special case.
+    # When a name is not set, an UUID will be generated by Teleport and
+    # imported back into Terraform.
+    # Giving unique IDs to servers allows UUID-based dialing (as opposed to
+    # host-based dialing and IP-based dialing) which is more robust than its
+    # counterparts as it can point to a specific server if multiple servers
+    # share the same hostname/ip.
+    - "ServerV2.Metadata.Name"
+    # Metadata must be marked computed as well, because we ccan potentially compute Metadata.Name.
+    # If there's no metadata and the attribute is not marked as comnputed, it will
+    # keep its values.Null = true field, which means its content won't be imported
+    # back into the state.
+    - "ServerV2.Metadata"
+
+  # Session recording
+    - "SessionRecordingConfigV2.Spec.Mode"
+    - "SessionRecordingConfigV2.Kind"
+
+    # Trusted cluster
+    - "TrustedClusterV2.Kind"
+
+    # User
+    - "UserV2.Kind"
+
+# These fields will be marked as Required: true 
+required_fields:
+    # App
+    - "AppV3.Metadata.Name"
+    - "AppV3.Version"
+
+    # Auth preference
+    - "AuthPreferenceV2.Spec"
+    - "AuthPreferenceV2.Metadata.Name"
+
+    # Database
+    - "DatabaseV3.Spec.Protocol"    
+    - "DatabaseV3.Spec.URI"        
+    - "DatabaseV3.Metadata.Name"
+    - "DatabaseV3.Version"
+
+    # Github connector
+    - "GithubConnectorV3.Spec"
+    - "GithubConnectorV3.Spec.ClientID"
+    - "GithubConnectorV3.Spec.ClientSecret"
+    - "GithubConnectorV3.Metadata.Name"
+    - "GithubConnectorV3.Version"
+
+    # OIDC connector
+    - "OIDCConnectorV3.Spec"
+    - "OIDCConnectorV3.Metadata.Name"
+    - "OIDCConnectorV3.Version"
+
+    # Okta import rule
+    - "OktaImportRuleV1.Spec"
+    - "OktaImportRuleV1.Metadata.Name"
+    - "OktaImportRuleV1.Version"
+
+    # Role
+    - "RoleV6.Metadata.Name"
+    - "RoleV6.Version"
+
+    # SAML connector
+    - "SAMLConnectorV2.Spec"
+    - "SAMLConnectorV2.Spec.AssertionConsumerService"
+    - "SAMLConnectorV2.Spec.AttributesToRoles"
+    - "SAMLConnectorV2.Metadata.Name"
+    - "SAMLConnectorV2.Version"
+
+    # Server
+    - "ServerV2.Version"
+    - "ServerV2.SubKind"
+
+    # Trusted cluster
+    - "TrustedClusterV2.Metadata.Name"
+    - "TrustedClusterV2.Version"
+    - "TrustedClusterV2.Spec"
+
+    # User
+    - "UserV2.Metadata.Name"
+    - "UserV2.Version"
+
+    - "SessionRecordingConfigV2.Version"
+    - "ClusterMaintenanceConfigV1.Version"
+    - "AuthPreferenceV2.Version"
+
+# These fields must be marked as sensitive
+sensitive_fields:
+    - "SAMLConnectorV2.Spec.Cert"
+    - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
+    - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
+    - "SAMLConnectorV2.Spec.EntityDescriptor"    
+    - "GithubConnectorV3.Spec.ClientSecret"
+    - "OIDCConnectorV3.Spec.ClientSecret"
+    - "OIDCConnectorV3.Spec.GoogleServiceAccount"
+    - "TrustedClusterV2.Spec.Token"
+
+# These suffixes for custom methods called when field has custom_type flag. By default they might be weird.
+suffixes:
+    "BoolOption": "BoolOption" # This is listed here for convenience. Just to have all custom method names in a single place.
+    "Labels": "Labels"
+    "github.com/gravitational/teleport/api/types/wrappers.Traits": "Traits"
+    "github.com/gravitational/teleport/api/types/wrappers.Strings": "Strings"
+
+plan_modifiers:
+    # Force to recreate resource if it's name changes
+    Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    ServerV2.Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+
+validators:
+  # Expires must be in the future
+  Metadata.Expires:
+    - MustTimeBeInFuture()
+  AppV3.Version:
+    - UseVersionBetween(3,3)
+  AuthPreferenceV2.Version:
+    - UseVersionBetween(2,2)
+  AuthPreferenceV2.Metadata.Labels:
+    - UseMapKeysPresentValidator("teleport.dev/origin")
+  ClusterNetworkingConfigV2.Version:
+    - UseVersionBetween(2,2)
+  ClusterNetworkingConfigV2.Metadata.Labels:
+    - UseMapKeysPresentValidator("teleport.dev/origin")
+  DatabaseV3.Version:
+    - UseVersionBetween(3,3)
+  DatabaseV3.Metadata.Labels:
+    - UseMapKeysPresentValidator("teleport.dev/origin")
+  GithubConnectorV3.Version:
+    - UseVersionBetween(3,3)
+  OIDCConnectorV3.Version:
+    - UseVersionBetween(3,3)
+  OktaImportRuleV1.Version:
+    - UseVersionBetween(1,1)
+  RoleV6.Version:
+    - UseVersionBetween(3,7)
+  SAMLConnectorV2.Version:
+    - UseVersionBetween(2,2)
+  SAMLConnectorV2.Spec:
+    - UseAnyOfValidator("entity_descriptor", "entity_descriptor_url")
+  ServerV2.Version:
+    - UseVersionBetween(2,2)
+  ServerV2.SubKind:
+    - UseValueIn("openssh", "openssh-ec2-ice")
+  SessionRecordingConfigV2.Version:
+    - UseVersionBetween(2,2)
+  SessionRecordingConfigV2.Metadata.Labels:
+    - UseMapKeysPresentValidator("teleport.dev/origin")
+  UserV2.Version:
+    - UseVersionBetween(2,2)
+  ClusterMaintenanceConfigV1.Version:
+    - UseVersionBetween(1,1)
+
+time_type:
+    type: "TimeType"
+    value_type: "TimeValue"
+    cast_to_type: "time.Time"
+    cast_from_type: "time.Time"
+    type_constructor: UseRFC3339Time()    
+
+duration_type:
+    type: "DurationType"
+    value_type: "DurationValue"
+    cast_to_type: "time.Duration"
+    cast_from_type: "time.Duration"

@@ -90,6 +90,29 @@ func TestCRUD(t *testing.T) {
 	require.True(t, proto.Equal(r2, reports[0]))
 }
 
+func TestUserActivityReportSplitting(t *testing.T) {
+	recordCount := 10000
+	records := make([]*prehogv1.UserActivityRecord, 0, recordCount)
+	for i := 0; i < recordCount; i++ {
+		records = append(records, &prehogv1.UserActivityRecord{
+			UserName:    []byte("user"),
+			Logins:      100500,
+			SshSessions: 42,
+		})
+	}
+	reports, err := prepareUserActivityReports([]byte("clusterName"), []byte("reporterHostID"), time.Now(), records)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(reports), 2)            // some reports were split into two
+	require.GreaterOrEqual(t, len(reports[0].Records), 2) // first report was able to contain a few user activity records
+
+	// reassemble records and ensure that nothing was lost
+	recordsCopy := make([]*prehogv1.UserActivityRecord, 0, recordCount)
+	for _, report := range reports {
+		recordsCopy = append(recordsCopy, report.Records...)
+	}
+	require.Equal(t, records, recordsCopy, "some user activity records have been lost during splitting")
+}
+
 func TestLock(t *testing.T) {
 	ctx := context.Background()
 	clk := clockwork.NewFakeClock()

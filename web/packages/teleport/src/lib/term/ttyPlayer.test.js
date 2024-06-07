@@ -21,8 +21,9 @@ import '@gravitational/shared/libs/polyfillFinally';
 import WS from 'jest-websocket-mock';
 
 import { TermEvent } from 'teleport/lib/term/enums';
+import { StatusEnum } from 'teleport/lib/player';
 
-import TtyPlayer, { StatusEnum } from './ttyPlayer';
+import TtyPlayer from './ttyPlayer';
 
 describe('lib/ttyPlayer', () => {
   let server;

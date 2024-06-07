@@ -159,9 +159,21 @@ service provider. You can verify this by looking for a log entry in Teleport's l
 
 If the Teleport server returns a `Not Found`, make sure that none of the roles belonging
 to your user have SAML IdP access explicitly disabled. In the `options` section of each
-of the user roles, look for the `idp` section for the `saml` access to be disabled.
+of the user roles, look for the `idp` section for the `saml` access to be disabled. Also,
+ensure the user's role allows the `list` and `read` action for the `saml_idp_service_provider`
+resource.
 
 ```yaml
+...
+spec:
+  allow:
+    ...
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - read
 ...
 options:
     ...

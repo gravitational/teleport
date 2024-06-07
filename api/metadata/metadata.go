@@ -18,6 +18,8 @@ package metadata
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -58,9 +60,19 @@ type DisableInterceptors struct{}
 func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	if disable := stream.Context().Value(DisableInterceptors{}); disable == nil {
 		header := metadata.New(defaultMetadata())
-		grpc.SendHeader(stream.Context(), header)
+		grpc.SetHeader(stream.Context(), header)
 	}
 	return handler(srv, stream)
+}
+
+// UnaryServerInterceptor intercepts a gRPC server unary call and adds default
+// metadata to the context.
+func UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	if disable := ctx.Value(DisableInterceptors{}); disable == nil {
+		header := metadata.New(defaultMetadata())
+		grpc.SetHeader(ctx, header)
+	}
+	return handler(ctx, req)
 }
 
 // StreamClientInterceptor intercepts a gRPC client stream call and adds
@@ -89,9 +101,35 @@ func ClientVersionFromContext(ctx context.Context) (string, bool) {
 	if !ok {
 		return "", false
 	}
+
+	return VersionFromMetadata(md)
+}
+
+// VersionFromMetadata attempts to extract the standard version metadata value that is
+// added to client and server headers by the interceptors in this package.
+func VersionFromMetadata(md metadata.MD) (string, bool) {
 	versionList := md.Get(VersionKey)
 	if len(versionList) != 1 {
 		return "", false
 	}
 	return versionList[0], true
+}
+
+// WithUserAgentFromTeleportComponent returns a grpc.DialOption that reports
+// the Teleport component and the API version for user agent.
+func WithUserAgentFromTeleportComponent(component string) grpc.DialOption {
+	return grpc.WithUserAgent(fmt.Sprintf("%s/%s", component, api.Version))
+}
+
+// UserAgentFromContext returns the user agent from GRPC client metadata.
+func UserAgentFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get("user-agent")
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.Join(values, " ")
 }

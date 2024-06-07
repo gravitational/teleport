@@ -108,6 +108,12 @@ func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Ma
 			return true
 		}
 
+		// Apps that use the Integration should use its credentials which are obtained in Proxy.
+		// There's no need for an ApplicationService in this scenario.
+		if appServer.GetApp().GetIntegration() != "" {
+			return true
+		}
+
 		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
 			return false

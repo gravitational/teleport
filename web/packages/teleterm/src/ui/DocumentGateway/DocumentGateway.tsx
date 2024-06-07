@@ -21,8 +21,9 @@ import React from 'react';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
+import { OfflineGateway } from '../components/OfflineGateway';
+
 import { useDocumentGateway } from './useDocumentGateway';
-import { OfflineDocumentGateway } from './OfflineDocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
 type Props = {
@@ -35,20 +36,24 @@ export default function Container(props: Props) {
   const state = useDocumentGateway(doc);
   return (
     <Document visible={visible}>
-      <DocumentGateway {...state} />
+      <DocumentGateway {...state} targetName={doc.targetName} />
     </Document>
   );
 }
 
-export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway>;
+export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway> & {
+  targetName: string;
+};
 
 export function DocumentGateway(props: DocumentGatewayProps) {
   if (!props.connected) {
     return (
-      <OfflineDocumentGateway
+      <OfflineGateway
         connectAttempt={props.connectAttempt}
         reconnect={props.reconnect}
-        defaultPort={props.defaultPort}
+        gatewayPort={{ isSupported: true, defaultPort: props.defaultPort }}
+        targetName={props.targetName}
+        gatewayKind="database"
       />
     );
   }

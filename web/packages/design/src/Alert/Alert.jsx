@@ -18,9 +18,17 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { style } from 'styled-system';
 import PropTypes from 'prop-types';
 
 import { space, color, width } from 'design/system';
+import { fade } from 'design/theme/utils/colorManipulator';
+
+const linkColor = style({
+  prop: 'linkColor',
+  cssProperty: 'color',
+  key: 'colors',
+});
 
 const kind = props => {
   const { kind, theme } = props;
@@ -42,8 +50,32 @@ const kind = props => {
       };
     case 'success':
       return {
-        background: theme.colors.success,
+        background: theme.colors.success.main,
         color: theme.colors.text.primaryInverse,
+      };
+    case 'outline-danger':
+      return {
+        background: fade(theme.colors.error.main, 0.1),
+        border: `${theme.borders[2]} ${theme.colors.error.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
+      };
+    case 'outline-info':
+      return {
+        background: fade(theme.colors.accent.main, 0.1),
+        border: `${theme.borders[2]} ${theme.colors.accent.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
+      };
+    case 'outline-warn':
+      return {
+        background: fade(theme.colors.warning.main, 0.1),
+        border: `${theme.borders[2]} ${theme.colors.warning.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
       };
     default:
       return {
@@ -57,7 +89,7 @@ const Alert = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+  border-radius: ${p => p.theme.radii[1]}px;
   box-sizing: border-box;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
   margin: 0 0 24px 0;
@@ -72,11 +104,20 @@ const Alert = styled.div`
 
   a {
     color: ${({ theme }) => theme.colors.light};
+    ${linkColor}
   }
 `;
 
 Alert.propTypes = {
-  kind: PropTypes.oneOf(['danger', 'info', 'warning', 'success']),
+  kind: PropTypes.oneOf([
+    'danger',
+    'info',
+    'warning',
+    'success',
+    'outline-danger',
+    'outline-info',
+    'outline-warn',
+  ]),
   ...color.propTypes,
   ...space.propTypes,
   ...width.propTypes,
@@ -93,3 +134,8 @@ export const Danger = props => <Alert kind="danger" {...props} />;
 export const Info = props => <Alert kind="info" {...props} />;
 export const Warning = props => <Alert kind="warning" {...props} />;
 export const Success = props => <Alert kind="success" {...props} />;
+export const OutlineDanger = props => (
+  <Alert kind="outline-danger" {...props} />
+);
+export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
+export const OutlineWarn = props => <Alert kind="outline-warn" {...props} />;

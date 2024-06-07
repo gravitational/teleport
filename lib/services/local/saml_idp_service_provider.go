@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -80,7 +82,7 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOp
 
 	samlSPService := &SAMLIdPServiceProviderService{
 		svc: *svc,
-		log: logrus.WithFields(logrus.Fields{trace.Component: "saml-idp"}),
+		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
 	}
 
 	for _, opt := range opts {
@@ -112,21 +114,18 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
-		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
-			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
-			// But a debug log should be helpful to indicate source of error.
-			s.log.Debugf("Failed to fetch entity descriptor from %s. %s.", sp.GetEntityID(), err.Error())
-
-			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
-				return trace.BadParameter("could not generate entity descriptor with given entity_id and acs_url.")
-			}
+		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
+			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
+				sp.GetEntityID(), sp.GetACSURL(), err)
+			s.log.Errorf(errMsg.Error())
+			return trace.BadParameter(errMsg.Error())
 		}
 	}
 
 	// verify that entity descriptor parses
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
-		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
 	}
 
 	if ed.EntityID != sp.GetEntityID() {
@@ -134,8 +133,8 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 	}
 
 	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
-		s.log.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	// embed attribute mapping in entity descriptor
@@ -167,7 +166,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	// verify that entity descriptor parses
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
-		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
 	}
 
 	if ed.EntityID != sp.GetEntityID() {
@@ -175,8 +174,8 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	}
 
 	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
-		s.log.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	// embed attribute mapping in entity descriptor
@@ -242,6 +241,25 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 	return nil
 }
 
+// configureEntityDescriptorPerPreset configures entity descriptor based on SAML service provider preset.
+func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
+	switch sp.GetPreset() {
+	case preset.GCPWorkforce:
+		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
+	default:
+		// fetchAndSetEntityDescriptor is expected to return error if it fails
+		// to fetch a valid entity descriptor.
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			s.log.Debugf("Failed to fetch entity descriptor from %q: %v.", sp.GetEntityID(), err)
+			// We aren't interested in checking error type as any occurrence of error
+			// mean entity descriptor was not set.
+			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
+		}
+	}
+
+	return nil
+}
+
 // fetchAndSetEntityDescriptor fetches Service Provider entity descriptor (aka SP metadata)
 // from remote metadata endpoint (Entity ID) and sets it to sp if the xml format
 // is a valid Service Provider metadata format.
@@ -256,7 +274,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return trace.Wrap(trace.ReadError(resp.StatusCode, nil))
+		return trace.Wrap(trace.BadParameter("unexpected response status: %q", resp.StatusCode))
 	}
 
 	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
@@ -277,7 +295,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 // generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
 // with ACS URL, Entity ID and unspecified NameID format.
 func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
-	s.log.Infof("Generating a default entity_descriptor with entity_id %s and acs_url %s.", sp.GetEntityID(), sp.GetACSURL())
+	s.log.Infof("Generating a default entity_descriptor with entity_id %q and acs_url %q.", sp.GetEntityID(), sp.GetACSURL())
 
 	acsURL, err := url.Parse(sp.GetACSURL())
 	if err != nil {
@@ -290,12 +308,19 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
 	}
 
-	entityDescriptor, err := xml.MarshalIndent(newServiceProvider.Metadata(), "", "  ")
+	ed := newServiceProvider.Metadata()
+	// HTTPArtifactBinding is defined when entity descriptor is generated
+	// using crewjam/saml https://github.com/crewjam/saml/blob/main/service_provider.go#L228.
+	// But we do not support it, so filter it out below.
+	// Error and warnings are swallowed because the descriptor is Teleport generated and
+	// users have no control over sanitizing filtered binding.
+	services.FilterSAMLEntityDescriptor(ed, true /* quiet */)
+	edXMLBytes, err := xml.MarshalIndent(ed, "", "  ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	sp.SetEntityDescriptor(string(entityDescriptor))
+	sp.SetEntityDescriptor(string(edXMLBytes))
 	return nil
 }
 

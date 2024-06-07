@@ -106,6 +106,10 @@ type Profile struct {
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
 	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
+
+	// MissingClusterDetails means this profile was created with limited cluster details.
+	// Missing cluster details should be loaded into the profile by pinging the proxy.
+	MissingClusterDetails bool
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -359,10 +363,15 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	var p *Profile
+	var p Profile
 	if err := yaml.Unmarshal(bytes, &p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if p.Name() == "" {
+		return nil, trace.NotFound("invalid or empty profile at %q", filePath)
+	}
+
 	p.Dir = filepath.Dir(filePath)
 
 	// Older versions of tsh did not always store the cluster name in the
@@ -371,7 +380,7 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}
-	return p, nil
+	return &p, nil
 }
 
 // SaveToDir saves this profile to the specified directory.

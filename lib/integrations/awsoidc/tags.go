@@ -97,6 +97,23 @@ func (d AWSTags) MatchesECSTags(resourceTags []ecsTypes.Tag) bool {
 	return true
 }
 
+// MatchesIAMTags checks if the AWSTags are present and have the same value in resourceTags.
+func (d AWSTags) MatchesIAMTags(resourceTags []iamTypes.Tag) bool {
+	resourceTagsMap := make(map[string]string, len(resourceTags))
+	for _, tag := range resourceTags {
+		resourceTagsMap[*tag.Key] = *tag.Value
+	}
+
+	for awsTagKey, awsTagValue := range d {
+		resourceTagValue, found := resourceTagsMap[awsTagKey]
+		if !found || resourceTagValue != awsTagValue {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ToIAMTags returns the default tags using the expected type for IAM resources: [iamTypes.Tag]
 func (d AWSTags) ToIAMTags() []iamTypes.Tag {
 	iamTags := make([]iamTypes.Tag, 0, len(d))

@@ -1,0 +1,21 @@
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+
+FROM debian:12 AS teleport
+# Install the teleport binary from an architecture-specific debian package. Note
+# that we cannot simply pass a ready-made package filename in as a build-arg, as
+# this dockerfile is used for a multiarch build and any build-args will be
+# re-used for multiple ${TARGETARCH}es. In order to get around this we pass
+# various components of the architecture-specific debian package filename in as
+# individual build args and re-assemble it *inside* the build.
+
+# NOTE that TELEPORT_RELEASE_INFIX *must* include the leading dash if set.
+ARG TELEPORT_RELEASE_INFIX
+ARG TELEPORT_VERSION
+# TARGETARCH is supplied by the `buildx` mechanics
+ARG TARGETARCH
+ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}-fips_${TARGETARCH}.deb
+RUN --mount=type=bind,target=/ctx dpkg-deb -R /ctx/$TELEPORT_DEB_FILE_NAME /opt/staging
+
+FROM $BASE_IMAGE
+COPY --from=teleport /opt/staging/usr/local/bin/tbot /usr/local/bin/tbot
+ENTRYPOINT ["/usr/local/bin/tbot", "--fips"]

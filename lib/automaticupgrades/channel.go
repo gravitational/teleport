@@ -26,10 +26,10 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -45,35 +45,38 @@ type Channels map[string]*Channel
 
 // CheckAndSetDefaults checks that every Channel is valid and initializes them.
 // It also creates default channels if they are not already present.
-// Cloud must have the `default` and `stable/cloud` channels.
-// Self-hosted with automatic upgrades must have the `default` channel.
-func (c Channels) CheckAndSetDefaults(features proto.Features) error {
+func (c Channels) CheckAndSetDefaults() error {
 	defaultChannel, err := NewDefaultChannel()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// If we're on cloud, we need at least "cloud/stable" and "default"
-	if features.GetCloud() {
-		if _, ok := c[DefaultCloudChannelName]; !ok {
-			c[DefaultCloudChannelName] = defaultChannel
-		}
-		if _, ok := c[DefaultChannelName]; !ok {
-			c[DefaultChannelName] = c[DefaultCloudChannelName]
-		}
+	// Create the "default" channel
+
+	// If the default channel is specified in the config, we use it.
+	// Else if cloud/stable channel is specified in the config, we use it as default.
+	// Else, we build a default channel based on the teleport binary version.
+	if _, ok := c[DefaultChannelName]; ok {
+		log.Debugln("'default' automatic update channel manually specified, honoring it.")
+	} else if cloudDefaultChannel, ok := c[DefaultCloudChannelName]; ok {
+		log.Debugln("'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default.")
+		c[DefaultChannelName] = cloudDefaultChannel
+	} else {
+		log.Debugln("'default' automatic update channel not specified, teleport will serve its version by default.")
+		c[DefaultChannelName] = defaultChannel
 	}
 
-	// If we're on self-hosted with automatic upgrades, we need a "default" channel
-	// We don't want to break existing setups so we'll automatically point to the
-	// `cloud/stable` channel.
-	// TODO: in v15 make this a hard requirement and error if `default` is not set
-	// and automatic upgrades are enabled
-	if features.GetAutomaticUpgrades() {
-		if _, ok := c[DefaultChannelName]; !ok {
-			c[DefaultChannelName] = defaultChannel
-		}
+	// Create the "stable/cloud" channel
+
+	// At this point, we know that we have a default channel
+	// If we don't already have a "stable/cloud" channel we create one based on
+	// the default one (for compatibility with old updaters).
+	if _, ok := c[DefaultCloudChannelName]; !ok {
+		c[DefaultCloudChannelName] = c[DefaultChannelName]
 	}
 
+	// Checking each channel. We'll double-check the 'default' one, but
+	// channel.CheckAndSetDefaults is idempotent.
 	var errs []error
 	for name, channel := range c {
 		// Wrapping is not mandatory here, but it adds the channel name in the
@@ -114,12 +117,16 @@ type Channel struct {
 	// teleportMajor stores the current teleport major for comparison.
 	// This field is initialized during CheckAndSetDefaults.
 	teleportMajor int
+	// mutex protects versionGetter, criticalTrigger, and teleportMajor
+	mutex sync.Mutex
 }
 
 // CheckAndSetDefaults checks that the Channel configuration is valid and inits
 // the version getter and maintenance trigger of the Channel based on its
 // configuration. This function must be called before using the channel.
 func (c *Channel) CheckAndSetDefaults() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	switch {
 	case c.ForwardURL != "" && (c.StaticVersion != "" || c.Critical):
 		return trace.BadParameter("cannot set both ForwardURL and (StaticVersion or Critical)")
@@ -154,6 +161,8 @@ func (c *Channel) CheckAndSetDefaults() error {
 // If the version source intentionally did not specify a version, a
 // NoNewVersionError is returned.
 func (c *Channel) GetVersion(ctx context.Context) (string, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	targetVersion, err := c.versionGetter.GetVersion(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -167,7 +176,10 @@ func (c *Channel) GetVersion(ctx context.Context) (string, error) {
 	// The target version is officially incompatible with our version,
 	// we prefer returning our version rather than having a broken client
 	if targetMajor > c.teleportMajor {
-		return teleport.Version, nil
+		targetVersion, err = version.EnsureSemver(teleport.Version)
+		if err != nil {
+			return "", trace.Wrap(err, "ensuring current teleport version is semver-compatible")
+		}
 	}
 
 	return targetVersion, nil
@@ -176,29 +188,41 @@ func (c *Channel) GetVersion(ctx context.Context) (string, error) {
 // GetCritical returns the current criticality of the channel. If io is involved,
 // this function implements cache and is safe to call frequently.
 func (c *Channel) GetCritical(ctx context.Context) (bool, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	return c.criticalTrigger.CanStart(ctx, nil)
 }
 
-// NewDefaultChannel creates a default automatic upgrade channel
-// It looks up the environment variable, and if not found uses the default
-// base URL. This default channel can be used in the proxy (to back its own version server)
-// or in other Teleport process such as integration services deploying and
-// updating teleport agents.
-func NewDefaultChannel() (*Channel, error) {
-	return sync.OnceValues[*Channel, error](
-		func() (*Channel, error) {
-			forwardURL := GetChannel()
-			if forwardURL == "" {
-				forwardURL = stableCloudVersionBaseURL
-			}
-			defaultChannel := &Channel{
+var newDefaultChannel = sync.OnceValues[*Channel, error](
+	func() (*Channel, error) {
+		var channel *Channel
+		if forwardURL := GetChannel(); forwardURL != "" {
+			channel = &Channel{
 				ForwardURL: forwardURL,
 			}
-			if err := defaultChannel.CheckAndSetDefaults(); err != nil {
-				return nil, trace.Wrap(err)
+		} else {
+			channel = &Channel{
+				StaticVersion: teleport.Version,
 			}
-			return defaultChannel, nil
-		})()
+		}
+		if err := channel.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return channel, nil
+	})
+
+// NewDefaultChannel creates a default automatic upgrade channel
+// It looks up the TELEPORT_AUTOMATIC_UPGRADES_CHANNEL environment variable for
+// backward compatibility, and if not found uses binary version.
+// This default channel can be used in the proxy (to back its own version server)
+// or in other Teleport processes such as integration services deploying and
+// updating teleport agents.
+// Pre-release versions such as 1.2.3-testbuild.1 will be served AS-IS.
+// If you run a test teleport release, agents will attempt to install
+// the same release. If you don't want this to happen, you must set the
+// 'default' channel to a static version of your choice.
+func NewDefaultChannel() (*Channel, error) {
+	return newDefaultChannel()
 }
 
 func parseMajorFromVersionString(v string) (int, error) {

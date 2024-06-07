@@ -47,10 +47,9 @@ Teleport audit logs, logged events have a TTL of 1 year.
 | Firestore | [Follow GCP's guidelines for automated backups](https://firebase.google.com/docs/database/backups) |
 
 </TabItem>
-<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+<TabItem label="Cloud-Hosted">
 
-Teleport Team and Teleport Enterprise Cloud manage all Auth Service and Proxy
-Service backups.
+Teleport Enterprise Cloud manages all Auth Service and Proxy Service backups.
 
 While Teleport Nodes are stateless, you should ensure that you can restore their
 configuration files.
@@ -225,10 +224,9 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
     dynamically will need to be re-invited.
 
 </TabItem>
-<TabItem scope={["cloud","team"]} label="Team/Enterprise Cloud">
+<TabItem label="Teleport Enterprise Cloud">
 
-In Teleport Team and Teleport Enterprise Cloud, backend data is managed for you
-automatically. 
+In Teleport Enterprise Cloud, backend data is managed for you automatically. 
 
 If you would like to migrate configuration resources to a self-hosted Teleport
 cluster, follow our recommended backup practice of storing configuration

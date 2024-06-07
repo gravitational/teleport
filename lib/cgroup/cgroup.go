@@ -47,19 +47,25 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentCgroup,
+	teleport.ComponentKey: teleport.ComponentCgroup,
 })
 
 // Config holds configuration for the cgroup service.
 type Config struct {
 	// MountPath is where the cgroupv2 hierarchy is mounted.
 	MountPath string
+	// RootPath directory where the Teleport managed cgroups are going to be
+	// placed.
+	RootPath string
 }
 
 // CheckAndSetDefaults checks BPF configuration.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.MountPath == "" {
 		c.MountPath = defaults.CgroupPath
+	}
+	if c.RootPath == "" {
+		c.RootPath = teleportRoot
 	}
 	return nil
 }
@@ -82,7 +88,7 @@ func New(config *Config) (*Service, error) {
 
 	s := &Service{
 		Config:       config,
-		teleportRoot: filepath.Join(config.MountPath, teleportRoot, uuid.New().String()),
+		teleportRoot: filepath.Join(config.MountPath, config.RootPath, uuid.New().String()),
 	}
 
 	// Mount the cgroup2 filesystem.

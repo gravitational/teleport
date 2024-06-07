@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -245,7 +245,10 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 		return trace.Wrap(convertedErr)
 	}
 
-	log.Printf("TaskRole: Boundary Policy %q created.\n", req.TaskRoleBoundaryPolicyName)
+	slog.InfoContext(ctx, "Boundary policy set for Task Role",
+		"boundary", req.TaskRoleBoundaryPolicyName,
+		"task_role", req.TaskRole,
+	)
 	return nil
 }
 
@@ -275,7 +278,10 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 		return trace.Wrap(convertedErr)
 	}
 
-	log.Printf("TaskRole: Role %q created with Boundary %q.\n", req.TaskRole, policyARNForRoleBoundary)
+	slog.InfoContext(ctx, "Task role created with boundary",
+		"task_role", req.TaskRole,
+		"boundary", policyARNForRoleBoundary,
+	)
 	return nil
 }
 
@@ -302,7 +308,10 @@ func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClien
 		return trace.Wrap(err)
 	}
 
-	log.Printf("TaskRole: IAM Policy %q added to Role %q.\n", req.TaskRole, req.TaskRole)
+	slog.InfoContext(ctx, "IAM Policy added to Task Role",
+		"task_role", req.TaskRole,
+		"policy", req.TaskRole,
+	)
 	return nil
 }
 
@@ -331,6 +340,9 @@ func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigu
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleDeployServicePolicy, req.IntegrationRole)
+	slog.InfoContext(ctx, "IAM Policy added to Integration Role",
+		"policy", req.IntegrationRoleDeployServicePolicy,
+		"role", req.TaskRole,
+	)
 	return nil
 }

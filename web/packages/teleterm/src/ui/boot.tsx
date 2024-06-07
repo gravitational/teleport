@@ -21,7 +21,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ElectronGlobals } from 'teleterm/types';
-import { App, FailedApp } from 'teleterm/ui/App';
+import { App } from 'teleterm/ui/App';
+import { FailedApp } from 'teleterm/ui/components/App';
 import AppContext from 'teleterm/ui/appContext';
 import Logger from 'teleterm/logger';
 
@@ -50,7 +51,9 @@ async function boot(): Promise<void> {
     renderApp(<App ctx={appContext} />);
   } catch (e) {
     logger.error('Failed to boot the React app', e);
-    renderApp(<FailedApp message={e.toString()} />);
+    renderApp(
+      <FailedApp message={`Could not start the application: ${e.toString()}`} />
+    );
   }
 }
 

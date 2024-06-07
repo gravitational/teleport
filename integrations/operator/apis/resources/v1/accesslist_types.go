@@ -37,20 +37,12 @@ type TeleportAccessList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportAccessListSpec   `json:"spec,omitempty"`
-	Status TeleportAccessListStatus `json:"status,omitempty"`
+	Spec   TeleportAccessListSpec `json:"spec,omitempty"`
+	Status resources.Status       `json:"status,omitempty"`
 }
 
 // TeleportAccessListSpec defines the desired state of TeleportProvisionToken
 type TeleportAccessListSpec accesslist.Spec
-
-type TeleportAccessListStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
 
 //+kubebuilder:object:root=true
 

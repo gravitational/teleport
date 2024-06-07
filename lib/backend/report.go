@@ -20,6 +20,8 @@ package backend
 
 import (
 	"context"
+	"errors"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -70,6 +72,8 @@ func (r *ReporterConfig) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+var _ Backend = (*Reporter)(nil)
 
 // Reporter wraps a Backend implementation and reports
 // statistics about the backend operations
@@ -134,6 +138,8 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 	batchReadRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		batchReadRequestsFailed.WithLabelValues(s.Component).Inc()
+	} else {
+		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
 	s.trackRequest(types.OpGet, startKey, endKey)
 	return res, err
@@ -157,6 +163,11 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsAlreadyExists(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -181,6 +192,8 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -204,6 +217,11 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsNotFound(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -227,6 +245,11 @@ func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if errors.Is(err, ErrIncorrectRevision) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
@@ -247,6 +270,7 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	item, err := s.Backend.Get(ctx, key)
 	readLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	readRequests.WithLabelValues(s.Component).Inc()
+	reads.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
@@ -270,8 +294,13 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 	lease, err := s.Backend.CompareAndSwap(ctx, expected, replaceWith)
 	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
-	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
+	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsNotFound(err) || trace.IsCompareFailed(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, expected.Key, nil)
 	return lease, err
@@ -292,8 +321,13 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 	err := s.Backend.Delete(ctx, key)
 	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsNotFound(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpDelete, key, nil)
 	return err
@@ -315,11 +349,69 @@ func (s *Reporter) ConditionalDelete(ctx context.Context, key []byte, revision s
 	err := s.Backend.ConditionalDelete(ctx, key, revision)
 	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsNotFound(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpDelete, key, nil)
 	return err
+}
+
+// AtomicWrite implements batch conditional updates s.t. no writes occur unless all
+// conditions hold.
+func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
+	// note: the atomic write method's metrics are counted toward both the general 'write'
+	// metrics as well as equivalent metrics specific to atomic write.
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/AtomicWrite",
+		oteltrace.WithAttributes(
+			attribute.Int("condacts", len(condacts)),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	revision, err = s.Backend.AtomicWrite(ctx, condacts)
+
+	elapsed := s.Clock().Since(start).Seconds()
+	writeLatencies.WithLabelValues(s.Component).Observe(elapsed)
+	atomicWriteLatencies.WithLabelValues(s.Component).Observe(elapsed)
+
+	writeRequests.WithLabelValues(s.Component).Inc()
+	atomicWriteRequests.WithLabelValues(s.Component).Inc()
+	atomicWriteSize.WithLabelValues(s.Component).Observe(float64(len(condacts)))
+	if err != nil {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		atomicWriteRequestsFailed.WithLabelValues(s.Component).Inc()
+		if errors.Is(err, ErrConditionFailed) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+			atomicWriteConditionFailed.WithLabelValues(s.Component).Inc()
+		}
+	}
+
+	var writeTotal int
+	for _, ca := range condacts {
+		switch ca.Action.Kind {
+		case KindPut:
+			writeTotal++
+			s.trackRequest(types.OpPut, ca.Key, nil)
+		case KindDelete:
+			writeTotal++
+			s.trackRequest(types.OpDelete, ca.Key, nil)
+		default:
+			// ignore other variants
+		}
+	}
+
+	if err == nil {
+		writes.WithLabelValues(s.Component).Add(float64(writeTotal))
+	}
+	return
 }
 
 // DeleteRange deletes range of items
@@ -355,7 +447,6 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
 			attribute.String("revision", lease.Revision),
-			attribute.Int64("lease", lease.ID),
 			attribute.String("key", string(lease.Key)),
 		),
 	)
@@ -365,8 +456,13 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 	err := s.Backend.KeepAlive(ctx, lease, expires)
 	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+		if trace.IsNotFound(err) {
+			writeRequestsFailedPrecondition.WithLabelValues(s.Component).Inc()
+		}
+	} else {
+		writes.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, lease.Key, nil)
 	return err
@@ -563,10 +659,79 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
+	writes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendWrites,
+			Help:      "Number of individual items written to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
 	writeRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendWriteFailedRequests,
 			Help: "Number of failed write requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	writeRequestsFailedPrecondition = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendWriteFailedPreconditionRequests,
+			Help:      "Number of write requests that failed due to a precondition (existence, revision, value, etc)",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	atomicWriteRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteRequests,
+			Help:      "Number of atomic write requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	atomicWriteRequestsFailed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteFailedRequests,
+			Help:      "Number of failed atomic write requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	atomicWriteConditionFailed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteConditionFailed,
+			Help:      "Number of times an atomic write request results in condition failure",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	atomicWriteLatencies = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteHistogram,
+			Help:      "Latency for backend atomic write operations",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	atomicWriteSize = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteSize,
+			Help:      "Atomic write batch size",
+			// buckets of the form 1, 2, 4, 8, 16, etc...
+			Buckets: prometheus.ExponentialBuckets(1, 2, int(math.Sqrt(MaxAtomicWriteSize))),
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	AtomicWriteContention = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendAtomicWriteContention,
+			Help:      "Number of times atomic write requests experience contention",
 		},
 		[]string{teleport.ComponentLabel},
 	)
@@ -588,6 +753,14 @@ var (
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendReadRequests,
 			Help: "Number of read requests to the backend",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	reads = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendReads,
+			Help:      "Number of individual items read from the backend",
 		},
 		[]string{teleport.ComponentLabel},
 	)
@@ -657,6 +830,9 @@ var (
 		watchers, watcherQueues, requests, writeRequests,
 		writeRequestsFailed, batchWriteRequests, batchWriteRequestsFailed, readRequests,
 		readRequestsFailed, batchReadRequests, batchReadRequestsFailed, writeLatencies,
+		writeRequestsFailedPrecondition,
+		atomicWriteRequests, atomicWriteRequestsFailed, atomicWriteConditionFailed, atomicWriteLatencies,
+		AtomicWriteContention, atomicWriteSize, reads, writes,
 		batchWriteLatencies, batchReadLatencies, readLatencies,
 	}
 )

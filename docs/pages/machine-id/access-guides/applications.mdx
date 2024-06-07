@@ -25,15 +25,16 @@ used to access an application enrolled in your Teleport cluster.
 ## Step 1/3. Configure RBAC
 
 First, Teleport should be configured to allow the credentials produced by `tbot`
-to be used to connect to an Application.
+to be used to connect to an Application. This is done by creating a role that
+grants the necessary permissions and then assigning this role to a Bot.
 
-If you have followed an access guide, you will have created a role and granted
-the bot the ability to impersonate it already. This role just needs to have the
-additional privileges added to it.
-
-Use `tctl edit role/example-bot` to add the following rule to the role:
+Create a file called `role.yaml` with the following content:
 
 ```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
 spec:
   allow:
     # Grants access to all applications.
@@ -41,9 +42,21 @@ spec:
       '*': '*'
 ```
 
+Replace `example-role` with a descriptive name related to your use case.
+
 This grants access to all applications. In production environments you should
 modify these labels to grant access to only the applications that the machine
 will need access to.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```bash
+$ tctl bots update example --add-roles example-role
+```
 
 ## Step 2/3. Configure an application `tbot` output
 

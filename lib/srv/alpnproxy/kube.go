@@ -40,6 +40,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -118,7 +119,7 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 		m.clock = clockwork.NewRealClock()
 	}
 	if m.logger == nil {
-		m.logger = logrus.WithField(trace.Component, "local_proxy_kube")
+		m.logger = logrus.WithField(teleport.ComponentKey, "local_proxy_kube")
 	}
 	return nil
 }
@@ -239,7 +240,12 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 	if m.isCertReissuingRunning.CompareAndSwap(false, true) {
 		go func() {
 			defer m.isCertReissuingRunning.Store(false)
-			newCert, err := m.certReissuer(context.Background(), identity.TeleportCluster, identity.KubernetesCluster)
+
+			cluster := identity.TeleportCluster
+			if identity.RouteToCluster != "" {
+				cluster = identity.RouteToCluster
+			}
+			newCert, err := m.certReissuer(ctx, cluster, identity.KubernetesCluster)
 			if err == nil {
 				m.certsMu.Lock()
 				m.certs[serverName] = newCert

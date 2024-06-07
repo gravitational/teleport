@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // provisionTokenClient implements TeleportResourceClient and offers CRUD methods needed to reconcile provision tokens
@@ -56,15 +58,15 @@ func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewProvisionTokenReconciler instantiates a new Kubernetes controller reconciling provision token resources
-func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken] {
+func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	tokenClient := &provisionTokenClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](
 		client,
 		tokenClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

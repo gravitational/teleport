@@ -264,9 +264,10 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 		// arn:aws:iam::1234567890:role/path/to/customrole (display: customrole)
 		parts := strings.Split(parsed.Resource, "/")
 		result = append(result, Role{
-			Name:    strings.Join(parts[1:], "/"),
-			Display: parts[len(parts)-1],
-			ARN:     roleARN,
+			Name:      strings.Join(parts[1:], "/"),
+			Display:   parts[len(parts)-1],
+			ARN:       roleARN,
+			AccountID: parsed.AccountID,
 		})
 	}
 	return result
@@ -280,6 +281,8 @@ type Role struct {
 	Display string `json:"display"`
 	// ARN is the full role ARN.
 	ARN string `json:"arn"`
+	// AccountID is the AWS Account ID this role refers to.
+	AccountID string `json:"accountId"`
 }
 
 // Roles is a slice of roles.

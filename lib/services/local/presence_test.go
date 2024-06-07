@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -46,7 +47,7 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
@@ -73,19 +74,22 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
 
 	// create remote clusters
-	err = presenceBackend.CreateRemoteCluster(rc)
+	gotRC, err := presenceBackend.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
-	err = presenceBackend.CreateRemoteCluster(src)
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	gotSRC, err := presenceBackend.CreateRemoteCluster(ctx, src)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// get remote cluster make sure it's correct
-	gotRC, err := presenceBackend.GetRemoteCluster("foo")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
 
+	rc = gotRC
 	updatedLabels := map[string]string{
 		"e": "f",
 		"g": "h",
@@ -94,34 +98,36 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	// update remote clusters
 	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	rc.SetLastHeartbeat(clock.Now().Add(time.Hour))
-	rc.SetMetadata(types.Metadata{
-		Name:   "foo",
-		Labels: updatedLabels,
-	})
-	err = presenceBackend.UpdateRemoteCluster(ctx, rc)
+	meta := rc.GetMetadata()
+	meta.Labels = updatedLabels
+	rc.SetMetadata(meta)
+	gotRC, err = presenceBackend.UpdateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	src = gotSRC
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	src.SetLastHeartbeat(clock.Now())
-	err = presenceBackend.UpdateRemoteCluster(ctx, src)
+	gotSRC, err = presenceBackend.UpdateRemoteCluster(ctx, src)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// get remote cluster make sure it's correct
-	gotRC, err = presenceBackend.GetRemoteCluster("foo")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOnline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Add(time.Hour).Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, updatedLabels, gotRC.GetMetadata().Labels)
 
-	gotRC, err = presenceBackend.GetRemoteCluster("bar")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "bar")
 	require.NoError(t, err)
 	require.Equal(t, "bar", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 
 	// get all clusters
-	allRC, err := presenceBackend.GetRemoteClusters()
+	allRC, err := presenceBackend.GetRemoteClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allRC, 2)
 
@@ -132,7 +138,133 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	// make sure it's really gone
 	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
+	require.ErrorIs(t, err, trace.NotFound("key \"/remoteClusters/foo\" is not found"))
+}
+
+func TestPresenceService_PatchRemoteCluster(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+
+	rc, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	_, err = presenceBackend.CreateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	updatedRC, err := presenceBackend.PatchRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			require.Equal(t, teleport.RemoteClusterStatusOffline, rc.GetConnectionStatus())
+			rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+			return rc, nil
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, updatedRC.GetConnectionStatus())
+
+	// Ensure this was persisted.
+	fetchedRC, err := presenceBackend.GetRemoteCluster(ctx, rc.GetName())
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteClusterStatusOnline, fetchedRC.GetConnectionStatus())
+	// Ensure other fields unchanged
+	require.Empty(t,
+		cmp.Diff(
+			rc,
+			fetchedRC,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
+		),
+	)
+
+	// Ensure that name cannot be updated
+	_, err = presenceBackend.PatchRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			rc.SetName("baz")
+			return rc, nil
+		},
+	)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "metadata.name: cannot be patched")
+
+	// Ensure that revision cannot be updated
+	_, err = presenceBackend.PatchRemoteCluster(
+		ctx,
+		rc.GetName(),
+		func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+			rc.SetRevision("baz")
+			return rc, nil
+		},
+	)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "metadata.revision: cannot be patched")
+}
+
+func TestPresenceService_ListRemoteClusters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+
+	// With no resources, we should not get an error but we should get an empty
+	// token and an empty slice.
+	rcs, pageToken, err := presenceBackend.ListRemoteClusters(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Empty(t, rcs)
+
+	// Create a few remote clusters
+	for i := 0; i < 10; i++ {
+		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
+		require.NoError(t, err)
+		_, err = presenceBackend.CreateRemoteCluster(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	// Check limit behaves
+	rcs, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 1, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pageToken)
+	require.Len(t, rcs, 1)
+
+	// Iterate through all pages with a low limit to ensure that pageToken
+	// behaves correctly.
+	rcs = []types.RemoteCluster{}
+	pageToken = ""
+	for i := 0; i < 10; i++ {
+		var got []types.RemoteCluster
+		got, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 1, pageToken)
+		require.NoError(t, err)
+		if i == 9 {
+			// For the final page, we should not get a page token
+			require.Empty(t, pageToken)
+		} else {
+			require.NotEmpty(t, pageToken)
+		}
+		require.Len(t, got, 1)
+		rcs = append(rcs, got...)
+	}
+	require.Len(t, rcs, 10)
+
+	// Check that with a higher limit, we get all resources
+	rcs, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 20, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Len(t, rcs, 10)
 }
 
 func TestTrustedClusterCRUD(t *testing.T) {
@@ -254,7 +386,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	servers := types.AppServers(out)
 	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
@@ -264,7 +396,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Upsert server with TTL.
 	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -272,7 +404,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{
 		Type:      types.KeepAlive_APP,
-		LeaseID:   lease.LeaseID,
 		Name:      serverA.GetName(),
 		Namespace: serverA.GetNamespace(),
 		HostID:    serverA.GetHostID(),
@@ -339,7 +470,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Check again, expect a single server to be found.
 	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
@@ -367,7 +498,6 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{
 		Type:      types.KeepAlive_DATABASE,
-		LeaseID:   lease.LeaseID,
 		Name:      server.GetName(),
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
@@ -423,13 +553,13 @@ func TestNodeCRUD(t *testing.T) {
 			// Get all nodes, transparently handle limit exceeded errors
 			nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			require.EqualValues(t, len(nodes), 2)
+			require.Len(t, nodes, 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNodes should fail if namespace isn't provided
 			_, err = presence.GetNodes(ctx, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err))
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
@@ -437,15 +567,15 @@ func TestNodeCRUD(t *testing.T) {
 			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNode should fail if node name isn't provided
 			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err))
 
 			// GetNode should fail if namespace isn't provided
 			_, err = presence.GetNode(ctx, "", "node1")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err))
 		})
 	})
 
@@ -690,6 +820,25 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllWindowsDesktopServices(ctx)
 			},
 		},
+		"WindowsDesktop": {
+			resourceType: types.KindWindowsDesktop,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				desktop, err := types.NewWindowsDesktopV3(name, labels, types.WindowsDesktopSpecV3{
+					Addr: "localhost:1234",
+				})
+				if err != nil {
+					return err
+				}
+
+				err = desktopService.UpsertWindowsDesktop(ctx, desktop)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				desktopService := NewWindowsDesktopService(presence.Backend)
+				return desktopService.DeleteAllWindowsDesktops(ctx)
+			},
+		},
 	}
 
 	for testName, test := range tests {
@@ -864,12 +1013,11 @@ func TestListResources_Helpers(t *testing.T) {
 				require.NoError(t, err)
 
 				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
-					ResourceType:        req.ResourceType,
-					Limit:               req.Limit,
-					Labels:              req.Labels,
-					SearchKeywords:      req.SearchKeywords,
-					PredicateExpression: req.PredicateExpression,
-					StartKey:            req.StartKey,
+					ResourceType:   req.ResourceType,
+					Limit:          req.Limit,
+					Labels:         req.Labels,
+					SearchKeywords: req.SearchKeywords,
+					StartKey:       req.StartKey,
 				})
 			},
 		},
@@ -1375,15 +1523,15 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	_, err = presence.GetServerInfo(ctx, "nonexistant")
 	require.True(t, trace.IsNotFound(err))
@@ -1393,7 +1541,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Update server info.
 	serverInfoB.SetStaticLabels(map[string]string{
@@ -1404,7 +1552,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete all server infos.
 	require.NoError(t, presence.DeleteAllServerInfos(ctx))

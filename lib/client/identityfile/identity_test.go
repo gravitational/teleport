@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -50,30 +50,30 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
 	cert, err := tlsca.GenerateSelfSignedCAWithSigner(priv, pkix.Name{
 		CommonName:   "root",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	ca, err := tlsca.FromCertAndSigner(cert, priv)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	sshPub, err := ssh.NewPublicKey(priv.Public())
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
-	return ca, auth.TrustedCerts{
+	return ca, authclient.TrustedCerts{
 		ClusterName:     "root",
 		TLSCertificates: [][]byte{cert},
 		AuthorizedKeys:  [][]byte{ssh.MarshalAuthorizedKey(sshPub)},
 	}, nil
 }
 
-func newClientKey(t *testing.T) *client.Key {
+func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.Key {
 	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
@@ -85,6 +85,9 @@ func newClientKey(t *testing.T) *client.Key {
 	identity := tlsca.Identity{
 		Username: "testuser",
 		Groups:   []string{"groups"},
+	}
+	for _, mod := range modifiers {
+		mod(&identity)
 	}
 
 	subject, err := identity.Subject()
@@ -120,7 +123,7 @@ func newClientKey(t *testing.T) *client.Key {
 	}
 	key.Cert = certificate
 	key.TLSCert = tlsCert
-	key.TrustedCerts = []auth.TrustedCerts{tc}
+	key.TrustedCerts = []authclient.TrustedCerts{tc}
 
 	return key
 }
@@ -374,23 +377,48 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	const proxyHost = "proxy.example.com"
 	const cluster = "cluster"
 
-	// parsed key is unchanged from original with proxy and cluster provided.
-	parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
-	key.ClusterName = cluster
-	key.ProxyHost = proxyHost
-	require.NoError(t, err)
-	require.Equal(t, key, parsedKey)
+	t.Run("parsed key unchanged when both proxy and cluster provided", func(t *testing.T) {
+		// parsed key is unchanged from original with proxy and cluster provided.
+		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+		key.ClusterName = cluster
+		key.ProxyHost = proxyHost
+		require.NoError(t, err)
+		require.Equal(t, key, parsedKey)
+	})
 
-	// Identity file's cluster name defaults to root cluster name.
-	parsedKey, err = KeyFromIdentityFile(identityFilePath, proxyHost, "")
-	key.ClusterName = "root"
-	require.NoError(t, err)
-	require.Equal(t, key, parsedKey)
+	t.Run("cluster name defaults if not provided", func(t *testing.T) {
+		// Identity file's cluster name defaults to root cluster name.
+		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, "")
+		key.ClusterName = "root"
+		require.NoError(t, err)
+		require.Equal(t, key, parsedKey)
+	})
 
-	// Returns error if proxy host is not provided.
-	_, err = KeyFromIdentityFile(identityFilePath, "", "")
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
+	t.Run("proxy host not provided", func(t *testing.T) {
+		// Returns error if proxy host is not provided.
+		_, err = KeyFromIdentityFile(identityFilePath, "", "")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+	})
+
+	t.Run("kubernetes certificate loaded", func(t *testing.T) {
+		k8sCluster := "my-cluster"
+		identityFilePath := filepath.Join(t.TempDir(), "out")
+		key := newClientKey(t, func(params *tlsca.Identity) {
+			params.KubernetesCluster = k8sCluster
+		})
+		_, err := Write(context.Background(), WriteConfig{
+			OutputPath:           identityFilePath,
+			Format:               FormatFile,
+			Key:                  key,
+			OverwriteDestination: true,
+		})
+		require.NoError(t, err)
+		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+		require.NoError(t, err)
+		require.NotNil(t, parsedKey.KubeTLSCerts[k8sCluster])
+		require.Equal(t, key.TLSCert, parsedKey.KubeTLSCerts[k8sCluster])
+	})
 }
 
 func TestNewClientStoreFromIdentityFile(t *testing.T) {
@@ -420,10 +448,11 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr:     key.ProxyHost + ":3080",
-		SiteName:         key.ClusterName,
-		Username:         key.Username,
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		WebProxyAddr:          key.ProxyHost + ":3080",
+		SiteName:              key.ClusterName,
+		Username:              key.Username,
+		PrivateKeyPolicy:      keys.PrivateKeyPolicyNone,
+		MissingClusterDetails: true,
 	}, retrievedProfile)
 
 	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)

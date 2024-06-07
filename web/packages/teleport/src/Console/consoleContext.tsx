@@ -24,7 +24,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import serviceSession, {
@@ -33,7 +33,7 @@ import serviceSession, {
   ParticipantMode,
 } from 'teleport/services/session';
 import ServiceNodes from 'teleport/services/nodes';
-import serviceClusters from 'teleport/services/clusters';
+import ClustersService from 'teleport/services/clusters';
 import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
 
@@ -51,6 +51,7 @@ export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
   nodesService = new ServiceNodes();
+  clustersService = new ClustersService();
   storeUser = new StoreUserContext();
 
   constructor() {
@@ -177,7 +178,7 @@ export default class ConsoleContext {
   }
 
   fetchClusters() {
-    return serviceClusters.fetchClusters();
+    return this.clustersService.fetchClusters();
   }
 
   logout() {
@@ -196,7 +197,6 @@ export default class ConsoleContext {
 
     const ttyUrl = cfg.api.ttyWsAddr
       .replace(':fqdn', getHostName())
-      .replace(':token', getAccessToken())
       .replace(':clusterId', clusterId)
       .replace(':traceparent', carrier['traceparent']);
 

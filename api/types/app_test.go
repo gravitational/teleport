@@ -38,7 +38,7 @@ func TestAppPublicAddrValidation(t *testing.T) {
 	}
 	hasErrTypeBadParameter := func() check {
 		return func(t *testing.T, err error) {
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err))
 		}
 	}
 
@@ -303,7 +303,6 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{
 				Name:        "myapp",
 				Description: "my fancy app",
-				ID:          123,
 			},
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
@@ -313,7 +312,6 @@ func TestNewAppV3(t *testing.T) {
 					Name:        "myapp",
 					Namespace:   "default",
 					Description: "my fancy app",
-					ID:          123,
 				}, Spec: AppSpecV3{URI: "example.com"},
 			},
 			wantErr: require.NoError,
@@ -323,7 +321,6 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{
 				Name:        "myapp",
 				Description: "my fancy app",
-				ID:          123,
 			},
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
@@ -333,7 +330,6 @@ func TestNewAppV3(t *testing.T) {
 					Name:        "myapp",
 					Namespace:   "default",
 					Description: "my fancy app",
-					ID:          123,
 				},
 				Spec: AppSpecV3{URI: "example.com"},
 			},
@@ -372,6 +368,18 @@ func TestNewAppV3(t *testing.T) {
 				Version:  "v3",
 				Metadata: Metadata{Name: "myaws", Namespace: "default"},
 				Spec:     AppSpecV3{URI: constants.AWSConsoleURL, Cloud: CloudAWS},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "aws app using integration",
+			meta: Metadata{Name: "myaws"},
+			spec: AppSpecV3{Cloud: CloudAWS, URI: constants.AWSConsoleURL, Integration: "my-integration"},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myaws", Namespace: "default"},
+				Spec:     AppSpecV3{URI: constants.AWSConsoleURL, Cloud: CloudAWS, Integration: "my-integration"},
 			},
 			wantErr: require.NoError,
 		},

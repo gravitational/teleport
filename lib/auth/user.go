@@ -38,7 +38,7 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if user.GetCreatedBy().IsEmpty() {
@@ -70,8 +70,9 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     created.GetRoles(),
+		Connector:          connectorName,
+		Roles:              created.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
@@ -82,7 +83,7 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpdateUser updates an existing user in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
@@ -129,8 +130,9 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     updated.GetRoles(),
+		Connector:          connectorName,
+		Roles:              updated.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
@@ -143,7 +145,7 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpsertUser updates a user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpsertUser] instead.
 func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
@@ -182,8 +184,9 @@ func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, e
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     upserted.GetRoles(),
+		Connector:          connectorName,
+		Roles:              upserted.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
@@ -236,7 +239,7 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existing user in a backend by username.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.DeleteUser] instead.
 func (a *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := a.GetUser(ctx, user, false)
@@ -263,6 +266,7 @@ func (a *Server) DeleteUser(ctx context.Context, user string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}

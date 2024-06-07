@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,7 +51,7 @@ var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
 
 func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 	if m.Log == nil {
-		m.Log = logrus.WithField(trace.Component, "aws_access")
+		m.Log = logrus.WithField(teleport.ComponentKey, "aws_access")
 	}
 
 	if m.AWSCredentials == nil {

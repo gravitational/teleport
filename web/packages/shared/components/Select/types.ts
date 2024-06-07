@@ -32,7 +32,7 @@ export type Props = {
   hideSelectedOptions?: boolean;
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option<any, any> | Option<any, any>[]): void;
+  onChange(e: Option<any, any> | Option<any, any>[], action?: ActionMeta): void;
   onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
@@ -45,6 +45,13 @@ export type Props = {
   name?: string;
   minMenuHeight?: number;
   components?: any;
+  /**
+   * customProps are any props that are not react-select
+   * default or option props and need to be accessed through a
+   * react-select custom component. `customProps` can be accessed
+   * through react-select prop `selectProps`.
+   * eg: `selectProps.customProps.<the-prop-name>`
+   */
   customProps?: Record<string, any>;
   menuPosition?: 'fixed' | 'absolute';
   inputValue?: string;
@@ -85,7 +92,7 @@ export type GroupOption = {
 };
 
 export type ActionMeta = {
-  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
+  action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close' | 'clear';
 };
 
 /**

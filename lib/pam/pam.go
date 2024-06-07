@@ -102,7 +102,7 @@ func init() {
 }
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentPAM,
+	teleport.ComponentKey: teleport.ComponentPAM,
 })
 
 const (

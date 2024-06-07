@@ -77,7 +77,8 @@ type Statement struct {
 	// Resources is a list of resources.
 	Resources SliceOrString `json:"Resource,omitempty"`
 	// Principals is a list of principals.
-	Principals map[string]SliceOrString `json:"Principal,omitempty"`
+	// It can be a single string (eg "*") or a map.
+	Principals StringOrMap `json:"Principal,omitempty"`
 	// Conditions is a list of conditions that must be satisfied for the action to be allowed.
 	// Example:
 	// Condition:
@@ -102,6 +103,52 @@ func (s *Statement) ensureResources(resources []string) {
 	for _, resource := range resources {
 		s.ensureResource(resource)
 	}
+}
+
+// EqualStatement returns whether the receive statement is the same.
+func (s *Statement) EqualStatement(other *Statement) bool {
+	if s.Effect != other.Effect {
+		return false
+	}
+
+	if !slices.Equal(s.Actions, other.Actions) {
+		return false
+	}
+
+	if len(s.Principals) != len(other.Principals) {
+		return false
+	}
+
+	for principalKind, principalList := range s.Principals {
+		expectedPrincipalList := other.Principals[principalKind]
+		if !slices.Equal(principalList, expectedPrincipalList) {
+			return false
+		}
+	}
+
+	if !slices.Equal(s.Resources, other.Resources) {
+		return false
+	}
+
+	if len(s.Conditions) != len(other.Conditions) {
+		return false
+	}
+	for conditionKind, conditionOp := range s.Conditions {
+		expectedConditionOp := other.Conditions[conditionKind]
+
+		if len(conditionOp) != len(expectedConditionOp) {
+			return false
+		}
+
+		for conditionOpKind, conditionOpList := range conditionOp {
+			expectedConditionOpList := expectedConditionOp[conditionOpKind]
+			if !slices.Equal(conditionOpList, expectedConditionOpList) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.
@@ -278,6 +325,62 @@ func (s SliceOrString) MarshalJSON() ([]byte, error) {
 		return json.Marshal(s[0])
 	default:
 		return json.Marshal([]string(s))
+	}
+}
+
+// StringOrMap defines a type that can be either a single string or a map.
+//
+// For almost every use case a map is used. Example:
+// "Principal": { "Service": ["ecs.amazonaws.com", "elasticloadbalancing.amazonaws.com"]}
+//
+// For special use cases, like public/anonynous access, a "*" can be used:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-anonymous
+type StringOrMap map[string]SliceOrString
+
+// UnmarshalJSON implements json.Unmarshaller.
+// If it contains a string and not a map, it will create a map with a single entry:
+// { "str": [] }
+// The only known example is for allowing anything, by using the "*"
+// (See examples here // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-anonymous)
+func (s *StringOrMap) UnmarshalJSON(bytes []byte) error {
+	// Check if input is a map.
+	var mapInput map[string]SliceOrString
+	mapErr := json.Unmarshal(bytes, &mapInput)
+	if mapErr == nil {
+		*s = mapInput
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = StringOrMap{
+			str: SliceOrString{},
+		}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(mapErr, strErr)
+}
+
+// MarshalJSON implements json.Marshaler.
+// It returns "*" if the map has a single key and that key has 0 items.
+// The only known example is for allowing anything, by using the "*"
+// (See examples here // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-anonymous)
+// The regular Marshal method is used otherwise.
+func (s StringOrMap) MarshalJSON() ([]byte, error) {
+	switch len(s) {
+	case 0:
+		return json.Marshal(map[string]SliceOrString{})
+	case 1:
+		if values, isWildcard := s[wildcard]; isWildcard && len(values) == 0 {
+			return json.Marshal(wildcard)
+		}
+		fallthrough
+	default:
+		return json.Marshal(map[string]SliceOrString(s))
 	}
 }
 

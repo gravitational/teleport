@@ -20,12 +20,20 @@ package awsoidc
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	awsV1Http "github.com/aws/smithy-go/transport/http"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -43,13 +51,14 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			TeleportClusterName: "mycluster",
 			Region:              "r",
 			TaskRoleARN:         "arn",
-			ProxyServerHostPort: "proxy.example.com:3080",
 			IntegrationName:     "teleportdev",
 			Deployments: []DeployDatabaseServiceRequestDeployment{{
-				VPCID:            "vpc-123",
-				SubnetIDs:        []string{"subnet-1", "subnet-2"},
-				SecurityGroupIDs: []string{"sg-1", "sg-2"},
+				VPCID:               "vpc-123",
+				SubnetIDs:           []string{"subnet-1", "subnet-2"},
+				SecurityGroupIDs:    []string{"sg-1", "sg-2"},
+				DeployServiceConfig: "teleport.yaml-base64",
 			}},
+			DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 		}
 	}
 
@@ -112,6 +121,15 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
+			name: "empty teleport config",
+			req: func() DeployDatabaseServiceRequest {
+				r := baseReqFn()
+				r.Deployments[0].DeployServiceConfig = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
 			name: "empty vpc id",
 			req: func() DeployDatabaseServiceRequest {
 				r := baseReqFn()
@@ -139,19 +157,19 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				Region:              "r",
 				TaskRoleARN:         "arn",
 				IntegrationName:     "teleportdev",
-				ProxyServerHostPort: "proxy.example.com:3080",
 				ResourceCreationTags: AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
 				},
 				Deployments: []DeployDatabaseServiceRequestDeployment{{
-					VPCID:            "vpc-123",
-					SubnetIDs:        []string{"subnet-1", "subnet-2"},
-					SecurityGroupIDs: []string{"sg-1", "sg-2"},
+					VPCID:               "vpc-123",
+					SubnetIDs:           []string{"subnet-1", "subnet-2"},
+					SecurityGroupIDs:    []string{"sg-1", "sg-2"},
+					DeployServiceConfig: "teleport.yaml-base64",
 				}},
-				ecsClusterName:              "mycluster-teleport",
-				teleportIAMTokenNameForTask: "discover-aws-oidc-iam-token",
+				ecsClusterName:          "mycluster-teleport",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 			},
 		},
 	} {
@@ -164,24 +182,34 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				return
 			}
 			if tt.expected != nil {
-				require.Equal(t, *tt.expected, r)
+				require.Empty(t, cmp.Diff(
+					*tt.expected,
+					r,
+					cmpopts.IgnoreUnexported(DeployDatabaseServiceRequest{}),
+				))
 			}
 		})
 	}
 }
 
 type mockDeployServiceClient struct {
+	mu              sync.RWMutex
 	clusters        map[string]*ecsTypes.Cluster
 	taskDefinitions map[string]*ecsTypes.TaskDefinition
 	services        map[string]*ecsTypes.Service
 
 	accountId       *string
 	iamTokenMissing bool
+
+	iamAccessDeniedListServices bool
+	defaultTags                 AWSTags
 }
 
 // DescribeClusters lists ECS Clusters.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeClusters
 func (m *mockDeployServiceClient) DescribeClusters(ctx context.Context, params *ecs.DescribeClustersInput, optFns ...func(*ecs.Options)) (*ecs.DescribeClustersOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	ret := []ecsTypes.Cluster{}
 
 	if cluster, found := m.clusters[params.Clusters[0]]; found {
@@ -196,6 +224,8 @@ func (m *mockDeployServiceClient) DescribeClusters(ctx context.Context, params *
 // CreateCluster creates a new cluster.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.CreateCluster
 func (m *mockDeployServiceClient) CreateCluster(ctx context.Context, params *ecs.CreateClusterInput, optFns ...func(*ecs.Options)) (*ecs.CreateClusterOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cluster := &ecs.CreateClusterOutput{
 		Cluster: &ecsTypes.Cluster{
 			Status:      aws.String("ACTIVE"),
@@ -210,6 +240,8 @@ func (m *mockDeployServiceClient) CreateCluster(ctx context.Context, params *ecs
 // PutClusterCapacityProviders sets the Capacity Providers available for services in a given cluster.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.PutClusterCapacityProviders
 func (m *mockDeployServiceClient) PutClusterCapacityProviders(ctx context.Context, params *ecs.PutClusterCapacityProvidersInput, optFns ...func(*ecs.Options)) (*ecs.PutClusterCapacityProvidersOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return &ecs.PutClusterCapacityProvidersOutput{
 		Cluster: &ecsTypes.Cluster{
 			Status:      aws.String("ACTIVE"),
@@ -222,10 +254,14 @@ func (m *mockDeployServiceClient) PutClusterCapacityProviders(ctx context.Contex
 // DescribeServices lists the matching Services of a given Cluster.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeServices
 func (m *mockDeployServiceClient) DescribeServices(ctx context.Context, params *ecs.DescribeServicesInput, optFns ...func(*ecs.Options)) (*ecs.DescribeServicesOutput, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	ret := []ecsTypes.Service{}
 
-	if service, found := m.services[params.Services[0]]; found {
-		ret = append(ret, *service)
+	for _, serviceName := range params.Services {
+		if service, found := m.services[serviceName]; found {
+			ret = append(ret, *service)
+		}
 	}
 
 	return &ecs.DescribeServicesOutput{
@@ -236,16 +272,48 @@ func (m *mockDeployServiceClient) DescribeServices(ctx context.Context, params *
 // ListServices returns a list of services. You can filter the results by cluster, launch type,
 // and scheduling strategy.
 func (m *mockDeployServiceClient) ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error) {
-	return nil, nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.iamAccessDeniedListServices {
+		return nil, &awshttp.ResponseError{
+			ResponseError: &awsV1Http.ResponseError{
+				Response: &awsV1Http.Response{
+					Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					},
+				},
+				Err: fmt.Errorf("AccessDeniedException"),
+			},
+			RequestID: uuid.NewString(),
+		}
+	}
+
+	ret := []string{}
+
+	for _, service := range m.services {
+		if aws.ToString(service.ClusterArn) == aws.ToString(params.Cluster) {
+			ret = append(ret, aws.ToString(service.ServiceArn))
+		}
+	}
+
+	return &ecs.ListServicesOutput{
+		ServiceArns: ret,
+	}, nil
 }
 
 // UpdateService updates the service.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.UpdateService
 func (m *mockDeployServiceClient) UpdateService(ctx context.Context, params *ecs.UpdateServiceInput, optFns ...func(*ecs.Options)) (*ecs.UpdateServiceOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	ret := &ecsTypes.Service{
 		ServiceName:          params.Service,
 		ServiceArn:           aws.String("ARN" + aws.ToString(params.Service)),
 		NetworkConfiguration: params.NetworkConfiguration,
+		Status:               aws.String("ACTIVE"),
+		Deployments:          []ecsTypes.Deployment{{}},
+		DesiredCount:         1,
+		RunningCount:         1,
 	}
 	m.services[aws.ToString(params.Service)] = ret
 
@@ -257,6 +325,8 @@ func (m *mockDeployServiceClient) UpdateService(ctx context.Context, params *ecs
 // CreateService starts a task within a cluster.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.CreateService
 func (m *mockDeployServiceClient) CreateService(ctx context.Context, params *ecs.CreateServiceInput, optFns ...func(*ecs.Options)) (*ecs.CreateServiceOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	service := &ecs.CreateServiceOutput{
 		Service: &ecsTypes.Service{
 			ServiceName:          params.ServiceName,
@@ -272,12 +342,24 @@ func (m *mockDeployServiceClient) CreateService(ctx context.Context, params *ecs
 // DescribeTaskDefinition describes the task definition.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeTaskDefinition
 func (m *mockDeployServiceClient) DescribeTaskDefinition(ctx context.Context, params *ecs.DescribeTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error) {
-	return nil, nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, taskDef := range m.taskDefinitions {
+		if aws.ToString(taskDef.Family) == aws.ToString(params.TaskDefinition) {
+			return &ecs.DescribeTaskDefinitionOutput{
+				TaskDefinition: taskDef,
+				Tags:           m.defaultTags.ToECSTags(),
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("not found")
 }
 
 // RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 // https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 func (m *mockDeployServiceClient) RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	taskDef := &ecs.RegisterTaskDefinitionOutput{
 		TaskDefinition: &ecsTypes.TaskDefinition{
 			TaskDefinitionArn:    aws.String("arn-for-task-definition==" + aws.ToString(params.Family)),
@@ -319,12 +401,12 @@ func TestDeployDatabaseService(t *testing.T) {
 			Region:              "us-east-1",
 			TaskRoleARN:         "my-role",
 			TeleportClusterName: "cluster-name",
-			ProxyServerHostPort: "proxy.example.com:3080",
 			IntegrationName:     "my-integration",
 			Deployments: []DeployDatabaseServiceRequestDeployment{
 				{
-					VPCID:     "vpc-123",
-					SubnetIDs: []string{"subnet-1", "subnet-2"},
+					VPCID:               "vpc-123",
+					SubnetIDs:           []string{"subnet-1", "subnet-2"},
+					DeployServiceConfig: "teleport.yaml-base64",
 				},
 			},
 		})
@@ -341,15 +423,16 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-123",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-123",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
 			},
@@ -373,27 +456,31 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-001",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-001",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-002",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-002",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-003",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-003",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-004",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-004",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
 			},
@@ -447,15 +534,16 @@ func TestDeployDatabaseService(t *testing.T) {
 				iamTokenMissing: true,
 			},
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-123",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-123",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
 			},

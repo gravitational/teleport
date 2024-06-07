@@ -21,6 +21,7 @@ package common
 import (
 	"archive/tar"
 	"bytes"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -110,9 +111,9 @@ func TestTarWriter(t *testing.T) {
 		reader := tar.NewReader(&tarball)
 
 		// Expect all the file content and metadata is preserved
-		for err != io.EOF {
+		for !errors.Is(err, io.EOF) {
 			header, err := reader.Next()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -127,7 +128,7 @@ func TestTarWriter(t *testing.T) {
 
 			actualContent := make([]byte, header.Size)
 			_, err = reader.Read(actualContent)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, expected.content, actualContent)
@@ -153,10 +154,10 @@ func TestTarWriter(t *testing.T) {
 
 		// When I list all of the files in the resulting archive...
 		reader := tar.NewReader(&tarball)
-		archivedFiles := []string{}
-		for err != io.EOF {
+		var archivedFiles []string
+		for !errors.Is(err, io.EOF) {
 			header, err := reader.Next()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			archivedFiles = append(archivedFiles, header.Name)

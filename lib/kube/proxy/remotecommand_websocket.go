@@ -22,21 +22,17 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	"k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/klog/v2"
 )
 
 const (
-	stdinChannel = iota
-	stdoutChannel
-	stderrChannel
-	errorChannel
-	resizeChannel
-
 	preV4BinaryWebsocketProtocol = wsstream.ChannelWebSocketProtocol
 	preV4Base64WebsocketProtocol = wsstream.Base64ChannelWebSocketProtocol
 	v4BinaryWebsocketProtocol    = "v4." + wsstream.ChannelWebSocketProtocol
 	v4Base64WebsocketProtocol    = "v4." + wsstream.Base64ChannelWebSocketProtocol
+	v5BinaryWebsocketProtocol    = remotecommand.StreamProtocolV5Name
 )
 
 func init() {
@@ -59,11 +55,11 @@ func init() {
 func createChannels(req remoteCommandRequest) []wsstream.ChannelType {
 	// open the requested channels, and always open the error channel
 	channels := make([]wsstream.ChannelType, 5)
-	channels[stdinChannel] = readChannel(req.stdin)
-	channels[stdoutChannel] = writeChannel(req.stdout)
-	channels[stderrChannel] = writeChannel(req.stderr)
-	channels[errorChannel] = wsstream.WriteChannel
-	channels[resizeChannel] = wsstream.ReadChannel
+	channels[remotecommand.StreamStdIn] = readChannel(req.stdin)
+	channels[remotecommand.StreamStdOut] = writeChannel(req.stdout)
+	channels[remotecommand.StreamStdErr] = writeChannel(req.stderr)
+	channels[remotecommand.StreamErr] = wsstream.WriteChannel
+	channels[remotecommand.StreamResize] = wsstream.ReadChannel
 	return channels
 }
 
@@ -108,6 +104,10 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 			Binary:   false,
 			Channels: channels,
 		},
+		v5BinaryWebsocketProtocol: {
+			Binary:   true,
+			Channels: channels,
+		},
 	})
 	conn.SetIdleTimeout(IdleTimeout)
 	negotiatedProtocol, streams, err := conn.Open(
@@ -121,20 +121,20 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 	// Send an empty message to the lowest writable channel to notify the client the connection is established
 	switch {
 	case req.stdout:
-		streams[stdoutChannel].Write([]byte{})
+		streams[remotecommand.StreamStdOut].Write([]byte{})
 	case req.stderr:
-		streams[stderrChannel].Write([]byte{})
+		streams[remotecommand.StreamStdErr].Write([]byte{})
 	default:
-		streams[errorChannel].Write([]byte{})
+		streams[streamErr].Write([]byte{})
 	}
 
 	proxy := &remoteCommandProxy{
 		conn:         conn,
-		stdinStream:  streams[stdinChannel],
-		stdoutStream: streams[stdoutChannel],
-		stderrStream: streams[stderrChannel],
+		stdinStream:  streams[remotecommand.StreamStdIn],
+		stdoutStream: streams[remotecommand.StreamStdOut],
+		stderrStream: streams[remotecommand.StreamStdErr],
 		tty:          req.tty,
-		resizeStream: streams[resizeChannel],
+		resizeStream: streams[remotecommand.StreamResize],
 	}
 
 	// When stdin, stdout or stderr are not enabled, websocket creates a io.Pipe
@@ -153,10 +153,10 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 	}
 
 	switch negotiatedProtocol {
-	case v4BinaryWebsocketProtocol, v4Base64WebsocketProtocol:
-		proxy.writeStatus = v4WriteStatusFunc(streams[errorChannel])
+	case v5BinaryWebsocketProtocol, v4BinaryWebsocketProtocol, v4Base64WebsocketProtocol:
+		proxy.writeStatus = v4WriteStatusFunc(streams[remotecommand.StreamErr])
 	default:
-		proxy.writeStatus = v1WriteStatusFunc(streams[errorChannel])
+		proxy.writeStatus = v1WriteStatusFunc(streams[remotecommand.StreamErr])
 	}
 
 	return proxy, nil

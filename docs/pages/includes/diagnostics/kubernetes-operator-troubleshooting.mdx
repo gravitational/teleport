@@ -1,3 +1,5 @@
+### The CustomResources (CRs) are not reconciled
+
 The Teleport Operator watches for new resources or changes in Kubernetes.
 When a change happens, it triggers the reconciliation loop. This loop is in
 charge of validating the resource, checking if it already exists in Teleport
@@ -37,24 +39,58 @@ Here `SuccessfullyReconciled` is `False` and the error is `role my-non-existing-
 If the status is not present or does not give sufficient information to solve
 the issue, check the operator logs:
 
-```shell
-$ kubectl logs deploy/<OPERATOR_DEPLOYMENT_NAME>
-```
 
-<Admonition type="note">
-  In case of multi-replica deployments, only one operator instance is running
-  the reconciliation loop. This operator is called the leader and is the only
-  one producing reconciliation logs. The other operator instances are waiting
-  with the following log:
+### The CR doesn't have a status
 
+1. Check if the CR is in the same namespace as the operator. The operator only
+   watches for resource in its own namespace.
+1. Check if the operator pods are running and healthy:
+   ```code
+   kubectl get pods -n "$OPERATOR_NAMESPACE"`
+   ```
+1. Check the operator logs:
+   ```code
+   $ kubectl logs deploy/<OPERATOR_DEPLOYMENT_NAME> -n "$OPERATOR_NAMESPACE"
+   ```
+
+   <Admonition type="note">
+     In case of multi-replica deployments, only one operator instance is running
+     the reconciliation loop. This operator is called the leader and is the only
+     one producing reconciliation logs. The other operator instances are waiting
+     with the following log:
+   
+     ```
+     leaderelection.go:248] attempting to acquire leader lease teleport/431e83f4.teleport.dev...
+     ```
+   
+     To diagnose reconciliation issues, you will have to inspect all pods to find
+     the one reconciling the resources.
+   </Admonition>
+
+### I cannot delete the Kubernetes CR
+
+The operator protects Kubernetes CRs from deletion with a finalizer.
+It will not allow the CR to be deleted until the Teleport resource is deleted as
+well, this is a safety to avoid leaving dangling resources and potentially grant
+unintentional access.
+
+There might be some reasons causing Teleport to refuse a resource deletion, the
+most frequent one is if another resource depends on it. For example: you cannot
+delete a role if it is still assigned to a user.
+
+If this happens, the operator will report the error sent by Teleport in its log.
+
+To resolve this lock, you can either:
+- resolve the dependency issue so the resource gets successfully deleted in
+  Teleport. In the role example, this would imply removing any mention of the
+  role from the various users who had it.
+- patch the Kubernetes CR to remove the finalizers. This will tell Kubernetes to
+  stop waiting for the operator deletion and remove the CR. If you do this, the
+  CR will be removed but the Teleport resource will remain. The operator will
+  never attempt to remove it again.
+  
+  For example, if the role is named `my-role`:
+
+  ```code
+  kubectl patch TeleportRole my-role -p '{"metadata":{"finalizers":null}}' --type=merge
   ```
-  leaderelection.go:248] attempting to acquire leader lease teleport/431e83f4.teleport.dev...
-  ```
-
-  To diagnose reconciliation issues, you will have to inspect all pods to find
-  the one reconciling the resources.
-</Admonition>
-
-If the Kubernetes resource has no status update and the operator does not produce
-any logs regarding the resource, please check if the resource lives in the same
-namespace as the operator.  The operator only watches for resource in its own namespace.

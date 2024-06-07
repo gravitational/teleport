@@ -77,32 +77,37 @@ const (
 	// device inventory.
 	// Device Trust requires Teleport Enteprise.
 	RoleMDM SystemRole = "MDM"
+
+	// RoleAccessGraphPlugin is a role for Access Graph plugins to access
+	// Teleport's internal API and access graph.
+	RoleAccessGraphPlugin SystemRole = "AccessGraphPlugin"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
 // to the proper system role
 var roleMappings = map[string]SystemRole{
-	"auth":            RoleAuth,
-	"node":            RoleNode,
-	"proxy":           RoleProxy,
-	"admin":           RoleAdmin,
-	"provisiontoken":  RoleProvisionToken,
-	"trusted_cluster": RoleTrustedCluster,
-	"trustedcluster":  RoleTrustedCluster,
-	"signup":          RoleSignup,
-	"nop":             RoleNop,
-	"remoteproxy":     RoleRemoteProxy,
-	"remote_proxy":    RoleRemoteProxy,
-	"kube":            RoleKube,
-	"app":             RoleApp,
-	"db":              RoleDatabase,
-	"windowsdesktop":  RoleWindowsDesktop,
-	"windows_desktop": RoleWindowsDesktop,
-	"bot":             RoleBot,
-	"instance":        RoleInstance,
-	"discovery":       RoleDiscovery,
-	"okta":            RoleOkta,
-	"mdm":             RoleMDM,
+	"auth":              RoleAuth,
+	"node":              RoleNode,
+	"proxy":             RoleProxy,
+	"admin":             RoleAdmin,
+	"provisiontoken":    RoleProvisionToken,
+	"trusted_cluster":   RoleTrustedCluster,
+	"trustedcluster":    RoleTrustedCluster,
+	"signup":            RoleSignup,
+	"nop":               RoleNop,
+	"remoteproxy":       RoleRemoteProxy,
+	"remote_proxy":      RoleRemoteProxy,
+	"kube":              RoleKube,
+	"app":               RoleApp,
+	"db":                RoleDatabase,
+	"windowsdesktop":    RoleWindowsDesktop,
+	"windows_desktop":   RoleWindowsDesktop,
+	"bot":               RoleBot,
+	"instance":          RoleInstance,
+	"discovery":         RoleDiscovery,
+	"okta":              RoleOkta,
+	"mdm":               RoleMDM,
+	"accessgraphplugin": RoleAccessGraphPlugin,
 }
 
 func normalizedSystemRole(s string) SystemRole {
@@ -124,16 +129,17 @@ func normalizedSystemRoles(s []string) []SystemRole {
 // teleport services (e.g. db, kube, etc), excluding those which represent remote
 // services (i.e. remoteproxy).
 var localServiceMappings = map[SystemRole]struct{}{
-	RoleAuth:           {},
-	RoleNode:           {},
-	RoleProxy:          {},
-	RoleKube:           {},
-	RoleApp:            {},
-	RoleDatabase:       {},
-	RoleWindowsDesktop: {},
-	RoleDiscovery:      {},
-	RoleOkta:           {},
-	RoleMDM:            {},
+	RoleAuth:              {},
+	RoleNode:              {},
+	RoleProxy:             {},
+	RoleKube:              {},
+	RoleApp:               {},
+	RoleDatabase:          {},
+	RoleWindowsDesktop:    {},
+	RoleDiscovery:         {},
+	RoleOkta:              {},
+	RoleMDM:               {},
+	RoleAccessGraphPlugin: {},
 }
 
 // controlPlaneMapping is the subset of local services which are definitively control plane

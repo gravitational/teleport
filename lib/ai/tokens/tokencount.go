@@ -23,10 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer/codec"
 )
-
-var defaultTokenizer = codec.NewCl100kBase()
 
 // TokenCount holds TokenCounters for both Prompt and Completion tokens.
 // As the agent performs multiple calls to the model, each call creates its own
@@ -115,12 +112,9 @@ func (tc *StaticTokenCounter) TokenCount() int {
 func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenCounter, error) {
 	var promptCount int
 	for _, message := range prompt {
-		promptTokens, _, err := defaultTokenizer.Encode(message.Content)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		promptTokens := countTokens(message.Content)
 
-		promptCount = promptCount + perMessage + perRole + len(promptTokens)
+		promptCount = promptCount + perMessage + perRole + promptTokens
 	}
 	tc := StaticTokenCounter(promptCount)
 
@@ -130,12 +124,8 @@ func NewPromptTokenCounter(prompt []openai.ChatCompletionMessage) (*StaticTokenC
 // NewSynchronousTokenCounter takes the completion request output and
 // computes how many tokens were used by the model to generate this result.
 func NewSynchronousTokenCounter(completion string) (*StaticTokenCounter, error) {
-	completionTokens, _, err := defaultTokenizer.Encode(completion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	completionCount := perRequest + len(completionTokens)
+	completionTokens := countTokens(completion)
+	completionCount := perRequest + completionTokens
 
 	tc := StaticTokenCounter(completionCount)
 	return &tc, nil
@@ -188,25 +178,17 @@ func (tc *AsynchronousTokenCounter) Add() error {
 // the content has been streamed yet. Streamed content can be added a posteriori
 // with Add(). Once all the content is streamed, Finish() must be called.
 func NewAsynchronousTokenCounter(completionStart string) (*AsynchronousTokenCounter, error) {
-	completionTokens, _, err := defaultTokenizer.Encode(completionStart)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	completionTokens := countTokens(completionStart)
 
 	return &AsynchronousTokenCounter{
-		count:    len(completionTokens),
+		count:    completionTokens,
 		mutex:    sync.Mutex{},
 		finished: false,
 	}, nil
 }
 
-// CountTokens is a helper that calls tc.CountAll() on a TokenCount pointer,
-// but also return 0, 0 when receiving a nil pointer. This makes token counting
-// less awkward in cases where we don't know whether a completion happened or
-// not.
-func CountTokens(tc *TokenCount) (int, int) {
-	if tc != nil {
-		return tc.CountAll()
-	}
-	return 0, 0
+// countTokens returns an estimated number of tokens in the text.
+func countTokens(text string) int {
+	// Rough estimations that each token is around 4 characters.
+	return len(text) / 4
 }

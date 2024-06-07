@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
-import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 
@@ -32,9 +32,8 @@ import {
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
-import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
+import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
 import { useAgentProperties } from '../useAgentProperties';
@@ -202,7 +201,6 @@ function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
 }
 
 function AgentSetup() {
-  const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
   const { mainProcessClient, notificationsService } = ctx;
   const { rootClusterUri } = useWorkspaceContext();
@@ -216,7 +214,17 @@ function AgentSetup() {
   } = useConnectMyComputerContext();
   const { requestResourcesRefresh } = useResourcesContext();
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
-  const nodeToken = useRef<string>();
+
+  // The verify agent step checks if we can execute the binary. This triggers OS-level checks, such
+  // as Gatekeeper on macOS, before we do any real work. It is useful because it makes failures due
+  // to OS protections be reported in telemetry as failures of the verify agent step.
+  //
+  // If we didn't have this check as a separate step, then the step with generating the config file
+  // could run into Gatekeeper problems and that step can already fail for a myriad of other reasons.
+  const [verifyAgentAttempt, runVerifyAgentAttempt, setVerifyAgentAttempt] =
+    useAsync(
+      useCallback(() => ctx.connectMyComputerService.verifyAgent(), [ctx])
+    );
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
@@ -226,14 +234,16 @@ function AgentSetup() {
             let certsReloaded = false;
 
             try {
-              const response = await ctx.connectMyComputerService.createRole(
-                rootClusterUri
-              );
+              const response =
+                await ctx.connectMyComputerService.createRole(rootClusterUri);
               certsReloaded = response.certsReloaded;
             } catch (error) {
-              if (isAccessDeniedError(error)) {
+              if (
+                isTshdRpcError(error, 'PERMISSION_DENIED') &&
+                !error.isResolvableWithRelogin
+              ) {
                 throw new Error(
-                  'Access denied. Contact your administrator for permissions to manage users and roles.'
+                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`
                 );
               }
               throw error;
@@ -248,24 +258,24 @@ function AgentSetup() {
         [ctx, rootClusterUri]
       )
     );
+
   const [
     generateConfigFileAttempt,
     runGenerateConfigFileAttempt,
     setGenerateConfigFileAttempt,
   ] = useAsync(
-    useCallback(async () => {
-      const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
-        ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
-      );
-      nodeToken.current = token;
-    }, [rootCluster, ctx, rootClusterUri])
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
+        ),
+      [rootCluster, ctx, rootClusterUri]
+    )
   );
+
   const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
     useAsync(
       useCallback(async () => {
-        if (!nodeToken.current) {
-          throw new Error('Node token is empty');
-        }
         const [, error] = await startAgent();
         if (error) {
           throw error;
@@ -274,45 +284,44 @@ function AgentSetup() {
         // Now that the node has joined the server, let's refresh all open DocumentCluster instances
         // to show the new node.
         requestResourcesRefresh();
-
-        try {
-          await ctx.connectMyComputerService.deleteToken(
-            rootCluster.uri,
-            nodeToken.current
-          );
-        } catch (error) {
-          // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
-          if (isAccessDeniedError(error)) {
-            logger.error('Access denied when deleting a token.', error);
-            return;
-          }
-          throw error;
-        }
-      }, [
-        startAgent,
-        ctx.connectMyComputerService,
-        rootCluster.uri,
-        requestResourcesRefresh,
-        logger,
-      ])
+      }, [startAgent, requestResourcesRefresh])
     );
 
-  const steps = [
-    {
-      name: 'Setting up the role',
-      attempt: createRoleAttempt,
-    },
+  const steps: SetupStep[] = [
     {
       name: 'Downloading the agent',
+      nameInFailureEvent: 'downloading_agent',
       attempt: downloadAgentAttempt,
+      runAttempt: runDownloadAgentAttempt,
+      setAttempt: setDownloadAgentAttempt,
+    },
+    {
+      name: 'Verifying the agent',
+      nameInFailureEvent: 'verifying_agent',
+      attempt: verifyAgentAttempt,
+      runAttempt: runVerifyAgentAttempt,
+      setAttempt: setVerifyAgentAttempt,
+    },
+    {
+      name: 'Setting up the role',
+      nameInFailureEvent: 'setting_up_role',
+      attempt: createRoleAttempt,
+      runAttempt: runCreateRoleAttempt,
+      setAttempt: setCreateRoleAttempt,
     },
     {
       name: 'Generating the config file',
+      nameInFailureEvent: 'generating_config_file',
       attempt: generateConfigFileAttempt,
+      runAttempt: runGenerateConfigFileAttempt,
+      setAttempt: setGenerateConfigFileAttempt,
     },
     {
       name: 'Joining the cluster',
+      nameInFailureEvent: 'joining_cluster',
       attempt: joinClusterAttempt,
+      runAttempt: runJoinClusterAttempt,
+      setAttempt: setJoinClusterAttempt,
       customError: () => {
         if (joinClusterAttempt.status !== 'error') {
           return;
@@ -361,46 +370,25 @@ function AgentSetup() {
   ];
 
   const runSteps = async () => {
-    function withEventOnFailure(
-      fn: () => Promise<[void, Error]>,
-      failedStep: string
-    ): () => Promise<[void, Error]> {
-      return async () => {
-        const result = await fn();
-        const [, error] = result;
-        if (error) {
-          ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
-            success: false,
-            failedStep,
-          });
-        }
-        return result;
-      };
-    }
-
-    // all steps have to be cleared when starting the setup process;
+    // all steps have to be cleared before starting the setup process;
     // otherwise we could see old errors on retry
     // (the error would be cleared when the given step starts, but it would be too late)
-    setCreateRoleAttempt(makeEmptyAttempt());
-    setDownloadAgentAttempt(makeEmptyAttempt());
-    setGenerateConfigFileAttempt(makeEmptyAttempt());
-    setJoinClusterAttempt(makeEmptyAttempt());
+    for (const step of steps) {
+      step.setAttempt(makeEmptyAttempt());
+    }
 
-    const actions = [
-      withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
-      withEventOnFailure(runDownloadAgentAttempt, 'downloading_agent'),
-      withEventOnFailure(
-        runGenerateConfigFileAttempt,
-        'generating_config_file'
-      ),
-      withEventOnFailure(runJoinClusterAttempt, 'joining_cluster'),
-    ];
-    for (const action of actions) {
-      const [, error] = await action();
+    for (const step of steps) {
+      const [, error] = await step.runAttempt();
       if (error) {
+        ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
+          success: false,
+          failedStep: step.nameInFailureEvent,
+        });
+        // The error is reported by showing the attempt in the UI.
         return;
       }
     }
+
     ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
       success: true,
     });
@@ -411,16 +399,18 @@ function AgentSetup() {
   };
 
   useEffect(() => {
-    if (
-      [
-        createRoleAttempt,
-        downloadAgentAttempt,
-        generateConfigFileAttempt,
-        joinClusterAttempt,
-      ].every(attempt => attempt.status === '')
-    ) {
-      runSteps();
-    }
+    // TODO(ravicious): We should run the steps only when every attempt has its status set to '' and
+    // abort any action on unmount. However, there's a couple of things preventing us from doing so:
+    //
+    // * downloadAgentAttempt is kept in the context, so it's not reset between remounts like other
+    // attempts from this component. Instead of re-using the attempt from the context, the step with
+    // downloading an agent should be a separate attempt that merely calls downloadAgent from the
+    // context.
+    // * None of the steps support an abort signal at the moment.
+    //
+    // See the discussion on GitHub for more details:
+    // https://github.com/gravitational/teleport/pull/37330#discussion_r1467646824
+    runSteps();
   }, []);
 
   const retryRunSteps = async () => {
@@ -507,3 +497,12 @@ const Separator = styled(Box)`
   background: ${props => props.theme.colors.spotBackground[2]};
   height: 1px;
 `;
+
+type SetupStep = {
+  name: string;
+  nameInFailureEvent: string;
+  attempt: Attempt<void>;
+  runAttempt: () => Promise<[void, Error]>;
+  setAttempt: (attempt: Attempt<void>) => void;
+  customError?: () => JSX.Element;
+};

@@ -45,8 +45,9 @@ func convertError(err error) error {
 		Cause() error
 	}
 
-	if causer, ok := err.(causer); ok {
-		return trace.Wrap(causer.Cause())
+	var c causer
+	if errors.As(err, &c) {
+		return trace.Wrap(c.Cause())
 	}
 
 	return trace.Wrap(err)

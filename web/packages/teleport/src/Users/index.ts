@@ -16,6 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Users from './Users';
-
-export default Users;
+export { UsersContainer as Users } from './Users';

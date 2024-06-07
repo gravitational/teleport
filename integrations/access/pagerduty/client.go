@@ -43,7 +43,7 @@ const (
 	pdHTTPTimeout = 10 * time.Second
 	pdListLimit   = uint(100)
 
-	pdIncidentKeyPrefix = "teleport-access-request"
+	PdIncidentKeyPrefix = "teleport-access-request"
 
 	pdStatusUpdateTimeout time.Duration = 10 * time.Second
 )
@@ -167,7 +167,7 @@ func (p Pagerduty) CreateIncident(ctx context.Context, serviceID, reqID string, 
 	}
 	body := IncidentBody{
 		Title:       fmt.Sprintf("Access request from %s", reqData.User),
-		IncidentKey: fmt.Sprintf("%s/%s", pdIncidentKeyPrefix, reqID),
+		IncidentKey: fmt.Sprintf("%s/%s", PdIncidentKeyPrefix, reqID),
 		Service: Reference{
 			Type: "service_reference",
 			ID:   serviceID,

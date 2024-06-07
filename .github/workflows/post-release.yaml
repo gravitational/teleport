@@ -38,7 +38,7 @@ jobs:
             echo "type=other" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "version=$(make --no-print-directory print-version)" >> "$GITHUB_OUTPUT"
+          echo "version=$(make -s print-version)" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -107,5 +107,6 @@ jobs:
           gh pr create --fill --base=${{ steps.get-branch.outputs.branch }} \
              --label=automated --label=documentation --label=no-changelog \
              --reviewer=${{ github.event.release.author.login }}
+           echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

@@ -19,6 +19,7 @@
 import { waitFor } from '@testing-library/react';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeRetryableError } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
 
 import { retryWithRelogin } from './retryWithRelogin';
@@ -26,8 +27,6 @@ import { retryWithRelogin } from './retryWithRelogin';
 beforeAll(() => {
   Logger.init(new NullService());
 });
-
-const makeRetryableError = () => new Error('ssh: handshake failed');
 
 it('returns the result of actionToRetry if no error is thrown', async () => {
   const expectedReturnValue = Symbol('expectedReturnValue');
@@ -72,7 +71,9 @@ it('opens the login modal window and calls actionToRetry again on successful rel
       }
 
       // Dialog cancel function.
-      return { closeDialog: () => {} };
+      return {
+        closeDialog: () => {},
+      };
     });
 
   jest
@@ -146,7 +147,9 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
       }
 
       // Dialog cancel function.
-      return { closeDialog: () => {} };
+      return {
+        closeDialog: () => {},
+      };
     });
 
   jest

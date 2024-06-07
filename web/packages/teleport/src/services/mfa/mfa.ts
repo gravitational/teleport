@@ -24,6 +24,7 @@ import {
   MfaDevice,
   AddNewTotpDeviceRequest,
   AddNewHardwareDeviceRequest,
+  SaveNewHardwareDeviceRequest,
 } from './types';
 import makeMfaDevice from './makeMfaDevice';
 
@@ -48,29 +49,21 @@ class MfaService {
     return api.post(cfg.api.mfaDevicesPath, req);
   }
 
-  addNewWebauthnDevice(req: AddNewHardwareDeviceRequest) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          req.deviceUsage
-        )
-      )
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          ...req,
-          webauthnRegisterResponse: makeWebauthnCreationResponse(res),
-        };
+  saveNewWebAuthnDevice(req: SaveNewHardwareDeviceRequest) {
+    return auth.checkWebauthnSupport().then(() => {
+      const request = {
+        ...req.addRequest,
+        webauthnRegisterResponse: makeWebauthnCreationResponse(req.credential),
+      };
 
-        return api.post(cfg.api.mfaDevicesPath, request);
-      });
+      return api.post(cfg.api.mfaDevicesPath, request);
+    });
+  }
+
+  addNewWebauthnDevice(req: AddNewHardwareDeviceRequest) {
+    return auth.createNewWebAuthnDevice(req).then(credential => {
+      this.saveNewWebAuthnDevice({ addRequest: req, credential });
+    });
   }
 }
 

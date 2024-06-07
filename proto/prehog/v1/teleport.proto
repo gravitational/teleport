@@ -116,6 +116,12 @@ message UserActivityRecord {
   uint64 ssh_port_v2_sessions = 12;
   // counter of port events (only Kube)
   uint64 kube_port_sessions = 13;
+  // counter of SPIFFE SVIDs issued
+  uint64 spiffe_svids_issued = 15;
+  // counter of bot joins
+  uint64 bot_joins = 16;
+  // counter of certificates issued for this user
+  uint64 certificates_issued = 17;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)

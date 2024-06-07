@@ -20,6 +20,8 @@ import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
+import { Server } from 'design/Icon';
+
 import { generatePath, Router } from 'react-router';
 
 import { createMemoryHistory, MemoryHistory } from 'history';
@@ -34,7 +36,7 @@ import { NavigationCategory } from 'teleport/Navigation/categories';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
 import { makeUserContext } from 'teleport/services/user';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 
 class MockUserFeature implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -52,7 +54,7 @@ class MockUserFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Users,
-    icon: <div />,
+    icon: Server,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });
@@ -76,7 +78,7 @@ class MockAccessListFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessLists,
-    icon: <div />,
+    icon: Server,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });
@@ -140,7 +142,7 @@ describe('navigation items', () => {
     ctx.storeNotifications.setNotifications([
       {
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: 'banana',
           route: '',
         },

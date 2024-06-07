@@ -121,6 +121,7 @@ Delegated join methods are:
 - [`circleci`](#circleci-circleci)
 - [`gitlab`](#gitlab-gitlab)
 - [`kubernetes`](#kubernetes-kubernetes)
+- [`tpm`](#trusted-platform-module-tpm)
 
 ### Renewable vs non-renewable
 
@@ -152,6 +153,7 @@ Non-renewable join methods are:
 - [`circleci`](#circleci-circleci)
 - [`gitlab`](#gitlab-gitlab)
 - [`kubernetes`](#kubernetes-kubernetes)
+- [`tpm`](#trusted-platform-module-tpm)
 
 ## Token resource reference
 
@@ -412,4 +414,14 @@ to contain the new Kubernetes singing keys (update the
 
 <Admonition type="note" title="See Also">
 - [Deploying Machine ID on Kubernetes](../machine-id/deployment/kubernetes.mdx)
+</Admonition>
+
+### Trusted Platform Module: `tpm`
+
+(!docs/pages/includes/tpm-joining-background.mdx!)
+
+(!docs/pages/includes/provision-token/tpm-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Linux: TPM](../machine-id/deployment/linux-tpm.mdx)
 </Admonition>

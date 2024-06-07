@@ -58,8 +58,8 @@ func validateProfileName(r ResourceURI) error {
 }
 
 func validateGatewayTargetResource(r ResourceURI) error {
-	if r.GetDbName() == "" && r.GetKubeName() == "" {
-		return trace.BadParameter("malformed gateway target URI %q, expecting a database or kube resource", r)
+	if r.GetDbName() == "" && r.GetKubeName() == "" && r.GetAppName() == "" {
+		return trace.BadParameter("malformed gateway target URI %q, expecting a database, kube or app resource", r)
 	}
 	return nil
 }

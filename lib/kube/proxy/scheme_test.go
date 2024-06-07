@@ -31,7 +31,7 @@ import (
 // TestNewClusterSchemaBuilder tests that newClusterSchemaBuilder doesn't panic
 // when it's given types already registered in the global scheme.
 func Test_newClusterSchemaBuilder(t *testing.T) {
-	_, _, err := newClusterSchemaBuilder(logrus.StandardLogger(), &clientSet{})
+	_, _, _, err := newClusterSchemaBuilder(logrus.StandardLogger(), &clientSet{})
 	require.NoError(t, err)
 }
 

@@ -19,7 +19,7 @@
 package azure
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,32 +35,20 @@ func ConvertResponseError(err error) error {
 		return nil
 	}
 
-	switch v := err.(type) {
-	case *azcore.ResponseError:
-		switch v.StatusCode {
+	var responseErr *azcore.ResponseError
+	var authenticationFailedErr *azidentity.AuthenticationFailedError
+	switch {
+	case errors.As(err, &responseErr):
+		switch responseErr.StatusCode {
 		case http.StatusForbidden:
-			return trace.AccessDenied(v.Error())
+			return trace.AccessDenied(responseErr.Error())
 		case http.StatusConflict:
-			return trace.AlreadyExists(v.Error())
+			return trace.AlreadyExists(responseErr.Error())
 		case http.StatusNotFound:
-			return trace.NotFound(v.Error())
+			return trace.NotFound(responseErr.Error())
 		}
-
-	case *azidentity.AuthenticationFailedError:
-		return trace.AccessDenied(v.Error())
-
+	case errors.As(err, &authenticationFailedErr):
+		return trace.AccessDenied(authenticationFailedErr.Error())
 	}
 	return err // Return unmodified.
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(statusCode int, body []byte) error {
-	err := trace.ReadError(statusCode, body)
-	azureError := struct {
-		Error string `json:"error"`
-	}{}
-	if json.Unmarshal(body, &azureError) != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(err, azureError.Error)
 }

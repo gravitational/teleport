@@ -939,7 +939,7 @@ resources:
 
 - [Servers](../server-access/rbac.mdx)
 - [Databases](../database-access/rbac.mdx)
-- [Kubernetes clusters](../kubernetes-access/manage-access/rbac.mdx)
+- [Kubernetes clusters](../kubernetes-access/controls.mdx)
 - [Windows Desktops](../desktop-access/rbac.mdx)
 - [Applications](../application-access/controls.mdx)
 
@@ -962,12 +962,11 @@ provider APIs:
 
 ### Consult examples
 
-The
-[`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins)
-repository contains examples of production-ready Teleport API clients. While we
-currently do not maintain plugins that generate Teleport roles, you can use
-these examples to see how to implement configuration parsing, retries, and other
-tasks.
+The Teleport code repository contains [examples of production-ready Teleport API
+clients](https://github.com/gravitational/teleport/tree/(=teleport.version=)/examples/).
+While we currently do not maintain plugins that generate Teleport
+roles, you can use these examples to see how to implement configuration
+parsing, retries, and other tasks.
 
 ### Provision the client application with short-lived credentials
 

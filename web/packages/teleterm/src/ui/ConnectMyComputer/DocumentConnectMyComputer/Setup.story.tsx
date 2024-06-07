@@ -26,7 +26,7 @@ import {
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
-import { Cluster, UserType } from 'teleterm/services/tshd/types';
+import { Cluster, LoggedInUser_UserType } from 'teleterm/services/tshd/types';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
@@ -87,7 +87,7 @@ export function InProgress() {
     return () => ref.current.abort();
   }, []);
 
-  appContext.connectMyComputerService.downloadAgent = () =>
+  appContext.connectMyComputerService.createRole = () =>
     new Promise(resolve => {
       ref.current.signal.addEventListener('abort', () => resolve(undefined));
     });
@@ -136,7 +136,7 @@ export function NoAccess() {
 
 export function AccessUnknown() {
   const cluster = makeRootCluster();
-  cluster.loggedInUser.userType = UserType.USER_TYPE_UNSPECIFIED;
+  cluster.loggedInUser.userType = LoggedInUser_UserType.UNSPECIFIED;
   const appContext = new MockAppContext({});
 
   return (

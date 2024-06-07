@@ -11,6 +11,10 @@ rules:
     resources:
       - teleportroles
       - teleportroles/status
+      - teleportrolesv6
+      - teleportrolesv6/status
+      - teleportrolesv7
+      - teleportrolesv7/status
       - teleportusers
       - teleportusers/status
       - teleportgithubconnectors
@@ -27,6 +31,10 @@ rules:
       - teleportoktaimportrules/status
       - teleportaccesslists
       - teleportaccesslists/status
+      - teleportopensshserversv2
+      - teleportopensshserversv2/status
+      - teleportopenssheiceserversv2
+      - teleportopenssheiceserversv2/status
     verbs:
       - get
       - list

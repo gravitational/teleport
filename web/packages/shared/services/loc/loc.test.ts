@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayDate, displayDateTime } from './loc';
+import { displayDate, displayDateTime, dateTimeShortFormat } from './loc';
 
 const testDate = new Date('2022-01-28T16:00:44.309Z');
 
@@ -30,4 +30,8 @@ test('displayDateTime', () => {
   const output = displayDateTime(testDate);
 
   expect(output).toBe('2022-01-28 16:00:44');
+});
+
+test('dateTimeShortFormat', () => {
+  expect(dateTimeShortFormat(testDate)).toEqual('4:00 PM');
 });

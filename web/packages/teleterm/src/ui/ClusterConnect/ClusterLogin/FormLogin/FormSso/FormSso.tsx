@@ -25,7 +25,7 @@ import type { Props } from '../FormLogin';
 
 export const FormSso = ({
   loginAttempt,
-  authProvidersList,
+  authProviders,
   onLoginWithSso,
   autoFocus = false,
 }: Props) => {
@@ -34,7 +34,7 @@ export const FormSso = ({
       <SSOButtonList
         prefixText="Login with"
         isDisabled={loginAttempt.status === 'processing'}
-        providers={authProvidersList}
+        providers={authProviders}
         onClick={onLoginWithSso}
         autoFocus={autoFocus}
       />

@@ -17,13 +17,14 @@
  */
 
 import { ChannelCredentials, Metadata } from '@grpc/grpc-js';
-import { Struct } from 'google-protobuf/google/protobuf/struct_pb';
 
 import {
   PtyHostClient as GrpcClient,
   PtyCreate,
   PtyId,
 } from 'teleterm/sharedProcess/ptyHost';
+
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 
 import { PtyHostClient } from '../types';
 
@@ -36,16 +37,17 @@ export function createPtyHostClient(
   const client = new GrpcClient(address, credentials);
   return {
     createPtyProcess(ptyOptions) {
-      const request = new PtyCreate()
-        .setArgsList(ptyOptions.args)
-        .setPath(ptyOptions.path)
-        .setEnv(Struct.fromJavaScript(ptyOptions.env));
+      const request = PtyCreate.create({
+        args: ptyOptions.args,
+        path: ptyOptions.path,
+        env: Struct.fromJson(ptyOptions.env),
+      });
 
       if (ptyOptions.cwd) {
-        request.setCwd(ptyOptions.cwd);
+        request.cwd = ptyOptions.cwd;
       }
       if (ptyOptions.initMessage) {
-        request.setInitMessage(ptyOptions.initMessage);
+        request.initMessage = ptyOptions.initMessage;
       }
 
       return new Promise<string>((resolve, reject) => {
@@ -53,18 +55,18 @@ export function createPtyHostClient(
           if (error) {
             reject(error);
           } else {
-            resolve(response.toObject().id);
+            resolve(response.id);
           }
         });
       });
     },
     getCwd(ptyId) {
       return new Promise((resolve, reject) => {
-        client.getCwd(new PtyId().setId(ptyId), (error, response) => {
+        client.getCwd(PtyId.create({ id: ptyId }), (error, response) => {
           if (error) {
             reject(error);
           } else {
-            resolve(response.toObject().cwd);
+            resolve(response.cwd);
           }
         });
       });

@@ -92,7 +92,7 @@ func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 	}
 	return &CircularBuffer{
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentBuffer,
+			teleport.ComponentKey: teleport.ComponentBuffer,
 		}),
 		cfg:      cfg,
 		watchers: newWatcherTree(),

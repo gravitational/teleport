@@ -4,6 +4,18 @@
 # - When `false`, the chart creates the `CustomResourceDefinition` resources without the operator `Deployment`.
 enabled: true
 
+# installCRDs(string) -- controls if the chart should install the CRDs.
+# There are 3 possible values: dynamic, always, never.
+#
+# - "dynamic" means the CRDs are installed if the operator is enabled or if
+#   the CRDs are already present in the cluster. The presence check is here to
+#   avoid all CRDs to be removed if you temporarily disable the operator.
+#   Removing CRDs triggers a cascading deletion, which removes CRs, and all the
+#   related resources in Teleport.
+# - "always" means the CRDs are always installed
+# - "never" means the CRDs are never installed
+installCRDs: "dynamic"
+
 # teleportAddress(string) -- is the address of the Teleport cluster whose resources
 # are managed by the operator. The address must contain both the domain name and
 # the port of the Teleport cluster. It can be either the address of the Auth Service

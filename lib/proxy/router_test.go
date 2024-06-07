@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -47,7 +47,7 @@ type testSite struct {
 	nodes []types.Server
 }
 
-func (t testSite) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return t.cfg, nil
 }
 
@@ -88,6 +88,135 @@ func createServers(srvs []server) []types.Server {
 	}
 
 	return out
+}
+
+type mockHostResolver struct {
+	hosts map[string][]string
+}
+
+func (r *mockHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	return r.hosts[host], nil
+}
+
+// TestRouteScoring verifies expected behavior in the specific cases where multiple matches
+// of different quality are made.
+func TestRouteScoring(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// set up various servers with overlapping IPs and hostnames
+	servers := createServers([]server{
+		{
+			name:     uuid.NewString(),
+			hostname: "one.example.com",
+			addr:     "1.2.3.4:123",
+		},
+		{
+			name:     uuid.NewString(),
+			hostname: "two.example.com",
+			addr:     "1.2.3.4:456",
+		},
+		{
+			name:     uuid.NewString(),
+			hostname: "dupe.example.com",
+			addr:     "1.2.3.4:789",
+		},
+		{
+			name:     uuid.NewString(),
+			hostname: "dupe.example.com",
+			addr:     "1.2.3.4:1011",
+		},
+		{
+			name:     uuid.NewString(),
+			hostname: "blue.example.com",
+			addr:     "2.3.4.5:22",
+		},
+	})
+
+	// scoring behavior is independent of routing strategy so we just
+	// use the most strict config for all cases.
+	site := &testSite{
+		cfg: &types.ClusterNetworkingConfigV2{
+			Spec: types.ClusterNetworkingConfigSpecV2{
+				RoutingStrategy: types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			},
+		},
+		nodes: servers,
+	}
+
+	// set up resolver
+	resolver := &mockHostResolver{
+		hosts: map[string][]string{
+			// register a hostname that only indirectly maps to a node
+			"red.example.com": []string{"2.3.4.5"},
+		},
+	}
+
+	for _, s := range servers {
+		resolver.hosts[s.GetHostname()] = []string{"1.2.3.4"}
+	}
+
+	tts := []struct {
+		desc       string
+		host, port string
+		expect     string
+		ambiguous  bool
+	}{
+		{
+			// this is the primary case that route scoring was implemented to solve. prior to scoring,
+			// dialing by a hostname that is itself unambiguous but resolves to an ip that
+			// *is* ambiguous would result in an unexpected ambiguous host error, despite the fact that
+			// what the user typed in was clearly unambiguous.
+			desc:   "dial by hostname",
+			host:   "one.example.com",
+			expect: "one.example.com",
+		},
+		{
+			desc:   "dial by ip only",
+			host:   "2.3.4.5",
+			expect: "blue.example.com",
+		},
+		{
+			desc:   "dial by ip and port",
+			host:   "1.2.3.4",
+			port:   "456",
+			expect: "two.example.com",
+		},
+		{
+			desc:      "ambiguous hostname dial",
+			host:      "dupe.example.com",
+			ambiguous: true,
+		},
+		{
+			desc:      "ambiguous ip dial",
+			host:      "1.2.3.4",
+			ambiguous: true,
+		},
+		{
+			desc:   "disambiguate by port",
+			host:   "dupe.example.com",
+			port:   "789",
+			expect: "dupe.example.com",
+		},
+		{
+			desc:   "indirect ip resolve",
+			host:   "red.example.com",
+			expect: "blue.example.com",
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
+			if tt.ambiguous {
+				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+				return
+			}
+			require.Equal(t, tt.expect, srv.GetHostname())
+		})
+	}
 }
 
 func TestGetServers(t *testing.T) {
@@ -461,7 +590,7 @@ func (r testRemoteSite) DialAuthServer(reversetunnelclient.DialParams) (net.Conn
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) GetClient() (auth.ClientI, error) {
+func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 	return nil, nil
 }
 
@@ -480,7 +609,7 @@ type fakeConn struct {
 func TestRouter_DialHost(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewLoggerForTests().WithField(trace.Component, "test")
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test")
 
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
@@ -654,7 +783,7 @@ func TestRouter_DialSite(t *testing.T) {
 	t.Parallel()
 
 	const cluster = "test"
-	logger := utils.NewLoggerForTests().WithField(trace.Component, cluster)
+	logger := utils.NewLoggerForTests().WithField(teleport.ComponentKey, cluster)
 
 	cases := []struct {
 		name      string

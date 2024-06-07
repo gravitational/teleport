@@ -45,6 +45,13 @@ type KubernetesOutput struct {
 	// This is named a little more verbosely to avoid conflicting with the
 	// name of the Teleport cluster to use.
 	KubernetesCluster string `yaml:"kubernetes_cluster"`
+
+	// DisableExecPlugin disables the default behavior of using `tbot` as a
+	// `kubectl` credentials exec plugin. This is useful in environments where
+	// `tbot` may not exist on the system that will consume the outputted
+	// kubeconfig. It does mean that kubectl will not be able to automatically
+	// refresh the credentials within an individual invocation.
+	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
 }
 
 func (o *KubernetesOutput) templates() []template {
@@ -54,6 +61,7 @@ func (o *KubernetesOutput) templates() []template {
 		&templateKubernetes{
 			clusterName:          o.KubernetesCluster,
 			executablePathGetter: os.Executable,
+			disableExecPlugin:    o.DisableExecPlugin,
 		},
 	}
 }

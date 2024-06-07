@@ -143,6 +143,15 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if m.SetupAccessForARN != "" {
+		if !slices.Contains(m.Types, AWSMatcherEKS) {
+			return trace.BadParameter("discovery service AWS matcher setup_access_for_arn is only supported for eks")
+		}
+		if err := awsapiutils.CheckRoleARN(m.SetupAccessForARN); err != nil {
+			return trace.BadParameter("invalid setup access for ARN: %v", err)
+		}
+	}
+
 	if m.Tags == nil || len(m.Tags) == 0 {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
@@ -151,6 +160,24 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		m.Params = &InstallerParams{
 			InstallTeleport: true,
 		}
+	}
+
+	switch m.Params.EnrollMode {
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED:
+		m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+		if m.Integration != "" {
+			m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
+		if m.Integration == "" {
+			return trace.BadParameter("integration is required for eice enroll mode")
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
+
+	default:
+		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
 	switch m.Params.JoinMethod {

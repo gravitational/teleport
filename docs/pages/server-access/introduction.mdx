@@ -17,16 +17,26 @@ Teleport server access is designed for the following kinds of scenarios:
 
 ![Server access architecture](../../img/server-access/architecture.png)
 
+Teleport protects servers through the Teleport SSH Service, which is a Teleport
+agent service. For more information on agent services, read [Teleport Agent
+Architecture](../architecture/agents.mdx). You can also learn how to deploy a
+[pool of Teleport agents](../agents/introduction.mdx) to run multiple agent
+services.
+
 ## Getting started
 
 - [Get started](getting-started.mdx): Get started using Teleport server access
   in 10 minutes. Server access for most common SSH use-cases.
 
+## Enrolling OpenSSH servers
+
+You can protect OpenSSH servers with Teleport, which makes it easier to protect
+legacy infrastructure, using an [agentless architecture](./openssh/openssh.mdx).
+Read the [Teleport OpenSSH guides](./openssh.mdx) to learn more.
+
 ## Guides
 
 - [Using Teleport with PAM](./guides/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
-- [Agentless OpenSSH Integration](./guides/openssh.mdx): How to use Teleport in agentless mode on systems with OpenSSH and `sshd`.
 - [Recording Proxy Mode](./guides/recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
 - [BPF Session Recording](./guides/bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
-- [Restricted Session](./guides/restricted-session.mdx): How to configure and use Restricted Session to apply security policies to SSH sessions.
 - [Visual Studio Code](./guides/vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.

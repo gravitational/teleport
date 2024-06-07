@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -47,6 +48,9 @@ const (
 
 	// actionSpeed sets the playback speed
 	actionSpeed = playbackAction("speed")
+
+	// actionSeek moves to a different position in the recording
+	actionSeek = playbackAction("seek")
 )
 
 // actionMessage is a message passed from the playback client
@@ -55,6 +59,7 @@ const (
 type actionMessage struct {
 	Action        playbackAction `json:"action"`
 	PlaybackSpeed float64        `json:"speed,omitempty"`
+	Pos           int64          `json:"pos"`
 }
 
 // ReceivePlaybackActions handles logic for receiving playbackAction messages
@@ -90,6 +95,8 @@ func ReceivePlaybackActions(
 			action.PlaybackSpeed = max(action.PlaybackSpeed, minPlaybackSpeed)
 			action.PlaybackSpeed = min(action.PlaybackSpeed, maxPlaybackSpeed)
 			player.SetSpeed(action.PlaybackSpeed)
+		case actionSeek:
+			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
 			log.Warnf("invalid desktop playback action: %v", action.Action)
 			return

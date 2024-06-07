@@ -9,7 +9,7 @@ BEGIN
         RAISE NOTICE 'User has active connections';
     ELSE
         BEGIN
-            EXECUTE FORMAT('DROP USER %I', username);
+            EXECUTE FORMAT('DROP USER IF EXISTS %I', username);
         EXCEPTION
             WHEN SQLSTATE '2BP01' THEN
                 state := 'TP004';

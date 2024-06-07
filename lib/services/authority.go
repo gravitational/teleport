@@ -49,7 +49,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -70,7 +70,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
@@ -78,10 +78,26 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
+	case types.SPIFFECA:
+		err = checkSPIFFECA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
 	return trace.Wrap(err)
+}
+
+func checkSPIFFECA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
+	}
+	if len(ca.Spec.ActiveKeys.JWT) == 0 {
+		return trace.BadParameter("certificate authority missing JWT key pairs")
+	}
+	return nil
 }
 
 func checkUserOrHostCA(cai types.CertAuthority) error {
@@ -118,7 +134,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
 	}
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {
@@ -476,9 +492,6 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if err := ValidateCertAuthority(&ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			ca.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			ca.SetRevision(cfg.Revision)
 		}
@@ -513,7 +526,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

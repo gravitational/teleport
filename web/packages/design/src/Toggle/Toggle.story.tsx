@@ -28,7 +28,16 @@ export default {
 };
 
 export const Default = () => {
-  const [toggled, setToggled] = useState(false);
+  return (
+    <Flex flexDirection="column" gap={4}>
+      <ToggleRow initialToggled={false} />
+      <ToggleRow initialToggled={true} />
+    </Flex>
+  );
+};
+
+const ToggleRow = (props: { initialToggled: boolean }) => {
+  const [toggled, setToggled] = useState(props.initialToggled);
 
   function toggle(): void {
     setToggled(wasToggled => !wasToggled);
@@ -43,6 +52,19 @@ export const Default = () => {
       <div>
         <Text>Disabled</Text>
         <Toggle disabled={true} onToggle={toggle} isToggled={toggled} />
+      </div>
+      <div>
+        <Text>Enabled (large)</Text>
+        <Toggle onToggle={toggle} isToggled={toggled} size="large" />
+      </div>
+      <div>
+        <Text>Disabled (large)</Text>
+        <Toggle
+          disabled={true}
+          onToggle={toggle}
+          isToggled={toggled}
+          size="large"
+        />
       </div>
     </Flex>
   );

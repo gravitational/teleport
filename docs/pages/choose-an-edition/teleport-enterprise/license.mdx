@@ -17,18 +17,27 @@ your license file.
 
 ### Download your license file
 
-Teleport provides a dedicated account dashboard where you can download your license and
-enterprise binaries, and maintain users' access to your license. 
+Teleport provides a dedicated account dashboard where you can generate your
+license and download enterprise binaries.
 
-To obtain your license file navigate to your Teleport account dashboard and log in.
-You can start at [teleport.sh](https://teleport.sh) and enter your
-Teleport account name (e.g. my-license). After logging in
-you will see the "DOWNLOAD LICENSE KEY" button to download the license file.
+To obtain your license file, navigate to your Teleport account dashboard and log
+in. You can start at [teleport.sh](https://teleport.sh) and enter your Teleport
+account name (e.g. my-company). After logging in you will see a "GENERATE
+LICENSE KEY" button, which will generate a new license file and allow you to
+download it.
+
+<Admonition type="tip" title="Use the same license on all clusters">
+A new license file is produced each time you repeat this procedure.
+It is important that you download the license file once and use the
+same license across all of your clusters. This will ensure that your
+subscription limits apply across all Teleport clusters and that you
+are not double-counted.
+</Admonition>
 
 ![License File modal](../../../img/enterprise/license.png)
 
 The Teleport license file contains an X.509 certificate and the corresponding
-private key in PEM format. 
+private key in PEM format.
 
 ### Add your license file to your Auth Service instances
 
@@ -81,7 +90,7 @@ Service.
 ### Check your license expiration date
 
 Your Teleport Enterprise license contains an X.509 certificate that contains the
-expiration date of your license. 
+expiration date of your license.
 
 Run the following command to inspect the expiration date of your license,
 assuming your license is saved as `license.pem`:
@@ -104,7 +113,7 @@ effect.
 
 The Teleport Auth Service checks the expiration status of your license every
 hour. This means that, after you replace your license file and restart your Auth
-Service instances, it can take up to an hour to confirm the new license. 
+Service instances, it can take up to an hour to confirm the new license.
 
 ## When your license expires
 
@@ -127,7 +136,7 @@ You can close this banner to dismiss the message for the duration of your
 session.
 
 When your license expires, you will have a 30-day grace period before Teleport
-Enterprise features become disabled. 
+Enterprise features become disabled.
 
 `tsh` users will see warnings indicating that Enterprise features are no longer
 available:

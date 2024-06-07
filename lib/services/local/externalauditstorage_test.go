@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -60,7 +61,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
 
 	t.Run("promote failed without draft", func(t *testing.T) {
@@ -76,19 +77,48 @@ func TestExternalAuditStorageService(t *testing.T) {
 
 	t.Run("create draft", func(t *testing.T) {
 		// Given no draft
-		// When CreateDraftExternalAuditStorage
-		// Then draft is returned on GetDraftExternalAuditStorage
-		// And GetClusterExternalCloutAudit returns not found.
-		// And CreateDraftExternalAuditStorage again returns AlreadyExists
+		// When CreateDraftExternalAuditStorage with non-existing OIDC
+		// integration
+		// Then an error is returned
 
 		// When
 		_, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
+		// Then
+		require.Error(t, err)
+	})
+
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: spec1.IntegrationName},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "test-role",
+		},
+	)
+	require.NoError(t, err)
+
+	integrationsSvc, err := NewIntegrationsService(mem)
+	require.NoError(t, err)
+	_, err = integrationsSvc.CreateIntegration(ctx, oidcIntegration)
+	require.NoError(t, err)
+
+	t.Run("create draft", func(t *testing.T) {
+		// Given no draft
+		// When CreateDraftExternalAuditStorage
+		// Then draft is returned on GetDraftExternalAuditStorage
+		// And GetClusterExternalAuditStorage returns not found.
+		// And CreateDraftExternalAuditStorage again returns AlreadyExists
+
+		// When
+		created, err := service.CreateDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
+		require.NotEmpty(t, created.GetRevision())
 
 		// Then
-		out, err := service.GetDraftExternalAuditStorage(ctx)
+		got, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
+		require.Empty(t, cmp.Diff(created, got, cmpOpts...))
+		require.Equal(t, created.GetRevision(), got.GetRevision())
+
 		// And
 		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
@@ -105,13 +135,17 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// And GetClusterExternalCloutAudit returns not found.
 
 		// When
-		_, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
+		created, err := service.UpsertDraftExternalAuditStorage(ctx, draftFromSpec1)
 		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(draftFromSpec1, created, cmpOpts...))
+		require.NotEmpty(t, created.GetRevision())
 
 		// Then
-		out, err := service.GetDraftExternalAuditStorage(ctx)
+		got, err := service.GetDraftExternalAuditStorage(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(draftFromSpec1, out, cmpOpts...))
+		require.Empty(t, cmp.Diff(created, got, cmpOpts...))
+		require.Equal(t, created.GetRevision(), got.GetRevision())
+
 		// And
 		_, err = service.GetClusterExternalAuditStorage(ctx)
 		require.Error(t, err)
@@ -125,7 +159,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 
 		// When
 		err := service.PromoteToClusterExternalAuditStorage(ctx)
-		require.NoError(t, err)
+		require.NoError(t, err, trace.DebugReport(err))
 		// Then
 		out, err := service.GetClusterExternalAuditStorage(ctx)
 		require.NoError(t, err)
@@ -197,7 +231,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		// Given no draft
 
 		// When GenerateDraftExternalAuditStorage
-		generateResp, err := service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+		generateResp, err := service.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 		require.NoError(t, err)
 
 		// Then draft is returned with generated values
@@ -205,7 +239,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		nonce := strings.TrimPrefix(spec.PolicyName, "ExternalAuditStoragePolicy-")
 		underscoreNonce := strings.ReplaceAll(nonce, "-", "_")
 		expectedSpec := externalauditstorage.ExternalAuditStorageSpec{
-			IntegrationName:        "test-integration",
+			IntegrationName:        "aws-integration-1",
 			PolicyName:             "ExternalAuditStoragePolicy-" + nonce,
 			Region:                 "us-west-2",
 			SessionRecordingsURI:   "s3://teleport-longterm-" + nonce + "/sessions",
@@ -223,7 +257,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 		assert.Empty(t, cmp.Diff(generateResp, getResp, cmpOpts...))
 
 		// And can't generate when there is an existing draft
-		_, err = service.GenerateDraftExternalAuditStorage(ctx, "test-integration", "us-west-2")
+		_, err = service.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
 		require.Error(t, err)
 		assert.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists error, got %v", err)
 	})

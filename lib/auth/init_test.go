@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -75,10 +76,10 @@ func TestReadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
+	id, err := state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, "example.com", id.ClusterName)
-	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, state.IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
 	require.Equal(t, cert, id.CertBytes)
 	require.Equal(t, priv, id.KeyBytes)
 
@@ -108,7 +109,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// bad cert type
-	_, err = ReadSSHIdentityFromKeyPair(priv, pub)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
@@ -123,7 +124,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
@@ -138,7 +139,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
@@ -153,7 +154,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 }
 
@@ -306,7 +307,7 @@ func TestAuthPreference(t *testing.T) {
 				SecondFactor: constants.SecondFactorOff,
 			})
 			require.NoError(t, err)
-			err = authServer.SetAuthPreference(ctx, dynamically)
+			_, err = authServer.UpsertAuthPreference(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -314,6 +315,36 @@ func TestAuthPreference(t *testing.T) {
 			require.NoError(t, err)
 			return authPref
 		},
+	})
+}
+
+func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
+	modules.SetInsecureTestMode(false)
+	defer modules.SetInsecureTestMode(true)
+	ctx := context.Background()
+
+	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+
+		conf.AuthPreference = authPref
+		_, err = Init(ctx, conf)
+		require.Error(t, err)
+	})
+
+	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		s, err := Init(ctx, conf)
+		require.NoError(t, err)
+		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+		_, err = s.UpsertAuthPreference(ctx, authpref)
+		require.Error(t, err)
 	})
 }
 
@@ -349,7 +380,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetClusterNetworkingConfig(ctx, dynamically)
+			_, err = authServer.UpsertClusterNetworkingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -391,7 +422,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetSessionRecordingConfig(ctx, dynamically)
+			_, err = authServer.UpsertSessionRecordingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -649,7 +680,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.Contains(t, expectedPresetRoles, r.GetName())
 				require.NotContains(t, createdPresets, r.GetName())
-				require.False(t, types.IsSystemResource(r))
+				require.False(t, types.IsSystemResource(r) && r.GetName() != teleport.SystemOktaRequesterRoleName)
 				createdPresets[r.GetName()] = r
 			}).
 			Return(func(_ context.Context, r types.Role) (types.Role, error) {
@@ -792,10 +823,12 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceAdminRoleName,
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
+			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
+			teleport.SystemOktaAccessRoleName,
 		}
 
 		enterpriseUsers := []types.User{
@@ -1067,6 +1100,21 @@ spec:
   type: user
 sub_kind: user
 version: v2`
+	databaseClientCAYAML = `
+kind: cert_authority
+metadata:
+  id: 1696989861240620000
+  name: me.localhost
+spec:
+  active_keys:
+    tls:
+      - cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURqVENDQW5XZ0F3SUJBZ0lSQU5XcUtsOWR3WGYrVTBWUmhxNGEyaTB3RFFZSktvWklodmNOQVFFTEJRQXcKWURFVk1CTUdBMVVFQ2hNTWJXVXViRzlqWVd4b2IzTjBNUlV3RXdZRFZRUURFd3h0WlM1c2IyTmhiR2h2YzNReApNREF1QmdOVkJBVVRKekk0TkRBd09URXhNams0TlRBek1qYzRPVEV3TURJNE5qUXlPREV6TmpRMk9UQTVNamt3Ck9UQWVGdzB5TXpFd01URXdNakEwTWpGYUZ3MHpNekV3TURnd01qQTBNakZhTUdBeEZUQVRCZ05WQkFvVERHMWwKTG14dlkyRnNhRzl6ZERFVk1CTUdBMVVFQXhNTWJXVXViRzlqWVd4b2IzTjBNVEF3TGdZRFZRUUZFeWN5T0RRdwpNRGt4TVRJNU9EVXdNekkzT0RreE1EQXlPRFkwTWpneE16WTBOamt3T1RJNU1Ea3dnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRGlDNU5GVDhmUy9hSzdSSVVRVnFjVmFxaFBzMFNuU0prTmd3azEKUHZkeFV1OWZZMlNwek5NaUUzSGZlb0Y4S1h2YUU0aHJzMEFGOVRmYlpJTnM1RjNHNTNzOUg3Q2JXWHpOWVRtZApCN0gyWEVxVGp3N0xGL2pzYzkwcTN4ZnZqMkk0Z29tOUdYK3dGMXdaRldjZXVJRkJTdXdCRkV6a1Yzc1o5NEVqClBsWUIxK2lnNlJoWGhvUjdhRlJUNDFvZmtMUUovMDdBVmR4blUranp5VkVFSVk3SjUwUWU3bFc2Nk9wL3BncmwKR1FBSnkwbnowUVpVYVJjVmZrODVHK3NwMnhjcUJ6clJHbXNybmw1TmhMdGJqcUJIUkZ2cU5XS1pLa1V2M0NjUApiTytWT1krV1FmV0UzRThhekxUQ2ppcnJXYWVXeTNLR0RTZGF5YktOK0FKbVpqU3hBZ01CQUFHalFqQkFNQTRHCkExVWREd0VCL3dRRUF3SUJwakFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVdCQlFhVmMzdXlYWnoKdDBWLzFnNzE3MzMrRjFhaHNqQU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUF6NTVkVnVFdmVLdnJtYThzL0dWSQo2Q0t5akNNYXNjWmhwV1JIT3QxRjQ1T0pjcXg1RDBQeVhSenZXS2NTYzlZTkN0M1BzSi8yNGp3VDlLaElqK2NiClQ5Z0h5WXNkb3pWY2NzMXNZTkFjK3VFSmRSOEsydHJqa1JJN0Q5VmZvTEJJVFlHUkJGTWpSOEE1bENlUzVnTkgKRG42V09rSlpRUi9UQS9IbFFlUmttMW5teUp3VVVQOVA0aUVWVlVSS0lMRVVNTS9EdERXdTZuNnM2K0pVVXNDNwp5QmI2T3JQeVRGbkV4TFljN2RhYUM1bm5UVDZHY2xUSm4wYkJ2UmtXdUFVa1FtWXJyYkpBMnhEVjFBL0JOcmp3Ci9aU2ErU1ZlVWJxSW05ZEVESE4zQUhXcmJzbWwyVjI3YUtrMHVUK0JmeUJBZ3NSdGpMN0U2YUdJanlNcStlOW4KYmc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+        key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBNGd1VFJVL0gwdjJpdTBTRkVGYW5GV3FvVDdORXAwaVpEWU1KTlQ3M2NWTHZYMk5rCnFjelRJaE54MzNxQmZDbDcyaE9JYTdOQUJmVTMyMlNEYk9SZHh1ZDdQUit3bTFsOHpXRTVuUWV4OWx4S2s0OE8KeXhmNDdIUGRLdDhYNzQ5aU9JS0p2Umwvc0JkY0dSVm5IcmlCUVVyc0FSUk01RmQ3R2ZlQkl6NVdBZGZvb09rWQpWNGFFZTJoVVUrTmFINUMwQ2Y5T3dGWGNaMVBvODhsUkJDR095ZWRFSHU1VnV1anFmNllLNVJrQUNjdEo4OUVHClZHa1hGWDVQT1J2cktkc1hLZ2M2MFJwcks1NWVUWVM3VzQ2Z1IwUmI2alZpbVNwRkw5d25EMnp2bFRtUGxrSDEKaE54UEdzeTB3bzRxNjFtbmxzdHloZzBuV3NteWpmZ0NabVkwc1FJREFRQUJBb0lCQUQ5R01EWkJxOVRDek0rUQowWktPUHZ6K3V4aDhQT1o2cXVVZVhmQjZyTGNiR1FoaGdTY0t2N3NWS0ZYL0s4bStydjJQWkN1SnBJMUdaQmxVCm5IbFp2MnBURjZzM2VLOHpzSHlwRDRDR1MrbURVaGpWL2JVYUE4TGtkKzl0UFgwQWJPVVduVW5Dbm55RFBYT0UKQ3phTlBSa3l5TGRRb0dsMmwyM2dXMVNyT1ZZUVBEUjZncWVJZVFYa3pHYUFUQ2twZWYrOVk4US9pTkZUR05oZAppamtXSUZOdEYzQjdIODUwdnR0VFFRckE3QXQ3ZnN2bmo2YVVDUkQ3MmFYZGJmeHIwK0VQbUR6WGNhejM3U20yClg3ZkJrakRFa0pCa0gwVnBnZHdvMDh3cmtzbnBieUNpbE95alp4Z3lhUWw2NGFKcGVUN1FHbEMxcm1kUEFmTU4KSEdweFBwVUNnWUVBK21vbllBVW1oSVpTR0R6VjI0NFc0QVRnVFdGb2gxb24wKzlZZ2xxR1RUZFFBM2dXYy9ReQowSmJ6QXpOVFZnODNibWhvU3NtbUMwZ1BoSytBb3BCZXc5ZlVxMmhIOVptUzVjZE1CaTJ6cFdvZHQrWXMvNys1Ckk3d3d2bGgvY3llelQvU0ZyazVCVVB0azZFR1pLZk1KdGZlNDcvb05uUzRmc3lmYlAyWDVUWHNDZ1lFQTV4WkcKSmhiYkwwWFljL0plc0JucXBuRFZHNXhkbkh6aGx0aVB3QzdGbHRDRUpuNFdhTUNpSUtsL0o3VGUzbndqMHk0YQpSVzFTWGN6anc5dHZxY0V3aE9CQUZBUHlsd0FWWjUyOTRzdWZzMnk4SHBFcFhhMjlIRXNReW50TE9JRFZyYkVsClJCV1pEb0xhbllVRTNtWml5WnZ0ZU9TT0hTajVhUnIzRTg1UmtNTUNnWUFweUVLUG8reGNXbWtpUUN4U3VPK2EKSzFZZHN5NFV2M2M3eG9qWEh6R2ZlcVl3SGY1cEZJclNBUTNGTC9Bc3dOYzM1ZFhZL0xKbTJYdzFZRzh2TUxXUApLZGtEVEtBTkc3WEYveTN4TGZqMmxiRWx1Uk16RFJOZ0lndGtCeklremEvK25FY2Q0VkxHcDF1YjRTNGtNTGdqCkU1VlkvVGorUys3Z0hydFhaYlZtTndLQmdET3A2eTBBMXlnT2VZSVNvZERGT296VGxSR0ROL3FRZ083MG84N1gKcGgwOXFRM2lDcWlJeUxaOHJvejJCdzIrdTFPdmJ2Z3VwTWVMMHpBcWt5QmtyTEJJWW9zWEJ0bHpqMVdIRXJqdAp4VnFiNk1MOHVUN1VaUDg2V1JxcnpmbG45RjNNeVFRYndBaGFnUDNPaTNRZGQrQ1RGOWg3WUxwc09yYWc3TFJrCjRCOTVBb0dCQU9maHNVSzVSZm1RU1ZzN08wMmMrdWFVelB2dnEwaXNqNW45dWlOaFQxdjFDUGY4YStZdkkyTisKcWV5bHkwRjN3L2sxbElaUzFjWlMwRDVWMUd6bmVHTUgreWYwVFAvNmlUcElHTC94N1pTNGJEZjE3dEc5dklDdgoya1JBTno5WHpzVzFETm9CRkJmZXg5NDFmT0RzdHlvdThvYmF3dDdJWThTdU1GMHV3aDlBCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+  additional_trusted_keys: {}
+  cluster_name: me.localhost
+  type: db_client
+sub_kind: db_client
+version: v2`
 	databaseCAYAML = `kind: cert_authority
 metadata:
   id: 1640648663670001000
@@ -1141,7 +1189,8 @@ func TestInit_bootstrap(t *testing.T) {
 	hostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
-	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	dbServerCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	dbClientCA := resourceFromYAML(t, databaseClientCAYAML).(types.CertAuthority)
 	osshCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 	samlCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
 
@@ -1151,8 +1200,10 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
-	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
-	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidDBServerCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	invalidDBServerCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidDBClientCA := resourceFromYAML(t, databaseClientCAYAML).(types.CertAuthority)
+	invalidDBClientCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 	invalidOSSHCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 	invalidOSSHCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidSAMLCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
@@ -1172,7 +1223,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1187,7 +1239,8 @@ func TestInit_bootstrap(t *testing.T) {
 					invalidHostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1202,7 +1255,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					invalidUserCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1217,7 +1271,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					invalidJWTCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1232,7 +1287,23 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					invalidDBCA.Clone(),
+					invalidDBServerCA.Clone(),
+					osshCA.Clone(),
+					samlCA.Clone(),
+				)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap Database Client CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbServerCA.Clone(),
+					invalidDBClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1247,7 +1318,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					invalidOSSHCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1262,7 +1334,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					invalidSAMLCA.Clone(),
 				)
@@ -1450,7 +1523,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }
 
@@ -1659,7 +1732,7 @@ func TestIdentityChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{test.cert},
+				sshutils.StaticHostSigners(test.cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)
@@ -1667,7 +1740,7 @@ func TestIdentityChecker(t *testing.T) {
 			t.Cleanup(func() { sshServer.Close() })
 			require.NoError(t, sshServer.Start())
 
-			identity, err := GenerateIdentity(authServer, IdentityID{
+			identity, err := GenerateIdentity(authServer, state.IdentityID{
 				Role:     types.RoleNode,
 				HostUUID: uuid.New().String(),
 				NodeName: "node-1",

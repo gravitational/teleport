@@ -37,7 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -71,16 +71,16 @@ type remoteSite struct {
 
 	// localClient provides access to the Auth Server API of the cluster
 	// within which reversetunnelclient.Server is running.
-	localClient auth.ClientI
+	localClient authclient.ClientI
 	// remoteClient provides access to the Auth Server API of the remote cluster that
 	// this site belongs to.
-	remoteClient auth.ClientI
+	remoteClient authclient.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	localAccessPoint auth.ProxyAccessPoint
+	localAccessPoint authclient.ProxyAccessPoint
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
-	remoteAccessPoint auth.RemoteProxyAccessPoint
+	remoteAccessPoint authclient.RemoteProxyAccessPoint
 
 	// nodeWatcher provides access the node set for the remote site
 	nodeWatcher *services.NodeWatcher
@@ -100,7 +100,7 @@ type remoteSite struct {
 	proxySyncInterval time.Duration
 }
 
-func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
+func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
 	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
 	if err != nil {
@@ -122,7 +122,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewClient(client.Config{
+		clt, err := authclient.NewClient(client.Config{
 			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
@@ -148,7 +148,7 @@ func (s *remoteSite) GetTunnelsCount() int {
 	return s.connectionCount()
 }
 
-func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 
@@ -157,7 +157,7 @@ func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.nodeWatcher, nil
 }
 
-func (s *remoteSite) GetClient() (auth.ClientI, error) {
+func (s *remoteSite) GetClient() (authclient.ClientI, error) {
 	return s.remoteClient, nil
 }
 
@@ -409,6 +409,8 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		}
 	}()
 
+	offlineThresholdTimer := time.NewTimer(s.offlineThreshold)
+	defer offlineThresholdTimer.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -468,8 +470,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
-		// Note that time.After is re-created everytime a request is processed.
-		case t := <-time.After(s.offlineThreshold):
+		case t := <-offlineThresholdTimer.C:
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
 			// terminate and remove the connection after missing more than missedHeartBeatThreshold heartbeats if
@@ -484,7 +485,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 
 				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
 			}
+
+			offlineThresholdTimer.Reset(s.offlineThreshold)
+			continue
 		}
+
+		if !offlineThresholdTimer.Stop() {
+			<-offlineThresholdTimer.C
+		}
+		offlineThresholdTimer.Reset(s.offlineThreshold)
 	}
 }
 
