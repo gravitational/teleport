@@ -78,33 +78,29 @@ var (
 // socket and has a special client with support for FDPassing with OpenSSH.
 // It places an emphasis on high performance.
 type SSHMultiplexerService struct {
-	cfg              *config.SSHMultiplexerService
-	botCfg           *config.BotConfig
-	log              *slog.Logger
-	proxyPingCache   *proxyPingCache
 	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
-	resolver         reversetunnelclient.Resolver
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
 	// fetch CAs.
 	botAuthClient     *authclient.Client
+	botCfg            *config.BotConfig
+	cfg               *config.SSHMultiplexerService
 	getBotIdentity    getBotIdentityFn
+	log               *slog.Logger
+	proxyPingCache    *proxyPingCache
 	reloadBroadcaster *channelBroadcaster
+	resolver          reversetunnelclient.Resolver
 
 	// Fields below here are initialized by the service itself on startup.
 	authClient  *authclient.Client
-	proxyClient *proxyclient.Client
 	identity    *identity.Facade
-	tshConfig   *libclient.TSHConfig
+	proxyClient *proxyclient.Client
 	proxyHost   string
-	clusterName string
+	tshConfig   *libclient.TSHConfig
 }
 
 func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity.Identity) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
-	if err := dest.Write(ctx, "tbot_ssh_multiplexer.v1.sock", []byte("")); err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(noah): identity.SaveIdentity outputs artifacts we don't necessarily
 	// want. For now, I've just manually output them here but we may want to
@@ -123,7 +119,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
-		[]string{s.clusterName},
+		[]string{id.ClusterName},
 		s.proxyHost,
 	)
 	if err != nil {
@@ -149,7 +145,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
 	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
-		ClusterNames:        []string{s.clusterName},
+		ClusterNames:        []string{id.ClusterName},
 		KnownHostsPath:      path.Join(dest.Path, ssh.KnownHostsName),
 		IdentityFilePath:    path.Join(dest.Path, identity.PrivateKeyKey),
 		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
@@ -200,12 +196,15 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	}
 	s.tshConfig = tshConfig
 
-	// Generate our initial identity
-	ident, err := s.generateIdentity(ctx)
+	// Generate our initial identity and write the artifacts to the destination.
+	id, err := s.generateIdentity(ctx)
 	if err != nil {
-		return nopClose, trace.Wrap(err, "generating identity")
+		return nopClose, trace.Wrap(err, "generating initial identity")
 	}
-	s.identity = identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, ident)
+	s.identity = identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
+	if err := s.writeArtifacts(ctx, id); err != nil {
+		return nopClose, trace.Wrap(err, "writing initial identity artifacts")
+	}
 
 	sshConfig, err := s.identity.SSHClientConfig()
 	if err != nil {
@@ -223,7 +222,6 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 		return nopClose, trace.Wrap(err)
 	}
 	s.proxyHost = proxyHost
-	s.clusterName = proxyPing.ClusterName
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
@@ -397,6 +395,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer l.Close()
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -497,7 +496,7 @@ func (s *SSHMultiplexerService) handleConn(
 	host := req.Host
 	port := req.Port
 
-	clusterName := s.clusterName
+	clusterName := s.identity.Get().ClusterName
 	expanded, matched := s.tshConfig.ProxyTemplates.Apply(
 		net.JoinHostPort(req.Host, req.Port),
 	)
