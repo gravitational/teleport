@@ -94,10 +94,12 @@ message SendPendingHeadlessAuthenticationResponse {}
 // PromptMFA
 
 message PromptMFARequest {
-  string root_cluster_uri = 1;
+  reserved 1; // root_cluster_uri
+  reserved "root_cluster_uri";
   string reason = 2;
   bool totp = 3;
   bool webauthn = 4;
+  string cluster_uri = 5;
 }
 
 message PromptMFAResponse {
