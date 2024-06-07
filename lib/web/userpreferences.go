@@ -135,10 +135,6 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 				LabelsViewMode:        req.UnifiedResourcePreferences.LabelsViewMode,
 				AvailableResourceMode: req.UnifiedResourcePreferences.AvailableResourceMode,
 			},
-			Assist: &userpreferencesv1.AssistUserPreferences{
-				PreferredLogins: req.Assist.PreferredLogins,
-				ViewMode:        req.Assist.ViewMode,
-			},
 			Onboard: &userpreferencesv1.OnboardUserPreferences{
 				PreferredResources: req.Onboard.PreferredResources,
 				MarketingParams: &userpreferencesv1.MarketingParams{
@@ -184,7 +180,6 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist:                     assistUserPreferencesResponse(resp.Assist),
 		Theme:                      resp.Theme,
 		Onboard:                    onboardUserPreferencesResponse(resp.Onboard),
 		ClusterPreferences:         clusterPreferencesResponse(resp.ClusterPreferences),

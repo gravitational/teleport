@@ -27,7 +27,6 @@ import (
 )
 
 var rootPreferencesMock = &userpreferencesv1.UserPreferences{
-	Assist:  nil,
 	Onboard: nil,
 	Theme:   userpreferencesv1.Theme_THEME_LIGHT,
 	ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{

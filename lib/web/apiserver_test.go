@@ -4578,7 +4578,6 @@ func TestGetWebConfig(t *testing.T) {
 		CanJoinSessions:    true,
 		ProxyClusterName:   env.server.ClusterName(),
 		IsCloud:            false,
-		AssistEnabled:      false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
@@ -4608,13 +4607,6 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 
-	mockProxySetting := &mockProxySettings{
-		mockedGetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
-			return &webclient.ProxySettings{AssistEnabled: true}, nil
-		},
-	}
-	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
-
 	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
 	testVersion := "v99.0.1"
@@ -4630,7 +4622,6 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
-	expectedCfg.AssistEnabled = false
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
 
