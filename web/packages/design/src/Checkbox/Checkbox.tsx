@@ -83,15 +83,11 @@ interface StyledCheckboxProps {
 export function StyledCheckbox(props: StyledCheckboxProps) {
   const { style, className, size, ...inputProps } = props;
   return (
-    <span style={style} className={className}>
-      <span
-        style={{
-          display: 'inline-block',
-          position: 'relative',
-          margin: '3px',
-          lineHeight: 0,
-        }}
-      >
+    // The outer wrapper and inner wrapper are separate to allow using
+    // positioning CSS attributes on the checkbox while still maintaining its
+    // internal integrity that requires the internal wrapper to be positioned.
+    <OuterWrapper style={style} className={className}>
+      <InnerWrapper>
         {/* The checkbox is rendered as two items placed on top of each other:
             the actual checkbox, which is a native input control, and an SVG
             checkmark. Note that we avoid the usual "label with content" trick,
@@ -100,10 +96,20 @@ export function StyledCheckbox(props: StyledCheckboxProps) {
             an actually rendered input with a custom appearance. */}
         <StyledCheckboxInternal cbSize={size} {...inputProps} />
         <Checkmark />
-      </span>
-    </span>
+      </InnerWrapper>
+    </OuterWrapper>
   );
 }
+
+const OuterWrapper = styled.span`
+  line-height: 0;
+`;
+
+const InnerWrapper = styled.span`
+  display: inline-block;
+  position: relative;
+  margin: 3px;
+`;
 
 const Checkmark = styled(Icon.CheckThick)`
   position: absolute;
