@@ -21,7 +21,9 @@ package host
 import (
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -65,7 +67,8 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 	}
 
 	if home == "" {
-		return -1, trace.BadParameter("home is a required parameter")
+		// Users without a home directory should land at the root, to match OpenSSH behavior.
+		home = string(os.PathSeparator)
 	}
 
 	// useradd ---no-create-home (username) (groups)...
@@ -111,8 +114,18 @@ func UserDel(username string) (exitCode int, err error) {
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find userdel binary")
 	}
+	u, err := user.Lookup(username)
+	if err != nil {
+		return -1, trace.Wrap(err)
+	}
+	args := make([]string, 0, 2)
+	// Only remove the home dir if it exists and isn't the root.
+	if u.HomeDir != "" && u.HomeDir != string(os.PathSeparator) {
+		args = append(args, "--remove")
+	}
+	args = append(args, username)
 	// userdel --remove (remove home) username
-	cmd := exec.Command(userdelBin, "--remove", username)
+	cmd := exec.Command(userdelBin, args...)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
