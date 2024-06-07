@@ -32,6 +32,11 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if !cluster.URI.IsRoot() {
+		return nil, trace.BadParameter("cluster URI must be a root URI")
+	}
+
 	// The credentials + MFA login flow in the Electron app assumes that the default CLI prompt is
 	// used and works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor
 	// added by daemon.Service.ResolveClusterURI.
@@ -83,6 +88,11 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !cluster.URI.IsRoot() {
+		return trace.BadParameter("cluster URI must be a root URI")
+	}
+
 	// The passwordless login flow in the Electron app assumes that the default CLI prompt is used and
 	// works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor added by
 	// daemon.Service.ResolveClusterURI.

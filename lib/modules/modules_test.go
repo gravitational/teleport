@@ -60,7 +60,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
 	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, "cannot disable two-factor authentication")
+	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {

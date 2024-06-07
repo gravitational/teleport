@@ -232,9 +232,25 @@ func IsCode(err error, code string) bool {
 	return pgErr != nil && pgErr.Code == code
 }
 
+// SchemasBuilder returns the desired table schemas based on the postgres connection.
+// This allows adapting the schemas based on the postgres flavor (Postgres,
+// CockroachDB, etc.) or version.
+// Each schema entry is a schema version, each version is applied once.
+// The builder also returns a modifier which is always applied, even if the database
+// has the latest version. This can be used to update dynamic properties such as
+// the retention.
+type SchemasBuilder func(conn *pgx.Conn) (schemas []string, err error)
+
 // SetupAndMigrate sets up the database schema, applying the migrations in the
 // schemas slice in order, starting from the first non-applied one. tableName is
 // the name of a table used to hold schema version numbers.
+//
+// WARNING: Editing schemas is not supported in a transaction in CockroachDB,
+// except for CREATE TABLE and CREATE INDEX.
+// As the current schemas mechanism runs all migrations in a single transaction,
+// the schemas must exclusively contain CREATE TABLE and CREATE INDEX statements,
+// else you will have undefined non-atomic behaviors.
+// See https://www.cockroachlabs.com/docs/stable/online-schema-changes#schema-changes-within-transactions
 func SetupAndMigrate(
 	ctx context.Context,
 	log *slog.Logger,
@@ -244,6 +260,35 @@ func SetupAndMigrate(
 	},
 	tableName string,
 	schemas []string,
+) error {
+	staticSchemasBuilder := func(*pgx.Conn) ([]string, error) {
+		return schemas, nil
+	}
+	return SetupAndMigrateDynamic(ctx, log, db, tableName, staticSchemasBuilder)
+}
+
+// SetupAndMigrateDynamic sets up the database schema, applying the migrations in the
+// schemas slice in order, starting from the first non-applied one. The modifier
+// is always applied, even if the schema is already up to date. tableName is
+// the name of a table used to hold schema version numbers. It takes a function
+// dynamically building schemas based on connection properties. If you only need
+// to set up a static schema, call SetupAndMigrate instead.
+//
+// WARNING: Editing schemas is not supported in a transaction in CockroachDB,
+// except for CREATE TABLE and CREATE INDEX.
+// As the current schemas mechanism runs all migrations in a single transaction,
+// the schemasBuilder must exclusively return CREATE TABLE and CREATE INDEX statements,
+// else you will have undefined non-atomic behaviors.
+// See https://www.cockroachlabs.com/docs/stable/online-schema-changes#schema-changes-within-transactions
+func SetupAndMigrateDynamic(
+	ctx context.Context,
+	log *slog.Logger,
+	db interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	},
+	tableName string,
+	schemasBuilder SchemasBuilder,
 ) error {
 	tableName = pgx.Identifier{tableName}.Sanitize()
 
@@ -269,6 +314,7 @@ func SetupAndMigrate(
 		)
 	}
 
+	var schemas []string
 	const idempotent = true
 	if err := RetryTx(ctx, log, db, pgx.TxOptions{
 		IsoLevel:   pgx.Serializable,
@@ -281,12 +327,21 @@ func SetupAndMigrate(
 			return trace.Wrap(err)
 		}
 
+		// Get schemas and modifier
+		var err error
+		schemas, err = schemasBuilder(tx.Conn())
+		if err != nil {
+			migrateErr = trace.Wrap(err, "building schemas")
+			return nil
+		}
+
 		if int(version) > len(schemas) {
 			migrateErr = trace.BadParameter("unsupported schema version %v", version)
 			// the transaction succeeded, the error is outside of the transaction
 			return nil
 		}
 
+		// Run unapplied migrations
 		if int(version) == len(schemas) {
 			return nil
 		}
@@ -305,6 +360,7 @@ func SetupAndMigrate(
 		}
 
 		return nil
+
 	}); err != nil {
 		return trace.Wrap(err)
 	}
