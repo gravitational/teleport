@@ -159,6 +159,8 @@ const cfg = {
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -230,6 +232,8 @@ const cfg = {
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
+    ttyKubeExecWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -558,12 +562,30 @@ const cfg = {
     });
   },
 
+  getKubeExecConnectRoute(params: UrlKubeExecParams) {
+    return generatePath(cfg.routes.kubeExec, { ...params });
+  },
+
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
       clusterId,
       desktopName,
       username,
     });
+  },
+
+  getKubeExecSessionRoute(
+    { clusterId, sid }: UrlParams,
+    mode?: ParticipantMode
+  ) {
+    const basePath = generatePath(cfg.routes.kubeExecSession, {
+      clusterId,
+      sid,
+    });
+    if (mode) {
+      return `${basePath}?mode=${mode}`;
+    }
+    return basePath;
   },
 
   getSshSessionRoute({ clusterId, sid }: UrlParams, mode?: ParticipantMode) {
@@ -1106,6 +1128,11 @@ export interface UrlSshParams {
   sid?: string;
   mode?: ParticipantMode;
   clusterId: string;
+}
+
+export interface UrlKubeExecParams {
+  clusterId: string;
+  kubeId: string;
 }
 
 export interface UrlSessionRecordingsParams {

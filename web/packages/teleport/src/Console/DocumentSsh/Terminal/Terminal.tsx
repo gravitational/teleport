@@ -41,6 +41,9 @@ export interface TerminalProps {
   tty: Tty;
   fontFamily: string;
   theme: ITheme;
+  // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
+  // This is equivalent to replacing each '\n' with '\r\n'.
+  convertEol?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -64,6 +67,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       fontFamily: props.fontFamily,
       fontSize,
       theme: props.theme,
+      convertEol: props.convertEol,
     });
     termCtrlRef.current = termCtrl;
 
@@ -92,6 +96,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       width="100%"
       px="2"
       style={{ overflow: 'auto' }}
+      data-testid="terminal"
     >
       <StyledXterm ref={elementRef} />
     </Flex>
