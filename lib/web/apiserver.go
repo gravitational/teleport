@@ -1734,7 +1734,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		h.log.WithError(err).Error("Cannot read target version")
+		if err != nil {
+			h.log.WithError(err).Error("Cannot read target version")
+		}
 	}
 
 	// TODO(mcbattirola): remove isTeam when it is no longer used
