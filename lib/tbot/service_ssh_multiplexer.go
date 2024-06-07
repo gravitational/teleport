@@ -158,7 +158,6 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	})
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")
-
 	}
 	if err := dest.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err, "writing %s", ssh.ConfigName)
@@ -581,21 +580,25 @@ type refCountProxyClient struct {
 	refCount atomic.Int32
 }
 
+func (r *refCountProxyClient) release() {
+	if r == nil {
+		return
+	}
+	if r.refCount.Add(-1) <= 0 {
+		go r.clt.Close()
+	}
+}
+
 type refCountConn struct {
 	net.Conn
 	parent atomic.Pointer[refCountProxyClient]
 }
 
 func (r *refCountConn) Close() error {
-	err := r.Conn.Close()
-	// Swap operation ensures only one of the conns closes the underlying
-	// client.
-	if parent := r.parent.Swap(nil); parent != nil {
-		if parent.refCount.Add(-1) <= 0 {
-			go parent.clt.Close()
-		}
-	}
-	return trace.Wrap(err)
+	// Swap operation ensures that this conn only releases the ref to its
+	// underlying client once, even if Close is called multiple times.
+	defer r.parent.Swap(nil).release()
+	return trace.Wrap(r.Conn.Close())
 }
 
 func newCyclingHostDialClient(max int32, config proxyclient.ClientConfig) *cyclingHostDialClient {
@@ -611,21 +614,27 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 			return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
 		}
 		s.currentClt = &refCountProxyClient{clt: clt}
+		// cyclingHostDialClient holds a reference while the refCountProxyClient
+		// is "live"
+		s.currentClt.refCount.Add(1)
 		s.started = 0
 	}
 
 	currentClt := s.currentClt
 	s.started++
-	if s.started > s.max {
+	if s.started >= s.max {
+		// the reference owned by cyclingHostDialClient is transferred to currentClt
 		s.currentClt = nil
+	} else {
+		currentClt.refCount.Add(1)
 	}
 	s.mu.Unlock()
 
 	innerConn, details, err := currentClt.clt.DialHost(ctx, target, cluster, keyring)
 	if err != nil {
+		currentClt.release()
 		return nil, details, trace.Wrap(err)
 	}
-	currentClt.refCount.Add(1)
 
 	wrappedConn := &refCountConn{
 		Conn: innerConn,
