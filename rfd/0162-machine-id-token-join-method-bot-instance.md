@@ -143,8 +143,7 @@ from a CI workflow, their certificates could expire and prevent them from
 being identified as the same instance. This is likely to only impact a small
 number of cases, however, as most CI provider joins are stateless and have no
 certificates to present anyway. Bots that present expired certificates will
-either be rejected and will need to join as a new instance, or we'll need to
-discard the expired identity treat them as a new instance.
+either be rejected and will need to join as a new instance.
 
 #### UUID Certificate Attribute
 
@@ -300,28 +299,28 @@ message BotInstanceStatusAuthentication {
   // the counter in the certificate does not match the counter of the last
   // authentication.
   int32 generation = 5;
+  // The public key of the Bot instance.
+  // When authenticating a Bot instance, the full public key must be compared
+  // rather than just the fingerprint to mitigate pre-image attacks.
+  bytes public_key = 6;
+  // The fingerprint of the public key of the Bot instance.
+  string fingerprint = 7;
 }
 
 // BotInstanceStatus holds the status of a BotInstance.
 message BotInstanceStatus {
   // The unique identifier for this bot.
   string id = 1;
-  // The public key of the Bot instance.
-  // When authenticating a Bot instance, the full public key must be compared
-  // rather than just the fingerprint to mitigate pre-image attacks.
-  bytes public_key = 2;
-  // The fingerprint of the public key of the Bot instance.
-  string fingerprint = 3;
   // The name of the Bot that this instance is associated with.
-  string bot_name = 4;
+  string bot_name = 2;
   // The initial authentication status for this bot instance.
-  BotInstanceStatusAuthentication initial_authentication = 5;
+  BotInstanceStatusAuthentication initial_authentication = 3;
   // The N most recent authentication status records for this bot instance.
-  repeated BotInstanceStatusAuthentication authentications = 6;
+  repeated BotInstanceStatusAuthentication authentications = 4;
   // The initial heartbeat status for this bot instance.
-  BotInstanceStatusHeartbeat initial_heartbeat = 7;
+  BotInstanceStatusHeartbeat initial_heartbeat = 5;
   // The N most recent heartbeats for this bot instance.
-  repeated BotInstanceStatusHeartbeat latest_heartbeats = 8;
+  repeated BotInstanceStatusHeartbeat latest_heartbeats = 6;
 }
 ```
 
@@ -339,10 +338,12 @@ This avoids the accumulation of ephemeral BotInstances.
 
 Upon each join and renewal, the BotInstance record will be updated with an
 additional entry in the `status.authentications` field. If there is X entries,
-then the second-oldest entry will be removed. This prevents growth without
-bounds but also ensures that the original record is retained.
+then the oldest entry will be removed. This prevents growth without bounds but
+also ensures that the original record is retained.
 
-In addition, the TTL of the BotInstance resource will be extended.
+In addition, the TTL of the BotInstance resource will be extended to cover the
+validity period of the issued certificate, plus a short additional time to allow
+for some imprecision.
 
 If a BotInstance does not exist, then one will be created. In the case that
 this occurs for a bot using the `token` join method and this is a renewal,
@@ -378,11 +379,8 @@ message SubmitHeartbeatResponse {
 ```
 
 The endpoint will have a special auth/authz check. RBAC will not be used and
-instead the endpoint will check:
-
-- The presented client certificate is for the Bot linked to the instance.
-- The presented client certificate's public key matches the public key recorded
-  for the BotInstance.
+instead the endpoint will ensure that the presented client certificate is for
+the Bot linked to the instance.
 
 This endpoint will be called by `tbot` immediately after it has initially
 authenticated. After a heartbeat has successfully completed, another should be
@@ -431,7 +429,7 @@ service BotInstanceService {
 // Request for GetBotInstance.
 message GetBotInstanceRequest {
   // The name of the bot associated with the instance.
-  string name = 1;
+  string bot_name = 1;
   // The unique identifier of the bot instance to retrieve.
   string id = 2;
 }
@@ -464,7 +462,7 @@ message ListBotInstancesResponse {
 // Request for DeleteBotInstance.
 message DeleteBotInstanceRequest {
   // The name of the BotInstance to delete.
-  string name = 1;
+  string bot_name = 1;
   // The unique identifier of the bot instance to delete.
   string id = 2;
 }
