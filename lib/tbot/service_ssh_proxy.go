@@ -60,7 +60,9 @@ var (
 	)
 )
 
-// SSHProxyService
+// SSHProxyService is a long-lived local SSH proxy. It listens on a local Unix
+// socket and has a special client with support for FDPassing with OpenSSH.
+// It places an emphasis on high performance.
 type SSHProxyService struct {
 	cfg              *config.SSHProxyService
 	botCfg           *config.BotConfig
@@ -192,7 +194,7 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", path.Join(dest.Path, "sock")))
+		fmt.Sprintf("unix://%s", path.Join(dest.Path, "socks5.sock")))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,7 +242,7 @@ func (s *SSHProxyService) handleConn(
 	buf := bufio.NewReader(downstream)
 	hostPort, err := buf.ReadString('\n')
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "reading hostport from downstream")
 	}
 	hostPort = hostPort[:len(hostPort)-1]
 
@@ -249,7 +251,7 @@ func (s *SSHProxyService) handleConn(
 
 	host, port, err := net.SplitHostPort(hostPort)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "splitting host and port")
 	}
 
 	clusterName := s.clusterName
@@ -276,7 +278,7 @@ func (s *SSHProxyService) handleConn(
 	} else {
 		node, err := resolveTargetHostWithClient(ctx, s.authClient, expanded.Search, expanded.Query)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "resolving target host")
 		}
 
 		s.log.DebugContext(
@@ -309,13 +311,13 @@ func (s *SSHProxyService) handleConn(
 				return conn, err
 			})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "wrapping conn for session resumption")
 		}
 	}
 	// We don't need to defer close upstream here as this is handled by
 	// ProxyConn
 
-	return utils.ProxyConn(ctx, downstream, upstream)
+	return trace.Wrap(utils.ProxyConn(ctx, downstream, upstream), "proxying connection")
 }
 
 func (s *SSHProxyService) String() string {
