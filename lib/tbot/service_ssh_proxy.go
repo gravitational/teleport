@@ -61,33 +61,35 @@ type SSHProxyService struct {
 	clusterName string
 }
 
-func (s *SSHProxyService) setup(ctx context.Context) (net.Listener, error) {
+func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
+	nopClose := func() {}
+
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nopClose, ctx.Err()
 	case <-time.After(10 * time.Second):
-		return nil, trace.BadParameter("timeout waiting for identity to be ready")
+		return nopClose, trace.BadParameter("timeout waiting for identity to be ready")
 	case <-s.svcIdentity.Ready():
 	}
 	facade, err := s.svcIdentity.Facade()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nopClose, trace.Wrap(err)
 	}
 
 	sshConfig, err := facade.SSHClientConfig()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nopClose, trace.Wrap(err)
 	}
 	s.clusterName = facade.Get().ClusterName
 
 	proxyPing, err := s.proxyPingCache.ping(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nopClose, trace.Wrap(err)
 	}
 	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
 	proxyHost, _, err := net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nopClose, trace.Wrap(err)
 	}
 	s.proxyHost = proxyHost
 
@@ -97,7 +99,7 @@ func (s *SSHProxyService) setup(ctx context.Context) (net.Listener, error) {
 			ctx, proxyAddr, s.botCfg.Insecure,
 		)
 		if err != nil {
-			return nil, trace.Wrap(err, "determining if ALPN upgrade is required")
+			return nopClose, trace.Wrap(err, "determining if ALPN upgrade is required")
 		}
 	}
 
@@ -127,33 +129,37 @@ func (s *SSHProxyService) setup(ctx context.Context) (net.Listener, error) {
 		InsecureSkipVerify:      s.botCfg.Insecure,
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 
-		DialContext: dialCycling,
+		DialContext: newDialCycling(100),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nopClose, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
 	s.proxyClient = proxyClient
 
 	authClient, err := clientForFacade(
 		ctx, s.log, s.botCfg, facade, s.resolver,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		_ = proxyClient.Close()
+		return nopClose, trace.Wrap(err)
 	}
 	s.authClient = authClient
 
-	dest := s.cfg.Destination.(*config.DestinationDirectory)
-	l, err := createListener(ctx, s.log, fmt.Sprintf("unix://%s", dest.Path))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return l, nil
+	return func() {
+		_ = authClient.Close()
+		_ = proxyClient.Close()
+	}, nil
 }
 
 func (s *SSHProxyService) Run(ctx context.Context) error {
-	l, err := s.setup(ctx)
+	closer, err := s.setup(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closer()
+
+	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	l, err := createListener(ctx, s.log, fmt.Sprintf("unix://%s", dest.Path))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -162,8 +168,17 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 	for {
 		downstream, err := l.Accept()
 		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				return nil
+			}
+
 			s.log.WarnContext(ctx, "Accept error, sleeping and continuing", "error", err)
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(50 * time.Millisecond):
+			}
+
 			continue
 		}
 
