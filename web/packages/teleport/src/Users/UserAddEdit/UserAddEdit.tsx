@@ -169,12 +169,9 @@ function TraitsEditor({
   configuredTraits,
   setConfiguredTraits,
 }: TraitEditorProps) {
-  // const [traits, setTraits] = useState([]);
 
   const [availableTraitNames, setAvailableTraitNames] = useState<Option[]>([]);
   useEffect(() => {
-    console.log('allTraits: ', allTraits);
-    console.log('allTraits: ', JSON.stringify(allTraits));
     let newTrait = [];
     for (let trait in allTraits) {
       if (allTraits[trait].length === 0) {
@@ -206,29 +203,35 @@ function TraitsEditor({
   };
 
   function handleInputChange(i: InputOption) {
+    const newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
       let traitValue: Option[] = i.option as Option[];
-      const newList = [...configuredTraits];
-      newList[i.index] = {
-        ...newList[i.index],
+
+      newTraits[i.index] = {
+        ...newTraits[i.index],
         [i.labelField]: [...traitValue],
       };
-      setConfiguredTraits(newList);
+      setConfiguredTraits(newTraits);
     } else {
       let traitName: Option = i.option as Option;
-      const newList = [...configuredTraits];
-      newList[i.index] = {
-        ...newList[i.index],
+      newTraits[i.index] = {
+        ...newTraits[i.index],
         [i.labelField]: traitName,
       };
-      setConfiguredTraits(newList);
+      setConfiguredTraits(newTraits);
     }
   }
 
   function addTrait() {
-    const newList = [...configuredTraits];
-    newList.push({trait: {value: '', label: ''}, traitValues: []})
-    setConfiguredTraits(newList)
+    const newTraits = [...configuredTraits];
+    newTraits.push({trait: {value: '', label: ''}, traitValues: []})
+    setConfiguredTraits(newTraits)
+  }
+
+  function removeTrait(index: number) {
+    const newTraits = [...configuredTraits];
+    newTraits.splice(index, 1);
+    setConfiguredTraits(newTraits)
   }
 
   return (
@@ -296,7 +299,7 @@ function TraitsEditor({
                   ml={1}
                   size={1}
                   title="Remove Trait"
-                  onClick={() => null}
+                  onClick={() => removeTrait(index)}
                   css={`
                     &:disabled {
                       opacity: 0.65;
