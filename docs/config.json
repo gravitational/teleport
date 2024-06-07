@@ -71,11 +71,6 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
-        },
-        {
-          "title": "Teleport Assist",
-          "slug": "/ai-assist/",
-          "forScopes": ["oss"]
         }
       ]
     },
