@@ -291,17 +291,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				cfg: svcCfg,
 			})
 		case *config.SSHMultiplexerService:
-			// Create a credential output for the SSH proxy service to use as a
-			// source of an impersonated identity.
-			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
 			svc := &SSHMultiplexerService{
 				resolver:         resolver,
 				botCfg:           b.cfg,
 				cfg:              svcCfg,
-				svcIdentity:      svcIdentity,
 				proxyPingCache:   proxyPingCache,
 				alpnUpgradeCache: alpnUpgradeCache,
+				getBotIdentity:   b.botIdentitySvc.GetIdentity,
+				botAuthClient:    b.botIdentitySvc.GetClient(),
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

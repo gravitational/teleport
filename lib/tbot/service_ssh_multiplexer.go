@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"os"
 	"path"
@@ -35,11 +36,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -77,15 +80,21 @@ var (
 type SSHMultiplexerService struct {
 	cfg              *config.SSHMultiplexerService
 	botCfg           *config.BotConfig
-	svcIdentity      *config.UnstableClientCredentialOutput
 	log              *slog.Logger
 	proxyPingCache   *proxyPingCache
 	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 	resolver         reversetunnelclient.Resolver
+	// botAuthClient should be an auth client using the bots internal identity.
+	// This will not have any roles impersonated and should only be used to
+	// fetch CAs.
+	botAuthClient     *authclient.Client
+	getBotIdentity    getBotIdentityFn
+	reloadBroadcaster *channelBroadcaster
 
 	// Fields below here are initialized by the service itself on startup.
 	authClient  *authclient.Client
 	proxyClient *proxyclient.Client
+	identity    *identity.Facade
 	tshConfig   *libclient.TSHConfig
 	proxyHost   string
 	clusterName string
@@ -113,7 +122,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, id *identity
 	// Generate known hosts
 	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
-		s.authClient,
+		s.botAuthClient,
 		[]string{s.clusterName},
 		s.proxyHost,
 	)
@@ -191,20 +200,14 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	}
 	s.tshConfig = tshConfig
 
-	// Wait for the output service to provide us with an impersonated client
-	// credential.
-	select {
-	case <-ctx.Done():
-		return nopClose, ctx.Err()
-	case <-time.After(10 * time.Second):
-		return nopClose, trace.BadParameter("timeout waiting for identity to be ready")
-	case <-s.svcIdentity.Ready():
-	}
-	facade, err := s.svcIdentity.Facade()
+	// Generate our initial identity
+	ident, err := s.generateIdentity(ctx)
 	if err != nil {
-		return nopClose, trace.Wrap(err)
+		return nopClose, trace.Wrap(err, "generating identity")
 	}
-	sshConfig, err := facade.SSHClientConfig()
+	s.identity = identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, ident)
+
+	sshConfig, err := s.identity.SSHClientConfig()
 	if err != nil {
 		return nopClose, trace.Wrap(err)
 	}
@@ -236,7 +239,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 		ProxyAddress:      proxyAddr,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
-			cfg, err := facade.TLSConfig()
+			cfg, err := s.identity.TLSConfig()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -269,7 +272,7 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	s.proxyClient = proxyClient
 
 	authClient, err := clientForFacade(
-		ctx, s.log, s.botCfg, facade, s.resolver,
+		ctx, s.log, s.botCfg, s.identity, s.resolver,
 	)
 	if err != nil {
 		_ = proxyClient.Close()
@@ -277,17 +280,100 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	}
 	s.authClient = authClient
 
-	closer := func() {
+	return func() {
 		_ = authClient.Close()
 		_ = proxyClient.Close()
+	}, nil
+}
+
+// generateIdentity generates our impersonated identity which we will write to
+// the destination.
+func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity.Identity, error) {
+	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching default roles")
 	}
 
-	if err := s.writeArtifacts(ctx, facade.Get()); err != nil {
-		closer()
-		return nopClose, trace.Wrap(err)
-	}
+	ident, err := generateIdentity(
+		ctx,
+		s.botAuthClient,
+		s.getBotIdentity(),
+		roles,
+		s.botCfg.CertificateTTL,
+		nil,
+	)
+	return ident, err
+}
 
-	return closer, nil
+func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context) error {
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	ticker := time.NewTicker(s.botCfg.RenewalInterval)
+	jitter := retryutils.NewJitter()
+	defer ticker.Stop()
+	for {
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			s.log.InfoContext(
+				ctx,
+				"Attempting to renew identity",
+				"attempt", attempt,
+				"retry_limit", renewalRetryLimit,
+			)
+			var id *identity.Identity
+			id, err = s.generateIdentity(ctx)
+			if err == nil {
+				s.identity.Set(id)
+				err = s.writeArtifacts(ctx, id)
+				if err == nil {
+					break
+				}
+			}
+
+			if attempt != renewalRetryLimit {
+				// exponentially back off with jitter, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
+				s.log.WarnContext(
+					ctx,
+					"Identity renewal attempt failed. Waiting to retry",
+					"attempt", attempt,
+					"retry_limit", renewalRetryLimit,
+					"backoff", backoffTime,
+					"error", err,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
+		if err != nil {
+			s.log.WarnContext(
+				ctx,
+				"All retry attempts exhausted renewing identity. Waiting for next normal renewal cycle",
+				"retry_limit", renewalRetryLimit,
+				"interval", s.botCfg.RenewalInterval,
+			)
+		} else {
+			s.log.InfoContext(
+				ctx,
+				"Renewed identity. Waiting for next identity renewal",
+				"interval", s.botCfg.RenewalInterval,
+			)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			continue
+		case <-reloadCh:
+			continue
+		}
+	}
 }
 
 func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
@@ -312,36 +398,49 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	defer context.AfterFunc(ctx, func() { _ = l.Close() })()
-	for {
-		downstream, err := l.Accept()
-		if err != nil {
-			if utils.IsUseOfClosedNetworkError(err) {
-				return nil
-			}
-
-			s.log.WarnContext(ctx, "Error encountered accepting connection, sleeping and continuing", "error", err)
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(50 * time.Millisecond):
-			}
-
-			continue
-		}
-
-		go func() {
-			inflightConnectionsGauge.Inc()
-			err := s.handleConn(ctx, downstream)
-			inflightConnectionsGauge.Dec()
-			status := "OK"
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		defer context.AfterFunc(egCtx, func() { _ = l.Close() })()
+		for {
+			downstream, err := l.Accept()
 			if err != nil {
-				status = "ERROR"
-				s.log.WarnContext(ctx, "Handler exited", "error", err)
+				if utils.IsUseOfClosedNetworkError(err) {
+					return nil
+				}
+
+				s.log.WarnContext(
+					egCtx,
+					"Error encountered accepting connection, sleeping and continuing",
+					"error",
+					err,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(50 * time.Millisecond):
+				}
+
+				continue
 			}
-			connectionsHandledCounter.WithLabelValues(status).Inc()
-		}()
-	}
+
+			go func() {
+				inflightConnectionsGauge.Inc()
+				err := s.handleConn(egCtx, downstream)
+				inflightConnectionsGauge.Dec()
+				status := "OK"
+				if err != nil {
+					status = "ERROR"
+					s.log.WarnContext(egCtx, "Handler exited", "error", err)
+				}
+				connectionsHandledCounter.WithLabelValues(status).Inc()
+			}()
+		}
+	})
+	eg.Go(func() error {
+		return s.identityRenewalLoop(egCtx)
+	})
+
+	return eg.Wait()
 }
 
 type multiplexingRequest struct {
