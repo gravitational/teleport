@@ -148,7 +148,7 @@ func (c *Cloner) Clone(ctx context.Context) error {
 	})
 
 	logProgress := func() {
-		c.log.Info(fmt.Sprintf("Migrated %d", c.migrated.Load()))
+		c.log.InfoContext(ctx, "Backend clone still in progress", "items_copied" c.migrated.Load()))
 	}
 	defer logProgress()
 	go func() {
