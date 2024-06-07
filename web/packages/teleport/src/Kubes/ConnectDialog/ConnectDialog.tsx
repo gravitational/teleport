@@ -61,6 +61,9 @@ function ConnectDialog(props: Props) {
       </DialogHeader>
       <DialogContent>
         <Box mb={4}>
+          <Text mt={1} mb={2} bold>
+            Connect in the CLI using tsh and kubectl
+          </Text>
           <Text bold as="span">
             Step 1
           </Text>
