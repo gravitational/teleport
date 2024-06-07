@@ -83,8 +83,16 @@ type SSHProxyService struct {
 func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
 
-	// TODO: Load proxy templates??
-	s.tshConfig = &libclient.TSHConfig{}
+	tshConfig := &libclient.TSHConfig{}
+	if s.cfg.ProxyTemplatesPath != "" {
+		s.log.Info("Loading proxy templates", "path", s.cfg.ProxyTemplatesPath)
+		var err error
+		tshConfig, err = libclient.LoadTSHConfig(s.cfg.ProxyTemplatesPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "loading proxy templates")
+		}
+	}
+	s.tshConfig = tshConfig
 
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(

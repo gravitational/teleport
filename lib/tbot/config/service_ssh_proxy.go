@@ -27,7 +27,7 @@ import (
 
 const SSHProxyServiceType = "ssh-proxy"
 
-// SSHProxyService does TODO
+// SSHProxyService is the configuration for the `ssh-proxy` service
 type SSHProxyService struct {
 	// Destination is where the config and tunnel should be written to. It
 	// should be a DestinationDirectory.
@@ -36,6 +36,12 @@ type SSHProxyService struct {
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
 	EnableResumption *bool `yaml:"enable_resumption"`
+	// ProxyTemplatesPath is the path to the directory containing the templates
+	// for the SSH proxy.
+	// This field is optional, if not provided, no templates will be used.
+	// This file is loaded once on start, so changes to the templates will
+	// require a restart of tbot.
+	ProxyTemplatesPath string `yaml:"proxy_templates_path"`
 }
 
 func (s *SSHProxyService) SessionResumptionEnabled() bool {
