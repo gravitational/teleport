@@ -294,15 +294,19 @@ func (s *SSHProxyService) handleConn(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if s.cfg.EnableResumption {
+	if s.cfg.SessionResumptionEnabled() {
+		s.log.DebugContext(ctx, "Enabling session resumption")
 		upstream, err = resumption.WrapSSHClientConn(
 			ctx,
 			upstream,
 			func(ctx context.Context, hostID string) (net.Conn, error) {
+				s.log.DebugContext(ctx, "Resuming connection")
 				// if the connection is being resumed, it means that
 				// we didn't need the agent in the first place
 				var noAgent agent.ExtendedAgent
-				conn, _, err := s.proxyClient.DialHost(ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent)
+				conn, _, err := s.proxyClient.DialHost(
+					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
+				)
 				return conn, err
 			})
 		if err != nil {
