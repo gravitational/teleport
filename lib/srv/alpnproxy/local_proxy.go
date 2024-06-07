@@ -537,7 +537,7 @@ func (l *LocalProxy) getCertWithoutConn() (tls.Certificate, error) {
 	if l.cfg.CheckCertNeeded {
 		return tls.Certificate{}, trace.BadParameter("getCertWithoutConn called while CheckCertNeeded is true: this is a bug")
 	}
-	return l.getCert(), nil
+	return l.GetCert(), nil
 }
 
 func (l *LocalProxy) isPostgresProxy() bool {
