@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"path"
@@ -313,38 +312,10 @@ func (s *SSHProxyService) handleConn(
 			return trace.Wrap(err)
 		}
 	}
-	defer upstream.Close()
+	// We don't need to defer close upstream here as this is handled by
+	// ProxyConn
 
-	// This AfterFunc exists to interrupt the copy operations if the context is
-	// cancelled
-	defer context.AfterFunc(ctx, func() {
-		_ = upstream.Close()
-		_ = downstream.Close()
-	})()
-	errC := make(chan error, 2)
-	go func() {
-		defer upstream.Close()
-		defer downstream.Close()
-		_, err := io.CopyN(upstream, buf, int64(buf.Buffered()))
-		if err != nil {
-			errC <- err
-			return
-		}
-		_, err = io.Copy(upstream, downstream)
-		errC <- err
-	}()
-	go func() {
-		defer upstream.Close()
-		defer downstream.Close()
-		_, err := io.Copy(downstream, upstream)
-		errC <- err
-	}()
-
-	err = trace.NewAggregate(<-errC, <-errC)
-	if utils.IsOKNetworkError(err) {
-		err = nil
-	}
-	return err
+	return utils.ProxyConn(ctx, downstream, upstream)
 }
 
 func (s *SSHProxyService) String() string {
