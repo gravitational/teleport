@@ -1,4 +1,4 @@
-package clone
+package backend_test
 
 import (
 	"context"
@@ -11,16 +11,17 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestClone(t *testing.T) {
 	ctx := context.Background()
 	src, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	defer src.Close()
 
 	dst, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	defer dst.Close()
 
 	itemCount := 11111
 	items := make([]backend.Item, itemCount)
@@ -35,14 +36,7 @@ func TestClone(t *testing.T) {
 		items[i] = item
 	}
 
-	cloner := Cloner{
-		src:      src,
-		dst:      dst,
-		parallel: 10,
-		log:      logutils.NewPackageLogger(),
-	}
-
-	err = cloner.Clone(ctx)
+	err = backend.Clone(ctx, src, dst, 10, false)
 	require.NoError(t, err)
 
 	start := backend.Key("")
@@ -51,17 +45,19 @@ func TestClone(t *testing.T) {
 
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
-	require.Equal(t, itemCount, int(cloner.migrated.Load()))
-	require.NoError(t, cloner.Close())
+	require.NoError(t, err)
+	require.Equal(t, itemCount, len(result.Items))
 }
 
 func TestCloneForce(t *testing.T) {
 	ctx := context.Background()
 	src, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	defer src.Close()
 
 	dst, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	defer dst.Close()
 
 	itemCount := 100
 	items := make([]backend.Item, itemCount)
@@ -79,18 +75,10 @@ func TestCloneForce(t *testing.T) {
 	_, err = dst.Put(ctx, items[0])
 	require.NoError(t, err)
 
-	cloner := Cloner{
-		src:      src,
-		dst:      dst,
-		parallel: 10,
-		log:      logutils.NewPackageLogger(),
-	}
-
-	err = cloner.Clone(ctx)
+	err = backend.Clone(ctx, src, dst, 10, false)
 	require.Error(t, err)
 
-	cloner.force = true
-	err = cloner.Clone(ctx)
+	err = backend.Clone(ctx, src, dst, 10, true)
 	require.NoError(t, err)
 
 	start := backend.Key("")
@@ -99,6 +87,5 @@ func TestCloneForce(t *testing.T) {
 
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
-	require.Equal(t, itemCount, int(cloner.migrated.Load()))
-	require.NoError(t, cloner.Close())
+	require.Equal(t, itemCount, len(result.Items))
 }
