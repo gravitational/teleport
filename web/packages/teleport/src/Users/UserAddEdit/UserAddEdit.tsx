@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import {
   ButtonPrimary,
   ButtonSecondary,
@@ -48,6 +48,8 @@ import { AllUserTraits } from 'teleport/services/user';
 import UserTokenLink from './../UserTokenLink';
 import useDialog, { Props } from './useDialog';
 
+import type { TraitEditor } from './useDialog';
+
 export default function Container(props: Props) {
   const dialog = useDialog(props);
   return <UserAddEdit {...dialog} />;
@@ -59,6 +61,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onChangeRoles,
     onClose,
     fetchRoles,
+    setConfiguredTraits,
     allTraits,
     attempt,
     name,
@@ -66,6 +69,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onSave,
     isNew,
     token,
+    configuredTraits,
   } = props;
 
   if (attempt.status === 'success' && isNew) {
@@ -127,7 +131,11 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               }}
               elevated={true}
             />
-            <TraitsEditor allTraits={allTraits} />
+            <TraitsEditor
+              allTraits={allTraits}
+              configuredTraits={configuredTraits}
+              setConfiguredTraits={setConfiguredTraits}
+            />
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary
@@ -152,26 +160,34 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
 
 export type TraitEditorProps = {
   allTraits: AllUserTraits;
+  setConfiguredTraits: Dispatch<SetStateAction<TraitEditor[]>>;
+  configuredTraits: TraitEditor[];
 };
 
-function TraitsEditor({ allTraits }: TraitEditorProps) {
-  const [traits, setTraits] = useState([]);
+function TraitsEditor({
+  allTraits,
+  configuredTraits,
+  setConfiguredTraits,
+}: TraitEditorProps) {
+  // const [traits, setTraits] = useState([]);
 
-  const [availableTraits, setAvailableTraits] = useState<Option[]>([]);
+  const [availableTraitNames, setAvailableTraitNames] = useState<Option[]>([]);
   useEffect(() => {
-    let t = [];
+    console.log('allTraits: ', allTraits);
+    console.log('allTraits: ', JSON.stringify(allTraits));
+    let newTrait = [];
     for (let trait in allTraits) {
       if (allTraits[trait].length === 0) {
         // send empty traits to availableTraits so that users can choose from Trait Name dropdown.
-        availableTraits.push({ value: trait, label: trait });
-        setAvailableTraits(availableTraits);
+        availableTraitNames.push({ value: trait, label: trait });
+        setAvailableTraitNames(availableTraitNames);
       }
       if (!allTraits[trait][0]) {
         continue;
       }
       if (allTraits[trait].length > 0) {
-        t.push({
-          trait: trait,
+        newTrait.push({
+          trait: { value: trait, label: trait },
           traitValues: allTraits[trait].map(t => ({
             value: t,
             label: t,
@@ -179,7 +195,8 @@ function TraitsEditor({ allTraits }: TraitEditorProps) {
         });
       }
     }
-    setTraits(t);
+
+    setConfiguredTraits(newTrait);
   }, [allTraits]);
 
   type InputOption = {
@@ -191,20 +208,20 @@ function TraitsEditor({ allTraits }: TraitEditorProps) {
   function handleInputChange(i: InputOption) {
     if (i.labelField === 'traitValues') {
       let traitValue: Option[] = i.option as Option[];
-      const newList = [...traits];
+      const newList = [...configuredTraits];
       newList[i.index] = {
         ...newList[i.index],
         [i.labelField]: [...traitValue],
       };
-      setTraits(newList);
+      setConfiguredTraits(newList);
     } else {
       let traitName: Option = i.option as Option;
-      const newList = [...traits];
+      const newList = [...configuredTraits];
       newList[i.index] = {
         ...newList[i.index],
-        [i.labelField]: traitName.value,
+        [i.labelField]: traitName,
       };
-      setTraits(newList);
+      setConfiguredTraits(newList);
     }
   }
 
@@ -220,72 +237,75 @@ function TraitsEditor({ allTraits }: TraitEditorProps) {
           Trait Value
         </Text>
       </Flex>
-      {traits.map(({ trait, traitValues }, index) => {
-        return (
-          <Box mb={-5} key={trait}>
-            <Flex alignItems="center" mt={-3}>
-              <Box width="290px" mr={1} mt={4}>
-                <FieldSelectCreatable
-                  options={availableTraits}
-                  placeholder="trait-key"
-                  autoFocus
-                  isSearchable
-                  value={{ value: trait, label: trait }}
-                  onChange={e => {
-                    handleInputChange({
-                      option: e as Option,
-                      labelField: 'trait',
-                      index: index,
-                    });
-                  }}
-                />
-              </Box>
-              <Box width="400px" ml={3}>
-                <FieldSelectCreatable
-                  mt={4}
-                  ariaLabel="trait values"
+
+      <Box>
+        {configuredTraits.map(({ trait, traitValues }, index) => {
+          return (
+            <Box mb={-5} key={index}>
+              <Flex alignItems="center" mt={-3}>
+                <Box width="290px" mr={1} mt={4}>
+                  <FieldSelectCreatable
+                    options={availableTraitNames}
+                    placeholder="trait-key"
+                    autoFocus
+                    isSearchable
+                    value={trait}
+                    onChange={e => {
+                      handleInputChange({
+                        option: e as Option,
+                        labelField: 'trait',
+                        index: index,
+                      });
+                    }}
+                  />
+                </Box>
+                <Box width="400px" ml={3}>
+                  <FieldSelectCreatable
+                    mt={4}
+                    ariaLabel="trait values"
+                    css={`
+                      background: ${props => props.theme.colors.levels.surface};
+                    `}
+                    placeholder="trait values"
+                    defaultValue={traitValues.map(r => ({
+                      value: r,
+                      label: r,
+                    }))}
+                    isMulti
+                    isSearchable
+                    value={traitValues}
+                    onChange={e => {
+                      handleInputChange({
+                        option: e as Option,
+                        labelField: 'traitValues',
+                        index: index,
+                      });
+                    }}
+                    isDisabled={false}
+                    createOptionPosition="last"
+                    formatCreateLabel={(i: string) => `"${i}"`}
+                  />
+                </Box>
+                <ButtonIcon
+                  ml={1}
+                  size={1}
+                  title="Remove Trait"
+                  onClick={() => null}
                   css={`
-                    background: ${props => props.theme.colors.levels.surface};
+                    &:disabled {
+                      opacity: 0.65;
+                      pointer-events: none;
+                    }
                   `}
-                  placeholder="trait values"
-                  defaultValue={traitValues.map(r => ({
-                    value: r,
-                    label: r,
-                  }))}
-                  isMulti
-                  isSearchable
-                  value={traitValues}
-                  onChange={e => {
-                    handleInputChange({
-                      option: e as Option,
-                      labelField: 'traitValues',
-                      index: index,
-                    });
-                  }}
-                  isDisabled={false}
-                  createOptionPosition="last"
-                  formatCreateLabel={(i: string) => `"${i}"`}
-                />
-              </Box>
-              <ButtonIcon
-                ml={1}
-                size={1}
-                title="Remove Trait"
-                onClick={() => null}
-                css={`
-                  &:disabled {
-                    opacity: 0.65;
-                    pointer-events: none;
-                  }
-                `}
-                disabled={false}
-              >
-                <Icons.Trash size="medium" />
-              </ButtonIcon>
-            </Flex>
-          </Box>
-        );
-      })}
+                  disabled={false}
+                >
+                  <Icons.Trash size="medium" />
+                </ButtonIcon>
+              </Flex>
+            </Box>
+          );
+        })}
+      </Box>
 
       <Box mt={4}>
         <ButtonTextWithAddIcon

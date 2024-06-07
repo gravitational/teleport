@@ -22,6 +22,8 @@ import { Option } from 'shared/components/Select';
 
 import { ResetToken, User } from 'teleport/services/user';
 
+export type TraitEditor = { trait: Option; traitValues: Option[] };
+
 export default function useUserDialog(props: Props) {
   const { attempt, setAttempt } = useAttemptNext('');
   const [name, setName] = useState(props.user.name);
@@ -32,6 +34,7 @@ export default function useUserDialog(props: Props) {
       label: r,
     }))
   );
+  const [configuredTraits, setConfiguredTraits] = useState<TraitEditor[]>([]);
 
   function onChangeName(name = '') {
     setName(name);
@@ -42,9 +45,14 @@ export default function useUserDialog(props: Props) {
   }
 
   function onSave() {
+    const traitsToSave = {};
+    for (const trait of configuredTraits) {
+      traitsToSave[trait.trait.value] = trait.traitValues.map(t => t.value);
+    }
     const u = {
       name,
       roles: selectedRoles.map(r => r.value),
+      allTraits: traitsToSave,
     };
 
     const handleError = (err: Error) =>
@@ -75,12 +83,14 @@ export default function useUserDialog(props: Props) {
     onChangeName,
     onChangeRoles,
     fetchRoles: props.fetchRoles,
+    setConfiguredTraits,
     isNew: props.isNew,
     allTraits: props.user.allTraits,
     attempt,
     name,
     selectedRoles,
     token,
+    configuredTraits,
   };
 }
 
