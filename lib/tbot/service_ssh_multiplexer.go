@@ -573,3 +573,18 @@ func (s *SSHMultiplexerService) handleConn(
 func (s *SSHMultiplexerService) String() string {
 	return config.SSHMultiplexerServiceType
 }
+
+// cyclingHostDialClient
+type cyclingHostDialClient struct {
+	max    int
+	config proxyclient.ClientConfig
+	inner  *proxyclient.Client
+}
+
+func newCyclingHostDialClient(max int32, config *proxyclient.ClientConfig) *cyclingHostDialClient {
+	return &cyclingHostDialClient{max: max, config: config}
+}
+
+func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
+	return s.inner.DialHost(ctx, target, cluster, keyring)
+}
