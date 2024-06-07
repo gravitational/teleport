@@ -61,5 +61,5 @@ Examples:
   $ tsh db ls --all -v
 
   Get database names using "jq":
-  $ tsh db ls --format json  | jq -r .[].metadata.name`
+  $ tsh db ls --format json  | jq -r '.[].metadata.name'`
 )
