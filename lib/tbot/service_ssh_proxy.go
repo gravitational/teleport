@@ -83,6 +83,15 @@ type SSHProxyService struct {
 func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	nopClose := func() {}
 
+	// Register service metrics. Expected to always work.
+	if err := metrics.RegisterPrometheusCollectors(
+		connectionsHandledCounter,
+		inflightConnectionsGauge,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load in any proxy templates if a path to them has been provided.
 	tshConfig := &libclient.TSHConfig{}
 	if s.cfg.ProxyTemplatesPath != "" {
 		s.log.Info("Loading proxy templates", "path", s.cfg.ProxyTemplatesPath)
@@ -93,14 +102,6 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 		}
 	}
 	s.tshConfig = tshConfig
-
-	// Register service metrics. Expected to always work.
-	if err := metrics.RegisterPrometheusCollectors(
-		connectionsHandledCounter,
-		inflightConnectionsGauge,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Wait for the output service to provide us with an impersonated client
 	// credential.
@@ -115,13 +116,12 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nopClose, trace.Wrap(err)
 	}
-
 	sshConfig, err := facade.SSHClientConfig()
 	if err != nil {
 		return nopClose, trace.Wrap(err)
 	}
-	s.clusterName = facade.Get().ClusterName
 
+	// Ping the proxy and determine if we need to upgrade the connection.
 	proxyPing, err := s.proxyPingCache.ping(ctx)
 	if err != nil {
 		return nopClose, trace.Wrap(err)
@@ -132,7 +132,7 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 		return nopClose, trace.Wrap(err)
 	}
 	s.proxyHost = proxyHost
-
+	s.clusterName = proxyPing.ClusterName
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
@@ -143,6 +143,7 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 		}
 	}
 
+	// Create Proxy and Auth clients
 	proxyClient, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
 		ProxyAddress:      proxyAddr,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
@@ -169,6 +170,9 @@ func (s *SSHProxyService) setup(ctx context.Context) (func(), error) {
 		InsecureSkipVerify:      s.botCfg.Insecure,
 		ALPNConnUpgradeRequired: connUpgradeRequired,
 
+		// Here we use a special dial context that will create a new connection
+		// after the cycleCount has been reached. This prevents too many SSH
+		// connections from sharing the same upstream connection.
 		DialContext: newDialCycling(100),
 	})
 	if err != nil {
@@ -215,7 +219,7 @@ func (s *SSHProxyService) Run(ctx context.Context) error {
 				return nil
 			}
 
-			s.log.WarnContext(ctx, "Accept error, sleeping and continuing", "error", err)
+			s.log.WarnContext(ctx, "Error encountered accepting connection, sleeping and continuing", "error", err)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -247,15 +251,17 @@ func (s *SSHProxyService) handleConn(
 	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 
+	// The first thing downstream will send is the hostport of the target,
+	// followed by a newline.
 	buf := bufio.NewReader(downstream)
 	hostPort, err := buf.ReadString('\n')
 	if err != nil {
 		return trace.Wrap(err, "reading hostport from downstream")
 	}
-	hostPort = hostPort[:len(hostPort)-1]
+	hostPort = hostPort[:len(hostPort)-1] // Strip off \n
 
-	s.log.Info("handling new connection", "host_port", hostPort)
-	defer s.log.Info("finished handling connection", "host_port", hostPort)
+	s.log.Info("Handling new connection", "host_port", hostPort)
+	defer s.log.Info("Finished handling connection", "host_port", hostPort)
 
 	host, port, err := net.SplitHostPort(hostPort)
 	if err != nil {
@@ -267,7 +273,7 @@ func (s *SSHProxyService) handleConn(
 	if matched {
 		s.log.DebugContext(
 			ctx,
-			"proxy templated matched",
+			"Proxy templated matched",
 			"populated_template", expanded,
 		)
 		if expanded.Cluster != "" {
@@ -291,7 +297,7 @@ func (s *SSHProxyService) handleConn(
 
 		s.log.DebugContext(
 			ctx,
-			"found matching SSH host",
+			"Found matching SSH host",
 			"host_uuid", node.GetName(),
 			"host_name", node.GetHostname(),
 		)
