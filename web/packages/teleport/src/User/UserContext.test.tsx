@@ -49,7 +49,6 @@ describe('user context - success state', () => {
       return res(
         ctx.json({
           theme: Theme.LIGHT,
-          assist: {},
         })
       );
     })
@@ -106,7 +105,6 @@ describe('user context - error state', () => {
       KeysEnum.USER_PREFERENCES,
       JSON.stringify({
         theme: 'dark',
-        assist: {},
       })
     );
 
