@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -119,11 +119,8 @@ func (c *Cluster) GetDatabases(ctx context.Context, authClient authclient.Client
 
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
 func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
-	// When generating certificate for MongoDB access, database username must
-	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	if routeToDatabase.Protocol == libdefaults.ProtocolMongoDB && routeToDatabase.Username == "" {
-		return tls.Certificate{}, trace.BadParameter("the username must be present for MongoDB connections")
+	if dbrole.RequireDatabaseUserMatcher(routeToDatabase.Protocol) && routeToDatabase.Username == "" {
+		return tls.Certificate{}, trace.BadParameter("the username must be present")
 	}
 
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
