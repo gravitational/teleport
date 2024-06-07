@@ -122,10 +122,6 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     const nextPreferences = {
       ...preferences,
       ...newPreferences,
-      assist: {
-        ...preferences.assist,
-        ...newPreferences.assist,
-      },
       onboard: {
         ...preferences.onboard,
         ...newPreferences.onboard,

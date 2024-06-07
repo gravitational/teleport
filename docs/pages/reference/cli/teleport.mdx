@@ -7,7 +7,7 @@ The CLI tool that supports the Teleport Access Platform is called `teleport`, an
 over the command line:
 
 - [Auth](../../architecture/authentication.mdx)
-- [Node/SSH](../../architecture/nodes.mdx)
+- [Node/SSH](../../architecture/agents.mdx)
 - [Proxy](../../architecture/proxy.mdx)
 - [App](../../application-access/introduction.mdx)
 - [Database](../../database-access/introduction.mdx)
@@ -32,6 +32,9 @@ The primary commands for the `teleport` CLI are as follows:
 | `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
+| `teleport debug set-log-level` | Changes instance log level. |
+| `teleport debug get-log-level` | Fetches instance current log level. |
+| `teleport debug debug profile` | Export the application profiles (pprof format). |
 
 <Notice type="tip">
 For more information on subcommands when working with the `teleport` cli, use the `--help` option or `teleport <subcommand> --help`.
@@ -77,7 +80,7 @@ The `--roles` flag when used with `teleport --start` instructs Teleport on which
 
 | Service | Role Name | Description |
 | - | - | - |
-| [Node](../../architecture/nodes.mdx) | `node` | Allows SSH connections from authenticated clients. |
+| [Node](../../architecture/agents.mdx) | `node` | Allows SSH connections from authenticated clients. |
 | [Auth](../../architecture/authentication.mdx) | `auth` | Authenticates and authorizes hosts and users who want access to Teleport-managed resources or information about a cluster. |
 | [Proxy](../../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
 | [App](../../application-access/introduction.mdx) | `app` | Provides access to applications. |

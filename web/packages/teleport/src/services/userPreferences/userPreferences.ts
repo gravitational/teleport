@@ -21,12 +21,8 @@ import {
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import {
-  AssistUserPreferences,
-  AssistViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
@@ -46,7 +42,6 @@ interface BackendClusterUserPreferences {
 }
 
 export interface BackendUserPreferences {
-  assist?: AssistUserPreferences;
   theme: Theme;
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
@@ -90,10 +85,6 @@ export function makeDefaultUserPreferences(): UserPreferences {
   const prefersDark = getPrefersDark();
   return {
     theme: prefersDark ? Theme.DARK : Theme.LIGHT,
-    assist: {
-      viewMode: AssistViewMode.DOCKED,
-      preferredLogins: [],
-    },
     onboard: {
       preferredResources: [],
       marketingParams: {
@@ -107,6 +98,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };
@@ -141,6 +133,10 @@ export function convertBackendUserPreferences(
     clusterPreferences: convertBackendClusterUserPreferences(
       preferences.clusterPreferences
     ),
+    unifiedResourcePreferences: {
+      availableResourceMode: AvailableResourceMode.NONE,
+      ...preferences.unifiedResourcePreferences,
+    },
   };
 }
 

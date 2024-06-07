@@ -198,7 +198,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 	}
 }
 
-func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	m.Lock()
 	defer m.Unlock()
 	m.connCount++
@@ -292,7 +292,7 @@ type mockCertRenewer struct {
 	cert tls.Certificate
 }
 
-func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy) error {
 	lp.SetCert(m.cert)
 	return nil
 }
@@ -428,7 +428,7 @@ func TestCheckDBCerts(t *testing.T) {
 type mockMiddlewareConnUnauth struct {
 }
 
-func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	return trace.AccessDenied("access denied.")
 }
 

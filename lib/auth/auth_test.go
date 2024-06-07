@@ -243,7 +243,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
@@ -3889,6 +3889,10 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	p.a.Notifications, err = local.NewNotificationsService(p.bk, fakeClock)
+	require.NoError(t, err)
+
 	requester, _, _ := createSessionTestUsers(t, p.a)
 
 	paymentsRole, err := types.NewRole("paymentsRole", types.RoleSpecV6{
@@ -3938,4 +3942,120 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, expectedAnnotations, arc.Annotations)
 	require.Equal(t, "APPROVED", arc.RequestState)
+}
+
+func TestAccessRequestNotifications(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fakeClock := clockwork.NewFakeClock()
+
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: fakeClock,
+	})
+	require.NoError(t, err)
+	testTLSServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+
+	reviewerUsername := "reviewer"
+	requesterUsername := "requester"
+	requestRoleName := "requestRole"
+
+	reviewerRole, err := types.NewRole(reviewerUsername, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"user"},
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles: []string{"requestRole"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	requesterRole, err := types.NewRole(requesterUsername, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	requestedRole, err := types.NewRole(requestRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requestedRole)
+	require.NoError(t, err)
+
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, reviewerRole)
+	require.NoError(t, err)
+	reviewer, err := types.NewUser(reviewerUsername)
+	require.NoError(t, err)
+	reviewer.SetRoles([]string{reviewerUsername})
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, reviewer)
+	require.NoError(t, err)
+
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertRole(ctx, requesterRole)
+	require.NoError(t, err)
+	requester, err := types.NewUser(requesterUsername)
+	require.NoError(t, err)
+	requester.SetRoles([]string{requesterUsername})
+	_, err = testTLSServer.AuthServer.AuthServer.UpsertUser(ctx, requester)
+	require.NoError(t, err)
+
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	require.NoError(t, err)
+	req, err := testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	require.NoError(t, err)
+
+	// Verify that a global notification was created which matches for users who can review the requestRole.
+	globalNotifsResp, _, err := testTLSServer.AuthServer.AuthServer.Notifications.ListGlobalNotifications(ctx, 100, "")
+	require.NoError(t, err)
+	require.Len(t, globalNotifsResp, 1)
+	require.Equal(t, &types.AccessReviewConditions{
+		Roles: []string{requestRoleName},
+	}, globalNotifsResp[0].GetSpec().GetByPermissions().GetRoleConditions()[0].ReviewRequests)
+
+	reviewerIdentity := TestUser(reviewerUsername)
+	reviewerClient, err := testTLSServer.NewClient(reviewerIdentity)
+	require.NoError(t, err)
+
+	// Approve the request
+	_, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: req.GetName(),
+		Review: types.AccessReview{
+			ProposedState: types.RequestState_APPROVED,
+		},
+	})
+	require.NoError(t, err)
+	// Verify that a user notification was created notifying the requester that their access request was approved.
+	userNotifsResp, _, err := testTLSServer.AuthServer.AuthServer.Notifications.ListUserNotifications(ctx, 100, "")
+	require.NoError(t, err)
+	require.Len(t, userNotifsResp, 1)
+	require.Contains(t, userNotifsResp[0].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer approved your access request")
+
+	// Create another access request.
+	accessRequest, err = types.NewAccessRequest(uuid.NewString(), requesterUsername, requestRoleName)
+	require.NoError(t, err)
+	req, err = testTLSServer.AuthServer.AuthServer.CreateAccessRequestV2(ctx, accessRequest, TestUser(requesterUsername).I.GetIdentity())
+	require.NoError(t, err)
+
+	// Deny the request.
+	_, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: req.GetName(),
+		Review: types.AccessReview{
+			ProposedState: types.RequestState_DENIED,
+		},
+	})
+	require.NoError(t, err)
+	// Verify that a user notification was created notifying the requester that their access request was denied.
+	userNotifsResp, _, err = testTLSServer.AuthServer.AuthServer.Notifications.ListUserNotifications(ctx, 100, "")
+	require.NoError(t, err)
+	require.Len(t, userNotifsResp, 2)
+	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
 }

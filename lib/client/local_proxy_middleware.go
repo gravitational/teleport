@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -76,7 +75,7 @@ func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock cloc
 
 // OnNewConnection is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
-func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	return trace.Wrap(c.ensureValidCerts(ctx, lp))
 }
 

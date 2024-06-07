@@ -65,7 +65,13 @@ export const NotificationTypes = () => {
         >
           {mockNotifications.map(notification => {
             return (
-              <Notification notification={notification} key={notification.id} />
+              <Notification
+                notification={notification}
+                key={notification.id}
+                closeNotificationsList={() => null}
+                markNotificationAsClicked={() => null}
+                removeNotification={() => null}
+              />
             );
           })}
         </Flex>

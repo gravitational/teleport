@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -41,7 +40,6 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	clientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
 	watchtools "k8s.io/client-go/tools/watch"
@@ -425,7 +423,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		log:                            log,
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
-		emitter:                        events.NewDiscardEmitter(),
 		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
@@ -439,6 +436,12 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		streamContext:                  streamContext,
 		streamContextCancel:            streamContextCancel,
 		partiesWg:                      sync.WaitGroup{},
+		// if session ever starts, emitter and recorder will be replaced
+		// by actual emitter and recorder.
+		emitter: events.NewDiscardEmitter(),
+		recorder: events.WithNoOpPreparer(
+			events.NewDiscardRecorder(),
+		),
 	}
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
@@ -514,7 +517,7 @@ func (s *session) checkPresence() error {
 
 // launch waits until the session meets access requirements and then transitions the session
 // to a running state.
-func (s *session) launch(isEphemeralCont bool) error {
+func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (returnErr error) {
 	defer func() {
 		err := s.Close()
 		if err != nil {
@@ -547,15 +550,20 @@ func (s *session) launch(isEphemeralCont bool) error {
 
 	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
-	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
+	onFinished, err := s.lockedSetupLaunch(request, eventPodMeta)
+	defer func() {
+		if returnErr != nil {
+			s.setTerminationErr(returnErr)
+			s.reportErrorToSessionRecorder(returnErr)
+			s.log.WithError(returnErr).Warning("Executor failed while streaming.")
+		}
+		// call onFinished to emit the session.end and exec events.
+		// onFinished is never nil.
+		onFinished(returnErr)
+	}()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		// The closure captures the err variable pointer so that the variable can
-		// be changed by the code below, but when defer runs, it gets the last value.
-		onFinished(err)
-	}()
 
 	termParams := tsession.TerminalParams{
 		W: 100,
@@ -568,12 +576,7 @@ func (s *session) launch(isEphemeralCont bool) error {
 			Code:        events.SessionStartCode,
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-			ServerHostname:  s.sess.teleportCluster.name,
-			ServerAddr:      s.sess.kubeAddress,
-		},
+		ServerMetadata:  s.sess.getServerMetadata(),
 		SessionMetadata: s.getSessionMetadata(),
 		UserMetadata:    s.ctx.eventUserMeta(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -636,56 +639,29 @@ func (s *session) launch(isEphemeralCont bool) error {
 	}
 
 	s.io.On()
+	// If the container is ephemeral and already terminated, we should
+	// retrieve the logs and return early.
+	if ephemeralContainerStatus != nil && ephemeralContainerStatus.State.Terminated != nil {
+		err := s.retrieveAlreadyStoppedPodLogs(
+			namespace,
+			podName,
+			container,
+		)
+		return trace.Wrap(err)
+	}
+
 	if streamErr := executor.StreamWithContext(s.streamContext, options); streamErr != nil {
-		onErr := func(err error) {
-			s.setTerminationErr(err)
-			s.reportErrorToSessionRecorder(err)
-			s.log.WithError(err).Warning("Executor failed while streaming.")
-		}
-
-		if !isEphemeralCont {
-			onErr(streamErr)
+		// If the container isn't ephemeral, return the error.
+		if ephemeralContainerStatus == nil {
 			return trace.Wrap(streamErr)
 		}
-
-		// If attaching to the container failed, check if the container
-		// is terminated. If it is, try to stream the logs. If it's not
-		// terminated or can't be found return the original error.
-		clientSet, _, err := s.forwarder.impersonatedKubeClient(&s.sess.authContext, s.req.Header)
-		if err != nil {
-			onErr(err)
-			return trace.Wrap(err)
-		}
-		podClient := clientSet.CoreV1().Pods(namespace)
-
-		pod, err := podClient.Get(s.forwarder.ctx, podName, metav1.GetOptions{})
-		if err != nil {
-			onErr(err)
-			return trace.Wrap(err)
-		}
-		status := getEphemeralContainerStatusByName(pod, container)
-		if status == nil {
-			// the container couldn't be found in the pod, return the
-			// original command streaming error
-			onErr(streamErr)
-			return trace.Wrap(streamErr)
-		}
-		if status.State.Terminated != nil {
-			if err := s.retrieveAlreadyStoppedPodLogs(
-				podClient,
-				namespace,
-				podName,
-				container,
-			); err != nil {
-				onErr(err)
-				return trace.Wrap(err)
-			}
-
-			return nil
-		}
-
-		onErr(streamErr)
-		return trace.Wrap(streamErr)
+		fmt.Fprintf(s.io, "\r\nwarning: couldn't attach to pod/%s, falling back to streaming logs: %v\r\n", podName, streamErr)
+		err := s.retrieveAlreadyStoppedPodLogs(
+			namespace,
+			podName,
+			container,
+		)
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -715,7 +691,7 @@ func (s *session) reportErrorToSessionRecorder(err error) {
 	}
 }
 
-func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
+func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta apievents.KubernetesPodMetadata) (func(error), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -750,9 +726,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 					RemoteAddr: s.req.RemoteAddr,
 					Protocol:   events.EventProtocolKube,
 				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerNamespace: s.forwarder.cfg.Namespace,
-				},
+				ServerMetadata:            s.sess.getServerMetadata(),
 				SessionMetadata:           s.getSessionMetadata(),
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
@@ -773,70 +747,18 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	recorder, err := recorder.New(recorder.Config{
-		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
-		Namespace:    s.forwarder.cfg.Namespace,
-		Clock:        s.forwarder.cfg.Clock,
-		ClusterName:  s.forwarder.cfg.ClusterName,
-		RecordingCfg: s.ctx.recordingConfig,
-		SyncStreamer: s.forwarder.cfg.AuthClient,
-		DataDir:      s.forwarder.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-		// Session stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context: s.forwarder.ctx,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.recorder = recorder
-	s.emitter = s.forwarder.cfg.Emitter
-
-	s.io.AddWriter(sessionRecorderID, recorder)
-
-	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
-	if s.PresenceEnabled {
-		s.eventsWaiter.Add(1)
-		go func() {
-			defer s.eventsWaiter.Done()
-			ticker := time.NewTicker(PresenceVerifyInterval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					err := s.checkPresence()
-					if err != nil {
-						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
-						err := s.Close()
-						if err != nil {
-							s.log.WithError(err).Error("Failed to close session")
-						}
-					}
-				case <-s.closeC:
-					return
-				}
-			}
-		}()
-	}
 	// If we get here, it means we are going to have a session.end event.
 	// This increments the waiter so that session.Close() guarantees that once called
 	// the events are emitted before closing the emitter/recorder.
 	// It might happen when a user disconnects or when a moderator forces an early
 	// termination.
 	s.eventsWaiter.Add(1)
-	// receive the exec error returned from API call to kube cluster
-	return func(errExec error) {
+	onFinish := func(errExec error) {
 		defer s.eventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		serverMetadata := apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
-			ServerNamespace: s.forwarder.cfg.Namespace,
-		}
+		serverMetadata := s.sess.getServerMetadata()
 
 		sessionMetadata := s.getSessionMetadata()
 
@@ -922,7 +844,57 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		} else {
 			s.forwarder.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
 		}
-	}, nil
+	}
+
+	recorder, err := recorder.New(recorder.Config{
+		SessionID:    tsession.ID(s.id.String()),
+		ServerID:     s.forwarder.cfg.HostID,
+		Namespace:    s.forwarder.cfg.Namespace,
+		Clock:        s.forwarder.cfg.Clock,
+		ClusterName:  s.forwarder.cfg.ClusterName,
+		RecordingCfg: s.ctx.recordingConfig,
+		SyncStreamer: s.forwarder.cfg.AuthClient,
+		DataDir:      s.forwarder.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.forwarder.ctx,
+	})
+	if err != nil {
+		return onFinish, trace.Wrap(err)
+	}
+
+	s.recorder = recorder
+	s.emitter = s.forwarder.cfg.Emitter
+
+	s.io.AddWriter(sessionRecorderID, recorder)
+
+	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
+	if s.PresenceEnabled {
+		s.eventsWaiter.Add(1)
+		go func() {
+			defer s.eventsWaiter.Done()
+			ticker := time.NewTicker(PresenceVerifyInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					err := s.checkPresence()
+					if err != nil {
+						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
+						if err := s.Close(); err != nil {
+							s.log.WithError(err).Error("Failed to close session")
+						}
+						return
+					}
+				case <-s.closeC:
+					return
+				}
+			}
+		}()
+	}
+	return onFinish, nil
 }
 
 // join attempts to connect a party to the session.
@@ -1064,7 +1036,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 }
 
 // createEphemeralContainer creates an ephemeral container and waits for it to start.
-func (s *session) createEphemeralContainer() (bool, error) {
+func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 	initUser := s.parties[s.initiator]
 	username := initUser.Ctx.Identity.GetIdentity().Username
 	namespace := s.params.ByName("podNamespace")
@@ -1082,9 +1054,9 @@ func (s *session) createEphemeralContainer() (bool, error) {
 		},
 	)
 	if trace.IsNotFound(err) {
-		return false, nil
+		return nil, nil
 	} else if err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if err = s.forwarder.cfg.AuthClient.DeleteKubernetesWaitingContainer(
@@ -1097,16 +1069,12 @@ func (s *session) createEphemeralContainer() (bool, error) {
 			ContainerName: container,
 		},
 	); err != nil {
-		return false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	s.log.Debugf("Creating ephemeral container %s on pod %s", container, podName)
-	err = s.patchAndWaitForPodEphemeralContainer(s.forwarder.ctx, &initUser.Ctx, s.req.Header, waitingCont)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return true, nil
+	containerStatus, err := s.patchAndWaitForPodEphemeralContainer(s.forwarder.ctx, &initUser.Ctx, s.req.Header, waitingCont)
+	return containerStatus, trace.Wrap(err)
 }
 
 func (s *session) BroadcastMessage(format string, args ...any) {
@@ -1411,22 +1379,27 @@ func (s *session) getSessionMetadata() apievents.SessionMetadata {
 
 // patchPodWithEphemeralContainer creates an ephemeral container and waits
 // for it to start.
-func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, authCtx *authContext, headers http.Header, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
+func (s *session) patchAndWaitForPodEphemeralContainer(
+	ctx context.Context,
+	authCtx *authContext,
+	headers http.Header,
+	waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer,
+) (containerStatus *corev1.ContainerStatus, err error) {
 	fmt.Fprintf(s.io, "\r\nCreating ephemeral container %s in pod %s/%s\r\n", waitingCont.Spec.ContainerName, waitingCont.Spec.Namespace, waitingCont.Spec.PodName)
 
 	clientSet, _, err := s.forwarder.impersonatedKubeClient(authCtx, headers)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
-	_, err = podClient.Patch(ctx,
+	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
 		kubeapitypes.StrategicMergePatchType,
 		waitingCont.Spec.Patch,
 		metav1.PatchOptions{},
 		"ephemeralcontainers")
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	fmt.Fprintf(s.io, "Pod %s/%s successfully patched. Waiting for container to become ready.\r\n",
@@ -1437,10 +1410,14 @@ func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, auth
 	lw := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
+			options.ResourceVersion = result.GetResourceVersion()
+			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan
 			return podClient.List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
+			options.ResourceVersion = result.GetResourceVersion()
+			options.ResourceVersionMatch = metav1.ResourceVersionMatchNotOlderThan
 			return podClient.Watch(ctx, options)
 		},
 	}
@@ -1460,21 +1437,31 @@ func (s *session) patchAndWaitForPodEphemeralContainer(ctx context.Context, auth
 			return false, nil
 		}
 		if s.State.Running != nil || s.State.Terminated != nil {
+			containerStatus = s
 			return true, nil
 		}
 		return false, nil
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	fmt.Fprintf(s.io, "Ephemeral container %s is ready.\r\n", waitingCont.Spec.ContainerName)
 
-	return nil
+	return containerStatus, nil
 }
 
 // retrieveAlreadyStoppedPodLogs retrieves the logs of a stopped pod and writes them to the session's io writer.
-func (s *session) retrieveAlreadyStoppedPodLogs(podClient clientv1.PodInterface, namespace, podName, container string) error {
+func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container string) error {
+	// If attaching to the container failed, check if the container
+	// is terminated. If it is, try to stream the logs. If it's not
+	// terminated or can't be found return the original error.
+	clientSet, _, err := s.forwarder.impersonatedKubeClient(&s.sess.authContext, s.req.Header)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	podClient := clientSet.CoreV1().Pods(namespace)
+
 	fmt.Fprintf(s.io, "Failed to attach to the container, attempting to stream logs instead...\r\n")
 	req := podClient.GetLogs(podName, &corev1.PodLogOptions{Container: container})
 	r, err := req.Stream(s.streamContext)
@@ -1482,6 +1469,7 @@ func (s *session) retrieveAlreadyStoppedPodLogs(podClient clientv1.PodInterface,
 		return trace.Wrap(err)
 	}
 	if _, err := io.Copy(s.io, r); err != nil {
+		_ = r.Close()
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(r.Close())

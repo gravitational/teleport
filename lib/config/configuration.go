@@ -242,6 +242,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
 
+	// IntegrationConfAzureOIDCArguments contains the arguments of
+	// `teleport integration configure azure-oidc` command
+	IntegrationConfAzureOIDCArguments IntegrationConfAzureOIDC
+
 	// IntegrationConfSAMLIdPGCPWorkforceArguments contains the arguments of
 	// `teleport integration configure samlidp gcp-workforce` command
 	IntegrationConfSAMLIdPGCPWorkforceArguments samlidpconfig.GCPWorkforceAPIParams
@@ -261,6 +265,22 @@ type CommandLineFlags struct {
 type IntegrationConfAccessGraphAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
+}
+
+// IntegrationConfAzureOIDC contains the arguments of
+// `teleport integration configure azure-oidc` command
+type IntegrationConfAzureOIDC struct {
+	// ProxyPublicAddr is the publicly-reachable URL of the Teleport Proxy.
+	// It is used as the OIDC issuer URL, as well as for SAML URIs.
+	ProxyPublicAddr string
+
+	// AuthConnectorName is the name of the SAML connector that will be created on Teleport side.
+	AuthConnectorName string
+
+	// AccessGraphEnabled is a flag indicating that access graph integration is requested.
+	// When this is true, the integration script will produce
+	// a cache file necessary for TAG synchronization.
+	AccessGraphEnabled bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -1591,14 +1611,15 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		serviceMatcher := types.AWSMatcher{
-			Types:            matcher.Types,
-			Regions:          matcher.Regions,
-			AssumeRole:       assumeRole,
-			Tags:             matcher.Tags,
-			Params:           installParams,
-			SSM:              &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
-			Integration:      matcher.Integration,
-			KubeAppDiscovery: matcher.KubeAppDiscovery,
+			Types:             matcher.Types,
+			Regions:           matcher.Regions,
+			AssumeRole:        assumeRole,
+			Tags:              matcher.Tags,
+			Params:            installParams,
+			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			Integration:       matcher.Integration,
+			KubeAppDiscovery:  matcher.KubeAppDiscovery,
+			SetupAccessForARN: matcher.SetupAccessForARN,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)

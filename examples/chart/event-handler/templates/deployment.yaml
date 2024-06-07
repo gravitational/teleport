@@ -6,6 +6,10 @@ metadata:
     {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  {{- if or .Values.persistentVolumeClaim.enabled .Values.persistentVolumeClaim.existingClaim }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "event-handler.selectorLabels" . | nindent 6 }}

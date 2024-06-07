@@ -10079,7 +10079,7 @@ func TestGithubConnector(t *testing.T) {
 	require.NoError(t, err, "creating initial connector resource")
 
 	createPayload := func(connector types.GithubConnector) ui.ResourceItem {
-		raw, err := services.MarshalGithubConnector(connector, services.PreserveResourceID())
+		raw, err := services.MarshalGithubConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
 		return ui.ResourceItem{
@@ -10119,7 +10119,7 @@ func TestGithubConnector(t *testing.T) {
 
 	updated := unmarshalResponse(resp.Bytes())
 
-	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.IgnoreFields(types.GithubConnectorSpecV3{}, "Display", "ClientSecret"),
 	))
 	require.NotEqual(t, expected.GetDisplay(), updated.GetDisplay(), "expected update to modify the display name")

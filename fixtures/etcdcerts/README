@@ -1,0 +1,6 @@
+# etcdcerts
+
+This directory contains certificates used for Teleport's etcd integration tests.
+They should not be used for any other workloads.
+
+You can remove the certs with `make clean`, and regenerate them with `make`.

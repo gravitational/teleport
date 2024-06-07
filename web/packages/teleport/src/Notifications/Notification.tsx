@@ -41,25 +41,30 @@ import {
   Notification as NotificationType,
   NotificationState,
 } from 'teleport/services/notifications';
+import history from 'teleport/services/history';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
 
 import { NotificationContent } from './notificationContentFactory';
-
 import { View } from './Notifications';
 
 export function Notification({
   notification,
   view = 'All',
+  closeNotificationsList,
+  removeNotification,
+  markNotificationAsClicked,
 }: {
   notification: NotificationType;
   view?: View;
+  closeNotificationsList: () => void;
+  removeNotification: (notificationId: string) => void;
+  markNotificationAsClicked: (notificationId: string) => void;
 }) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
-  const [clicked, setClicked] = useState(notification.clicked);
 
   const content = ctx.notificationContentFactory(notification);
 
@@ -70,29 +75,38 @@ export function Notification({
         notificationState: NotificationState.CLICKED,
       })
       .then(res => {
-        setClicked(true);
+        markNotificationAsClicked(notification.id);
         return res;
       })
   );
 
   const [hideNotificationAttempt, hideNotification] = useAsync(() => {
-    return ctx.notificationService.upsertNotificationState(clusterId, {
-      notificationId: notification.id,
-      notificationState: NotificationState.DISMISSED,
-    });
+    return ctx.notificationService
+      .upsertNotificationState(clusterId, {
+        notificationId: notification.id,
+        notificationState: NotificationState.DISMISSED,
+      })
+      .then(() => {
+        removeNotification(notification.id);
+      });
   });
+
+  function onMarkAsClicked() {
+    if (notification.localNotification) {
+      ctx.storeNotifications.markNotificationAsClicked(notification.id);
+      markNotificationAsClicked(notification.id);
+      return;
+    }
+    markAsClicked();
+  }
+
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
 
   // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
   // it should not be shown.
-  if (
-    !content ||
-    hideNotificationAttempt.status === 'success' ||
-    hideNotificationAttempt.status === 'processing' ||
-    (view === 'Unread' && clicked)
-  ) {
+  if (!content || (view === 'Unread' && notification.clicked)) {
     return null;
   }
 
@@ -123,20 +137,19 @@ export function Notification({
         setShowTextContentDialog(true);
         return;
       }
-      // TODO rudream - add notification redirect functionality
+      onMarkAsClicked();
+      closeNotificationsList();
+      history.push(content.redirectRoute);
     }
   }
 
   const isClicked =
-    clicked ||
-    markAsClickedAttempt.status === 'processing' ||
-    (markAsClickedAttempt.status === 'success' &&
-      markAsClickedAttempt.data.notificationState ===
-        NotificationState.CLICKED);
+    notification.clicked || markAsClickedAttempt.status === 'processing';
 
   return (
     <>
       <Container
+        data-testid="notification-item"
         clicked={isClicked}
         onClick={onNotificationClick}
         className="notification"
@@ -152,18 +165,8 @@ export function Notification({
         <ContentContainer>
           <ContentBody>
             <Text>{content.title}</Text>
-            {content.kind === 'redirect' && content.quickAction && (
-              <ButtonSecondary
-                css={`
-                  text-transform: none;
-                `}
-                onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-                  event.stopPropagation();
-                  content.quickAction.onClick();
-                }}
-              >
-                {content.quickAction.buttonText}
-              </ButtonSecondary>
+            {content.kind === 'redirect' && content.QuickAction && (
+              <content.QuickAction markAsClicked={onMarkAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
               <Text typography="subtitle3" color="error.main">
@@ -179,30 +182,34 @@ export function Notification({
             )}
           </ContentBody>
           <SideContent>
-            <Text typography="subtitle3">{formattedDate}</Text>
-            <MenuIcon
-              menuProps={{
-                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                transformOrigin: { vertical: 'top', horizontal: 'right' },
-                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-              }}
-              buttonIconProps={{ style: { borderRadius: '4px' } }}
-            >
-              {!isClicked && (
+            {!content?.hideDate && (
+              <Text typography="subtitle3">{formattedDate}</Text>
+            )}
+            {!notification.localNotification && (
+              <MenuIcon
+                menuProps={{
+                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                  transformOrigin: { vertical: 'top', horizontal: 'right' },
+                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+                }}
+                buttonIconProps={{ style: { borderRadius: '4px' } }}
+              >
+                {!isClicked && (
+                  <MenuItem
+                    onClick={onMarkAsClicked}
+                    className={IGNORE_CLICK_CLASSNAME}
+                  >
+                    Mark as read
+                  </MenuItem>
+                )}
                 <MenuItem
-                  onClick={markAsClicked}
+                  onClick={hideNotification}
                   className={IGNORE_CLICK_CLASSNAME}
                 >
-                  Mark as read
+                  Hide this notification
                 </MenuItem>
-              )}
-              <MenuItem
-                onClick={hideNotification}
-                className={IGNORE_CLICK_CLASSNAME}
-              >
-                Hide this notification
-              </MenuItem>
-            </MenuIcon>
+              </MenuIcon>
+            )}
           </SideContent>
         </ContentContainer>
       </Container>
@@ -282,6 +289,10 @@ const ContentBody = styled.div`
   justify-content: center;
   align-items: flex-start;
   gap: ${props => props.theme.space[2]}px;
+
+  button {
+    text-transform: none;
+  }
 `;
 
 const SideContent = styled.div`

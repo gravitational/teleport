@@ -208,6 +208,16 @@ func (p *cliModules) BuildType() string {
 	return "CLI"
 }
 
+// IsEnterpriseBuild returns false for [cliModules].
+func (p *cliModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns false for [cliModules].
+func (p *cliModules) IsOSSBuild() bool {
+	return false
+}
+
 // PrintVersion prints the Teleport version.
 func (p *cliModules) PrintVersion() {
 	fmt.Printf("Teleport CLI\n")

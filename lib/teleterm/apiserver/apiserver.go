@@ -30,13 +30,34 @@ import (
 	vnetapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-	vnet "github.com/gravitational/teleport/lib/teleterm/vnet"
+	"github.com/gravitational/teleport/lib/teleterm/vnet"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // New creates an instance of API Server
 func New(cfg Config) (*APIServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create Terminal and VNet services.
+
+	serviceHandler, err := handler.New(
+		handler.Config{
+			DaemonService: cfg.Daemon,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vnetService, err := vnet.New(vnet.Config{
+		DaemonService:      cfg.Daemon,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		ClusterIDCache:     cfg.ClusterIDCache,
+		InstallationID:     cfg.InstallationID,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -51,19 +72,6 @@ func New(cfg Config) (*APIServer, error) {
 		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-
-	// Create Terminal and VNet services.
-
-	serviceHandler, err := handler.New(
-		handler.Config{
-			DaemonService: cfg.Daemon,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	vnetService := &vnet.Service{}
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
@@ -84,7 +92,9 @@ func (s *APIServer) Serve() error {
 // Stop stops the server and closes all listeners
 func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
-	s.vnetService.Close()
+	if err := s.vnetService.Close(); err != nil {
+		log.WithError(err).Error("Error while closing VNet service")
+	}
 }
 
 func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {

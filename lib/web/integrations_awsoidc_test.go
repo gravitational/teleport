@@ -1017,6 +1017,6 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 	require.Empty(t, cmp.Diff(
 		expectedServer,
 		appServers[0],
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 	))
 }

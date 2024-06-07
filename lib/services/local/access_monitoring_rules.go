@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -109,4 +110,32 @@ func (s *AccessMonitoringRulesService) DeleteAccessMonitoringRule(ctx context.Co
 // DeleteAllAccessMonitoringRules removes all AccessMonitoringRule resources.
 func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+}
+
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken,
+		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+			return match(resource, subjects, notificationName)
+		})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resources, nextKey, nil
+}
+
+func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+	if notificationName != "" {
+		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
+			return false
+		}
+	}
+	for _, subject := range subjects {
+		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
+			return s == subject
+		}); !ok {
+			return false
+		}
+	}
+	return true
 }
