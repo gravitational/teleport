@@ -90,7 +90,6 @@ func (o *Opts) Validate() error {
 		return trace.BadParameter("missing cluster features")
 	}
 	return nil
-
 }
 
 // SetDefaults sets the default values for the options.
@@ -125,7 +124,6 @@ func New(ctx context.Context, opts Opts) (*Service, error) {
 		fetcher:           fetcher,
 		pluginStatusSink:  opts.PluginStatusSink,
 	}, nil
-
 }
 
 // Run blocks and runs the Gitlab service.
@@ -184,27 +182,38 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	const (
 		semaphoreExpiration = time.Minute
 	)
-	// AcquireSemaphoreLock will retry until the semaphore is acquired.
+	// AcquireSemaphoreLockWithRetry will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.accessPoint,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindAccessGraph,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.hostID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.accessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Expires:       s.clock.Now().Add(semaphoreExpiration),
+					Holder:        s.hostID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.NewJitter(),
+			},
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
@@ -237,8 +246,6 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.

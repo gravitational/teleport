@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -133,19 +134,28 @@ func (s *Service) Run(ctx context.Context) error {
 //   - Fatal errors;
 //   - Or when the context is canceled.
 func (s *Service) runWithLock(ctx context.Context) error {
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.semaphoreSvc,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindPlugin,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.hostID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.semaphoreSvc,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindPlugin,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Expires:       s.clock.Now().Add(semaphoreExpiration),
+					Holder:        s.hostID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.NewJitter(),
+			},
 		},
 	)
 	if err != nil {
@@ -158,7 +168,7 @@ func (s *Service) runWithLock(ctx context.Context) error {
 		}
 	}()
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(lease)
 	g.Go(func() error {
 		return trace.Wrap(s.runDirectoryReconciler(ctx))
 	})
