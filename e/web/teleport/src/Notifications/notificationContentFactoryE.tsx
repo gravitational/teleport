@@ -27,6 +27,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 const logger = Logger.create('Notifications');
 
+import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import {
   Notification as NotificationType,
@@ -133,6 +134,30 @@ export function notificationContentFactoryE(
         icon: Icons.UserList,
         redirectRoute: cfg.getAccessListManagementRoute(null),
         hideDate: true,
+      };
+      break;
+    }
+
+    case NotificationSubKind.AccessRequestPromoted: {
+      const requestId = getLabelValue(labels, 'request-id');
+
+      notificationContent = {
+        kind: 'redirect',
+        title: notification.title,
+        type: 'success',
+        icon: Icons.ArrowFatLinesUp,
+        redirectRoute: cfg.getAccessRequestRoute(requestId),
+        QuickAction: ({ markAsClicked }) => (
+          <ButtonSecondary
+            onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+              event.stopPropagation();
+              markAsClicked();
+              session.logout();
+            }}
+          >
+            Log in again to gain access
+          </ButtonSecondary>
+        ),
       };
       break;
     }

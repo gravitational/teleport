@@ -71,19 +71,9 @@ export default function useRequestView(ctx: TeleportContextE) {
   }
 
   useEffect(() => {
-    if (fetchRequestAttempt.status === '') {
-      runFetchRequest();
-    }
-
-    if (fetchSuggestedAccessListsAttempt.status === '') {
-      runFetchSuggestedAccessLists();
-    }
-  }, [
-    fetchRequestAttempt.status,
-    fetchSuggestedAccessListsAttempt.status,
-    runFetchRequest,
-    runFetchSuggestedAccessLists,
-  ]);
+    runFetchRequest();
+    runFetchSuggestedAccessLists();
+  }, [runFetchRequest, runFetchSuggestedAccessLists]);
 
   function toggleConfirmDelete(): void {
     setConfirmDelete(!confirmDelete);
