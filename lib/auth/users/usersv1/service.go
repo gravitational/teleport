@@ -186,7 +186,7 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 			}); err != nil {
 				s.logger.WithError(err).Warn("Failed to emit local login failure event.")
 			}
-			return nil, trace.AccessDenied("User secret information is not available from remote access")
+			return nil, trace.AccessDenied("User secret information requires admin access and is not available from remote access")
 		}
 	} else {
 		// if secrets are not being accessed, let users always read
@@ -554,7 +554,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 			}); err != nil {
 				s.logger.WithError(err).Warn("Failed to emit local login failure event.")
 			}
-			return nil, trace.AccessDenied("User secret information is not available from remote acces")
+			return nil, trace.AccessDenied("User secret information requires admin access and is not available from remote acces")
 		}
 	} else {
 		if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbList, types.VerbRead); err != nil {
