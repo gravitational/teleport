@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 
@@ -195,7 +196,13 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (func(), error) {
 	}, nil
 }
 
-func (s *SSHMultiplexerService) Run(ctx context.Context) error {
+func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SSHMultiplexerService/Run",
+	)
+	defer func() { tracing.EndSpan(span, err) }()
+
 	closer, err := s.setup(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -247,7 +254,11 @@ func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	downstream net.Conn,
 ) (err error) {
-	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/handleConn")
+	ctx, span := tracer.Start(
+		ctx,
+		"SSHMultiplexerService/handleConn",
+		oteltrace.WithNewRoot(),
+	)
 	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 

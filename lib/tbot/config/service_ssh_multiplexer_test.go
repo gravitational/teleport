@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
 
-func TestSSHProxyService_YAML(t *testing.T) {
+func TestSSHMultiplexerService_YAML(t *testing.T) {
 	t.Parallel()
 
 	tests := []testYAMLCase[SSHMultiplexerService]{
@@ -40,7 +40,7 @@ func TestSSHProxyService_YAML(t *testing.T) {
 	testYAML(t, tests)
 }
 
-func TestSSHProxyService_CheckAndSetDefaults(t *testing.T) {
+func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
 	tests := []testCheckAndSetDefaultsCase[*SSHMultiplexerService]{
