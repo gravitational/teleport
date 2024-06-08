@@ -71,7 +71,7 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     ProxyCommand {{ proxyCommandQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ proxyCommandQuote $dot.DestinationDir }} --proxy-server={{ proxyCommandQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ proxyCommandQuote $clusterName }} {{ if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{ if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{ if $dot.Resume }}--resume{{ else }}--no-resume{{ end }} --user=%r --host=%h --port=%p
 {{- else if $dot.TBotMux }}
     ProxyCommand {{ proxyCommandQuote $dot.TBotMuxCommand }} {{- if ne $dot.TBotMuxSubcommand "" }} {{ proxyCommandQuote $dot.TBotMuxSubcommand }}{{ end }} {{ proxyCommandQuote $dot.TBotMuxSocketPath }} '{{ $dot.TBotMuxData }}'
-	ProxyUseFdpass true
+    ProxyUseFdpass true
 {{- else }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
