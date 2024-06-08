@@ -62,16 +62,22 @@ const (
 )
 
 var (
-	connectionsHandledCounter = prometheus.NewCounterVec(
+	muxReqsStartedCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "tbot_ssh_multiplexer_connections_total",
-			Help: "Number of SSH connections proxied",
+			Name: "tbot_ssh_multiplexer_requests_started_total",
+			Help: "Number of requests completed by the multiplexer",
+		},
+	)
+	muxReqsHandledCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tbot_ssh_multiplexer_requests_handled_total",
+			Help: "Number of requests completed by the multiplexer",
 		}, []string{"status"},
 	)
-	inflightConnectionsGauge = prometheus.NewGauge(
+	muxReqsInflightGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "tbot_ssh_multiplexer_connections_in_flight",
-			Help: "Number of SSH connections currently being proxied",
+			Name: "tbot_ssh_multiplexer_requests_in_flight",
+			Help: "Number of SSH connections currently being handled by the multiplexer",
 		},
 	)
 )
@@ -175,8 +181,9 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 ) {
 	// Register service metrics. Expected to always work.
 	if err := metrics.RegisterPrometheusCollectors(
-		connectionsHandledCounter,
-		inflightConnectionsGauge,
+		muxReqsStartedCounter,
+		muxReqsHandledCounter,
+		muxReqsInflightGauge,
 	); err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
@@ -246,9 +253,11 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 			return cfg, nil
 		},
 		UnaryInterceptors: []grpc.UnaryClientInterceptor{
+			clientMetrics.UnaryClientInterceptor(),
 			interceptors.GRPCClientUnaryErrorInterceptor,
 		},
 		StreamInterceptors: []grpc.StreamClientInterceptor{
+			clientMetrics.StreamClientInterceptor(),
 			interceptors.GRPCClientStreamErrorInterceptor,
 		},
 		SSHConfig:               sshConfig,
@@ -405,17 +414,25 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 			}
 
 			go func() {
-				inflightConnectionsGauge.Inc()
+				status := "UNKNOWN"
+				muxReqsStartedCounter.Inc()
+				muxReqsInflightGauge.Inc()
+				defer muxReqsInflightGauge.Dec()
+
 				err := s.handleConn(
 					egCtx, tshConfig, authClient, hostDialer, proxyHost, downstream,
 				)
-				inflightConnectionsGauge.Dec()
-				status := "OK"
-				if err != nil {
+				switch {
+				case utils.IsOKNetworkError(err):
+					status = "OK_NETWORK_ERR"
+					s.log.DebugContext(egCtx, "Handler exited with OK network error", "error", err)
+				case err != nil:
 					status = "ERROR"
-					s.log.WarnContext(egCtx, "Handler exited", "error", err)
+					s.log.WarnContext(egCtx, "Handler exited with error", "error", err)
+				default:
+					status = "OK"
 				}
-				connectionsHandledCounter.WithLabelValues(status).Inc()
+				muxReqsHandledCounter.WithLabelValues(status).Inc()
 			}()
 		}
 	})
