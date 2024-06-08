@@ -375,7 +375,7 @@ type session struct {
 
 	// eventsWaiter is used to wait for events to be emitted and goroutines closed
 	// when a session is closed.
-	eventsWaiter sync.WaitGroup
+	eventsWaiter concurrentWaitGroup
 
 	streamContext       context.Context
 	streamContextCancel context.CancelFunc
@@ -442,6 +442,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		recorder: events.WithNoOpPreparer(
 			events.NewDiscardRecorder(),
 		),
+		eventsWaiter: newConcurrentWaitGroup(),
 	}
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
@@ -1527,4 +1528,41 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 
 	}
 	return nil
+}
+
+// concurrentWaitGroup is a wait group that can be used concurrently.
+// It exits when the count reaches 0 for the first time.
+type concurrentWaitGroup struct {
+	cond  *sync.Cond
+	count int
+}
+
+func newConcurrentWaitGroup() concurrentWaitGroup {
+	return concurrentWaitGroup{
+		cond:  sync.NewCond(&sync.Mutex{}),
+		count: 0,
+	}
+}
+
+func (c *concurrentWaitGroup) Add(delta int) {
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+	c.count += delta
+}
+
+func (c *concurrentWaitGroup) Done() {
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+	c.count--
+	if c.count == 0 {
+		c.cond.Broadcast()
+	}
+}
+
+func (c *concurrentWaitGroup) Wait() {
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+	for c.count > 0 {
+		c.cond.Wait()
+	}
 }
