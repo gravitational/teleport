@@ -1,5 +1,23 @@
 # Changelog
 
+## 15.4.1 (06/10/24)
+
+* Updated OpenSSL to 3.0.14. [#42642](https://github.com/gravitational/teleport/pull/42642)
+* Fixed fetching resources with tons of metadata (such as labels or description) in Teleport Connect. [#42627](https://github.com/gravitational/teleport/pull/42627)
+* Added support for Microsoft Entra ID directory synchronization (Teleport Enterprise only, preview). [#42555](https://github.com/gravitational/teleport/pull/42555)
+* Added experimental support for storing audit events in cockroach. [#42549](https://github.com/gravitational/teleport/pull/42549)
+* Teleport Connect binaries for Windows are now signed. [#42472](https://github.com/gravitational/teleport/pull/42472)
+* Updated Go to 1.21.11. [#42404](https://github.com/gravitational/teleport/pull/42404)
+* Added GCP Cloud SQL for PostgreSQL backend support. [#42399](https://github.com/gravitational/teleport/pull/42399)
+* Added Prometheus metrics for the Postgres event backend. [#42384](https://github.com/gravitational/teleport/pull/42384)
+* Fixed the event-handler Helm chart causing stuck rollouts when using a PVC. [#42363](https://github.com/gravitational/teleport/pull/42363)
+* Fixed web UI notification dropdown menu height from growing too long from many notifications. [#42336](https://github.com/gravitational/teleport/pull/42336)
+* Disabled session recordings for non-interactive sessions when enhanced recording is disabled. There is no loss of auditing or impact on data fidelity because these recordings only contained session.start, session.end, and session.leave events which were already captured in the audit log. This will all teleport components to consume less resources and reduce storage costs. [#42320](https://github.com/gravitational/teleport/pull/42320)
+* Fixed an issue where removing an app could make teleport app agents incorrectly report as unhealthy for a short time. [#42270](https://github.com/gravitational/teleport/pull/42270)
+* Fixed DynamodbEvents panic when the cursor fell outside of the [From,To] interval. [#42267](https://github.com/gravitational/teleport/pull/42267)
+* The teleport configure command now supports a `--node-name` flag for overriding the node's hostname. [#42250](https://github.com/gravitational/teleport/pull/42250)
+* Added support plugin resource in `tctl` tool. [#42224](https://github.com/gravitational/teleport/pull/42224)
+
 ## 15.4.0 (05/31/24)
 
 ### Access requests notification routing rules
