@@ -107,8 +107,8 @@ export default function useAccessRequestCheckout() {
 
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.getRequestableRoles({
+      retryWithRelogin(ctx, clusterUri, async () => {
+        const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
           resourceIds: data
             .filter(d => d.kind !== 'role')
@@ -121,8 +121,7 @@ export default function useAccessRequestCheckout() {
               clusterName: d.clusterName,
               subResourceName: '',
             })),
-        })
-      ).then(response => {
+        });
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
