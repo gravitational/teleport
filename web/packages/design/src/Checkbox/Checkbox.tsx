@@ -103,12 +103,12 @@ export function StyledCheckbox(props: StyledCheckboxProps) {
 
 const OuterWrapper = styled.span`
   line-height: 0;
+  margin: 3px;
 `;
 
 const InnerWrapper = styled.span`
   display: inline-block;
   position: relative;
-  margin: 3px;
 `;
 
 const Checkmark = styled(Icon.CheckThick)`
