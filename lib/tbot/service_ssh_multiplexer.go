@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,20 +150,25 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 		}
 	}
 
+	absPath, err := filepath.Abs(dest.Path)
+	if err != nil {
+		return trace.Wrap(err, "determining absolute path for destination")
+	}
+
 	var sshConfigBuilder strings.Builder
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
 	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
 		ClusterNames:        []string{id.ClusterName},
-		KnownHostsPath:      filepath.Join(dest.Path, ssh.KnownHostsName),
-		IdentityFilePath:    filepath.Join(dest.Path, identity.PrivateKeyKey),
-		CertificateFilePath: filepath.Join(dest.Path, identity.SSHCertKey),
+		KnownHostsPath:      filepath.Join(absPath, ssh.KnownHostsName),
+		IdentityFilePath:    filepath.Join(absPath, identity.PrivateKeyKey),
+		CertificateFilePath: filepath.Join(absPath, identity.SSHCertKey),
 		ProxyHost:           proxyHost,
 
 		TBotMux:             true,
 		TBotMuxProxyCommand: proxyCommand,
 		TBotMuxData:         `%h:%p`,
-		TBotMuxSocketPath:   filepath.Join(dest.Path, sshMuxSocketName),
+		TBotMuxSocketPath:   filepath.Join(absPath, sshMuxSocketName),
 	})
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")
@@ -381,10 +387,16 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	defer authClient.Close()
 
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
+	absPath, err := filepath.Abs(dest.Path)
+	if err != nil {
+		return trace.Wrap(err, "determining absolute path for destination")
+	}
+	listenerURL := url.URL{Scheme: "unix", Path: filepath.Join(absPath, sshMuxSocketName)}
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", filepath.Join(dest.Path, sshMuxSocketName)))
+		listenerURL.String(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
