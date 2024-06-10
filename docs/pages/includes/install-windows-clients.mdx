@@ -27,3 +27,8 @@
   ```
 
   Make sure to move `tsh.exe` and `tctl.exe` into your PATH.
+
+  <Admonition type="note">
+    Do not place `tsh.exe` in the `System32` directory, as this can cause issues when using WinSCP.
+    You should use `%WINDIR%` (e.g. `C:\Windows`) or `%USERPROFILE%` (e.g. `C:\Users\<username>`) instead.
+  </Admonition>
