@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -427,9 +428,11 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 				var status string
 				switch {
 				case utils.IsOKNetworkError(err):
-					status = "OK_NETWORK_ERR"
-					s.log.DebugContext(egCtx, "Handler exited with OK network error", "error", err)
-				case err != nil:
+					// We reduce the verbosity here since these are to be
+					// expected and are not usually indicative of a problem.
+					status = "OK_NETWORK_ERROR"
+					s.log.DebugContext(egCtx, "Handler exited with a network error", "error", err)
+				case err != nil && !errors.Is(err, context.Canceled):
 					status = "ERROR"
 					s.log.WarnContext(egCtx, "Handler exited with error", "error", err)
 				default:
@@ -593,7 +596,8 @@ func (s *SSHMultiplexerService) String() string {
 	return config.SSHMultiplexerServiceType
 }
 
-// cyclingHostDialClient
+// cyclingHostDialClient handles cycling through proxy clients every configured
+// number of connections. This prevents a single client being overwhelmed.
 type cyclingHostDialClient struct {
 	max    int32
 	config proxyclient.ClientConfig
@@ -691,7 +695,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 	}
 	defer c.Close()
 
-	if _, err := fmt.Fprintf(c, target, "\x00"); err != nil {
+	if _, err := fmt.Fprint(c, target, "\x00"); err != nil {
 		return trace.Wrap(err)
 	}
 

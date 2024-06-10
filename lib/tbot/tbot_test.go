@@ -920,6 +920,11 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		assert.NoError(t, err, "bot should not exit with error")
 		cancel()
 	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancel()
+		wg.Wait()
+	})
 
 	// Wait for files to be output
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -975,8 +980,4 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	out, err := sshSess.CombinedOutput("echo hello")
 	require.NoError(t, err)
 	require.Equal(t, "hello\n", string(out))
-
-	// Shut down bot and make sure it exits.
-	cancel()
-	wg.Wait()
 }
