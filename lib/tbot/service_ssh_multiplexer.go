@@ -414,7 +414,6 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 			}
 
 			go func() {
-				status := "UNKNOWN"
 				muxReqsStartedCounter.Inc()
 				muxReqsInflightGauge.Inc()
 				defer muxReqsInflightGauge.Dec()
@@ -422,6 +421,8 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 				err := s.handleConn(
 					egCtx, tshConfig, authClient, hostDialer, proxyHost, downstream,
 				)
+
+				var status string
 				switch {
 				case utils.IsOKNetworkError(err):
 					status = "OK_NETWORK_ERR"
