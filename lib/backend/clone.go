@@ -54,7 +54,7 @@ func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) erro
 			return trace.Wrap(err, "failed to check destination for existing data")
 		}
 		if len(result.Items) > 0 {
-			return trace.Errorf("unable to clone data to destination with existing data; this may be overriden by configuring 'force: true'")
+			return trace.Errorf("unable to clone data to destination with existing data; this may be overridden by configuring 'force: true'")
 		}
 	} else {
 		log.WarnContext(ctx, "Skipping check for existing data in destination.")
