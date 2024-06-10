@@ -62,13 +62,15 @@ scheduler.
 
 #### Protocol
 
-The Unix socket will implement a simple protocol:
+A simple protocol will exist for interacting with the multiplexer:
 
-1. Upon connection, the client will send a message indicating the target.
-  a. The message will be encoded in JSON. This will allow more fields to be 
-    added in the future without breaking compatability.
-  b. The `host_port` field will be a string in the format `host:port`.
-2. The server will establish a connection to the target, and then begin
+1. The server will open a Unix domain socket named `tbot_ssh_multiplexer.v1.sock`.
+2. Upon connection, the client will send a request indicating the target.
+  a. The request will be encoded in JSON and be terminated with NULL.
+  b. This JSON message will contain two fields:
+    i. `host`: The target host.
+    ii. `port`: The target host's port.
+3. The server will establish a connection to the target, and then begin
    forwarding data between the local connection and the target.
 
 Also considered was implementing the SOCKS5 protocol. Whilst this is more 
