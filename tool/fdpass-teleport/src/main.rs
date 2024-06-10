@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 use nix::{
     errno::Errno,
     fcntl::{self, OFlag},
@@ -40,6 +56,11 @@ fn main() -> Result<()> {
     let mut target = args.next().ok_or_eyre("missing connection target")?;
     target.push("\0");
 
+    // in OpenSSH ProxyCommand+ProxyUseFdPass the program is executed with a
+    // unix domain socket as stdout, which we can check with a getsockname();
+    // we'll get a ENOTSOCK if stdout is not a socket, or EINVAL if the address
+    // returned by getsockname() is not AF_UNIX (i.e. stdout is a socket but not
+    // a unix domain socket)
     socket::getsockname::<socket::UnixAddr>(libc::STDOUT_FILENO)
         .wrap_err("stdout is not a unix socket")?;
 
@@ -58,11 +79,14 @@ fn main() -> Result<()> {
     }
 
     let mut mux_conn = UnixStream::connect(mux_path).wrap_err("could not connect to mux")?;
+    // we added a final NUL to target above
     mux_conn
         .write_all(target.as_bytes())
         .wrap_err("could not send connection target to mux")?;
 
-    // logic lifted from OpenBSD's netcat fdpass code
+    // we can now pass the connection to OpenSSH (or whoever launched us) over
+    // stdout, sending a byte of actual data together with the connection's file
+    // descriptor; logic lifted from OpenBSD's netcat fdpass code
     // (https://github.com/openbsd/src/blob/master/usr.bin/nc/netcat.c)
     loop {
         match socket::sendmsg::<()>(
