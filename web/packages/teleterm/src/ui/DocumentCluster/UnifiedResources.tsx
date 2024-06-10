@@ -47,7 +47,11 @@ import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_res
 import { NodeSubKind } from 'shared/services';
 import { waitForever } from 'shared/utils/wait';
 
-import { UserPreferences } from 'teleterm/services/tshd/types';
+import {
+  UserPreferences,
+  ListUnifiedResourcesRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as uri from 'teleterm/ui/uri';
@@ -264,15 +268,8 @@ const Resources = memo(
             await waitForever(signal);
           }
 
-          const fetchOnlyRequestable =
-            props.integratedAccessRequests.supported === 'yes' &&
-            props.integratedAccessRequests.availabilityFilter.mode ===
-              'requestable';
-          const fetchAll =
-            props.integratedAccessRequests.supported === 'yes' &&
-            (props.integratedAccessRequests.availabilityFilter.mode ===
-              'none' ||
-              props.integratedAccessRequests.availabilityFilter.mode === 'all');
+          const { searchAsRoles, includeRequestable } =
+            getRequestableResourcesParams(props.integratedAccessRequests);
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -280,7 +277,6 @@ const Resources = memo(
               appContext.resourcesService.listUnifiedResources(
                 {
                   clusterUri: props.clusterUri,
-                  searchAsRoles: fetchOnlyRequestable,
                   sortBy: {
                     isDesc: props.queryParams.sort.dir === 'DESC',
                     field: props.queryParams.sort.fieldName,
@@ -291,7 +287,8 @@ const Resources = memo(
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
-                  includeRequestable: fetchAll,
+                  searchAsRoles,
+                  includeRequestable,
                 },
                 signal
               )
@@ -572,3 +569,34 @@ type IntegratedAccessRequests =
       supported: 'yes';
       availabilityFilter: ResourceAvailabilityFilter;
     };
+
+/**
+ * When `includeRequestable` is true,
+ * all resources (accessible and requestable) are returned.
+ * When only `searchAsRoles` is true, only requestable resources are returned.
+ * When both are false, only accessible resources are returned.
+ */
+function getRequestableResourcesParams(
+  integratedAccessRequests: IntegratedAccessRequests
+): Pick<ListUnifiedResourcesRequest, 'searchAsRoles' | 'includeRequestable'> {
+  if (integratedAccessRequests.supported === 'yes') {
+    switch (integratedAccessRequests.availabilityFilter.mode) {
+      case 'all':
+      case 'none':
+        return {
+          searchAsRoles: false,
+          includeRequestable: true,
+        };
+      case 'requestable':
+        return {
+          searchAsRoles: true,
+          includeRequestable: false,
+        };
+    }
+  }
+
+  return {
+    searchAsRoles: false,
+    includeRequestable: false,
+  };
+}
