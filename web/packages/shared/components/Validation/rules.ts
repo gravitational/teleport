@@ -194,34 +194,6 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
   };
 };
 
-/**
- * A rule function that combines multiple inner rule functions. All rules must
- * return `valid`, otherwise it returns a comma separated string containing all
- * invalid rule messages.
- * @param rules a list of rule functions to apply
- * @returns a rule function that ANDs all input rules
- */
-const requiredAll =
-  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
-  (value: T) =>
-  () => {
-    let messages = [];
-    for (let r of rules) {
-      let result = r(value)();
-      if (!result.valid) {
-        messages.push(result.message);
-      }
-    }
-
-    if (messages.length > 0) {
-      return {
-        valid: false,
-        message: messages.join('. '),
-      };
-    }
-    return { valid: true };
-  };
-
 export {
   requiredToken,
   requiredPassword,
@@ -229,6 +201,5 @@ export {
   requiredField,
   requiredRoleArn,
   requiredIamRoleName,
-  requiredEmailLike,
-  requiredAll,
+  requiredEmailLike
 };
