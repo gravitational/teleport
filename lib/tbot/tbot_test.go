@@ -894,7 +894,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			Insecure:      true,
 			ServiceConfigs: []config.ServiceConfig{
 				&config.SSHMultiplexerService{
-					EnableResumption: ptr(false),
 					Destination: &config.DestinationDirectory{
 						Path: tmpDir,
 					},

@@ -550,11 +550,6 @@ func (s *SSHMultiplexerService) handleConn(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Drain the buffer we used to read in the request in case it read in more
-	// than just the initial request.
-	if _, err := io.CopyN(upstream, buf, int64(buf.Buffered())); err != nil {
-		return trace.Wrap(err, "draining request buffer to upstream")
-	}
 
 	if s.cfg.SessionResumptionEnabled() {
 		log.DebugContext(ctx, "Enabling session resumption")
@@ -575,8 +570,18 @@ func (s *SSHMultiplexerService) handleConn(
 			return trace.Wrap(err, "wrapping conn for session resumption")
 		}
 	}
-	// We don't need to defer close upstream here as this is handled by
-	// ProxyConn
+
+	// Drain the buffer we used to read in the request in case it read in more
+	// than just the initial request.
+	if _, err := io.CopyN(upstream, buf, int64(buf.Buffered())); err != nil {
+		err := trace.Wrap(err, "draining request buffer to upstream")
+		if err := upstream.Close(); err != nil {
+			return trace.NewAggregate(
+				trace.Wrap(err, "closing upstream"), err,
+			)
+		}
+		return err
+	}
 
 	log.InfoContext(ctx, "Proxying connection for multiplexing request")
 	startedProxying := time.Now()
