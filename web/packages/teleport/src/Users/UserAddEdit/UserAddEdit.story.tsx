@@ -18,7 +18,11 @@
 
 import React from 'react';
 
+import { AllUserTraits } from 'teleport/services/user';
+
 import { UserAddEdit } from './UserAddEdit';
+
+import type { TraitsOption } from './TraitsEditor';
 
 export default {
   title: 'Teleport/Users/UserAddEdit',
@@ -72,4 +76,12 @@ const props = {
     expires: new Date('2050-12-20T17:28:20.93Z'),
     username: 'Lester',
   },
+  allTraits: { ['logins']: ['root', 'ubuntu'] } as AllUserTraits,
+  configuredTraits: [
+    {
+      trait: { value: 'logins', label: 'logins' },
+      traitValues: [{ value: 'root', label: 'root' }],
+    },
+  ] as TraitsOption[],
+  setConfiguredTraits: () => null,
 };

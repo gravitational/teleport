@@ -22,7 +22,7 @@ import { Option } from 'shared/components/Select';
 
 import { ResetToken, User } from 'teleport/services/user';
 
-export type TraitEditor = { trait: Option; traitValues: Option[] };
+import type { TraitsOption } from './TraitsEditor';
 
 export default function useUserDialog(props: Props) {
   const { attempt, setAttempt } = useAttemptNext('');
@@ -34,7 +34,7 @@ export default function useUserDialog(props: Props) {
       label: r,
     }))
   );
-  const [configuredTraits, setConfiguredTraits] = useState<TraitEditor[]>([]);
+  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>([]);
 
   function onChangeName(name = '') {
     setName(name);
