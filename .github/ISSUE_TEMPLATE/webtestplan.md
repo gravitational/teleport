@@ -963,10 +963,6 @@ Add the following to enable read access to trusted clusters
         second one after closing the modal for the first request.
   - [ ] Make two concurrent headless requests for two different clusters. Verify that Connect shows
         the second one after closing the modal for the first request.
-- tshd-initiated communication
-  - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
-        through CLI. While the login modal is shown, make a headless request. Verify that after logging
-        in again, the app shows the modal for the headless request.
 - Per-session MFA
   - The easiest way to test it is to enable [cluster-wide per-session
     MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#cluster-wide).
