@@ -52,12 +52,6 @@ export function TraitsEditor({
     setConfiguredTraits(newTraits);
   }, [allTraits]);
 
-  type InputOption = {
-    labelField: 'traitKey' | 'traitValues';
-    option: Option | Option[];
-    index: number;
-  };
-
   function handleInputChange(i: InputOption) {
     let newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
@@ -92,20 +86,6 @@ export function TraitsEditor({
   const addLabelText =
     configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
 
-  const requireNoDuplicateTraits = (enteredTrait: Option) => () => {
-    let k = configuredTraits.map(trait => trait.traitKey.value.toLowerCase());
-    let occurance = 0;
-    k.forEach(key => {
-      if (key === enteredTrait.value.toLowerCase()) {
-        occurance++;
-      }
-    });
-    if (occurance > 1) {
-      return { valid: false, message: 'Trait key should be unique for a user' };
-    }
-    return { valid: true };
-  };
-
   return (
     <Box>
       <Text fontSize={1}>User Traits</Text>
@@ -128,7 +108,7 @@ export function TraitsEditor({
                     label="Key"
                     rule={requiredAll(
                       requiredField('Trait key is required'),
-                      requireNoDuplicateTraits
+                      requireNoDuplicateTraits(configuredTraits)
                     )}
                     onChange={e => {
                       handleInputChange({
@@ -225,6 +205,27 @@ export function TraitsEditor({
   );
 }
 
+type InputOption = {
+  labelField: 'traitKey' | 'traitValues';
+  option: Option | Option[];
+  index: number;
+};
+
+const requireNoDuplicateTraits =
+  (configuredTraits: TraitsOption[]) => (enteredTrait: Option) => () => {
+    let k = configuredTraits.map(trait => trait.traitKey.value.toLowerCase());
+    let occurance = 0;
+    k.forEach(key => {
+      if (key === enteredTrait.value.toLowerCase()) {
+        occurance++;
+      }
+    });
+    if (occurance > 1) {
+      return { valid: false, message: 'Trait key should be unique for a user' };
+    }
+    return { valid: true };
+  };
+
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
   let newTrait = [];
   for (let trait in allTraits) {
@@ -233,7 +234,7 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
     }
     if (allTraits[trait].length > 0) {
       newTrait.push({
-        trait: { value: trait, label: trait },
+        traitKey: { value: trait, label: trait },
         traitValues: allTraits[trait].map(t => ({
           value: t,
           label: t,
