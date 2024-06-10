@@ -736,9 +736,9 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authentication issues device event (any outcomes)
   - [ ] Device web authentication issues "Device Web Token Created" and "Device
         Web Authentication Confirmed" events
-  - [ ] Device web authentication events have web_session_id set.
+  - [ ] Device web authentication events have web_authentication_id set.
         Corresponding "Device Authenticated" events have both
-        web_authentication=true and web_session_id set.
+        web_authentication=true and web_authentication_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
