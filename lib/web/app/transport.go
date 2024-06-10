@@ -283,7 +283,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 	// eliminate any servers from the head of the list that were unreachable
 	t.mu.Lock()
-	if i < len(servers) {
+	if i < len(t.c.servers) {
 		t.c.servers = t.c.servers[i:]
 	} else {
 		t.c.servers = nil
