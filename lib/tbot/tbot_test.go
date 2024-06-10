@@ -60,11 +60,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Support the re-exec involved with Teleport SSH server
-	//if srv.IsReexec() {
-	//	srv.RunAndExit(os.Args[1])
-	//}
-
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
