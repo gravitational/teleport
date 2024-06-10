@@ -99,7 +99,7 @@ export function TraitsEditor({
       if (key === enteredTrait.value.toLowerCase()) {
         occurance++;
       }
-    })
+    });
     if (occurance > 1) {
       return { valid: false, message: 'Trait key should be unique for a user' };
     }
