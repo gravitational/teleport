@@ -316,7 +316,7 @@ $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 # TODO before merge: move the [target.TARGET] change into other PR
-/tmp/tplacholder/src/main.rs:
+/tmp/tplaceholder/src/main.rs:
 	rm -rf "/tmp/tplaceholder"
 	mkdir -pv "/tmp/tplaceholder"
 	cd "/tmp/tplaceholder" && \
@@ -334,8 +334,8 @@ endif
 		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
-$(BUILDDIR)/tplaceholder: /tmp/tplacholder/src/main.rs
-	cd /tmp/tplacholder/ && cargo build --release --locked $(CARGO_TARGET)
+$(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
+	cd /tmp/tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
 	install target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
 	$(BUILDDIR)/tplaceholder
 
