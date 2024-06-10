@@ -13,10 +13,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-const (
-	// bufferSize is the number of backend items that are queried at a time.
-	bufferSize = 10000
-)
+// bufferSize is the number of backend items that are queried at a time.
+const bufferSize = 10000
 
 // CloneConfig contains the configuration for cloning a [Backend].
 // All items from the source are copied to the destination. All Teleport Auth
