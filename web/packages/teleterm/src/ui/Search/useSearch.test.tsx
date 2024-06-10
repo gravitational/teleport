@@ -272,7 +272,7 @@ describe('useResourceSearch', () => {
     expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
   });
 
-  it('requestable resources should be fetched for leaves if the root cluster allows it', async () => {
+  it('fetches requestable resources for leaves if the root cluster allows it', async () => {
     const appContext = new MockAppContext();
     const rootCluster = makeRootCluster({
       showResources: ShowResources.REQUESTABLE,
