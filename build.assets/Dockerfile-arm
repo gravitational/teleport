@@ -23,25 +23,25 @@ ARG BUILDARCH
 
 RUN apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        curl \
-        git \
-        gzip \
-        libc6-dev \
-        libpam-dev \
-        locales \
-        pkg-config \
-        sudo \
-        unzip \
-        zip \
-        # ARM dependencies
-        gcc-arm-linux-gnueabihf \
-        libc6-dev-armhf-cross \
-        # ARM64 dependencies
-        gcc-aarch64-linux-gnu \
-        libc6-dev-arm64-cross \
-        && \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    gzip \
+    libc6-dev \
+    libpam-dev \
+    locales \
+    pkg-config \
+    sudo \
+    unzip \
+    zip \
+    # ARM dependencies
+    gcc-arm-linux-gnueabihf \
+    libc6-dev-armhf-cross \
+    # ARM64 dependencies
+    gcc-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
+    && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
@@ -93,6 +93,7 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 # will run builds using the Rust toolchains we install here.
 USER ci
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup target add arm-unknown-linux-gnueabihf && \
     rustup --version && \
     cargo --version && \
     rustc --version

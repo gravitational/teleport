@@ -37,9 +37,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
     [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
     cmake \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DWITH_EXAMPLES=OFF . && \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DWITH_EXAMPLES=OFF . && \
     make && \
     make install && \
     make clean
@@ -60,11 +60,11 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
     CFLAGS=-pthread cmake \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_MANPAGES=OFF \
-        -DBUILD_TOOLS=OFF \
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DCMAKE_BUILD_TYPE=Release . && \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_MANPAGES=OFF \
+    -DBUILD_TOOLS=OFF \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DCMAKE_BUILD_TYPE=Release . && \
     grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
     make install && \
@@ -78,7 +78,7 @@ FROM buildpack-deps:22.04 AS libbpf
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
-        libelf-dev
+    libelf-dev
 
 ARG LIBBPF_VERSION
 # BUILD_STATIC_ONLY - builds only static libraries without shared ones
@@ -132,42 +132,42 @@ RUN apt-get -y update && \
     apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
-        apt-utils \
-        build-essential \
-        ca-certificates \
-        clang \
-        clang-format \
-        curl \
-        `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
-        git \
-        gnupg \
-        gzip \
-        libc6-dev \
-        libelf-dev \
-        libpam-dev \
-        libpcsclite-dev \
-        libsqlite3-0 \
-        libssl-dev \
-        llvm \
-        locales \
-        mingw-w64 \
-        mingw-w64-x86-64-dev \
-        net-tools \
-        openssh-client \
-        pkg-config \
-        python3-pip \
-        python3-setuptools \
-        python3-wheel \
-        # rsync is required for some integration tests
-        rsync \
-        softhsm2 \
-        sudo \
-        tree \
-        unzip \
-        xauth \
-        zip \
-        zlib1g-dev \
-        && \
+    apt-utils \
+    build-essential \
+    ca-certificates \
+    clang \
+    clang-format \
+    curl \
+    `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
+    git \
+    gnupg \
+    gzip \
+    libc6-dev \
+    libelf-dev \
+    libpam-dev \
+    libpcsclite-dev \
+    libsqlite3-0 \
+    libssl-dev \
+    llvm \
+    locales \
+    mingw-w64 \
+    mingw-w64-x86-64-dev \
+    net-tools \
+    openssh-client \
+    pkg-config \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    # rsync is required for some integration tests
+    rsync \
+    softhsm2 \
+    sudo \
+    tree \
+    unzip \
+    xauth \
+    zip \
+    zlib1g-dev \
+    && \
     install -m 0755 -d /etc/apt/keyrings && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
@@ -210,9 +210,9 @@ RUN groupadd ci --gid=$GID -o && \
 # Install Rust.
 ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
 # Install Rust using the ci user, as that is the user that
@@ -226,7 +226,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     rustup target add wasm32-unknown-unknown && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu; fi
 
 ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
@@ -273,7 +273,7 @@ RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && 
 # Install shellcheck.
 RUN scversion='v0.10.0' && \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
-        tar -xJv && \
+    tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
 
@@ -304,11 +304,11 @@ RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_
 # Install protoc.
 ARG PROTOC_VERSION # eg, "26.1"
 RUN VERSION="$PROTOC_VERSION" && \
-  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
-  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
-  unzip "$PB_FILE" -d /usr/local && \
-  rm -f "$PB_FILE"
+    PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+    PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+    curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+    unzip "$PB_FILE" -d /usr/local && \
+    rm -f "$PB_FILE"
 
 # Install protoc-gen-gogofast.
 ARG GOGO_PROTO_TAG # eg, "v1.3.2"
