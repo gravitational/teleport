@@ -35,6 +35,7 @@ import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE'
 
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { TraitConvenience, convertToTraitConvenience } from '../Traits';
+import { OktaBadge } from '../Shared/OktaBadge';
 
 import { ReviewAccessList } from './ReviewAccessList';
 
@@ -208,14 +209,10 @@ export function ViewEditAccessList() {
   } else if (attempt.status === 'success') {
     FeatureTitle = (
       <Box>
-        <Text
-          fontSize={5}
-          mr={3}
-          mb={accessList.description ? 2 : 0}
-          css={{ lineHeight: '21px' }}
-        >
-          {accessList.title}
-        </Text>
+        <Flex alignItems="center" mr={3} gap={1}>
+          <Text fontSize={5}>{accessList.title}</Text>
+          {accessList.isOkta && <OktaBadge />}
+        </Flex>
         {accessList.description && (
           <Text fontSize={1} css={{ lineHeight: '12px' }}>
             {accessList.description}

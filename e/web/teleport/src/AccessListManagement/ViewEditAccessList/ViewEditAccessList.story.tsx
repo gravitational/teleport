@@ -139,7 +139,12 @@ const Provider = props => {
 };
 
 const mockAccessList = {
-  metadata: { name: 'mock-access-list-id' },
+  metadata: {
+    name: 'mock-access-list-id',
+    labels: {
+      'okta/org': 'https://some-url',
+    },
+  },
   members: [
     {
       name: 'member1',

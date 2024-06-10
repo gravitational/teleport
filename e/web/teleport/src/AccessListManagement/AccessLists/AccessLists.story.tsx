@@ -126,7 +126,12 @@ const mockAccessLists = [
     membersCount: 0,
   },
   {
-    metadata: { name: 'bbb' },
+    metadata: {
+      name: 'bbb',
+      labels: {
+        'okta/org': 'https://some-url',
+      },
+    },
     spec: {
       title:
         'Really long title to test ellipsis lorem ipsum dolores george washington',
@@ -167,7 +172,12 @@ const mockAccessLists = [
     membersCount: 15,
   },
   {
-    metadata: { name: 'ddd' },
+    metadata: {
+      name: 'ddd',
+      labels: {
+        'okta/org': 'https://some-url',
+      },
+    },
     spec: {
       title: 'Design Team',
       description: 'lorem ipsum some kind of generic description',
@@ -192,9 +202,14 @@ const mockAccessLists = [
     membersCount: 1,
   },
   {
-    metadata: { name: 'fff' },
+    metadata: {
+      name: 'fff',
+      labels: {
+        'okta/org': 'https://some-url',
+      },
+    },
     spec: {
-      title: 'Kubernetes Access',
+      title: 'Kubernetes Access With a Long Name',
       description:
         'test long description to test ellipsis lorem ipsum descriptionlorem ipsum descriptionlorem ipsum description lorem ipsum description',
       audit: { frequency: '', next_audit_date: addWeeks(new Date(), 1) },

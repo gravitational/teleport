@@ -171,6 +171,7 @@ function makeAccessList(json: any): AccessList {
 
   return {
     id: metadata?.name || '',
+    isOkta: Object.keys(metadata?.labels || {}).includes('okta/org'),
     title: spec.title || '',
     description: spec.description || '',
     owners: makeOwners(spec.owners),

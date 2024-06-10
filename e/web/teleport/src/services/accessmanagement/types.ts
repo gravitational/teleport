@@ -36,6 +36,7 @@ export type AccessList = {
   id: string;
   title: string; // friendly name of id
   description?: string;
+  isOkta?: boolean;
   audit: AccessListAudit;
   grants: AccessListGrant; // memberGrant
   ownerGrants: AccessListGrant;

@@ -25,6 +25,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
   expect(response).toStrictEqual([
     {
       id: '',
+      isOkta: false,
       title: '',
       description: '',
       owners: [],
@@ -75,6 +76,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
+    isOkta: false,
     title: '',
   };
 
@@ -95,6 +97,9 @@ test('fetch an access list', async () => {
     accessList: {
       metadata: {
         name: 'some-id',
+        labels: {
+          'okta/org': 'https://some-url',
+        },
       },
       membersCount: 1234,
       spec: {
@@ -147,6 +152,7 @@ test('fetch an access list', async () => {
     await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
+    isOkta: true,
     title: 'some title',
     description: 'some description',
     audit: {

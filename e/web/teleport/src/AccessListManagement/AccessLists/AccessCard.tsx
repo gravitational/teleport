@@ -8,6 +8,7 @@ import { User } from 'design/Icon';
 import cfg from 'e-teleport/config';
 
 import { ToolTipText, TruncatingLabel } from '../Shared/Shared';
+import { OktaBadge } from '../Shared/OktaBadge';
 
 import { AccessListWithModifiedGrants } from './AccessLists';
 
@@ -21,8 +22,15 @@ export type Props = {
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
 export function AccessCard({ accessList, onlyRender = false }: Props) {
-  const { id, title, description, membersCount, grants, needsReviewBy } =
-    accessList;
+  const {
+    id,
+    title,
+    description,
+    membersCount,
+    grants,
+    needsReviewBy,
+    isOkta,
+  } = accessList;
   const history = useHistory();
 
   function handleOnClick() {
@@ -44,6 +52,7 @@ export function AccessCard({ accessList, onlyRender = false }: Props) {
   // case for Members.
   const isMember = membersCount == null;
   const canViewMembers = !isMember && membersCount >= 0;
+  const requiresReview = needsReviewBy && !isMember;
 
   return (
     <AccessCardContainer
@@ -51,15 +60,16 @@ export function AccessCard({ accessList, onlyRender = false }: Props) {
       onClick={handleOnClick}
       $onlyRender={onlyRender}
     >
-      {needsReviewBy && !isMember && (
-        <ReviewBadge>
-          Needs review by {format(needsReviewBy, 'MM/dd')}
-        </ReviewBadge>
+      {requiresReview && (
+        <ReviewBadge>Review by {format(needsReviewBy, 'MM/dd')}</ReviewBadge>
       )}
       <Box width="100%">
-        <SingleLineBox bold title={title}>
-          {title}
-        </SingleLineBox>
+        <Flex gap={1}>
+          <SingleLineBox bold title={title} $requiresReview={requiresReview}>
+            {title}
+          </SingleLineBox>
+          {isOkta && <OktaBadge />}
+        </Flex>
         <Description color="text.muted" title={description}>
           {truncatedDesc}
         </Description>
@@ -169,13 +179,13 @@ const SingleLineBox = styled(Text)`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  width: 100%;
+  max-width: ${p => (p.$requiresReview ? '155' : '235')}px;
 `;
 
 const ReviewBadge = styled.div`
   position: absolute;
   background-color: ${p => p.theme.colors.warning.main};
-  width: 115px;
+  width: 80px;
   height: 20px;
   right: 0;
   border-bottom-left-radius: ${p => p.theme.radii[2]}px;
@@ -185,4 +195,6 @@ const ReviewBadge = styled.div`
   align-items: center;
   flex-direction: row-reverse;
   padding-right: ${p => p.theme.space[2]}px;
+  margin-top: 2px;
+  color: ${p => p.theme.colors.dark};
 `;
