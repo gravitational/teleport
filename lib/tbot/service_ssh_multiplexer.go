@@ -479,17 +479,15 @@ func (s *SSHMultiplexerService) handleConn(
 	// The first thing downstream will send is the multiplexing request which is
 	// the "[host]:[port]\x00" format.
 	buf := bufio.NewReader(downstream)
-	reqBytes, err := buf.ReadBytes('\x00')
+	req, err := buf.ReadString('\x00')
 	if err != nil {
 		return trace.Wrap(err, "reading request")
 	}
-	reqBytes = reqBytes[:len(reqBytes)-1] // Drop the NULL.
-	splits := bytes.Split(reqBytes, []byte{':'})
-	if len(splits) != 2 {
-		return trace.BadParameter("malformed request")
+	req = req[:len(req)-1] // Drop the NUL.
+	host, port, err := utils.SplitHostPort(req)
+	if err != nil {
+		return trace.Wrap(err, "malformed request")
 	}
-	host := string(splits[0])
-	port := string(splits[1])
 
 	log := s.log.With(
 		slog.Group("req",
@@ -704,7 +702,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 	var innerErr error
 	if controlErr := rawC.Control(func(fd uintptr) {
 		// We have to write something in order to send a control message so
-		// we just write NULL.
+		// we just write NUL.
 		_, _, innerErr = outUnix.WriteMsgUnix(
 			[]byte{0},
 			syscall.UnixRights(int(fd)),
