@@ -20,14 +20,14 @@ import React, { useEffect, Dispatch, SetStateAction } from 'react';
 import {
   ButtonPrimary,
   ButtonSecondary,
+  ButtonBorder,
   Alert,
   Box,
   Flex,
   Text,
   ButtonIcon,
 } from 'design';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
-import * as Icons from 'design/Icon';
+import { Add, Trash } from 'design/Icon';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -102,11 +102,12 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
           <DialogHeader>
             <DialogTitle>{isNew ? 'Create User' : 'Edit User'}</DialogTitle>
           </DialogHeader>
-          <DialogContent>
+          <DialogContent maxHeight={620} overflow={'auto'}>
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}
             <FieldInput
+              mr={2}
               label="Username"
               rule={requiredField('Username is required')}
               placeholder="Username"
@@ -116,6 +117,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               readonly={isNew ? false : true}
             />
             <FieldSelectAsync
+              mr={2}
               menuPosition="fixed"
               label="User Roles"
               rule={requiredField('At least one role is required')}
@@ -268,7 +270,7 @@ function TraitsEditor({
 
   return (
     <Box>
-      {configuredTraits.length > 0 && <Text>Traits</Text>}
+      <Text fontSize={1}>User Traits</Text>
 
       <Box>
         {configuredTraits.map(({ trait, traitValues }, index) => {
@@ -285,7 +287,7 @@ function TraitsEditor({
                     autoFocus
                     isSearchable
                     value={trait}
-                    label="Trait Name"
+                    label="Key"
                     rule={requiredAll(
                       requiredField('Trait key is required'),
                       requireNoDuplicateTraits
@@ -297,6 +299,7 @@ function TraitsEditor({
                         index: index,
                       });
                     }}
+                    createOptionPosition="last"
                   />
                 </Box>
                 <Box width="400px" ml={3}>
@@ -311,7 +314,7 @@ function TraitsEditor({
                       value: r,
                       label: r,
                     }))}
-                    label="Trait Value"
+                    label="Value"
                     isMulti
                     isSearchable
                     isClearable={false}
@@ -325,7 +328,9 @@ function TraitsEditor({
                       });
                     }}
                     isDisabled={false}
-                    createOptionPosition="last"
+                    formatCreateLabel={(i: string) =>
+                      'Trait value: ' + `"${i}"`
+                    }
                   />
                 </Box>
                 <ButtonIcon
@@ -342,7 +347,7 @@ function TraitsEditor({
                   `}
                   disabled={false}
                 >
-                  <Icons.Trash size="medium" />
+                  <Trash size="medium" />
                 </ButtonIcon>
               </Flex>
             </Box>
@@ -351,11 +356,29 @@ function TraitsEditor({
       </Box>
 
       <Box mt={4}>
-        <ButtonTextWithAddIcon
+        <ButtonBorder
           onClick={addTrait}
           label={addLabelText}
+          css={`
+            padding-left: 12px;
+            &:disabled {
+              .icon-add {
+                opacity: 0.35;
+              }
+              pointer-events: none;
+            }
+          `}
           disabled={false}
-        />
+        >
+          <Add
+            className="icon-add"
+            size={12}
+            css={`
+              margin-right: 3px;
+            `}
+          />
+          {addLabelText}
+        </ButtonBorder>
       </Box>
     </Box>
   );
