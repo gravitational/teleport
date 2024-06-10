@@ -43,6 +43,7 @@ const (
 	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
 	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
 	AccessGraphService_GitlabEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
+	AccessGraphService_EntraEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -82,6 +83,8 @@ type AccessGraphServiceClient interface {
 	AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error)
 	// GitlabEventsStream is a stream of commands to the Gitlab importer.
 	GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_GitlabEventsStreamClient, error)
+	// EntraEventsStream is a stream of commands to the Entra ID SSO importer.
+	EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EntraEventsStreamClient, error)
 }
 
 type accessGraphServiceClient struct {
@@ -227,6 +230,37 @@ func (x *accessGraphServiceGitlabEventsStreamClient) Recv() (*GitlabEventsStream
 	return m, nil
 }
 
+func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EntraEventsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_EntraEventsStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &accessGraphServiceEntraEventsStreamClient{stream}
+	return x, nil
+}
+
+type AccessGraphService_EntraEventsStreamClient interface {
+	Send(*EntraEventsStreamRequest) error
+	Recv() (*EntraEventsStreamResponse, error)
+	grpc.ClientStream
+}
+
+type accessGraphServiceEntraEventsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *accessGraphServiceEntraEventsStreamClient) Send(m *EntraEventsStreamRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEntraEventsStreamClient) Recv() (*EntraEventsStreamResponse, error) {
+	m := new(EntraEventsStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -264,6 +298,8 @@ type AccessGraphServiceServer interface {
 	AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error
 	// GitlabEventsStream is a stream of commands to the Gitlab importer.
 	GitlabEventsStream(AccessGraphService_GitlabEventsStreamServer) error
+	// EntraEventsStream is a stream of commands to the Entra ID SSO importer.
+	EntraEventsStream(AccessGraphService_EntraEventsStreamServer) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -291,6 +327,9 @@ func (UnimplementedAccessGraphServiceServer) AWSEventsStream(AccessGraphService_
 }
 func (UnimplementedAccessGraphServiceServer) GitlabEventsStream(AccessGraphService_GitlabEventsStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method GitlabEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) EntraEventsStream(AccessGraphService_EntraEventsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method EntraEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -455,6 +494,32 @@ func (x *accessGraphServiceGitlabEventsStreamServer) Recv() (*GitlabEventsStream
 	return m, nil
 }
 
+func _AccessGraphService_EntraEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).EntraEventsStream(&accessGraphServiceEntraEventsStreamServer{stream})
+}
+
+type AccessGraphService_EntraEventsStreamServer interface {
+	Send(*EntraEventsStreamResponse) error
+	Recv() (*EntraEventsStreamRequest, error)
+	grpc.ServerStream
+}
+
+type accessGraphServiceEntraEventsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *accessGraphServiceEntraEventsStreamServer) Send(m *EntraEventsStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEntraEventsStreamServer) Recv() (*EntraEventsStreamRequest, error) {
+	m := new(EntraEventsStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -493,6 +558,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GitlabEventsStream",
 			Handler:       _AccessGraphService_GitlabEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "EntraEventsStream",
+			Handler:       _AccessGraphService_EntraEventsStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

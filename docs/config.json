@@ -5,7 +5,7 @@
       "title": "Home",
       "entries": [
         {
-          "title": "Get Started with Teleport",
+          "title": "Introduction to Teleport",
           "slug": "/"
         },
         {
@@ -200,6 +200,10 @@
             "enterprise"
           ]
         },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
@@ -1120,7 +1124,7 @@
       ]
     },
     {
-      "title": "Run Teleport Agents",
+      "title": "Protect Infrastructure",
       "icon": "layers",
       "entries": [
         {
@@ -1128,7 +1132,7 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy via Terraform",
+          "title": "Deploy Agents via Terraform",
           "slug": "/agents/deploy-agents-terraform/"
         },
         {
@@ -1720,10 +1724,6 @@
           "slug": "/database-access/guides/"
         },
         {
-          "title": "Architecture",
-          "slug": "/database-access/architecture/"
-        },
-        {
           "title": "Reference",
           "slug": "/database-access/reference/",
           "entries": [
@@ -2168,10 +2168,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
+	{
+	  "title": "Teleport Agents",
+	  "slug": "/architecture/agents/"
+	},
         {
           "title": "Session Recording",
           "slug": "/architecture/session-recording/"
@@ -2215,7 +2215,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.3.7",
+      "version": "15.4.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

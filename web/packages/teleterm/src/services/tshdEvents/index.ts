@@ -43,9 +43,6 @@ export interface CannotProxyGatewayConnection
   gatewayUri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
-export type PromptMfaRequest = api.PromptMFARequest & {
-  rootClusterUri: uri.RootClusterUri;
-};
 
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest {

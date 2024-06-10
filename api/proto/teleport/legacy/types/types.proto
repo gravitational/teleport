@@ -5773,6 +5773,8 @@ message PluginSpecV1 {
     PluginServiceNowSettings serviceNow = 10;
     // Settings for the Gitlab plugin.
     PluginGitlabSettings gitlab = 12;
+    // Settings for the Entra ID plugin
+    PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
   }
@@ -5951,6 +5953,53 @@ message PluginDiscordSettings {
   // channel IDs that will receive notifications and requests regarding that
   // that Role.
   map<string, DiscordChannels> role_to_recipients = 1;
+}
+
+// PluginEntraIDSettings defines settings for the Entra ID sync plugin
+message PluginEntraIDSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncSettings controls the user and access list sync settings for EntraID.
+  PluginEntraIDSyncSettings sync_settings = 1;
+
+  // AccessGraphSettings controls settings for syncing access graph specific data.
+  // When this is null, Entra ID integration with Access Graph is disabled.
+  PluginEntraIDAccessGraphSettings access_graph_settings = 2;
+}
+
+// Defines settings for syncing users and access lists from Entra ID.
+message PluginEntraIDSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  string sso_connector_id = 2;
+}
+
+// AccessGraphSettings controls settings for syncing access graph specific data.
+message PluginEntraIDAccessGraphSettings {
+  option (gogoproto.equal) = true;
+
+  // AppSsoSettingsCache is an array of single sign-on settings for Entra enterprise applications.
+  //
+  // This data is stored here because it is not available through traditional methods (MS Graph API).
+  // Instead, it is fetched once during the plugin's set up using the user's credentials to connect to Azure's private API.
+  repeated PluginEntraIDAppSSOSettings app_sso_settings_cache = 1;
+}
+
+// PluginEntraIDAppSSOSettings is a container for a single Entra ID enterprise application's
+// cached SSO settings.
+// As this data is only parsed by TAG, each value is stored as an opaque JSON blob.
+message PluginEntraIDAppSSOSettings {
+  option (gogoproto.equal) = true;
+
+  // AppID is the `AppID` property of Entra application.
+  string app_id = 1;
+
+  // FederatedSSOV2 contains the cached, gzip-compressed payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+  bytes federated_sso_v2 = 2;
 }
 
 // PluginSCIMSettings defines the settings for a SCIM integration plugin
@@ -6422,6 +6471,8 @@ message IntegrationSpecV1 {
   oneof SubKindSpec {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+    // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
+    AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   }
 }
 
@@ -6438,6 +6489,17 @@ message AWSOIDCIntegrationSpecV1 {
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
   string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+}
+
+// AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
+message AzureOIDCIntegrationSpecV1 {
+  // TenantID specifies the ID of Entra Tenant (Directory)
+  // that this plugin integrates with.
+  string TenantID = 1 [(gogoproto.jsontag) = "tenant_id,omitempty"];
+
+  // ClientID specifies the ID of Azure enterprise application (client)
+  // that corresponds to this plugin.
+  string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
