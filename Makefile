@@ -320,10 +320,16 @@ tplaceholder/src/main.rs:
 	mkdir -pv "$(@D)"
 	cd "$(@D)/../" && \
 		cargo init && \
+		cargo update
+	
+ifeq ("$(RUST_TARGET_ARCH)","arm-unknown-linux-gnueabihf")
+	cd "$(@D)/../" && \
 		mkdir '.cargo' && \
-		printf '[target.%s]\nlinker = "%s-gcc"\n' "$(RUST_TARGET_ARCH)" "$(RUST_TARGET_ARCH)" >> '.cargo/config.toml' && \
+		printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "$(RUST_TARGET_ARCH)" >> '.cargo/config.toml'
+endif
+
+	cd "$(@D)/../" && \
 		cat '.cargo/config.toml' && \
-		cargo update && \
 		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
