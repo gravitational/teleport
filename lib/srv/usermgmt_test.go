@@ -106,7 +106,7 @@ func (tm *testHostUserBackend) CreateGroup(group, gid string) error {
 	return nil
 }
 
-func (tm *testHostUserBackend) CreateUser(user string, groups []string, uid, gid string) error {
+func (tm *testHostUserBackend) CreateUser(user string, groups []string, home, uid, gid string) error {
 	_, ok := tm.users[user]
 	if ok {
 		return trace.AlreadyExists("Group %q, already exists", user)
@@ -194,7 +194,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	require.NotContains(t, backend.users, "bob")
 
 	backend.CreateGroup("testgroup", "")
-	backend.CreateUser("simon", []string{}, "", "")
+	backend.CreateUser("simon", []string{}, "", "", "")
 
 	// try to create a temporary user for simon
 	closer, err = users.CreateUser("simon", userinfo)
@@ -240,7 +240,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
-		backend.CreateUser("testuser", nil, "", "")
+		backend.CreateUser("testuser", nil, "", "", "")
 		_, err := users.CreateUser("testuser", &services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
@@ -288,7 +288,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 		if slices.Contains(user.groups, types.TeleportServiceGroup) {
 			users.CreateUser(user.user, &services.HostUsersInfo{Groups: user.groups})
 		} else {
-			mgmt.CreateUser(user.user, user.groups, "", "")
+			mgmt.CreateUser(user.user, user.groups, "", "", "")
 		}
 	}
 	require.NoError(t, users.DeleteAllUsers())

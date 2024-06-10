@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-export const Key = styled.div`
-  line-height: 1;
-  background: ${p => p.theme.colors.spotBackground[1]};
-  padding: 2px;
-  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  border-radius: ${p => p.theme.space[1]}px;
-  font-weight: 700;
-  color: ${p => p.theme.colors.text.muted};
-`;
-
-export const KeyShortcut = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${p => p.theme.space[1]}px;
-  opacity: 0.5;
-  font-size: 12px;
-  pointer-events: none;
-  user-select: none;
-  transition: opacity 0.2s ease-in-out;
-`;
+import DocumentKubeExec from './DocumentKubeExec';
+export default DocumentKubeExec;

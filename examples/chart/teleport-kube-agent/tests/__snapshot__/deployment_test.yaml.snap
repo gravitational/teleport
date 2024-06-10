@@ -18,7 +18,7 @@ sets Deployment annotations when specified if action is Upgrade:
       template:
         metadata:
           annotations:
-            checksum/config: e2a099e6eeb24c94a395c55fa6cc7ba6cbf4502ab9ed6e9c47233adc40b7927e
+            checksum/config: 310911b3e71e9339802aeca1d182e1acf5153470f507ce4af423a73e6e06eaba
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -93,7 +93,7 @@ sets Deployment labels when specified if action is Upgrade:
     template:
       metadata:
         annotations:
-          checksum/config: 759fbcfcd1e9750bb5682ac3777c0e6146b5228d7ae9bba03136f7989eafd12d
+          checksum/config: 9e9cb2e4d76c492bccf0b1e2be4a5acffc8fe747484eb62e615c5ed8dc8c3fc6
         labels:
           app: RELEASE-NAME
           app.kubernetes.io/name: teleport-kube-agent
@@ -828,6 +828,142 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
     - name: my-mount
       secret:
         secretName: mySecret
+should mount jamfCredentialsSecret if it already exists and when role is jamf and action is Upgrade:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-jamf-api-credentials
+        name: jamf-api-credentials
+        readOnly: true
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: jamf-api-credentials
+      secret:
+        secretName: existing-teleport-jamf-secret
+should mount jamfCredentialsSecret.name when role is jamf and action is Upgrade:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-jamf-api-credentials
+        name: jamf-api-credentials
+        readOnly: true
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: jamf-api-credentials
+      secret:
+        secretName: teleport-jamf-api-credentials
 should mount tls.existingCASecretName and set environment when set in values if action is Upgrade:
   1: |
     containers:
