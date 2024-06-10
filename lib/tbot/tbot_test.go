@@ -953,7 +953,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		User:            currentUser.Username,
 		HostKeyCallback: callback,
 	}
-	conn, err := net.Dial("unix", filepath.Join(tmpDir, "tbot_ssh_multiplexer.v1.sock"))
+	conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		conn.Close()

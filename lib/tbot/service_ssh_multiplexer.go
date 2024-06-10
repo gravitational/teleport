@@ -61,7 +61,7 @@ import (
 )
 
 const (
-	sshMuxSocketName = "tbot_ssh_multiplexer.v1.sock"
+	sshMuxSocketName = "v1.sock"
 )
 
 var (
