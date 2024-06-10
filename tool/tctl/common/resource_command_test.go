@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
@@ -2027,8 +2026,7 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	fc, fds := testhelpers.DefaultConfig(t)
-	process := makeAndRunTestAuthServer(t, withFileConfig(fc), withFileDescriptors(fds), withFakeClock(clockwork.NewFakeClock()))
+	process := testenv.MakeTestServer(t)
 	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {

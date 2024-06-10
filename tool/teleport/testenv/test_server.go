@@ -68,8 +68,8 @@ const (
 	Host     = "localhost"
 )
 
-// used to easily join test services
-const staticToken = "test-static-token"
+// StaticToken is used to easily join test services
+const StaticToken = "test-static-token"
 
 func init() {
 	// If the test is re-executing itself, execute the command that comes over
@@ -149,7 +149,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.DataDir = t.TempDir()
 	cfg.Log = utils.NewLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
-	cfg.SetToken(staticToken)
+	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
 
 	cfg.Auth.ListenAddr = authAddr
@@ -159,7 +159,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
-			Token:   staticToken,
+			Token:   StaticToken,
 		}},
 	})
 	require.NoError(t, err)
@@ -170,8 +170,14 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	// Speeds up tests considerably.
 	cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
+	webListenerAddr := NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)
+	_, webListenerPort, err := net.SplitHostPort(webListenerAddr)
+	require.NoError(t, err)
+	cfg.Proxy.PublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: net.JoinHostPort(Host, webListenerPort)}}
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: webListenerAddr}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
+	cfg.Proxy.Kube.Enabled = true
+	cfg.Proxy.Kube.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors)}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
 	cfg.Proxy.DisableWebInterface = true
 
@@ -366,7 +372,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Token:                staticToken,
+		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
 		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
 		RoleMap: append(additionalRoleMappings,
