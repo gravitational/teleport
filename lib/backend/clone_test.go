@@ -85,7 +85,7 @@ func TestCloneForce(t *testing.T) {
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
+	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
 	require.Empty(t, diff)
 	require.Equal(t, itemCount, len(result.Items))
 }
