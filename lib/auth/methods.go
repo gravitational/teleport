@@ -301,7 +301,9 @@ func (a *Server) authenticateUserInternal(
 	user = req.Username
 	passwordless := user == ""
 
-	// Handle headless authentication as a special case separate from local auth methods below.
+	// Headless auth is treated more like sso login or access requests than local login,
+	// meaning it should be allowed for non-local users and failed headless auth attempts
+	// should not lock out the user (we skip the WithUserLock wrapper).
 	if req.HeadlessAuthenticationID != "" {
 		mfaDev, err = a.authenticateHeadless(ctx, req)
 		if err != nil {
@@ -536,14 +538,6 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 		return nil, trace.AccessDenied("headless authentication public key mismatch")
-	}
-
-	// Only grab user lock on successful headless auth to perform normal login
-	// checks, like whether the user is locked. Failed headless login attempts
-	// won't lock out the user.
-	if err := a.WithUserLock(ctx, req.Username, func() error { return nil }); err != nil {
-		log.Debugf("WithUserLock for user %q failed during headless authentication: %v", req.Username, err)
-		return nil, trace.Wrap(authenticateHeadlessError)
 	}
 
 	return approvedHeadlessAuthn.MfaDevice, nil
