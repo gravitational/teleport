@@ -169,7 +169,13 @@ func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 
 	user.SetRoles(req.Roles)
 
-	updateUserTraits(req, user)
+	// we do not want situation where one trait set (allTraits)
+	// overrides another (traits).
+	if len(req.AllTraits) > 0 {
+		user.SetTraits(req.AllTraits)
+	} else {
+		updateUserTraits(req, user)
+	}
 
 	updated, err := m.UpdateUser(r.Context(), user)
 	if err != nil {
@@ -305,9 +311,10 @@ type userTraits struct {
 // - if the value is an empty array we remove every element from the trait
 // - otherwise, we replace the list for that trait
 type saveUserRequest struct {
-	Name   string     `json:"name"`
-	Roles  []string   `json:"roles"`
-	Traits userTraits `json:"traits"`
+	Name      string              `json:"name"`
+	Roles     []string            `json:"roles"`
+	Traits    userTraits          `json:"traits"`
+	AllTraits map[string][]string `json:"allTraits"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {
