@@ -44,7 +44,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -55,9 +57,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
+	// Support the re-exec involved with Teleport SSH server
+	if srv.IsReexec() {
+		srv.RunAndExit(os.Args[1])
+	}
+
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
@@ -866,6 +874,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
 	fc.SSH.EnabledFlag = "true"
+	fc.SSH.DisableCreateHostUser = true
+	fc.SSH.ListenAddress = testenv.NewTCPListener(t, service.ListenerNodeSSH, &fds)
+	fc.Global.Logger.Severity = "debug"
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
@@ -928,8 +939,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	time.Sleep(5 * time.Second)
-
 	privateKeyBytes, err := os.ReadFile(filepath.Join(tmpDir, "key"))
 	require.NoError(t, err)
 	certBytes, err := os.ReadFile(filepath.Join(tmpDir, "key-cert.pub"))
@@ -954,9 +963,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprintln(conn, `{"host":"test.test-cluster.local","port":"3022"}`)
+	_, err = fmt.Fprintln(conn, `{"host":"test.test-cluster.local","port":"0"}`)
 	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:3022", sshConfig)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:22", sshConfig)
 	require.NoError(t, err)
 	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 	t.Cleanup(func() {
