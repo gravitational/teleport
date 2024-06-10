@@ -76,7 +76,7 @@ A simple protocol will exist for interacting with the multiplexer:
 Also considered was implementing the SOCKS5 protocol. Whilst this is more 
 standardized, it is more complicated than necessary. In addition, it seems like
 there's not many tools in the wild that can connect to a SOCKS server over a
-unix domain socket, so any advantage gained by the use of a standard protocol
+UNIX domain socket, so any advantage gained by the use of a standard protocol
 is not actually realized in practice.
 
 #### Client Binary
