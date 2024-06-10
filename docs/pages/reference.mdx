@@ -9,6 +9,7 @@ description: Comprehensive guides to commands, configuration options, and other 
 
 Contains guides to frequently asked questions for various Teleport features and use cases. ([more info](reference/faq.mdx))
 
+- [Kubernetes Access FAQ](reference/faq/kubernetes-access.mdx): Frequently asked questions about Teleport Kubernetes Access
 - [Teleport Enterprise Cloud FAQ](reference/faq/cloud-hosting.mdx): Teleport cloud frequently asked questions.
 - [Teleport FAQ](reference/faq/faq.mdx): Frequently Asked Questions About Using Teleport
 
@@ -29,6 +30,8 @@ References for concepts and tools available for operating Teleport. ([more info]
 Available options for configuring access to Teleport privileges and infrastructure resources. ([more info](reference/rbac.mdx))
 
 - [Access Controls for Servers](reference/rbac/server-rbac.mdx): Role-based access control (RBAC) for Teleport server access.
+- [Role-Based Access Control for Desktops](reference/rbac/desktop-access.mdx): Role-based access control (RBAC) for desktops protected by Teleport.
+- [Teleport Kubernetes Access Controls](reference/rbac/controls.mdx): How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
 
 ## Teleport Architecture Guides
 
@@ -52,6 +55,7 @@ Guides to the inner workings of components within a Teleport cluster. ([more inf
 Comprehensive lists of commands, arguments, and flags for Teleport CLI tools. ([more info](reference/cli.mdx))
 
 - [CLI Reference Introduction](reference/cli/overview.mdx): Detailed guide and reference documentation for Teleport's command line interface (CLI) tools.
+- [Desktop Access CLI Reference](reference/cli/desktop-access.mdx): CLI reference for Teleport desktop access.
 - [tbot CLI reference](reference/cli/tbot.mdx): Comprehensive reference of subcommands, flags, and arguments for the tbot CLI tool.
 - [tctl CLI reference](reference/cli/tctl.mdx): Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
 - [teleport CLI Reference](reference/cli/teleport.mdx): Comprehensive reference of subcommands, flags, and arguments for the teleport CLI tool.
@@ -61,6 +65,7 @@ Comprehensive lists of commands, arguments, and flags for Teleport CLI tools. ([
 
 Comprehensive guides to configuring Teleport. ([more info](reference/config-references.mdx))
 
+- [Desktop Access Configuration Reference](reference/config-references/database-access-config.mdx): Configuration reference for Teleport desktop access.
 - [Helm Chart Reference (section)](reference/config-references/helm-reference.mdx): Comprehensive lists of configuration values in Teleport's Helm charts
 - [Predicate Language](reference/config-references/predicate-language.mdx): How to use Teleport's predicate language to define filter conditions.
 - [Teleport Configuration Reference](reference/config-references/config.mdx): The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
@@ -71,9 +76,9 @@ Comprehensive guides to configuring Teleport. ([more info](reference/config-refe
 
 How to obtain information about activity in your Teleport cluster. ([more info](reference/monitoring.mdx))
 
-- [Audit Events and Records](reference/monitoring/audit.mdx): Reference of Teleport Audit Events and Session Records
 - [Distributed Tracing Configuration Reference](reference/monitoring/configuration.mdx): Configuration reference for Distributed Tracing.
 - [Distributed Tracing](reference/monitoring/tracing.mdx): How to enable tracing within Teleport.
 - [Health Monitoring](reference/monitoring/monitoring.mdx): Monitoring health and readiness.
 - [Metrics](reference/monitoring/metrics.mdx): How to enable and consume metrics
 - [Profiling](reference/monitoring/profiles.mdx): Collecting pprof profiles.
+- [Teleport Audit Event References (section)](reference/monitoring/audit.mdx): Reference guides to audit events that you can export and track in Teleport.
