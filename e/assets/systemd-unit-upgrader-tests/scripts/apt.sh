@@ -18,7 +18,6 @@ function log_pre_install_info() {
     : "${1:?package_name was not provided}"
     local package_name="$1"
 
-    apt-file update > /dev/null
     echo "Available versions of package:"
     apt-cache policy "${package_name}"
     echo "Package files:"
@@ -42,7 +41,13 @@ function initialize_repo() {
     echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
         https://${REPO_DOMAIN_NAME}/${ID?} ${VERSION_CODENAME?} ${RELEASE_CHANNEL}/${VERSION_CHANNEL}" \
         | tee "/etc/apt/sources.list.d/${repository_name}.list" > /dev/null
-    apt-get "${APT_FLAGS[@]}" update
+
+    # update index for teleport repo
+    local source_list="/etc/apt/sources.list.d/${repository_name}.list"
+    apt-get "${APT_FLAGS[@]}" update \
+        -o Dir::Etc::sourcelist="${source_list}" \
+        -o Dir::Etc::sourceparts="-" \
+        -o APT::Get::List-Cleanup="0"
 
     echo "successfully initialized teleport repository"
     echo "# /etc/apt/sources.list.d/${repository_name}.list"
@@ -54,7 +59,6 @@ function install_teleport() {
     : "${1:?teleport_version was not provided}"
     local teleport_version="$1"
 
-    apt-get "${APT_FLAGS[@]}" update
     apt-get "${APT_FLAGS[@]}" install "teleport-ent=${teleport_version}"
     verify_teleport "${teleport_version}"
     echo "successfully installed teleport-ent ${teleport_version}"
@@ -65,7 +69,6 @@ function install_updater() {
     : "${1:?updater_version was not provided}"
     local updater_version="$1"
 
-    apt-get "${APT_FLAGS[@]}" update
     apt-get "${APT_FLAGS[@]}" install "teleport-ent-updater=${updater_version}"
     verify_updater "${updater_version}"
     echo "successfully installed teleport-ent-updater ${updater_version}"

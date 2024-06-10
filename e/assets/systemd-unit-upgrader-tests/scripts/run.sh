@@ -9,6 +9,7 @@ set -euo pipefail
 : "${ARTIFACT_TAG:?ARTIFACT_TAG env is missing}"
 : "${REPO_DOMAIN_NAME:?REPO_DOMAIN_NAME env is missing}"
 : "${AUTO_UPDATES_DOMAIN_NAME:?AUTO_UPDATES_DOMAIN_NAME env is missing}"
+: "${PACKAGE_TO_TEST:?PACKAGE_TO_TEST env is missing}"
 
 # Import the compatible test scripts for the specified installer.
 case "${INSTALLER}" in
@@ -47,7 +48,7 @@ function run() {
 # test_pre_install initializes the teleport repo and outputs package information.
 function test_pre_install() {
     run "initialize_repo" "teleport"
-    run "log_pre_install_info" "teleport"
+    run "log_pre_install_info" "${PACKAGE_TO_TEST}" || true
 }
 
 # test_teleport_basic tests a basic teleport installation
