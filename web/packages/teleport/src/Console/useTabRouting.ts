@@ -19,7 +19,7 @@
 import React from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
 
-import cfg, { UrlSshParams } from 'teleport/config';
+import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
@@ -28,6 +28,9 @@ export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
   const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
+  const kubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
+    cfg.routes.kubeExec
+  );
   const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
   const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
     cfg.routes.consoleSession
@@ -53,6 +56,8 @@ export default function useRouting(ctx: ConsoleContext) {
       ctx.addSshDocument(joinSshRouteMatch.params);
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
+    } else if (kubeExecRouteMatch) {
+      ctx.addKubeExecDocument(kubeExecRouteMatch.params);
     }
   }, [ctx, pathname]);
 

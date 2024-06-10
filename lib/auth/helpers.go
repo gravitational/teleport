@@ -374,9 +374,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	token, err := types.NewProvisionTokenFromSpec("static-token", time.Unix(0, 0).UTC(), types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{},
+		StaticTokens: []types.ProvisionTokenV1{
+			*token.V1(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

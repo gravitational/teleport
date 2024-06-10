@@ -345,7 +345,7 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 	}
 	log := slog.With(
 		"bucket", req.s3Bucket,
-		"bucket-prefix", req.s3BucketPrefix,
+		"bucket_prefix", req.s3BucketPrefix,
 	)
 
 	log.InfoContext(ctx, "Creating bucket in region", "region", clt.RegionForCreateBucket())

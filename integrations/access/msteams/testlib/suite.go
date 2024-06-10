@@ -82,8 +82,8 @@ func (s *MsTeamsBaseSuite) SetupTest() {
 
 // startApp starts the Slack plugin, waits for it to become ready and returns.
 func (s *MsTeamsBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := msteams.NewApp(*s.appConfig)
 	require.NoError(t, err)
