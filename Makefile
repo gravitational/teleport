@@ -320,7 +320,7 @@ tplaceholder/src/main.rs:
 	mkdir -pv "$(@D)"
 	cd "$(@D)/../" && \
 		cargo init && \
-		mkdir '.config'
+		mkdir '.config' && \
 		printf '[target.%s]\nlinker = "%s-gcc"\n' "$(RUST_TARGET_ARCH)" "$(RUST_TARGET_ARCH)" >> '.config/cargo.toml' && \
 		cat '.config/cargo.toml' && \
 		cargo update && \
