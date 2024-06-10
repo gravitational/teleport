@@ -1,10 +1,10 @@
 ---
 title: Public IP Address Allowlist
-description: Restrict outbound network connections from your infrastructure to Teleport Cloud.
+description: Restrict outbound network connections from your infrastructure to Teleport Enterprise Cloud.
 tocDepth: 3
 ---
 
-Teleport Agents connected to Teleport Cloud must be allowed to connect to the following IP addresses in order to join the Teleport cluster.
+Teleport Agents connected to Teleport Enterprise Cloud must be allowed to connect to the following IP addresses in order to join the Teleport cluster.
 
 ```
 3.7.23.103/32
@@ -27,7 +27,7 @@ Teleport Agents connected to Teleport Cloud must be allowed to connect to the fo
 54.185.13.106/32
 ```
 
-This list may be used to allowlist outbound network connections from Teleport Agents to Teleport Cloud.
+This list may be used to allowlist outbound network connections from Teleport Agents to Teleport Enterprise Cloud.
 
 Allowlisting these IPs is not a required or recommended configuration for Teleport Agents, but it may be useful in environments that require restrictions to outbound network connections.
 For example, this list may be used to configure firewalls that sit in front of Teleport Agents, when those firewalls block access to the public internet by default.
@@ -38,12 +38,12 @@ Note that IP addresses may be added or removed from the above list over time.
 
 When this list is modified, we will provide at least two weeks notice by:
 1. Updating the Changelog below.
-1. Notifying Teleport Cloud customers via email.
+1. Notifying Teleport Enterprise Cloud customers via email.
 1. Providing a [Status Page](https://status.teleport.sh/) update.
 1. Reaching out directly to Enterprise customers that have requested advanced notice.
 
 <Notice type="warning">
-If you are Teleport Cloud Enterprise customer and plan to employ this allowlist, please let us know by opening a support ticket.
+If you are Teleport Enterprise Cloud customer and plan to employ this allowlist, please let us know by opening a support ticket.
 </Notice>
 
 ## Changelog
