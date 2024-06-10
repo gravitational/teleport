@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -62,9 +61,9 @@ import (
 
 func TestMain(m *testing.M) {
 	// Support the re-exec involved with Teleport SSH server
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
-	}
+	//if srv.IsReexec() {
+	//	srv.RunAndExit(os.Args[1])
+	//}
 
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
@@ -734,9 +733,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://localhost/foo", svid.ID.String())
+	require.Equal(t, "spiffe://test-cluster.local/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://localhost/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://test-cluster.local/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -871,12 +870,10 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		assert.NoError(t, os.RemoveAll(tmpDir))
 	})
 
-	// Make a new auth server.
+	// Make a new auth server with SSH agent
 	fc, fds := testhelpers.DefaultConfig(t)
 	fc.SSH.EnabledFlag = "true"
-	fc.SSH.DisableCreateHostUser = true
 	fc.SSH.ListenAddress = testenv.NewTCPListener(t, service.ListenerNodeSSH, &fds)
-	fc.Global.Logger.Severity = "debug"
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
@@ -894,7 +891,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare the bot config
-	var falseBool = false
 	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
 	botConfig := testhelpers.DefaultBotConfig(
 		t, fc, onboarding, []config.Output{},
@@ -903,7 +899,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			Insecure:      true,
 			ServiceConfigs: []config.ServiceConfig{
 				&config.SSHMultiplexerService{
-					EnableResumption: &falseBool,
+					EnableResumption: ptr(false),
 					Destination: &config.DestinationDirectory{
 						Path: tmpDir,
 					},
@@ -963,7 +959,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprintln(conn, `{"host":"test.test-cluster.local","port":"0"}`)
+	_, err = fmt.Fprint(conn, `{"host":"test.test-cluster.local","port":"0"}`, "\x00")
 	require.NoError(t, err)
 	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:22", sshConfig)
 	require.NoError(t, err)

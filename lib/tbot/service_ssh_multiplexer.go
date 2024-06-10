@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net"
@@ -476,15 +477,17 @@ func (s *SSHMultiplexerService) handleConn(
 	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 
-	// The first thing downstream will send is the multiplexingRequest JSON.
+	// The first thing downstream will send is the multiplexing request JSON
+	// followed by a NULL.
 	buf := bufio.NewReader(downstream)
-	reqBytes, err := buf.ReadBytes('\n')
+	reqBytes, err := buf.ReadBytes('\x00')
 	if err != nil {
-		return trace.Wrap(err, "reading request from downstream")
+		return trace.Wrap(err, "reading request")
 	}
+	reqBytes = reqBytes[:len(reqBytes)-1] // Drop the NULL.
 	req := multiplexingRequest{}
 	if err := json.Unmarshal(reqBytes, &req); err != nil {
-		return trace.Wrap(err, "unmarshaling request %q", reqBytes)
+		return trace.Wrap(err, "unmarshaling request")
 	}
 
 	log := s.log.With(
@@ -544,6 +547,12 @@ func (s *SSHMultiplexerService) handleConn(
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Drain the buffer we used to read in the request in case it read in more
+	// than just the initial request.
+	if _, err := io.CopyN(upstream, buf, int64(buf.Buffered())); err != nil {
+		return trace.Wrap(err, "draining request buffer to upstream")
+	}
+
 	if s.cfg.SessionResumptionEnabled() {
 		log.DebugContext(ctx, "Enabling session resumption")
 		upstream, err = resumption.WrapSSHClientConn(
@@ -682,7 +691,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 	}
 	defer c.Close()
 
-	if _, err := fmt.Fprintln(c, target); err != nil {
+	if _, err := fmt.Fprintf(c, target, "\x00"); err != nil {
 		return trace.Wrap(err)
 	}
 
