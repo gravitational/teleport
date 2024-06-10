@@ -580,51 +580,6 @@
       ]
     },
     {
-      "title": "Protect Infrastructure",
-      "icon": "layers",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/agents/introduction/"
-        },
-        {
-          "title": "Deploy Agents via Terraform",
-          "slug": "/agents/deploy-agents-terraform/"
-        },
-        {
-          "title": "Join Services to Your Cluster",
-          "slug": "/agents/join-services-to-your-cluster/",
-          "entries": [
-            {
-              "title": "Via AWS EC2",
-              "slug": "/agents/join-services-to-your-cluster/aws-ec2/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Via AWS IAM",
-              "slug": "/agents/join-services-to-your-cluster/aws-iam/"
-            },
-            {
-              "title": "Via Azure",
-              "slug": "/agents/join-services-to-your-cluster/azure/"
-            },
-            {
-              "title": "Joining Services via Kubernetes ServiceAccount",
-              "slug": "/agents/join-services-to-your-cluster/kubernetes/"
-            },
-            {
-              "title": "Via GCP",
-              "slug": "/agents/join-services-to-your-cluster/gcp/"
-            },
-            {
-              "title": "Via a Join Token",
-              "slug": "/agents/join-services-to-your-cluster/join-token/"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "icon": "wand",
       "title": "Auto-Enroll Resources",
       "entries": [
@@ -1514,11 +1469,6 @@
       "permanent": true
     },
     {
-      "source": "/setup/guides/joining-nodes-aws/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
-      "permanent": true
-    },
-    {
       "source": "/setup/reference/license/",
       "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
@@ -1744,23 +1694,8 @@
       "permanent": true
     },
     {
-      "source": "/setup/admin/adding-nodes/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
-      "permanent": true
-    },
-    {
       "source": "/setup/guides/docker/",
       "destination": "/installation/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/joining-nodes-aws-ec2/",
-      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/joining-nodes-aws-iam/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
@@ -1924,26 +1859,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/joining-nodes-aws-ec2/",
-      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/joining-nodes-aws-iam/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/joining-nodes-azure/",
-      "destination": "/agents/join-services-to-your-cluster/azure/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/joining-services-kubernetes-serviceaccount/",
-      "destination": "/agents/join-services-to-your-cluster/kubernetes/",
-      "permanent": true
-    },
-    {
       "source": "/try-out-teleport/browser-labs/",
       "destination": "/",
       "permanent": true
@@ -2006,41 +1921,6 @@
     {
       "source": "/get-started/",
       "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/",
-      "destination": "/agents/join-services-to-your-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/aws-ec2/",
-      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/aws-iam/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/azure/",
-      "destination": "/agents/join-services-to-your-cluster/azure/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/gcp/",
-      "destination": "/agents/join-services-to-your-cluster/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/join-token/",
-      "destination": "/agents/join-services-to-your-cluster/join-token/",
-      "permanent": true
-    },
-    {
-      "source": "/management/join-services-to-your-cluster/kubernetes/",
-      "destination": "/agents/join-services-to-your-cluster/kubernetes/",
       "permanent": true
     },
     {
