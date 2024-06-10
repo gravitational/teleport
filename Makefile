@@ -316,18 +316,19 @@ $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 # TODO before merge: move the [target.TARGET] change into other PR
-/tmp/tplaceholder/src/main.rs:
+tplaceholder/src/main.rs:
 	mkdir -pv "$(@D)"
 	cd "$(@D)/../" && \
 		cargo init && \
-		printf '[target.%s]\nlinker = "%s"' $(RUST_TARGET_ARCH) $(RUST_TARGET_ARCH) | tee -a '/tmp/tplaceholder/Cargo.toml' && \
+		printf '[target.%s]\nlinker = "%s"\n' $(RUST_TARGET_ARCH) $(RUST_TARGET_ARCH) >> 'tplaceholder/Cargo.toml' && \
+		cat 'tplaceholder/Cargo.toml' && \
 		cargo update && \
 		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
-$(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
-	cd /tmp/tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
-	install /tmp/tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
+$(BUILDDIR)/tplaceholder: tplaceholder/src/main.rs
+	cd tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
+	install tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
 	$(BUILDDIR)/tplaceholder
 
 #
