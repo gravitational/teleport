@@ -337,7 +337,6 @@ endif
 $(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
 	cd /tmp/tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
 	install /tmp/tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
-	$(BUILDDIR)/tplaceholder
 
 #
 # BPF support (IF ENABLED)
