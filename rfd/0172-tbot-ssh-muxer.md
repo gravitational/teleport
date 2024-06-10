@@ -66,7 +66,7 @@ A simple protocol will exist for interacting with the multiplexer:
 
 1. The server will open a Unix domain socket named `tbot_ssh_multiplexer.v1.sock`.
 2. Upon connection, the client will send a request indicating the target.
-  a. The request will be encoded in JSON and be terminated with NULL.
+  a. The request will be encoded in JSON and be followed by a NUL (ASCII/Unicode 0) character.
   b. This JSON message will contain two fields:
     i. `host`: The target host.
     ii. `port`: The target host's port.
