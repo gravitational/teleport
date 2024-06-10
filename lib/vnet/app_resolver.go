@@ -199,6 +199,7 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 		return nil, errNoMatch
 	}
 
+	// Prefix with an empty string to represent the root cluster.
 	allClusters := append([]string{""}, leafClusters...)
 	for _, leafClusterName := range allClusters {
 		clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
