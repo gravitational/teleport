@@ -58,6 +58,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -4971,7 +4972,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Expires: timestamppb.New(req.Expiry()),
 				},
 			},
 		},
@@ -5202,23 +5204,29 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 	if req.GetState().IsApproved() {
 		subKind = types.NotificationAccessRequestApprovedSubKind
 		reviewVerb = "approved"
+	} else if req.GetState().IsPromoted() {
+		subKind = types.NotificationAccessRequestPromotedSubKind
 	} else {
 		subKind = types.NotificationAccessRequestDeniedSubKind
 		reviewVerb = "denied"
 	}
 
 	var notificationText string
-	// If this was a resource request.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
-		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
-		}
-		// If this was a role request.
+	if req.GetState().IsPromoted() {
+		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", params.Review.Author)
 	} else {
-		notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
-		if len(req.GetRoles()) > 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+		// If this was a resource request.
+		if len(req.GetRequestedResourceIDs()) > 0 {
+			notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
+			if len(req.GetRequestedResourceIDs()) == 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
+			}
+			// If this was a role request.
+		} else {
+			notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
+			if len(req.GetRoles()) > 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+			}
 		}
 	}
 
@@ -5238,7 +5246,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"request-id":                 params.RequestID,
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
-			}},
+			},
+			Expires: timestamppb.New(req.Expiry())},
 	}
 }
 

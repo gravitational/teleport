@@ -100,4 +100,17 @@ export const notifications: Notification[] = [
       },
     ],
   },
+  {
+    id: '7',
+    title: `joe promoted your access request to long-term access.`,
+    subKind: NotificationSubKind.AccessRequestPromoted,
+    createdDate: subMinutes(Date.now(), 4), // 4 minutes ago
+    clicked: false,
+    labels: [
+      {
+        name: 'request-id',
+        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
+      },
+    ],
+  },
 ];
