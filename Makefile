@@ -316,25 +316,26 @@ $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
 # TODO before merge: move the [target.TARGET] change into other PR
-tplaceholder/src/main.rs:
-	mkdir -pv "$(@D)"
-	cd "$(@D)/../" && \
+/tmp/tplacholder/src/main.rs:
+	rm -rf "/tmp/tplaceholder"
+	mkdir -pv "/tmp/tplaceholder"
+	cd "/tmp/tplaceholder" && \
 		cargo init && \
 		cargo update
 	
 ifeq ("$(RUST_TARGET_ARCH)","arm-unknown-linux-gnueabihf")
-	cd "$(@D)/../" && \
+	cd "/tmp/tplaceholder" && \
 		mkdir '.cargo' && \
 		printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "$(RUST_TARGET_ARCH)" >> '.cargo/config.toml' && \
 		cat '.cargo/config.toml'
 endif
 
-	cd "$(@D)/../" && \
+	cd "/tmp/tplaceholder" && \
 		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
-$(BUILDDIR)/tplaceholder: tplaceholder/src/main.rs
-	cd tplaceholder/ && echo $$PWD && cargo build --release --locked $(CARGO_TARGET)
+$(BUILDDIR)/tplaceholder: /tmp/tplacholder/src/main.rs
+	cd /tmp/tplacholder/ && cargo build --release --locked $(CARGO_TARGET)
 	install target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
 	$(BUILDDIR)/tplaceholder
 
