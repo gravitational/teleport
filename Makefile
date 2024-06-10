@@ -325,17 +325,17 @@ tplaceholder/src/main.rs:
 ifeq ("$(RUST_TARGET_ARCH)","arm-unknown-linux-gnueabihf")
 	cd "$(@D)/../" && \
 		mkdir '.cargo' && \
-		printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "$(RUST_TARGET_ARCH)" >> '.cargo/config.toml'
+		printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "$(RUST_TARGET_ARCH)" >> '.cargo/config.toml' && \
+		cat '.cargo/config.toml'
 endif
 
 	cd "$(@D)/../" && \
-		cat '.cargo/config.toml' && \
 		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
 $(BUILDDIR)/tplaceholder: tplaceholder/src/main.rs
-	cd tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
-	install tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
+	cd tplaceholder/ && echo $$PWD && cargo build --release --locked $(CARGO_TARGET)
+	install target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
 	$(BUILDDIR)/tplaceholder
 
 #
