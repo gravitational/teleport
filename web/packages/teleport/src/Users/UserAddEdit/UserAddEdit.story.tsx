@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { AllUserTraits } from 'teleport/services/user';
 
@@ -42,7 +42,8 @@ export const Create = () => {
 };
 
 export const Edit = () => {
-  return <UserAddEdit {...props} attempt={{ status: '' }} />;
+  const [configuredTraits, setConfiguredTraits] = useState([])
+  return <UserAddEdit {...props} attempt={{ status: '' }} configuredTraits={configuredTraits} setConfiguredTraits={setConfiguredTraits} />;
 };
 
 export const Processing = () => {
