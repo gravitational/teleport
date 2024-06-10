@@ -140,9 +140,9 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	}
 	muxCommand := executablePath
 	muxSubcommand := "ssh-multiplexer-proxy-command"
-	if s.cfg.CustomMuxCommand != "" {
-		muxCommand = s.cfg.CustomMuxCommand
-		muxSubcommand = s.cfg.CustomMuxSubcommand
+	if s.cfg.MuxCommand != "" {
+		muxCommand = s.cfg.MuxCommand
+		muxSubcommand = s.cfg.MuxSubcommand
 	}
 
 	var sshConfigBuilder strings.Builder

@@ -34,10 +34,10 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 				Destination: &DestinationDirectory{
 					Path: "/opt/machine-id",
 				},
-				EnableResumption:    ptr[bool](true),
-				ProxyTemplatesPath:  "/etc/teleport/templates",
-				CustomMuxCommand:    "rusty-boi",
-				CustomMuxSubcommand: "run",
+				EnableResumption:   ptr[bool](true),
+				ProxyTemplatesPath: "/etc/teleport/templates",
+				MuxCommand:         "rusty-boi",
+				MuxSubcommand:      "run",
 			},
 		},
 	}

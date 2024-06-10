@@ -42,13 +42,13 @@ type SSHMultiplexerService struct {
 	// This file is loaded once on start, so changes to the templates will
 	// require a restart of tbot.
 	ProxyTemplatesPath string `yaml:"proxy_templates_path"`
-	// CustomMuxCommand is the path to the custom SSH multiplexer client
+	// MuxCommand is the path to the custom SSH multiplexer client
 	// binary. If unspecified, the currently running tbot binary will be used.
-	CustomMuxCommand string `yaml:"custom_mux_command"`
-	// CustomMuxSubcommand is the subcommand to call on the custom SSH
+	MuxCommand string `yaml:"mux_command"`
+	// MuxSubcommand is the subcommand to call on the custom SSH
 	// multiplexer client binary. This option only takes effect if
-	// CustomMuxCommand is specified.
-	CustomMuxSubcommand string `yaml:"custom_mux_subcommand"`
+	// MuxCommand is specified.
+	MuxSubcommand string `yaml:"mux_subcommand"`
 }
 
 func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {
