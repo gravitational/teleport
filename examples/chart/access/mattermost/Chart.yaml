@@ -1,4 +1,4 @@
-.version: &version "15.4.1-dev.tplaceholder-14"
+.version: &version "15.4.1-dev.tplaceholder-15"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
