@@ -123,7 +123,6 @@ resources includes:
 - `dbs`
 - `login_rule`
 
-If you are using infrastructure-as-code tools to 
 To achieve this:
 
 1. Log in to your existing Teleport Enterprise (self-hosted) cluster and export
@@ -231,19 +230,27 @@ To migrate Teleport agents:
        token_name: new-token-goes-here
    ```
 
-1. On Linux servers, delete the local agent cache to force the agent to rejoin
-   the new cloud-hosted Teleport Enterprise cluster. By default, the data is
-   located in the  `/var/lib/teleport` directory:
+1. On Linux servers, delete the local agent cache and restart the Teleport process 
+   on each agent to force the agent to rejoin the new cloud-hosted Teleport Enterprise cluster. 
+   By default, the data is located in the  `/var/lib/teleport` directory:
 
    ```code
    rm -rf /var/lib/teleport
    ```
 
-1. On Linux servers, restart the Teleport process on each agent or, if you are
-   using the `teleport-kube-agent` Helm chart, recycle the Kubernetes pod to
-   apply the new configuration. This will cause the agents to re-register with
+
+1. if you are using the `teleport-kube-agent` Helm chart, wipe out existing state and recycle the Kubernetes pod to
+   rejoin a Kubernetes agent to a new cluster This will cause the agents to re-register with
    the cloud-hosted Teleport Enterprise cluster and obtain new certificates
    signed by the new cluster's certificate authority.
+
+   ```code
+   # get the release name
+   helm -n <namespace> ls
+   # delete the state secret
+   kubectl -n <namespace> delete secret <release-name>-0-state
+   ```
+
 
 ### Migrate Machine ID bots
 
