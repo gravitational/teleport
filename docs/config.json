@@ -576,74 +576,6 @@
       ]
     },
     {
-      "icon": "wand",
-      "title": "Auto-Enroll Resources",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/auto-discovery/"
-        },
-        {
-          "title": "Servers",
-          "slug": "/auto-discovery/servers/",
-          "entries": [
-            {
-              "title": "EC2 Instance Discovery",
-              "slug": "/auto-discovery/servers/ec2-discovery/"
-            },
-            {
-              "title": "Azure Instance Discovery",
-              "slug": "/auto-discovery/servers/azure-discovery/"
-            },
-            {
-              "title": "GCP Instance Discovery",
-              "slug": "/auto-discovery/servers/gcp-discovery/"
-            }
-          ]
-        },
-        {
-          "title": "Kubernetes Clusters",
-          "slug": "/auto-discovery/kubernetes/",
-          "entries": [
-            {
-              "title": "AWS",
-              "slug": "/auto-discovery/kubernetes/aws/"
-            },
-            {
-              "title": "Azure",
-              "slug": "/auto-discovery/kubernetes/azure/"
-            },
-            {
-              "title": "Google Cloud",
-              "slug": "/auto-discovery/kubernetes/google-cloud/"
-            }
-          ]
-        },
-        {
-          "title": "Databases",
-          "slug": "/auto-discovery/databases/"
-        },
-        {
-          "title": "Kubernetes Applications",
-          "slug": "/auto-discovery/kubernetes-applications/",
-          "entries": [
-            {
-              "title": "Get Started",
-              "slug": "/auto-discovery/kubernetes-applications/get-started/"
-            },
-            {
-              "title": "Architecture",
-              "slug": "/auto-discovery/kubernetes-applications/architecture/"
-            },
-            {
-              "title": "Reference",
-              "slug": "/auto-discovery/kubernetes-applications/reference/"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -769,81 +701,6 @@
         {
           "title": "Reference",
           "slug": "/application-access/reference/"
-        }
-      ]
-    },
-    {
-      "icon": "server",
-      "title": "Server Access",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/server-access/introduction/"
-        },
-        {
-          "title": "Getting Started",
-          "slug": "/server-access/getting-started/"
-        },
-        {
-          "title": "Enrolling OpenSSH Servers",
-          "slug": "/server-access/openssh/",
-          "entries": [
-            {
-              "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/openssh/openssh/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration (Manual Install)",
-              "slug": "/server-access/openssh/openssh-manual-install/"
-            }
-          ]
-        },
-        {
-          "title": "Guides",
-          "slug": "/server-access/guides/",
-          "entries": [
-            {
-              "title": "Using Teleport with PAM",
-              "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Recording Proxy Mode",
-              "slug": "/server-access/guides/recording-proxy-mode/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "BPF Session Recording",
-              "slug": "/server-access/guides/bpf-session-recording/"
-            },
-            {
-              "title": "Visual Studio Code",
-              "slug": "/server-access/guides/vscode/"
-            },
-            {
-              "title": "JetBrains SFTP",
-              "slug": "/server-access/guides/jetbrains-sftp/"
-            },
-            {
-              "title": "Host User Creation",
-              "slug": "/server-access/guides/host-user-creation/"
-            },
-            {
-              "title": "Linux Auditing System",
-              "slug": "/server-access/guides/auditd/"
-            },
-            {
-              "title": "Using Teleport with Ansible",
-              "slug": "/server-access/guides/ansible/"
-            }
-          ]
-        },
-        {
-          "title": "Access Controls",
-          "slug": "/server-access/rbac/"
-        },
-        {
-          "title": "Troubleshooting Server Access",
-          "slug": "/server-access/troubleshooting-server/"
         }
       ]
     },
@@ -1956,11 +1813,6 @@
       "permanent": true
     },
     {
-      "source": "/server-access/guides/openssh/",
-      "destination": "/server-access/openssh/",
-      "permanent": true
-    },
-    {
       "source": "/connect-your-client/putty/",
       "destination": "/connect-your-client/putty-winscp/",
       "permanent": true
@@ -2001,83 +1853,8 @@
       "permanent": true
     },
     {
-      "source": "/server-access/guides/restricted-session/",
-      "destination": "/server-access/guides/",
-      "permanent": true
-    },
-    {
       "source": "/access-graph/",
       "destination": "/access-controls/access-graph/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/aws-discovery/",
-      "destination": "/auto-discovery/databases/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/",
-      "destination": "/auto-discovery/kubernetes/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/aws/",
-      "destination": "/auto-discovery/kubernetes/aws/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/azure/",
-      "destination": "/auto-discovery/kubernetes/azure/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/discovery/google-cloud/",
-      "destination": "/auto-discovery/kubernetes/google-cloud/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/azure-discovery/",
-      "destination": "/auto-discovery/servers/azure-discovery/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/ec2-discovery/",
-      "destination": "/auto-discovery/servers/ec2-discovery/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/gcp-discovery/",
-      "destination": "/auto-discovery/servers/gcp-discovery/",
-      "permanent": true
-    },
-    {
-      "source": "/application-access/enroll-kubernetes-applications/",
-      "destination": "/auto-discovery/kubernetes-applications/",
-      "permanent": true
-    },
-    {
-      "source": "/application-access/enroll-kubernetes-applications/architecture/",
-      "destination": "/auto-discovery/kubernetes-applications/architecture/",
-      "permanent": true
-    },
-    {
-      "source": "/application-access/enroll-kubernetes-applications/get-started/",
-      "destination": "/auto-discovery/kubernetes-applications/get-started/",
-      "permanent": true
-    },
-    {
-      "source": "/application-access/enroll-kubernetes-applications/reference/",
-      "destination": "/auto-discovery/kubernetes-applications/reference/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/openssh/openssh-manual-install/",
-      "destination": "/server-access/openssh/openssh-manual-install/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/openssh/openssh/",
-      "destination": "/server-access/openssh/openssh/",
       "permanent": true
     },
     {

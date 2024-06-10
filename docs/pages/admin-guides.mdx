@@ -5,8 +5,6 @@ description: "Step-by-step guides to performing common Teleport tasks"
 
 {/*TOPICS*/}
 
-- [AWS OIDC Integration](admin-guides/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
-
 ## Common Operations
 
 Contains guides for performing common tasks on a Teleport cluster after the initial setup phase. ([more info](admin-guides/common-operations.mdx))
@@ -30,9 +28,10 @@ Use configuration files and dynamic resources to adjust access controls, enroll 
 
 Guides for enrolling servers, databases, and other infrastructure resources with Teleport so you can set up secure access. ([more info](admin-guides/protect-resources.mdx))
 
-- [Configure Trusted Clusters](admin-guides/protect-resources/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+- [AWS OIDC Integration](admin-guides/protect-resources/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
+- [Protect Linux Servers with Teleport (section)](admin-guides/protect-resources/server-access.mdx): How to enroll Linux servers in your Teleport cluster to enable secure SSH access.
 - [Teleport Agents (section)](admin-guides/protect-resources/agents.mdx): How to use Teleport Agents, which enable users to connect to resources in your infrastructure.
-- [Teleport Label Guides (section)](admin-guides/protect-resources/labels.mdx): Guides to using Teleport labels, which underpin the Teleport role-based access controls system.
+- [Teleport Auto-Discovery (section)](admin-guides/protect-resources/auto-discovery.mdx): Learn how to use the Teleport Discovery Service, which automatically enrolls resources by query APIs
 
 ## Self-Hosting Teleport
 
@@ -41,3 +40,10 @@ Guides to deploying and managing the Teleport Auth Service and Proxy Service. ([
 - [Deploying a Self-Hosted Teleport Cluster (section)](admin-guides/self-hosting/deploy-a-cluster.mdx): Guides for deploying self-hosted Teleport clusters on various platforms and cloud providers.
 - [Manage a Self-Hosted Teleport Cluster (section)](admin-guides/self-hosting/management.mdx): Guides to completing common tasks on self-hosted Teleport clusters after the initial deployment.
 - [Running a Self-Hosted Teleport Demo Cluster (section)](admin-guides/self-hosting/demo-clusters.mdx): Guides to running small-scale, self-hosted Teleport clusters to test functionality.
+
+## Teleport Access Controls
+
+Guides to configuring the access that Teleport users have to infrastructure resources and cluster permissions. ([more info](admin-guides/rbac.mdx))
+
+- [Configure Trusted Clusters](admin-guides/rbac/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+- [Teleport Label Guides (section)](admin-guides/rbac/labels.mdx): Guides to using Teleport labels, which underpin the Teleport role-based access controls system.
