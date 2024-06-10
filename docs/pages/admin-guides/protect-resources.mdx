@@ -1,0 +1,24 @@
+---
+title: Protect Infrastructure Resources
+description: Guides for enrolling servers, databases, and other infrastructure resources with Teleport so you can set up secure access.
+---
+
+{/*TOPICS*/}
+
+- [Configure Trusted Clusters](protect-resources/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
+
+## Teleport Agents
+
+How to use Teleport Agents, which enable users to connect to resources in your infrastructure. ([more info](protect-resources/agents.mdx))
+
+- [Deploy Teleport Agents with Terraform](protect-resources/agents/deploy-agents-terraform.mdx): In this guide, we will show you how to deploy a pool of Teleport agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
+- [Join Agents to your Teleport Cluster (section)](protect-resources/agents/join-services-to-your-cluster.mdx): Methods you can use to established trust between a newly deployed Teleport agent and your Teleport cluster so you can protect resources.
+- [Protect Infrastructure with Teleport](protect-resources/agents/introduction.mdx): Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent.
+
+## Teleport Label Guides
+
+Guides to using Teleport labels, which underpin the Teleport role-based access controls system. ([more info](protect-resources/labels.mdx))
+
+- [Add Labels to Resources](protect-resources/labels/labels.mdx): How to assign static and command-based dynamic labels to Teleport resources.
+- [EC2 Tags as Teleport Node Labels](protect-resources/labels/ec2-tags.mdx): How to set up Teleport Node labels based on EC2 tags
+- [GCP Tags and Labels as Teleport Agent Labels](protect-resources/labels/gcp-tags.mdx): How to set up Teleport agent labels based on GCP tags and labels
