@@ -108,6 +108,11 @@
               "forScopes": ["cloud"]
             },
             {
+              "title": "Public IP Allowlist",
+              "slug": "/choose-an-edition/teleport-cloud/ips/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "FAQ",
               "slug": "/choose-an-edition/teleport-cloud/faq/",
               "forScopes": ["cloud"]
