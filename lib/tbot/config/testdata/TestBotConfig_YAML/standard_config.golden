@@ -45,8 +45,6 @@ services:
       path: /bot/output
     enable_resumption: null
     proxy_templates_path: ""
-    mux_command: ""
-    mux_subcommand: ""
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s

@@ -36,8 +36,7 @@ func TestSSHMultiplexerService_YAML(t *testing.T) {
 				},
 				EnableResumption:   ptr[bool](true),
 				ProxyTemplatesPath: "/etc/teleport/templates",
-				MuxCommand:         "rusty-boi",
-				MuxSubcommand:      "run",
+				ProxyCommand:       []string{"rusty-boi"},
 			},
 		},
 	}

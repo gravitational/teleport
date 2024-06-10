@@ -137,15 +137,16 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	}
 
 	// Generate SSH config
-	executablePath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err, "determining executable path")
-	}
-	muxCommand := executablePath
-	muxSubcommand := "ssh-multiplexer-proxy-command"
-	if s.cfg.MuxCommand != "" {
-		muxCommand = s.cfg.MuxCommand
-		muxSubcommand = s.cfg.MuxSubcommand
+	proxyCommand := s.cfg.ProxyCommand
+	if len(proxyCommand) == 0 {
+		executablePath, err := os.Executable()
+		if err != nil {
+			return trace.Wrap(err, "determining executable path")
+		}
+		proxyCommand = []string{
+			executablePath,
+			"ssh-multiplexer-proxy-command",
+		}
 	}
 
 	var sshConfigBuilder strings.Builder
@@ -158,12 +159,10 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
 		ProxyHost:           proxyHost,
 
-		TBotMux:           true,
-		TBotMuxCommand:    muxCommand,
-		TBotMuxSubcommand: muxSubcommand,
-		TBotMuxData:       `%h:%p`,
-		TBotMuxSocketPath: path.Join(dest.Path, sshMuxSocketName),
-		ExecutablePath:    executablePath,
+		TBotMux:             true,
+		TBotMuxProxyCommand: proxyCommand,
+		TBotMuxData:         `%h:%p`,
+		TBotMuxSocketPath:   path.Join(dest.Path, sshMuxSocketName),
 	})
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")

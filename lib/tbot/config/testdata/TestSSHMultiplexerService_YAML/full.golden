@@ -4,5 +4,5 @@ destination:
   path: /opt/machine-id
 enable_resumption: true
 proxy_templates_path: /etc/teleport/templates
-mux_command: rusty-boi
-mux_subcommand: run
+proxy_command:
+  - rusty-boi
