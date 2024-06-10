@@ -41,7 +41,7 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import { requiredField } from 'shared/components/Validation/rules';
+import { requiredField, requiredAll } from 'shared/components/Validation/rules';
 
 import { AllUserTraits } from 'teleport/services/user';
 
@@ -81,6 +81,8 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
       return;
     }
 
+    console.log('returning without save');
+    return;
     onSave();
   }
 
@@ -211,6 +213,7 @@ function TraitsEditor({
   };
 
   function handleInputChange(i: InputOption) {
+    // validator.reset()
     const newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
       let traitValue: Option[] = i.option as Option[];
@@ -222,6 +225,7 @@ function TraitsEditor({
       setConfiguredTraits(newTraits);
     } else {
       let traitName: Option = i.option as Option;
+
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitName,
@@ -232,7 +236,10 @@ function TraitsEditor({
 
   function addTrait() {
     const newTraits = [...configuredTraits];
-    newTraits.push({ trait: { value: '', label: '' }, traitValues: [] });
+    newTraits.push({
+      trait: { value: '', label: 'Select or type new trait name and enter' },
+      traitValues: [],
+    });
     setConfiguredTraits(newTraits);
   }
 
@@ -244,28 +251,30 @@ function TraitsEditor({
 
   const addLabelText =
     configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
+
+  const requireNoDuplicateTraits = (enteredTrait: Option) => () => {
+    let k = configuredTraits.map(trait => trait.trait.value.toLowerCase());
+    let occurance = 0;
+    for (let t in k) {
+      if (k[t] === enteredTrait.value.toLowerCase()) {
+        occurance++;
+      }
+    }
+    if (occurance > 1) {
+      return { valid: false, message: 'Trait key should be unique for a user' };
+    }
+    return { valid: true };
+  };
+
   return (
     <Box>
-      {configuredTraits.length > 0 && (
-        <>
-          <Text>Traits</Text>
-          <Flex mt={2}>
-            <Box width="265px">
-              <Text fontSize={1}>Trait Name</Text>
-            </Box>
-
-            <Text fontSize={1} ml={4}>
-              Trait Value
-            </Text>
-          </Flex>
-        </>
-      )}
+      {configuredTraits.length > 0 && <Text>Traits</Text>}
 
       <Box>
         {configuredTraits.map(({ trait, traitValues }, index) => {
           return (
             <Box mb={-5} key={index}>
-              <Flex alignItems="center" mt={-3}>
+              <Flex alignItems="start" mt={-3} justify="start">
                 <Box width="290px" mr={1} mt={4}>
                   <FieldSelectCreatable
                     options={availableTraitNames.map(r => ({
@@ -275,7 +284,12 @@ function TraitsEditor({
                     placeholder="Select or type new trait name"
                     autoFocus
                     isSearchable
-                    value={trait.value === '' ? null : trait}
+                    value={trait}
+                    label="Trait Name"
+                    rule={requiredAll(
+                      requiredField('Trait key is required'),
+                      requireNoDuplicateTraits
+                    )}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option,
@@ -297,10 +311,12 @@ function TraitsEditor({
                       value: r,
                       label: r,
                     }))}
+                    label="Trait Value"
                     isMulti
                     isSearchable
                     isClearable={false}
                     value={traitValues}
+                    rule={requiredField('Trait value cannot be empty')}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option,
@@ -314,6 +330,7 @@ function TraitsEditor({
                 </Box>
                 <ButtonIcon
                   ml={1}
+                  mt={7}
                   size={1}
                   title="Remove Trait"
                   onClick={() => removeTrait(index)}
