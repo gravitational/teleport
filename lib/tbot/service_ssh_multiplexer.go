@@ -20,9 +20,9 @@ package tbot
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -161,7 +161,7 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 		TBotMux:           true,
 		TBotMuxCommand:    muxCommand,
 		TBotMuxSubcommand: muxSubcommand,
-		TBotMuxData:       `{"host":"%h","port":"%p"}`,
+		TBotMuxData:       `%h:%p`,
 		TBotMuxSocketPath: path.Join(dest.Path, sshMuxSocketName),
 		ExecutablePath:    executablePath,
 	})
@@ -449,21 +449,6 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	return eg.Wait()
 }
 
-type multiplexingRequest struct {
-	Host string `json:"host"`
-	Port string `json:"port"`
-}
-
-func (m multiplexingRequest) Validate() error {
-	switch {
-	case m.Host == "":
-		return trace.BadParameter("host: must be specified")
-	case m.Port == "":
-		return trace.BadParameter("port: must be specified")
-	}
-	return nil
-}
-
 func (s *SSHMultiplexerService) handleConn(
 	ctx context.Context,
 	tshConfig *libclient.TSHConfig,
@@ -480,36 +465,32 @@ func (s *SSHMultiplexerService) handleConn(
 	defer func() { tracing.EndSpan(span, err) }()
 	defer downstream.Close()
 
-	// The first thing downstream will send is the multiplexing request JSON
-	// followed by a NULL.
+	// The first thing downstream will send is the multiplexing request which is
+	// the "[host]:[port]\x00" format.
 	buf := bufio.NewReader(downstream)
 	reqBytes, err := buf.ReadBytes('\x00')
 	if err != nil {
 		return trace.Wrap(err, "reading request")
 	}
 	reqBytes = reqBytes[:len(reqBytes)-1] // Drop the NULL.
-	req := multiplexingRequest{}
-	if err := json.Unmarshal(reqBytes, &req); err != nil {
-		return trace.Wrap(err, "unmarshaling request")
+	splits := bytes.Split(reqBytes, []byte{':'})
+	if len(splits) != 2 {
+		return trace.BadParameter("malformed request")
 	}
+	host := string(splits[0])
+	port := string(splits[1])
 
 	log := s.log.With(
 		slog.Group("req",
-			"host", req.Host,
-			"port", req.Port,
+			"host", host,
+			"port", port,
 		),
 	)
 	log.InfoContext(ctx, "Received multiplexing request")
 
-	if err := req.Validate(); err != nil {
-		return trace.Wrap(err, "validating multiplexing request")
-	}
-	host := req.Host
-	port := req.Port
-
 	clusterName := s.identity.Get().ClusterName
 	expanded, matched := tshConfig.ProxyTemplates.Apply(
-		net.JoinHostPort(req.Host, req.Port),
+		net.JoinHostPort(host, port),
 	)
 	if matched {
 		log.DebugContext(
