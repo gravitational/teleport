@@ -1,4 +1,4 @@
-.version: &version "15.4.1-dev.tplaceholder-7"
+.version: &version "15.4.1-dev.tplaceholder-8"
 
 name: teleport-cluster
 apiVersion: v2
