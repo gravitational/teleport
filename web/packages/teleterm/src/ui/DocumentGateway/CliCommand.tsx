@@ -67,8 +67,10 @@ export function CliCommand({
         <span>{cliCommand}</span>
         {shouldDisplayIsLoading && (
           <Indicator
+            size={24}
             delay="none"
             css={`
+              line-height: 0;
               display: inline;
               margin: auto 0 auto auto;
             `}
