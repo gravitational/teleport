@@ -124,7 +124,7 @@ func (t *WSStream) SetReadDeadline(deadline time.Time) error {
 	return t.WSConn.SetReadDeadline(deadline)
 }
 
-func isOKWebsocketCloseError(err error) bool {
+func IsOKWebsocketCloseError(err error) bool {
 	return websocket.IsCloseError(err,
 		websocket.CloseAbnormalClosure,
 		websocket.CloseGoingAway,
@@ -145,7 +145,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 		default:
 			ty, bytes, err := t.WSConn.ReadMessage()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(err) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || IsOKWebsocketCloseError(err) {
 					return
 				}
 
