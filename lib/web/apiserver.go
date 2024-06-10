@@ -49,14 +49,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/mod/semver"
-	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -115,14 +113,6 @@ const (
 	// callback URL in tsh login.
 	SSOLoginFailureInvalidRedirect = "Failed to login due to a disallowed callback URL. Please check Teleport's log for more details."
 
-	// assistantTokensPerHour defines how many assistant rate limiter tokens are replenished every hour.
-	assistantTokensPerHour = 140
-	// assistantLimiterRate is the rate (in tokens per second)
-	// at which tokens for the assistant rate limiter are replenished
-	assistantLimiterRate = rate.Limit(assistantTokensPerHour / float64(time.Hour/time.Second))
-	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
-	// The bucket starts full, prefilled for a week.
-	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
 	// webUIFlowLabelKey is a label that may be added to resources
 	// created via the web UI, indicating which flow the resource was created on.
 	// This label is used for enhancing UX in the web app, by showing icons related,
@@ -155,13 +145,7 @@ type Handler struct {
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
 	highLimiter             *limiter.RateLimiter
-	// assistantLimiter limits the amount of tokens that can be consumed
-	// by OpenAI API calls when using a shared key.
-	// golang.org/x/time/rate is used, as the oxy ratelimiter
-	// is quite tightly tied to individual http.Requests,
-	// and instead we want to consume arbitrary amounts of tokens.
-	assistantLimiter     *rate.Limiter
-	healthCheckAppServer healthCheckAppServerFunc
+	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -312,9 +296,6 @@ type Config struct {
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
 
-	// OpenAIConfig provides config options for the OpenAI integration.
-	OpenAIConfig *openai.ClientConfig
-
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
@@ -407,15 +388,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
-	}
-
-	// Check for self-hosted vs Cloud.
-	// TODO(justinas): this needs to be modified when we allow user-supplied API keys in Cloud
-	if cfg.ClusterFeatures.GetCloud() {
-		h.assistantLimiter = rate.NewLimiter(assistantLimiterRate, assistantLimiterCapacity)
-	} else {
-		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
-		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -960,9 +932,6 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
-	// WebSocket endpoint for the chat conversation, websocket auth
-	h.GET("/webapi/sites/:site/assistant/ws", h.WithClusterAuthWebSocket(h.assistant))
-
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
 
@@ -1436,17 +1405,6 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(jakule): This part should be removed once the plugin support is added to OSS.
-	if proxyConfig.AssistEnabled {
-		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
-		if err != nil {
-			return webclient.AuthenticationSettings{}, trace.Wrap(err)
-		}
-
-		// disable if auth doesn't support assist
-		proxyConfig.AssistEnabled = enabled.Enabled
-	}
-
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1655,23 +1613,12 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	assistEnabled := false // TODO(jakule) remove when plugins are implemented
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
 	} else {
 		if clusterFeatures.GetCloud() {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
-		}
-		// TODO(jakule): This part should be removed once the plugin support is added to OSS.
-		if proxyConfig.AssistEnabled {
-			enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// disable if auth doesn't support assist
-			assistEnabled = enabled.Enabled
 		}
 	}
 
@@ -1710,7 +1657,6 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
-		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
