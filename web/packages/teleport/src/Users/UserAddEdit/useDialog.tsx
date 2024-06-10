@@ -45,12 +45,11 @@ export default function useUserDialog(props: Props) {
   }
 
   function onSave() {
-    const traitsToSave = {};
-    for (const trait of configuredTraits) {
-      if (trait.trait.value === '' || trait.traitValues.length === 0) {
-        continue;
-      }
-      traitsToSave[trait.trait.value] = trait.traitValues.map(t => t.value);
+    let traitsToSave = {};
+    for (const traitKV of configuredTraits) {
+      traitsToSave[traitKV.traitKey.value] = traitKV.traitValues.map(
+        t => t.value
+      );
     }
     const u = {
       name,

@@ -22,6 +22,7 @@ import { Add, Trash } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField, requiredAll } from 'shared/components/Validation/rules';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
 
@@ -42,26 +43,25 @@ const availableTraitNames = [
 
 export function TraitsEditor({
   allTraits,
+  attempt,
   configuredTraits,
   setConfiguredTraits,
 }: TraitEditorProps) {
   useEffect(() => {
-    let newTrait = traitsToTraitsOption(allTraits);
-
-    setConfiguredTraits(newTrait);
+    const newTraits = traitsToTraitsOption(allTraits);
+    setConfiguredTraits(newTraits);
   }, [allTraits]);
 
   type InputOption = {
-    labelField: 'trait' | 'traitValues';
+    labelField: 'traitKey' | 'traitValues';
     option: Option | Option[];
     index: number;
   };
 
   function handleInputChange(i: InputOption) {
-    const newTraits = [...configuredTraits];
+    let newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
       let traitValue: Option[] = i.option as Option[];
-
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: [...traitValue],
@@ -69,7 +69,6 @@ export function TraitsEditor({
       setConfiguredTraits(newTraits);
     } else {
       let traitName: Option = i.option as Option;
-
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitName,
@@ -79,13 +78,13 @@ export function TraitsEditor({
   }
 
   function addTrait() {
-    const newTraits = [...configuredTraits];
+    let newTraits = [...configuredTraits];
     newTraits.push(emptyTrait);
     setConfiguredTraits(newTraits);
   }
 
   function removeTrait(index: number) {
-    const newTraits = [...configuredTraits];
+    let newTraits = [...configuredTraits];
     newTraits.splice(index, 1);
     setConfiguredTraits(newTraits);
   }
@@ -94,13 +93,13 @@ export function TraitsEditor({
     configuredTraits.length > 0 ? 'Add another user trait' : 'Add user trait';
 
   const requireNoDuplicateTraits = (enteredTrait: Option) => () => {
-    let k = configuredTraits.map(trait => trait.trait.value.toLowerCase());
+    let k = configuredTraits.map(trait => trait.traitKey.value.toLowerCase());
     let occurance = 0;
-    for (let t in k) {
-      if (k[t] === enteredTrait.value.toLowerCase()) {
+    k.forEach(key => {
+      if (key === enteredTrait.value.toLowerCase()) {
         occurance++;
       }
-    }
+    })
     if (occurance > 1) {
       return { valid: false, message: 'Trait key should be unique for a user' };
     }
@@ -110,9 +109,8 @@ export function TraitsEditor({
   return (
     <Box>
       <Text fontSize={1}>User Traits</Text>
-
       <Box>
-        {configuredTraits.map(({ trait, traitValues }, index) => {
+        {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
             <Box mb={-5} key={index}>
               <Flex alignItems="start" mt={-3} justify="start">
@@ -126,7 +124,7 @@ export function TraitsEditor({
                     placeholder="Select or type new trait name and enter"
                     autoFocus
                     isSearchable
-                    value={trait}
+                    value={traitKey}
                     label="Key"
                     rule={requiredAll(
                       requiredField('Trait key is required'),
@@ -134,12 +132,13 @@ export function TraitsEditor({
                     )}
                     onChange={e => {
                       handleInputChange({
-                        option: e as Option,
-                        labelField: 'trait',
+                        option: e,
+                        labelField: 'traitKey',
                         index: index,
                       });
                     }}
                     createOptionPosition="last"
+                    isDisabled={attempt.status === 'processing'}
                   />
                 </Box>
                 <Box width="400px" ml={3}>
@@ -163,15 +162,15 @@ export function TraitsEditor({
                     rule={requiredField('Trait value cannot be empty')}
                     onChange={e => {
                       handleInputChange({
-                        option: e as Option,
+                        option: e,
                         labelField: 'traitValues',
                         index: index,
                       });
                     }}
-                    isDisabled={false}
                     formatCreateLabel={(i: string) =>
                       'Trait value: ' + `"${i}"`
                     }
+                    isDisabled={attempt.status === 'processing'}
                   />
                 </Box>
                 <ButtonIcon
@@ -187,7 +186,7 @@ export function TraitsEditor({
                       pointer-events: none;
                     }
                   `}
-                  disabled={false}
+                  disabled={attempt.status === 'processing'}
                 >
                   <Trash size="medium" />
                 </ButtonIcon>
@@ -210,7 +209,7 @@ export function TraitsEditor({
               pointer-events: none;
             }
           `}
-          disabled={false}
+          disabled={attempt.status === 'processing'}
         >
           <Add
             className="icon-add"
@@ -246,14 +245,15 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
 }
 
 export const emptyTrait = {
-  trait: { value: '', label: 'Select or type new trait name and enter' },
+  traitKey: { value: '', label: 'Select or type new trait name and enter' },
   traitValues: [],
 };
 
-export type TraitsOption = { trait: Option; traitValues: Option[] };
+export type TraitsOption = { traitKey: Option; traitValues: Option[] };
 
 export type TraitEditorProps = {
   allTraits: AllUserTraits;
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
+  attempt: Attempt;
 };

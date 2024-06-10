@@ -66,8 +66,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
       return;
     }
 
-    console.log('returning without save');
-    return;
     onSave();
   }
 
@@ -122,6 +120,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
             />
             <TraitsEditor
               allTraits={allTraits}
+              attempt={attempt}
               configuredTraits={configuredTraits}
               setConfiguredTraits={setConfiguredTraits}
             />

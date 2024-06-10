@@ -24,6 +24,7 @@ describe('Render traits correctly', () => {
     const { rerender } = render(
       <TraitsEditor
         allTraits={userTraits}
+        attempt={{ status: '' }}
         configuredTraits={configuredTraits}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -39,6 +40,7 @@ describe('Render traits correctly', () => {
       <Validation>
         <TraitsEditor
           allTraits={userTraits}
+          attempt={{ status: '' }}
           configuredTraits={traitsToTraitsOption(userTraits)}
           setConfiguredTraits={setConfiguredTraits}
         />
@@ -59,6 +61,7 @@ describe('Render traits correctly', () => {
       <Validation>
         <TraitsEditor
           allTraits={userTraits}
+          attempt={{ status: '' }}
           configuredTraits={configuredTraits}
           setConfiguredTraits={setConfiguredTraits}
         />
@@ -77,6 +80,7 @@ describe('Render traits correctly', () => {
       <Validation>
         <TraitsEditor
           allTraits={singleTrait}
+          attempt={{ status: '' }}
           configuredTraits={traitsToTraitsOption(singleTrait)}
           setConfiguredTraits={setConfiguredTraits}
         />

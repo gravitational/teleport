@@ -42,8 +42,15 @@ export const Create = () => {
 };
 
 export const Edit = () => {
-  const [configuredTraits, setConfiguredTraits] = useState([])
-  return <UserAddEdit {...props} attempt={{ status: '' }} configuredTraits={configuredTraits} setConfiguredTraits={setConfiguredTraits} />;
+  const [configuredTraits, setConfiguredTraits] = useState([]);
+  return (
+    <UserAddEdit
+      {...props}
+      attempt={{ status: '' }}
+      configuredTraits={configuredTraits}
+      setConfiguredTraits={setConfiguredTraits}
+    />
+  );
 };
 
 export const Processing = () => {
@@ -80,7 +87,7 @@ const props = {
   allTraits: { ['logins']: ['root', 'ubuntu'] } as AllUserTraits,
   configuredTraits: [
     {
-      trait: { value: 'logins', label: 'logins' },
+      traitKey: { value: 'logins', label: 'logins' },
       traitValues: [{ value: 'root', label: 'root' }],
     },
   ] as TraitsOption[],
