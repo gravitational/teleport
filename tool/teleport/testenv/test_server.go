@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -36,6 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -44,7 +46,9 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -348,6 +352,12 @@ func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
 	})
 }
 
+func WithLogger(log *slog.Logger) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Logger = log
+	})
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
@@ -618,4 +628,36 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	}()
 
 	return lis.Addr().String()
+}
+
+// MakeDefaultAuthClient reimplements the bare minimum needed to create a
+// default root-level auth client for a Teleport server started by
+// MakeTestServer.
+func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
+	t.Helper()
+
+	cfg := process.Config
+	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	require.NoError(t, err)
+
+	identity, err := state.ReadLocalIdentity(
+		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+	)
+	require.NoError(t, err)
+
+	authConfig := new(authclient.Config)
+	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
+	require.NoError(t, err)
+
+	authConfig.AuthServers = cfg.AuthServerAddresses()
+	authConfig.Log = utils.NewLogger()
+
+	client, err := authclient.Connect(context.Background(), authConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	return client
 }
