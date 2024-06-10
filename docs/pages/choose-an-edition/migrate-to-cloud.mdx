@@ -239,10 +239,10 @@ To migrate Teleport agents:
    ```
 
 
-1. if you are using the `teleport-kube-agent` Helm chart, wipe out existing state and recycle the Kubernetes pod to
-   rejoin a Kubernetes agent to a new cluster This will cause the agents to re-register with
-   the cloud-hosted Teleport Enterprise cluster and obtain new certificates
-   signed by the new cluster's certificate authority.
+1. If you are using the `teleport-kube-agent` Helm chart, wipe out existing state 
+   and recycle the Kubernetes pod to rejoin the Kubernetes agent(s) to the new cluster.
+   This will cause the agents to re-register with the cloud-hosted Teleport Enterprise 
+   cluster and obtain new certificates signed by the new cluster's certificate authority.
 
    ```code
    # get the release name
