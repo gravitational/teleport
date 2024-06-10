@@ -46,7 +46,7 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-extldflags=-ld_classic -w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
