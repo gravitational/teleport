@@ -410,6 +410,13 @@ are signed.
 
 The Upgrade Framework (TUF) will be used to implement secure updates in the future.
 
+## Logging
+
+All installation steps will be logged locally, such that they are viewable with `journalctl`.
+Care will be taken to ensure that updater logs are sharable with Teleport Support for debugging and auditing purposes.
+
+When TUF is added, that events related to supply chain security may be sent to the Teleport cluster via the Teleport Agent.
+
 ## Execution Plan
 
 1. Implement new auto-updater in Go.
