@@ -129,8 +129,6 @@ export default function useAccessRequestCheckout() {
               subResourceName: '',
             })),
         });
-        return response;
-      }).then(response => {
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
