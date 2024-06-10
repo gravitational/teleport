@@ -420,10 +420,10 @@ spec:
 ### Assuming Approved Requests (Role Based)
 
 - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into nodes
-- [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
+- [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl` allows you to see users screen, and denies access to nodes
   - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
-  - [ ] Verify `switching back` goes back to your default static role
-  - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
+  - [ ] Verify that you can access nodes after `Drop Request` on `allow-users-with-short-ttl` while `allow-roles-and-nodes` is still assumed
+  - [ ] Verify after re-assuming `allow-users-with-short-ttl` role that the next action (i.e. opening a new tab with unified resources) triggers a relogin modal after the expiry is met (4 minutes)
 
 ### Assuming Approved Requests (Search Based)
 
@@ -921,12 +921,12 @@ Add the following to enable read access to trusted clusters
   - **Assuming Approved Requests (Role Based)**
     - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into
           nodes
-    - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl`
+    - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl`
           allows you to see users screen, and denies access to nodes
     - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it
           expires
     - [ ] Verify `switching back` goes back to your default static role
-    - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged
+    - [ ] Verify after re-assuming `allow-users-with-short-ttl` role, the user is automatically logged
           out after the expiry is met (4 minutes)
   - **Assuming Approved Requests (Search Based)**
     - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
