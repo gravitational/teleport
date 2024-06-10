@@ -20,7 +20,6 @@ package tbot
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
