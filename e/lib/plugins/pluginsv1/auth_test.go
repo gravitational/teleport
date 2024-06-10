@@ -232,23 +232,6 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 
 	require.NoError(t, suite.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, cred))
 
-	assistCred := &types.PluginStaticCredentialsV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: assistCredentialName,
-				Labels: map[string]string{
-					"label1": "value2",
-				},
-			},
-		},
-		Spec: &types.PluginStaticCredentialsSpecV1{
-			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-				APIToken: "api-token",
-			},
-		},
-	}
-	require.NoError(t, suite.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, assistCred))
-
 	tt := []struct {
 		name         string
 		identity     authz.IdentityGetter
@@ -279,18 +262,6 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 			errAssertion: require.NoError,
 		},
 		{
-			name:     "admin gets assist cred",
-			identity: auth.TestBuiltin(types.RoleAdmin).I,
-			roles:    []string{string(types.RoleAdmin)},
-			labels: map[string]string{
-				"label1": "value2",
-			},
-			expected: []*types.PluginStaticCredentialsV1{
-				assistCred,
-			},
-			errAssertion: require.NoError,
-		},
-		{
 			name:     "proxy gets access denied asking for arbitrary cred",
 			identity: auth.TestBuiltin(types.RoleProxy).I,
 			roles:    []string{string(types.RoleProxy)},
@@ -301,18 +272,6 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
 			},
-		},
-		{
-			name:     "proxy gets assist cred asking for assist cred",
-			identity: auth.TestBuiltin(types.RoleProxy).I,
-			roles:    []string{string(types.RoleProxy)},
-			labels: map[string]string{
-				"label1": "value2",
-			},
-			expected: []*types.PluginStaticCredentialsV1{
-				assistCred,
-			},
-			errAssertion: require.NoError,
 		},
 	}
 

@@ -35,7 +35,6 @@ func TestGetLicenseFeatures(t *testing.T) {
 				AccessControls:          true,
 				AdvancedAccessWorkflows: true,
 				HSM:                     true,
-				Assist:                  true,
 				DeviceTrust: modules.DeviceTrustFeature{
 					Enabled: true,
 				},
@@ -60,7 +59,6 @@ func TestGetLicenseFeatures(t *testing.T) {
 			},
 			wantFeatures: modules.Features{
 				IsUsageBasedBilling:     true,
-				Assist:                  true,
 				App:                     true,
 				OIDC:                    true,
 				SAML:                    true,
@@ -92,7 +90,6 @@ func TestGetLicenseFeatures(t *testing.T) {
 			},
 			wantFeatures: modules.Features{
 				IsUsageBasedBilling:     true,
-				Assist:                  true,
 				App:                     true,
 				OIDC:                    true,
 				SAML:                    true,

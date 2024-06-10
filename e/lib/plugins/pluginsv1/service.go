@@ -24,10 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const (
-	assistCredentialName = "openai-default"
-)
-
 // getStaticPlugins returns the list of integrations that use an API key
 // (or some other static-secret based, non-OpenID-workflow method) to
 // authenticate with their remote services. These are considered
@@ -561,28 +557,6 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 
 		return &pluginspb.SearchPluginStaticCredentialsResponse{
 			Credentials: credentialsV1,
-		}, nil
-	case authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)):
-		// RoleProxy is allowed to retrieve the Teleport assist static credential and nothing else. We'll ignore the
-		// request here.
-		credential, err := s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, assistCredentialName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// If the labels don't match the openai-default credential, we'll return access denied.
-		if !types.MatchLabels(credential, req.Labels) {
-			s.log.Warnf("Proxy supplied labels (%v) for static credentials other than the ones for Teleport Assist", req.Labels)
-			return nil, trace.AccessDenied("access denied")
-		}
-
-		credentialV1, ok := credential.(*types.PluginStaticCredentialsV1)
-		if !ok {
-			return nil, trace.BadParameter("expected *types.PluginStaticCredentialsV1, got %T", credential)
-		}
-
-		return &pluginspb.SearchPluginStaticCredentialsResponse{
-			Credentials: []*types.PluginStaticCredentialsV1{credentialV1},
 		}, nil
 	}
 

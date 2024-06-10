@@ -444,7 +444,6 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindPlugin, services.RW()),
 		types.NewRule(types.KindOktaImportRule, services.RW()),
 		types.NewRule(types.KindOktaAssignment, services.RW()),
-		types.NewRule(types.KindAssistant, append(services.RW(), types.VerbUse)),
 		types.NewRule(types.KindLock, services.RW()),
 		types.NewRule(types.KindIntegration, append(services.RW(), types.VerbUse)),
 		types.NewRule(types.KindBilling, services.RW()),

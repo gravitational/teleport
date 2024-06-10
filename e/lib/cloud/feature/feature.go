@@ -48,8 +48,6 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			CustomTheme:             resp.CustomTheme,
 			// IGS is enabled for a subset of non-usage based products
 			IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
-			// Assist is disabled by default.
-			Assist: false,
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
@@ -90,7 +88,6 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		AccessControls:             resp.AccessControls,
 		HSM:                        resp.Hsm,
 		IsUsageBasedBilling:        resp.IsUsageBased,
-		Assist:                     resp.Assist,
 		IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
 		// The hardcoded values below are used to gate actions from OSS builds.
 		DeviceTrust: modules.DeviceTrustFeature{

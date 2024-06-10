@@ -239,7 +239,6 @@ func getLicenseFeatures(license types.License) modules.Features {
 		IsUsageBasedBilling:     license.GetUsageBasedBilling().Value(),
 		FeatureHiding:           license.GetSupportsFeatureHiding().Value(),
 		CustomTheme:             license.GetCustomTheme(),
-		Assist:                  !license.GetCloud().Value(),
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},

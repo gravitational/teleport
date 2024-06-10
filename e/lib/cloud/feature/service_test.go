@@ -335,7 +335,6 @@ func TestRun_Legacy_NonUsageBased(t *testing.T) {
 		RecoveryCodes:           true,
 		FeatureHiding:           true,
 		CustomTheme:             "llama-theme",
-		Assist:                  false,
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
@@ -402,7 +401,6 @@ func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
 		RecoveryCodes:           true,
 		FeatureHiding:           true,
 		CustomTheme:             "llama-theme",
-		Assist:                  false,
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
