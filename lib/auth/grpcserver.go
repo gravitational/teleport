@@ -5380,6 +5380,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
 		Authorizer:              cfg.Authorizer,
 		Backend:                 cfg.AuthServer.Services,
+		Clock:                   cfg.AuthServer.GetClock(),
 		UserNotificationCache:   cfg.AuthServer.UserNotificationCache,
 		GlobalNotificationCache: cfg.AuthServer.GlobalNotificationCache,
 	})

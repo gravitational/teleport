@@ -49,12 +49,9 @@ beforeEach(() => jest.resetAllMocks());
 
 function setup(): void {
   ctx = new TeleportContext();
-  jest
-    .spyOn(ctx, 'getFeatureFlags')
-    .mockReturnValue({ ...disabledFeatureFlags, assist: true });
+  jest.spyOn(ctx, 'getFeatureFlags').mockReturnValue(disabledFeatureFlags);
   ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
 
-  ctx.assistEnabled = true;
   ctx.storeUser.state = makeUserContext({
     userName: 'admin',
     cluster: {

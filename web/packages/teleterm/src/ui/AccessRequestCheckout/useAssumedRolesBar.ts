@@ -50,11 +50,7 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
     return retryWithRelogin(
       ctx,
       rootClusterUri,
-      () =>
-        // only passing the 'unassumed' role id as the backend will
-        // persist any other access requests currently available that
-        // are not present in the dropIds array
-        ctx.clustersService.assumeRole(rootClusterUri, [], [assumedRequest.id])
+      () => ctx.clustersService.dropRoles(rootClusterUri, [assumedRequest.id])
       // TODO(gzdunek): We should refresh the resources,
       // the same as after assuming a role in `useAssumeAccess`.
       // Unfortunately, we can't do this because we don't have access to `ResourcesContext`.
