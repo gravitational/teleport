@@ -690,7 +690,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 	var innerErr error
 	if controlErr := rawC.Control(func(fd uintptr) {
 		// We have to write something in order to send a control message so
-		// we just write NULL.
+		// we just write NUL.
 		_, _, innerErr = outUnix.WriteMsgUnix(
 			[]byte{0},
 			syscall.UnixRights(int(fd)),
