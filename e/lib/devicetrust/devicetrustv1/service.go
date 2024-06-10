@@ -839,7 +839,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			if devMetadata != nil && auditData != nil {
 				isWebAuthentication = auditData.HasDeviceWebToken // written to authnHist
 				devMetadata.WebAuthentication = isWebAuthentication
-				devMetadata.WebSessionId = auditData.WebSessionID
+				devMetadata.WebAuthenticationId = auditData.WebAuthenticationID
 			}
 
 			// Manually assign the device in use, if successful.
@@ -912,8 +912,8 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 			Code: events.DeviceAuthenticateConfirmCode,
 		},
 		Device: &apievents.DeviceMetadata{
-			DeviceId:     deviceID,
-			WebSessionId: req.CurrentWebSessionId,
+			DeviceId:            deviceID,
+			WebAuthenticationId: req.ConfirmationToken.Id,
 		},
 		Status: apievents.Status{
 			Success:     err == nil,
@@ -1190,7 +1190,7 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	devMetadata := getDeviceMetadata(auditDev)
-	devMetadata.WebSessionId = createToken.WebSessionId
+	devMetadata.WebAuthenticationId = created.Id
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
 			Type: events.DeviceWebTokenCreateEvent,

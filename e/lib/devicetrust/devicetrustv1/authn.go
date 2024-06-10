@@ -29,8 +29,8 @@ const (
 var errInvalidDeviceWebToken = &trace.AccessDeniedError{Message: invalidDeviceWebTokenMessage}
 
 type deviceAuthnAuditData struct {
-	HasDeviceWebToken bool
-	WebSessionID      string
+	HasDeviceWebToken   bool
+	WebAuthenticationID string
 }
 
 type authnCeremony struct {
@@ -105,6 +105,7 @@ func (c *authnCeremony) authenticateDevice(
 	// Do some preliminary checks so we can fetch the device...
 	initReq := resp.GetInit()
 	auditData.HasDeviceWebToken = initReq.GetDeviceWebToken() != nil
+	auditData.WebAuthenticationID = initReq.GetDeviceWebToken().GetId()
 	switch {
 	case initReq == nil:
 		err = trace.BadParameter("bad payload, expected AuthenticateDeviceInit")
@@ -133,7 +134,7 @@ func (c *authnCeremony) authenticateDevice(
 	}
 
 	// ...and always return it, so callers can write audit logs against it.
-	successResp, err := c.authenticate(stream, initReq, dev, user, auditData)
+	successResp, err := c.authenticate(stream, initReq, dev, user)
 	return dev, successResp, trace.Wrap(err)
 }
 
@@ -142,7 +143,6 @@ func (c *authnCeremony) authenticate(
 	initReq *devicepb.AuthenticateDeviceInit,
 	dev *devicepb.Device,
 	user string,
-	auditData *deviceAuthnAuditData,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
 	ctx := stream.Context()
 
@@ -197,8 +197,7 @@ func (c *authnCeremony) authenticate(
 	}
 
 	// Device Web Authentication related logic.
-	webData, err := c.processDeviceWebToken(ctx, initReq.DeviceWebToken, dev, user)
-	auditData.WebSessionID = webData.sessionID()
+	confirmToken, err := c.processDeviceWebToken(ctx, initReq.DeviceWebToken, dev, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,17 +212,17 @@ func (c *authnCeremony) authenticate(
 		// Persist platform attestation record in collected data.
 		initReq.DeviceData.TpmPlatformAttestation = platformAttestation
 	default:
-		c.deleteConfirmToken(ctx, webData.token())
+		c.deleteConfirmToken(ctx, confirmToken)
 		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
 	}
 	if err != nil {
-		c.deleteConfirmToken(ctx, webData.token())
+		c.deleteConfirmToken(ctx, confirmToken)
 		return nil, trace.Wrap(err)
 	}
 
 	// Augment end-user certificates?
 	var resp *devicepb.AuthenticateDeviceResponse
-	if webData == nil {
+	if confirmToken == nil {
 		var err error
 		resp, err = c.augmentEndUserCerts(ctx, initReq, dev)
 		if err != nil {
@@ -232,7 +231,7 @@ func (c *authnCeremony) authenticate(
 	} else {
 		resp = &devicepb.AuthenticateDeviceResponse{
 			Payload: &devicepb.AuthenticateDeviceResponse_ConfirmationToken{
-				ConfirmationToken: webData.ConfirmationToken,
+				ConfirmationToken: confirmToken,
 			},
 		}
 	}
@@ -246,27 +245,6 @@ func (c *authnCeremony) authenticate(
 	return resp, nil
 }
 
-type webAuthnData struct {
-	WebSessionID      string
-	ConfirmationToken *devicepb.DeviceConfirmationToken
-}
-
-// sessionID safely returns d.WebSessionID.
-func (d *webAuthnData) sessionID() string {
-	if d == nil {
-		return ""
-	}
-	return d.WebSessionID
-}
-
-// token safely returns d.ConfirmationToken.
-func (d *webAuthnData) token() *devicepb.DeviceConfirmationToken {
-	if d == nil {
-		return nil
-	}
-	return d.ConfirmationToken
-}
-
 // processDeviceWebToken validates the webToken, spends it and returns the
 // associated web session data.
 //
@@ -276,7 +254,7 @@ func (c *authnCeremony) processDeviceWebToken(
 	webToken *devicepb.DeviceWebToken,
 	dev *devicepb.Device,
 	user string,
-) (*webAuthnData, error) {
+) (*devicepb.DeviceConfirmationToken, error) {
 	if webToken == nil {
 		return nil, nil
 	}
@@ -297,21 +275,13 @@ func (c *authnCeremony) processDeviceWebToken(
 
 	// Spend the token immediately, regardless of outcome.
 	storedToken, confirmToken, err := c.storage.SpendDeviceWebToken(ctx, webToken, dev.Id)
-	// err handled below.
-
-	webData := &webAuthnData{
-		WebSessionID:      storedToken.GetWebSessionId(),
-		ConfirmationToken: confirmToken,
-	}
-	// Always return webData after this point. It's used for audit.
-
 	if err != nil {
 		c.logger.DebugContext(ctx,
 			"AuthenticateDevice: device web authentication attempt failed",
 			"error", err,
 		)
 		// err swallowed on purpose.
-		return webData, auditStatusError{
+		return nil, auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: invalidDeviceWebTokenMessage,
 		}
@@ -319,10 +289,10 @@ func (c *authnCeremony) processDeviceWebToken(
 
 	if err := c.validateDeviceWebToken(ctx, storedToken, dev, user); err != nil {
 		c.deleteConfirmToken(ctx, confirmToken)
-		return webData, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return webData, nil
+	return confirmToken, nil
 }
 
 func (c *authnCeremony) validateDeviceWebToken(
