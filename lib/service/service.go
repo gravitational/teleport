@@ -4338,7 +4338,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:               proxySigner,
-			OpenAIConfig:              cfg.Testing.OpenAIConfig,
 			NodeWatcher:               nodeWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,

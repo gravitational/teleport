@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -301,9 +300,6 @@ type Config struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
-
-	// OpenAIConfig provides config options for the OpenAI integration.
-	OpenAIConfig *openai.ClientConfig
 
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.

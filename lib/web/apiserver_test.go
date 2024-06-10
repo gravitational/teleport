@@ -58,7 +58,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,9 +195,6 @@ type webSuiteConfig struct {
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
-
-	// OpenAIConfig is a custom OpenAI config for the test.
-	OpenAIConfig *openai.ClientConfig
 
 	// ClusterFeatures allows overriding default auth server features
 	ClusterFeatures *authproto.Features
@@ -493,7 +489,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:               router,
 		HealthCheckAppServer: cfg.HealthCheckAppServer,
 		UI:                   cfg.uiConfig,
-		OpenAIConfig:         cfg.OpenAIConfig,
 		PresenceChecker:      cfg.presenceChecker,
 		GetProxyIdentity: func() (*state.Identity, error) {
 			return proxyIdentity, nil
