@@ -1,63 +1,56 @@
 ---
-title: "Get Started with Teleport Enterprise Cloud"
-description: "Shows you how to set up a Teleport Enterprise Cloud account and protect your first resource with Teleport."
+title: "Get Started with Teleport"
+description: "Shows you how to set up a cloud-managed Teleport Enterprise account and protect your first resource with Teleport."
 tocDepth: 3
 ---
 
-Teleport Enterprise Cloud helps organizations provide secure access to their
-infrastructure with minimal configuration and cluster management. 
+Teleport helps organizations provide secure access to their infrastructure with
+minimal configuration and cluster management. 
 
-With Teleport Enterprise Cloud, the Teleport Auth Service and Teleport Proxy
-Service are managed for you as cloud-based services. These services provide you
-with immediate access to a scalable and fault-tolerant certificate authority and
-reverse proxy that you don't need to manage or maintain. You can focus on
-enrolling the resources you want to protect and configuring secure role-based
-access for private and public networks across the globe.
+With cloud-managed Teleport Enterprise, the Teleport Auth Service and Teleport
+Proxy Service are managed for you as cloud-based services. These services
+provide you with immediate access to a scalable and fault-tolerant certificate
+authority and reverse proxy that you don't need to manage or maintain. You can
+focus on enrolling the resources you want to protect and configuring secure
+role-based access for private and public networks across the globe.
 
-After you start a [free trial](https://goteleport.com/signup) of Teleport
-Enterprise Cloud, you can set up role-based access control (RBAC), enable single
-sign-on, and prevent unauthorized use of organization resources.
-
-<Notice type="tip">
-
-For a detailed comparison of Teleport editions, including how Teleport
-Enterprise Cloud compares to Teleport Enterprise, see [Choose an
-Edition](introduction.mdx).
-
-</Notice>
+After you start a [free trial](https://goteleport.com/signup) of managed
+Teleport Enterprise, you can set up role-based access control (RBAC), enable
+single sign-on, and prevent unauthorized use of organization resources.
 
 This guide explains how to register a local server with a Teleport Enterprise
-Cloud account.  After you register the server, you can access it through the
-Teleport Web UI in a browser or using the terminal. You can also record your
-sessions, so you can review them later.
+account.  After you register the server, you can access it through the Teleport
+Web UI in a browser or using the terminal. You can also record your sessions, so
+you can review them later.
 
 ## Prerequisites
 
-- A Teleport Enterprise Cloud account. You can sign up for a free trial at the
-  following page:
+- A cloud-managed Teleport Enterprise account. You can sign up for a free trial
+  at the following page:
 
   https://goteleport.com/signup/
 
   After you sign up, you receive an email invitation to activate your account.
   Use this account to authenticate your identity when you access the Teleport
-  Enterprise Cloud cluster.
+  Enterprise cluster.
 
 - Docker installed on your workstation. 
 
-  This guide illustrates how to register a server with Teleport Enterprise Cloud
-  using a Docker container and the Teleport SSH Service. Docker is only required
-  for the local demo environment used in this guide. You can find installation
+  This guide illustrates how to register a server with Teleport Enterprise using
+  a Docker container and the Teleport SSH Service. Docker is only required for
+  the local demo environment used in this guide. You can find installation
   instructions for Docker on [Docker's
   website](https://docs.docker.com/get-docker/). If you want to register servers
-  in Teleport without using Docker, see the getting started guide for
-  [server access](../../server-access/getting-started.mdx).
+  in Teleport without using Docker, see the getting started guide for [server
+  access](../../server-access/getting-started.mdx).
 
 - The `tsh` client tool. 
   
   The `tsh` client tool is only required to access the server from a terminal.
-  For installation instructions, see [Installation Guide](../../installation.mdx).
-  If you don't install the `tsh` client tool, you can access the server in
-  Teleport Enterprise Cloud using the Web UI through your browser.
+  For installation instructions, see [Installation
+  Guide](../../installation.mdx).  If you don't install the `tsh` client tool,
+  you can access the server in Teleport Enterprise using the Web UI through your
+  browser.
 
 ## Step 1/5. Spin up a server
 
@@ -65,12 +58,10 @@ To spin up a new server using Docker:
 
 1. Open a terminal shell on your workstation.
 
-1. Start a Docker container on your workstation to prepare a server that you want enroll 
-as a resource in your Teleport Enterprise Cloud cluster:
+1. Start a Docker container on your workstation to prepare a server that you
+   want to enroll as a resource in your Teleport Enterprise cluster:
    
-   ```code
-   $ docker run --interactive --tty ubuntu:22.04 /bin/bash
-   ```
+   ```code $ docker run --interactive --tty ubuntu:22.04 /bin/bash ```
    
    This command starts a new shell session in the `ubuntu:22.04` container. 
 
@@ -95,14 +86,14 @@ To install the Teleport SSH Service on your server:
    
    The first time you sign in, you are prompted to add your first resource: 
    
-   ![Add your first resource](../../../img/cloud/getting-started/add-my-first-resource@2x.png)
+   ![Add your first resource](../img/cloud/getting-started/add-my-first-resource@2x.png)
 
 1. Click **Add my first resource**, and you will see the option to enroll
    resources in your Teleport cluster.
 
 1. Type *server* in the search box to filter the list of resources:
    
-   ![Select resource type](../../../img/cloud/getting-started/choose-resource@2x.png)
+   ![Select resource type](../img/cloud/getting-started/choose-resource@2x.png)
 
 1. Click *Ubuntu 14.04+* to register the server in the Docker container.
    
@@ -110,7 +101,7 @@ To install the Teleport SSH Service on your server:
    for your multi-factor authentication device, then displays a script to
    install and configure the Teleport SSH Service. For example:
    
-   ![Configure resource](../../../img/cloud/getting-started/paste-script@2x.png)
+   ![Configure resource](../img/cloud/getting-started/paste-script@2x.png)
    
 1. The Teleport installation script uses `sudo`, which is not installed on your
    Docker container. Before copying the command to run the installation script,
@@ -129,18 +120,18 @@ into the container shell session.
    Leave the script running in the shell. After Teleport is installed on the server, 
    you'll see a message in the Web UI that your new Teleport instance was successfully detected:
    
-   ![Connected successfully](../../../img/cloud/getting-started/successfully-connected@2x.png)
+   ![Connected successfully](../img/cloud/getting-started/successfully-connected@2x.png)
    
    To continue, click **Next**.
 
 1. Confirm that you want to authenticate as the `root` user and click **Next**:
    
-   ![Choose your user](../../../img/cloud/getting-started/set-up-access@2x.png)
+   ![Choose your user](../img/cloud/getting-started/set-up-access@2x.png)
 
 1. Respond to the MFA prompt again, then click **Test Connection** to verify
    access to the server.
    
-   ![Start session](../../../img/cloud/getting-started/test-connection@2x.png)
+   ![Start session](../img/cloud/getting-started/test-connection@2x.png)
 
 ## Step 3/5. Start a session
 
@@ -182,7 +173,7 @@ To play back a session in the Teleport Web UI:
    step listed.  For example:
    
    ![Session
-   recordings](../../../img/cloud/getting-started/session-recordings@2x.png)
+   recordings](../img/cloud/getting-started/session-recordings@2x.png)
 
 1. Click **Play** to see a full recording of your session.
 
@@ -235,7 +226,7 @@ of your cluster and the name of your Teleport user:
 
 ## Next steps
 
-This guide introduced how you can use Teleport Enterprise Cloud to protect your
+This guide introduced how you can use Teleport Enterprise to protect your
 infrastructure by demonstrating how to register a server with your Teleport
 cluster. 
 
