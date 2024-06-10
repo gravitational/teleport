@@ -336,7 +336,7 @@ endif
 .PHONY: $(BUILDDIR)/tplaceholder.rs
 $(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
 	cd /tmp/tplaceholder/ && cargo build --release --locked $(CARGO_TARGET)
-	install target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
+	install /tmp/tplaceholder/target/$(RUST_TARGET_ARCH)/release/tplaceholder $(BUILDDIR)/
 	$(BUILDDIR)/tplaceholder
 
 #
