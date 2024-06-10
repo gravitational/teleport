@@ -32,6 +32,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -696,7 +697,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 		// we just write NULL.
 		_, _, innerErr = outUnix.WriteMsgUnix(
 			[]byte{0},
-			nil,
+			syscall.UnixRights(int(fd)),
 			nil,
 		)
 	}); controlErr != nil {
