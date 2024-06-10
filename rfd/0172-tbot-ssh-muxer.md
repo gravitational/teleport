@@ -125,11 +125,6 @@ For the initial version, we must include:
 - The long-lived proxying background service within `tbot`
   - This will include a rudimentary connection cycler.
 - The new lightweight client binary with support for ProxyUseFdPass.
-- A configuration option to control the maximum number of proxied connections.
-  - When this maximum is reached, the service will wait until the number of
-    active connections drops below the maximum.
-  - This will allow a sane limit to be provided to prevent the long-lived `tbot`
-    process from being overwhelmed.
 - Prometheus metrics which exposes the health of the proxying.
   - Number of active proxied connections.
   - Number of attempts to establish proxied connections, the time this has
@@ -172,8 +167,6 @@ services:
     destination:
       type: directory
       path: /opt/machine-id
-    # The maximum number of connections that can be proxied at once.
-    max_connections: 100
 ```
 
 ### Security
