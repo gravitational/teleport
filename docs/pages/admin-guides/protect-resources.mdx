@@ -3,6 +3,17 @@ title: Protect Infrastructure Resources
 description: Guides for enrolling servers, databases, and other infrastructure resources with Teleport so you can set up secure access.
 ---
 
+You can use Teleport to set up secure access to resources in your infrastructure
+such as Linux servers, databases, and Windows desktops. 
+
+The guides in this section show you how to enroll infrastructure resources in
+your Teleport cluster.
+
+Teleport **Agents** are Teleport processes that proxy traffic to and from
+infrastructure resources.  Agents check the permissions of a user who attempts
+to access proxied resources, and only permit a connection to a resource if the
+resource's **labels** match the labels allowed by the user's role.
+
 {/*TOPICS*/}
 
 - [AWS OIDC Integration](protect-resources/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
