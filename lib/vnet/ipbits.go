@@ -67,7 +67,6 @@ func randomFreeIPv4InNet(ipNet *net.IPNet, free func(ipv4) bool) (ipv4, error) {
 
 	netMask := ipv4(binary.BigEndian.Uint32(ipNet.Mask))
 	netPrefix := ipv4(binary.BigEndian.Uint32(ipNet.IP))
-	fmt.Println(netPrefix.String(), netMask.String())
 
 	// Pick a random starting point and increment until finding a free address.
 	randAddrSuffix := ipv4(mathrand.Uint32())

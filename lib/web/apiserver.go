@@ -40,6 +40,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -97,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -187,10 +187,6 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
-
-	// withheldMessages is a list of any messages that came from the browser which were
-	// withheld while the user was performing MFA.
-	withheldMessages []tdp.Message
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -774,7 +770,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/connect/ws", h.WithClusterAuthWebSocket(h.siteNodeConnect))         // connect to an active session (via websocket, with auth over websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
-	h.GET("/webapi/sites/:site/kube/:clusterName/connect/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
+	h.GET("/webapi/sites/:site/kube/exec/ws", h.WithClusterAuthWebSocket(h.podConnect)) // connect to a pod with exec (via websocket, with auth over websocket)
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -800,8 +796,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
-	// token generation
+	// join token handlers
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
+	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
@@ -2230,7 +2228,17 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 
 func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *SessionContext) error {
 	if err := sctx.Invalidate(ctx); err != nil {
-		return trace.Wrap(err)
+		h.log.
+			WithError(err).
+			WithField("user", sctx.GetUser()).
+			Warn("Failed to invalidate sessions")
+	}
+
+	if err := h.auth.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {
+		h.log.
+			WithError(err).
+			WithField("session_id", sctx.GetSessionID()).
+			Debug("sessionCache: Failed to release web session")
 	}
 	clearSessionCookies(w)
 
@@ -3358,6 +3366,11 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
+type podConnectParams struct {
+	// Term is the initial PTY size.
+	Term session.TerminalParams `json:"term"`
+}
+
 func (h *Handler) podConnect(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -3367,13 +3380,29 @@ func (h *Handler) podConnect(
 	ws *websocket.Conn,
 ) (interface{}, error) {
 	q := r.URL.Query()
-	params := q.Get("params")
-	if params == "" {
+	if q.Get("params") == "" {
 		return nil, trace.BadParameter("missing params")
 	}
+	var params podConnectParams
+	if err := json.Unmarshal([]byte(q.Get("params")), &params); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	var execReq PodExecRequest
-	if err := json.Unmarshal([]byte(params), &execReq); err != nil {
+	execReq, err := readPodExecRequestFromWS(ws)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || terminal.IsOKWebsocketCloseError(trace.Unwrap(err)) {
+			return nil, nil
+		}
+		var netError net.Error
+		if errors.As(trace.Unwrap(err), &netError) && netError.Timeout() {
+			return nil, trace.BadParameter("timed out waiting for pod exec request data on websocket connection")
+		}
+
+		return nil, trace.Wrap(err)
+	}
+	execReq.Term = params.Term
+
+	if err := execReq.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3393,7 +3422,7 @@ func (h *Handler) podConnect(
 
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
-		Login:                 sctx.GetUser(),
+		Login:                 "root",
 		ClusterName:           clusterName,
 		KubernetesClusterName: execReq.KubeCluster,
 		Moderated:             accessEvaluator.IsModerated(),
@@ -3402,6 +3431,7 @@ func (h *Handler) podConnect(
 		LastActive:            h.clock.Now().UTC(),
 		Namespace:             apidefaults.Namespace,
 		Owner:                 sctx.GetUser(),
+		Command:               execReq.Command,
 	}
 
 	h.log.Debugf("New kube exec request for namespace=%s pod=%s container=%s, sid=%s, websid=%s.",
@@ -3448,6 +3478,42 @@ func (h *Handler) podConnect(
 
 	ph.ServeHTTP(w, r)
 	return nil, nil
+}
+
+// KubeExecDataWaitTimeout is how long server would wait for user to send pod exec data (namespace, pod name etc)
+// on websocket connection, after user initiated the exec into pod flow.
+const KubeExecDataWaitTimeout = defaults.HeadlessLoginTimeout
+
+func readPodExecRequestFromWS(ws *websocket.Conn) (*PodExecRequest, error) {
+	err := ws.SetReadDeadline(time.Now().Add(KubeExecDataWaitTimeout))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	messageType, bytes, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := ws.SetReadDeadline(time.Time{}); err != nil {
+		return nil, trace.Wrap(err, "failed to set read deadline for websocket connection")
+	}
+
+	if messageType != websocket.BinaryMessage {
+		return nil, trace.BadParameter("Expected binary message of type websocket.BinaryMessage, got %v", messageType)
+	}
+
+	var envelope terminal.Envelope
+	if err := gogoproto.Unmarshal(bytes, &envelope); err != nil {
+		return nil, trace.BadParameter("Failed to parse envelope: %v", err)
+	}
+
+	var req PodExecRequest
+	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
 }
 
 func (h *Handler) getKubeExecClusterData(netConfig types.ClusterNetworkingConfig) (string, string, error) {
