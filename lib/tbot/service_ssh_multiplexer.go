@@ -660,3 +660,51 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 	wrappedConn.parent.Store(currentClt)
 	return wrappedConn, details, nil
 }
+
+// ConnectToSSHMultiplex connects to the SSH multiplexer and sends the target
+// to the multiplexer. It then returns the connection to the SSH multiplexer
+// over stdout.
+func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string, stdout *os.File) error {
+	outConn, err := net.FileConn(stdout)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer outConn.Close()
+	outUnix, ok := outConn.(*net.UnixConn)
+	if !ok {
+		return trace.BadParameter("expected stdout to be %T, got %T", outUnix, outConn)
+	}
+
+	c, err := new(net.Dialer).DialContext(ctx, "unix", socketPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer c.Close()
+
+	if _, err := fmt.Fprintln(c, target); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rawC, err := c.(*net.UnixConn).SyscallConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var innerErr error
+	if controlErr := rawC.Control(func(fd uintptr) {
+		// We have to write something in order to send a control message so
+		// we just write NULL.
+		_, _, innerErr = outUnix.WriteMsgUnix(
+			[]byte{0},
+			nil,
+			nil,
+		)
+	}); controlErr != nil {
+		return trace.Wrap(controlErr)
+	}
+	if innerErr != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}

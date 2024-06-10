@@ -18,10 +18,7 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"os"
-	"syscall"
 
 	"github.com/gravitational/trace"
 
@@ -64,46 +61,5 @@ func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
 // onSSHMultiplexProxyCommand connects to an existing long-lived SSH multiplexer
 // service as opposed to onSSHProxyCommand which completes this on-the-fly.
 func onSSHMultiplexProxyCommand(ctx context.Context, socketPath string, target string) error {
-	outConn, err := net.FileConn(os.Stdout)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer outConn.Close()
-	outUnix, ok := outConn.(*net.UnixConn)
-	if !ok {
-		return trace.BadParameter("expected stdout to be %T, got %T", outUnix, outConn)
-	}
-
-	c, err := new(net.Dialer).DialContext(ctx, "unix", socketPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer c.Close()
-
-	if _, err := fmt.Fprintln(c, target); err != nil {
-		return trace.Wrap(err)
-	}
-
-	rawC, err := c.(*net.UnixConn).SyscallConn()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var innerErr error
-	if controlErr := rawC.Control(func(fd uintptr) {
-		// We have to write something in order to send a control message so
-		// we just write NULL.
-		_, _, innerErr = outUnix.WriteMsgUnix(
-			[]byte{0},
-			syscall.UnixRights(int(fd)),
-			nil,
-		)
-	}); controlErr != nil {
-		return trace.Wrap(err)
-	}
-	if innerErr != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(tbot.ConnectToSSHMultiplex(ctx, socketPath, target, os.Stdout))
 }
