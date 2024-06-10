@@ -104,7 +104,7 @@ CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
-CARGO_TARGET := --target=$(RUST_TARGET_ARCH) -C linker=$(RUST_TARGET_ARCH)
+CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 
 # If set to 1, Windows RDP client is not built.
 RDPCLIENT_SKIP_BUILD ?= 0
@@ -315,9 +315,14 @@ $(BUILDDIR)/tsh:
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
 
+# TODO before merge: move the [target.TARGET] change into other PR
 /tmp/tplaceholder/src/main.rs:
 	mkdir -pv "$(@D)"
-	cd "$(@D)/../" && cargo init && cargo update && rustup target add $(RUST_TARGET_ARCH)
+	cd "$(@D)/../" && \
+		cargo init && \
+		printf '[target.%s]\nlinker = "%s"' $(RUST_TARGET_ARCH) $(RUST_TARGET_ARCH) | tee -a '/tmp/tplaceholder/Cargo.toml' && \
+		cargo update && \
+		rustup target add $(RUST_TARGET_ARCH)
 
 .PHONY: $(BUILDDIR)/tplaceholder.rs
 $(BUILDDIR)/tplaceholder: /tmp/tplaceholder/src/main.rs
