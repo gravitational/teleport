@@ -228,7 +228,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 	defer authClient.Close()
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.status.Cluster, authClient)
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
