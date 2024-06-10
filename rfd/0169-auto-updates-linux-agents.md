@@ -9,7 +9,7 @@ state: draft
 
 * Engineering: @russjones && @bernardjkim
 * Product: @klizhentas || @xinding33 
-* Security: Vendor TBD
+* Security: Doyensec
 
 ## What
 
@@ -234,7 +234,7 @@ The `enable` subcommand will:
 4. Ensure there is enough free disk space to upgrade Teleport.
 5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 6. Download and verify the checksum (tarball URL suffixed with `.sha256`).
-7. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
+7. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
 8. Replace any existing binaries or symlinks with symlinks to the current version.
 9. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 10. Restart the agent if the systemd service is already enabled.
@@ -257,7 +257,7 @@ When `update` subcommand is otherwise executed, it will:
 6. Ensure there is enough free disk space to upgrade Teleport.
 7. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 8. Download and verify the checksum (tarball URL suffixed with `.sha256`).
-9. Extract the tarball to `/var/lib/teleport/versions/VERSION`.
+9. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
 10. Update symlinks to point at the new version.
 11. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 12. Restart the agent if the systemd service is already enabled.
@@ -314,6 +314,9 @@ When Teleport is downgraded to a previous version that has a backup of `sqlite.d
 
 Downgrades are applied with `teleport-updater update`, just like upgrades.
 The above steps modulate the standard workflow in the section above.
+If the downgraded version is already present, the uncompressed version is used to ensure fast recovery of the exact state before the failed upgrade.
+To ensure that the target version is was not corrupted by incomplete extraction, the downgrade checks for the existance of `/var/lib/teleport/versions/TARGET-VERSION/sha256` before downgrading.
+To ensure that the DB backup was not corrupted by incomplete copying, the downgrade checks for the existance of `/var/lib/teleport/versions/TARGET-VERSION/backup/backup.yaml` before restoring.
 
 Teleport must be fully-stopped to safely replace `sqlite.db`.
 When restarting the agent during an upgrade, `SIGHUP` is used.
