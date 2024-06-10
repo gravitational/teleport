@@ -30,7 +30,7 @@ import (
 	"math"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -154,15 +154,15 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
 		ClusterNames:        []string{id.ClusterName},
-		KnownHostsPath:      path.Join(dest.Path, ssh.KnownHostsName),
-		IdentityFilePath:    path.Join(dest.Path, identity.PrivateKeyKey),
-		CertificateFilePath: path.Join(dest.Path, identity.SSHCertKey),
+		KnownHostsPath:      filepath.Join(dest.Path, ssh.KnownHostsName),
+		IdentityFilePath:    filepath.Join(dest.Path, identity.PrivateKeyKey),
+		CertificateFilePath: filepath.Join(dest.Path, identity.SSHCertKey),
 		ProxyHost:           proxyHost,
 
 		TBotMux:             true,
 		TBotMuxProxyCommand: proxyCommand,
 		TBotMuxData:         `%h:%p`,
-		TBotMuxSocketPath:   path.Join(dest.Path, sshMuxSocketName),
+		TBotMuxSocketPath:   filepath.Join(dest.Path, sshMuxSocketName),
 	})
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")
@@ -384,7 +384,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	l, err := createListener(
 		ctx,
 		s.log,
-		fmt.Sprintf("unix://%s", path.Join(dest.Path, sshMuxSocketName)))
+		fmt.Sprintf("unix://%s", filepath.Join(dest.Path, sshMuxSocketName)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
