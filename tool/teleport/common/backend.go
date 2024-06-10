@@ -4,10 +4,10 @@ import (
 	"context"
 	"os"
 
+	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/trace"
 )
 
 func onClone(ctx context.Context, configPath string) error {
