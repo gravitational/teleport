@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
+// SSHMultiplexerServiceType is the type of the `ssh-proxy` service.
 const SSHMultiplexerServiceType = "ssh-multiplexer"
 
 // SSHMultiplexerService is the configuration for the `ssh-proxy` service
