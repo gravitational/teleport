@@ -233,5 +233,5 @@ export {
   requiredRoleArn,
   requiredIamRoleName,
   requiredEmailLike,
-  requiredAll
+  requiredAll,
 };
