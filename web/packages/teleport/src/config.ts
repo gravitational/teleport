@@ -138,6 +138,7 @@ const cfg = {
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
+    joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
@@ -256,6 +257,7 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -485,6 +487,14 @@ const cfg = {
 
   getDesktopsRoute(clusterId: string) {
     return generatePath(cfg.routes.desktops, { clusterId });
+  },
+
+  getJoinTokensRoute() {
+    return cfg.routes.joinTokens;
+  },
+
+  getJoinTokensUrl() {
+    return cfg.api.joinTokensPath;
   },
 
   getJoinTokenUrl() {
