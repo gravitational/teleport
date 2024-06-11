@@ -24,6 +24,8 @@ import {
   UnifiedResourcesQueryParams,
   SharedUnifiedResource,
   UnifiedResourcesPinning,
+  getResourceAvailabilityFilter,
+  ResourceAvailabilityFilter,
 } from 'shared/components/UnifiedResources';
 import {
   DbProtocol,
@@ -45,7 +47,11 @@ import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_res
 import { NodeSubKind } from 'shared/services';
 import { waitForever } from 'shared/utils/wait';
 
-import { UserPreferences } from 'teleterm/services/tshd/types';
+import {
+  UserPreferences,
+  ListUnifiedResourcesRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as uri from 'teleterm/ui/uri';
@@ -83,6 +89,8 @@ export function UnifiedResources(props: {
     useUserPreferences(props.clusterUri);
   const { documentsService, rootClusterUri, accessRequestsService } =
     useWorkspaceContext();
+  const rootCluster = clustersService.findCluster(rootClusterUri);
+
   const addedResources = useStoreSelector(
     'workspacesService',
     useCallback(
@@ -101,7 +109,7 @@ export function UnifiedResources(props: {
 
   const { unifiedResourcePreferences } = userPreferences;
 
-  const mergedParams: UnifiedResourcesQueryParams = useMemo(
+  const mergedParams = useMemo<UnifiedResourcesQueryParams>(
     () => ({
       kinds: props.queryParams.resourceKinds,
       sort: props.queryParams.sort,
@@ -122,13 +130,36 @@ export function UnifiedResources(props: {
     ]
   );
 
+  const integratedAccessRequests = useMemo<IntegratedAccessRequests>(() => {
+    // Ideally, we would have a cluster loading status that would tell us,
+    // whether the cluster data from the auth server has been loaded.
+    // However, since we don't have that,
+    // we use the `showResources` status as an indicator.
+    if (rootCluster.showResources === ShowResources.UNSPECIFIED) {
+      return { supported: 'unknown' };
+    }
+    if (!rootCluster.features?.advancedAccessWorkflows) {
+      return { supported: 'no' };
+    }
+    return {
+      supported: 'yes',
+      availabilityFilter: getResourceAvailabilityFilter(
+        userPreferences.unifiedResourcePreferences.availableResourceMode,
+        rootCluster.showResources === ShowResources.REQUESTABLE
+      ),
+    };
+  }, [
+    rootCluster.features?.advancedAccessWorkflows,
+    rootCluster.showResources,
+    userPreferences.unifiedResourcePreferences.availableResourceMode,
+  ]);
+
   const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
     useConnectMyComputerContext();
 
   const isRootCluster = props.clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
   let discoverUrl: string;
-  const rootCluster = clustersService.findCluster(rootClusterUri);
   if (isRootCluster) {
     discoverUrl = `https://${rootCluster.proxyHost}/web/discover`;
   }
@@ -162,13 +193,13 @@ export function UnifiedResources(props: {
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
 
-      const showRequestableResources =
-        rootCluster.showResources === ShowResources.REQUESTABLE;
-      // If we are currently making an access request, all buttons change to
-      // add to request.
       const showRequestButton =
-        showRequestableResources &&
-        (resource.requiresRequest || requestStarted);
+        integratedAccessRequests.supported === 'yes' &&
+        (integratedAccessRequests.availabilityFilter.mode === 'requestable' ||
+          resource.requiresRequest ||
+          // If we are currently making an access request, all buttons change to
+          // add to request.
+          requestStarted);
 
       if (showRequestButton) {
         return (
@@ -184,14 +215,13 @@ export function UnifiedResources(props: {
       accessRequestsService,
       addedResources,
       requestStarted,
-      rootCluster.showResources,
+      integratedAccessRequests,
     ]
   );
 
   return (
     <Resources
       getAccessRequestButton={getAccessRequestButton}
-      showResources={rootCluster.showResources}
       queryParams={mergedParams}
       onParamsChange={onParamsChange}
       clusterUri={props.clusterUri}
@@ -203,9 +233,10 @@ export function UnifiedResources(props: {
       openConnectMyComputerDocument={openConnectMyComputerDocument}
       onResourcesRefreshRequest={onResourcesRefreshRequest}
       discoverUrl={discoverUrl}
+      integratedAccessRequests={integratedAccessRequests}
       // Reset the component state when query params object change.
       // JSON.stringify on the same object will always produce the same string.
-      key={`${JSON.stringify(mergedParams)}-${rootCluster.showResources}`}
+      key={`${JSON.stringify(mergedParams)}-${JSON.stringify(integratedAccessRequests)}`}
     />
   );
 }
@@ -224,18 +255,21 @@ const Resources = memo(
     onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
     discoverUrl: string;
     getAccessRequestButton?: (resource: UnifiedResourceResponse) => JSX.Element;
-    showResources: ShowResources;
+    integratedAccessRequests: IntegratedAccessRequests;
   }) => {
     const appContext = useAppContext();
 
     const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
-          // Block call if we don't know yet what resources to show.
-          // We will remount the component and do the call when showResources changes.
-          if (props.showResources === ShowResources.UNSPECIFIED) {
+          // Block the call if we don't know yet what resources to show.
+          // We will remount the component and do the call when integratedAccessRequests changes.
+          if (props.integratedAccessRequests.supported === 'unknown') {
             await waitForever(signal);
           }
+
+          const { searchAsRoles, includeRequestable } =
+            getRequestableResourcesParams(props.integratedAccessRequests);
           const response = await retryWithRelogin(
             appContext,
             props.clusterUri,
@@ -243,7 +277,6 @@ const Resources = memo(
               appContext.resourcesService.listUnifiedResources(
                 {
                   clusterUri: props.clusterUri,
-                  searchAsRoles: false,
                   sortBy: {
                     isDesc: props.queryParams.sort.dir === 'DESC',
                     field: props.queryParams.sort.fieldName,
@@ -254,8 +287,8 @@ const Resources = memo(
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
                   limit: paginationParams.limit,
-                  includeRequestable:
-                    props.showResources === ShowResources.REQUESTABLE,
+                  searchAsRoles,
+                  includeRequestable,
                 },
                 signal
               )
@@ -275,7 +308,7 @@ const Resources = memo(
           props.queryParams.sort.dir,
           props.queryParams.sort.fieldName,
           props.clusterUri,
-          props.showResources,
+          props.integratedAccessRequests,
         ]
       ),
     });
@@ -315,6 +348,11 @@ const Resources = memo(
           props.updateUserPreferences({ unifiedResourcePreferences })
         }
         pinning={pinning}
+        availabilityFilter={
+          props.integratedAccessRequests.supported === 'yes'
+            ? props.integratedAccessRequests.availabilityFilter
+            : undefined
+        }
         resources={resources.map(r => {
           const { resource, ui } = mapToSharedResource(r);
           return {
@@ -511,4 +549,54 @@ function NoResources(props: {
       {$content}
     </Flex>
   );
+}
+
+/**
+ * Describes availability of integrated access requests
+ * (requesting resources from the unified resources view).
+ *
+ * If `supported` is `'no'` it basically means that the cluster doesn't support
+ * access requests at all.
+ */
+type IntegratedAccessRequests =
+  | {
+      supported: 'unknown';
+    }
+  | {
+      supported: 'no';
+    }
+  | {
+      supported: 'yes';
+      availabilityFilter: ResourceAvailabilityFilter;
+    };
+
+/**
+ * When `includeRequestable` is true,
+ * all resources (accessible and requestable) are returned.
+ * When only `searchAsRoles` is true, only requestable resources are returned.
+ * When both are false, only accessible resources are returned.
+ */
+function getRequestableResourcesParams(
+  integratedAccessRequests: IntegratedAccessRequests
+): Pick<ListUnifiedResourcesRequest, 'searchAsRoles' | 'includeRequestable'> {
+  if (integratedAccessRequests.supported === 'yes') {
+    switch (integratedAccessRequests.availabilityFilter.mode) {
+      case 'all':
+      case 'none':
+        return {
+          searchAsRoles: false,
+          includeRequestable: true,
+        };
+      case 'requestable':
+        return {
+          searchAsRoles: true,
+          includeRequestable: false,
+        };
+    }
+  }
+
+  return {
+    searchAsRoles: false,
+    includeRequestable: false,
+  };
 }
