@@ -191,7 +191,7 @@ describe('useResourceSearch', () => {
       search: 'foo',
       filters: [],
       limit: 100,
-      includeRequestable: true,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -223,7 +223,7 @@ describe('useResourceSearch', () => {
       search: '',
       filters: [],
       limit: 10,
-      includeRequestable: true,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -276,6 +276,7 @@ describe('useResourceSearch', () => {
     const appContext = new MockAppContext();
     const rootCluster = makeRootCluster({
       showResources: ShowResources.REQUESTABLE,
+      features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
     });
     const leafCluster = makeLeafCluster({
       showResources: ShowResources.UNSPECIFIED,
