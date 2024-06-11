@@ -316,7 +316,7 @@ message BotInstanceStatus {
   // The initial authentication status for this bot instance.
   BotInstanceStatusAuthentication initial_authentication = 3;
   // The N most recent authentication status records for this bot instance.
-  repeated BotInstanceStatusAuthentication authentications = 4;
+  repeated BotInstanceStatusAuthentication latest_authentications = 4;
   // The initial heartbeat status for this bot instance.
   BotInstanceStatusHeartbeat initial_heartbeat = 5;
   // The N most recent heartbeats for this bot instance.
