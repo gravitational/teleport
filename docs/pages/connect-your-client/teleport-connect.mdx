@@ -147,6 +147,9 @@ be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
 ### Launching an application in the browser
 
+Teleport Connect can open a web app in the browser. As browsers and Teleport Connect do not share
+authentication data, you will have to log in to the Web UI before accessing an app.
+
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
 1. Look for the application you wish to open and click the Launch button (web apps and AWS console)
@@ -161,6 +164,8 @@ VNet is a virtual network emulation tool available in Teleport Connect. It enabl
 your computer to connect to TCP applications protected by Teleport, with no extra changes required
 to the program itself. It removes the need to manually create tunnels for TCP applications.
 
+This is the recommended way of connecting to TCP apps.
+
 1. Log in to your Teleport cluster.
 1. To start VNet, open the connection list in the top left and click the connect icon to the right of
    VNet.
@@ -170,6 +175,13 @@ VNet automatically authenticates the connection with your user certificate. See 
 VNet](vnet.mdx) for more details.
 
 ### Creating an authenticated tunnel
+
+Teleport Connect can set up an authenticated tunnel on a random port on your device. All connections
+made to that tunnel will be authenticated with your credentials.
+
+Use this method if you want to access an HTTP API that was added to Teleport as a web app (its
+address starts with `https://`), if you don't have administrator rights to your device, or if VNet
+is not yet available on your system.
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
