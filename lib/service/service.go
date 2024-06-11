@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -1074,6 +1075,20 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if upgraderKind != "" {
 		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
+		}
+
+		if upgraderKind == "unit" {
+			process.RegisterFunc("autoupdates.endpoint.export", func() error {
+				if err := endpoint.Export(process.ExitContext(), resolverAddr); err != nil {
+					process.logger.WarnContext(process.ExitContext(),
+						"Failed to export and validate autoupdates endpoint.",
+						"addr", resolverAddr.String(),
+						"error", err)
+					return trace.Wrap(err)
+				}
+				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
+				return nil
+			})
 		}
 
 		driver, err := uw.NewDriver(upgraderKind)
