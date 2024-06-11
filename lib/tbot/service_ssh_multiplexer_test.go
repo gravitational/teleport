@@ -94,7 +94,11 @@ func (m *mockHostDialerTracker) count() (open int, closed int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, conn := range m.hostDialers {
-		if conn.closed {
+		conn.mu.Lock()
+		connClosed := conn.closed
+		conn.mu.Unlock()
+
+		if connClosed {
 			closed++
 		} else {
 			open++
