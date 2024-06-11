@@ -39,6 +39,7 @@ type Props = {
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
   const [clusterDropdownError, setClusterDropdownError] = useState('');
+  console.log('clusterDropdownError = ', clusterDropdownError);
   const {
     fetchedData,
     fetchNext,
