@@ -17,17 +17,20 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"log"
 	"math/big"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -35,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -467,5 +471,44 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	wantTLSCert, err = tls.X509KeyPair(secondTLSCertPem, keyPEM)
 	require.NoError(t, err)
 	require.Equal(t, wantTLSCert, *gotTLSCert)
+}
 
+func ExampleDynamicIdentityFileCreds() {
+	// load credentials from identity files on disk
+	cred, err := NewDynamicIdentityFileCreds("./identity")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// periodically reload credentials from disk
+	go func() {
+		for {
+			log.Println("reloading credentials")
+			if err := cred.Reload(); err != nil {
+				log.Fatal(err)
+			}
+			log.Println("reloaded credentials")
+			time.Sleep(5 * time.Minute)
+		}
+	}()
+
+	ctx := context.Background()
+	clt, err := New(ctx, Config{
+		Addrs:       []string{"leaf.tele.ottr.sh:443"},
+		Credentials: []Credentials{cred},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		log.Println("Fetching nodes")
+		_, err := clt.GetNodes(ctx, defaults.Namespace)
+		if err != nil {
+			log.Printf("ERROR Fetching nodes: %v", err)
+		} else {
+			log.Println("Fetching nodes: OK")
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
