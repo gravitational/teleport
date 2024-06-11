@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -114,16 +113,6 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 		}
 	}
 	return dialOpts, nil
-}
-
-func (p *vnetAppProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnetproto.VnetConfig, error) {
-	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
-	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
-	return vnetConfig, trace.Wrap(err)
 }
 
 // OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do

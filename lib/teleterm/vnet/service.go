@@ -28,7 +28,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -358,16 +357,6 @@ func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*
 		}
 	}
 	return dialOpts, nil
-}
-
-func (p *appProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnetproto.VnetConfig, error) {
-	clusterClient, err := p.getCachedClient(ctx, profileName, leafClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
-	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
-	return vnetConfig, trace.Wrap(err)
 }
 
 // OnNewConnection submits a usage event once per appProvider lifetime.

@@ -104,7 +104,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
-  showResources: ShowResources.REQUESTABLE,
+  showResources: ShowResources.UNSPECIFIED,
   ...props,
 });
 
