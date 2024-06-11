@@ -18,6 +18,42 @@ resource's **labels** match the labels allowed by the user's role.
 
 - [AWS OIDC Integration](protect-resources/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
 
+## Automatically Enroll Infrastructure Resources
+
+Learn how to use the Teleport Discovery Service, which automatically enrolls resources by query APIs ([more info](protect-resources/auto-discovery.mdx))
+
+- [AWS Database Auto-Discovery](protect-resources/auto-discovery/databases.mdx): How to configure Teleport to discover AWS-hosted databases.
+- [Automatically Enroll Kubernetes Clusters (section)](protect-resources/auto-discovery/kubernetes.mdx): Register Kubernetes clusters with your Teleport cluster by polling service discovery endpoints.
+- [Enroll Kubernetes Services as Teleport Applications (section)](protect-resources/auto-discovery/kubernetes-applications.mdx): Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access.
+- [Server Auto-Discovery (section)](protect-resources/auto-discovery/servers.mdx): You can set up the Teleport Discovery Service to automatically enroll servers in your infrastructure.
+
+## Protect Applications with Teleport
+
+How to enroll applications with your Teleport cluster for secure access ([more info](protect-resources/application-access.mdx))
+
+- [Application Access Guides (section)](protect-resources/application-access/guides.mdx): Guides for configuring Teleport application access.
+- [Getting Started with Protecting Applications with Teleport.](protect-resources/application-access/getting-started.mdx): Getting started with Teleport application access.
+- [Okta Integration with Application Access (section)](protect-resources/application-access/okta.mdx): Guides for using Teleport Okta integration.
+- [Protect Applications with Teleport](protect-resources/application-access/introduction.mdx): How to set up Teleport to protect applications and cloud provider APIs
+- [Securing Access to Cloud APIs (section)](protect-resources/application-access/cloud-apis.mdx): How to use Teleport to achieve secure access while managing your cloud-based infrastructure.
+- [Troubleshooting Application Access](protect-resources/application-access/troubleshooting-apps.mdx): Describes common issues and solutions for access to applications protected by Teleport.
+- [Use Teleport-Issued JSON Web Tokens (section)](protect-resources/application-access/jwt.mdx): Guides for using Teleport-issued JWTs to authenticate to applications.
+
+## Protect Databases with Teleport
+
+How to enrolls databases in your Teleport cluster. ([more info](protect-resources/database-access.mdx))
+
+- [Database Access Controls](protect-resources/database-access/rbac.mdx): Role-based access control (RBAC) for Teleport database access.
+- [Database Access Getting Started Guide](protect-resources/database-access/getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
+- [Database Automatic User Provisioning (section)](protect-resources/database-access/auto-user-provisioning.mdx): Configure automatic user provisioning for databases.
+- [Enroll AWS Databases (section)](protect-resources/database-access/enroll-aws-databases.mdx): Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport.
+- [Enroll Azure Databases (section)](protect-resources/database-access/enroll-azure-databases.mdx): Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport.
+- [Enroll Cloud-Hosted Database Platforms (section)](protect-resources/database-access/enroll-managed-databases.mdx): Provides instructions on protecting managed databases in your infrastructure with Teleport.
+- [Enroll Google Cloud Databases (section)](protect-resources/database-access/enroll-google-cloud-databases.mdx): Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport.
+- [Enroll Self-Hosted Databases (section)](protect-resources/database-access/enroll-self-hosted-databases.mdx): Provides instructions on protecting self-hosted databases in your infrastructure with Teleport.
+- [Troubleshooting Database Access](protect-resources/database-access/troubleshooting.mdx): Common issues and resolutions for Teleport's Database Access
+- [Using the Teleport Database Service (section)](protect-resources/database-access/guides.mdx): Guides to possibilities for running the Teleport Database Service.
+
 ## Protect Linux Servers with Teleport
 
 How to enroll Linux servers in your Teleport cluster to enable secure SSH access. ([more info](protect-resources/server-access.mdx))
@@ -28,6 +64,20 @@ How to enroll Linux servers in your Teleport cluster to enable secure SSH access
 - [Teleport Server Access Features and Introduction](protect-resources/server-access/introduction.mdx): Teleport server access features and introduction.
 - [Troubleshooting Server Access](protect-resources/server-access/troubleshooting-server.mdx): Describes common issues and solutions for access to servers.
 
+## Protect Windows Desktops with Teleport
+
+How to proctect Windows Desktops with Teleport ([more info](protect-resources/desktop-access.mdx))
+
+- [Automatic User Creation](protect-resources/desktop-access/user-creation.mdx): Using Automatic User Creation with Teleport desktop access.
+- [Clipboard Sharing](protect-resources/desktop-access/clipboard.mdx): Using Clipboard Sharing with Teleport desktop access.
+- [Configure access for Active Directory manually](protect-resources/desktop-access/active-directory-manual.mdx): Explains how to manually connect Teleport to an Active Directory domain.
+- [Configure access for Active Directory manually](protect-resources/desktop-access/active-directory.mdx): Explains how to manually connect Teleport to an Active Directory domain.
+- [Configure access for local Windows users](protect-resources/desktop-access/getting-started.mdx): Use Teleport to configure passwordless access for local Windows users.
+- [Directory Sharing](protect-resources/desktop-access/directory-sharing.mdx): Teleport desktop Directory Sharing lets you easily send files to a remote desktop.
+- [Manage Access to Windows Resources](protect-resources/desktop-access/introduction.mdx): Demonstrates how you can manage access to Windows desktops with Teleport.
+- [Session Recording and Playback](protect-resources/desktop-access/sessions.mdx): Recording and playing back Teleport desktop access sessions.
+- [Troubleshooting Desktop Access](protect-resources/desktop-access/troubleshooting.mdx): Common issues and resolutions for Teleport's desktop access
+
 ## Teleport Agents
 
 How to use Teleport Agents, which enable users to connect to resources in your infrastructure. ([more info](protect-resources/agents.mdx))
@@ -35,28 +85,6 @@ How to use Teleport Agents, which enable users to connect to resources in your i
 - [Deploy Teleport Agents with Terraform](protect-resources/agents/deploy-agents-terraform.mdx): In this guide, we will show you how to deploy a pool of Teleport agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
 - [Join Agents to your Teleport Cluster (section)](protect-resources/agents/join-services-to-your-cluster.mdx): Methods you can use to established trust between a newly deployed Teleport agent and your Teleport cluster so you can protect resources.
 - [Protect Infrastructure with Teleport](protect-resources/agents/introduction.mdx): Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent.
-
-## Teleport Auto-Discovery
-
-Learn how to use the Teleport Discovery Service, which automatically enrolls resources by query APIs ([more info](protect-resources/auto-discovery.mdx))
-
-- [AWS Database Auto-Discovery](protect-resources/auto-discovery/databases.mdx): How to configure Teleport to discover AWS-hosted databases.
-- [Automatically Enroll Kubernetes Clusters (section)](protect-resources/auto-discovery/kubernetes.mdx): Register Kubernetes clusters with your Teleport cluster by polling service discovery endpoints.
-- [Enroll Kubernetes Services as Teleport Applications (section)](protect-resources/auto-discovery/kubernetes-applications.mdx): Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access.
-- [Server Auto-Discovery (section)](protect-resources/auto-discovery/servers.mdx): You can set up the Teleport Discovery Service to automatically enroll servers in your infrastructure.
-
-## Teleport Desktop Access
-
-How to proctect Windows Desktops with Teleport ([more info](protect-resources/desktop-access.mdx))
-
-- [Automatic User Creation](protect-resources/desktop-access/user-creation.mdx): Using Automatic User Creation with Teleport desktop access.
-- [Clipboard Sharing](protect-resources/desktop-access/clipboard.mdx): Using Clipboard Sharing with Teleport desktop access.
-- [Configure access for Active Directory manually](protect-resources/desktop-access/active-directory-manual.mdx): Explains how to manually connect Teleport to an Active Directory domain.
-- [Configure access for local Windows users](protect-resources/desktop-access/getting-started.mdx): Use Teleport to configure passwordless access for local Windows users.
-- [Directory Sharing](protect-resources/desktop-access/directory-sharing.mdx): Teleport desktop Directory Sharing lets you easily send files to a remote desktop.
-- [Manage Access to Windows Resources](protect-resources/desktop-access/introduction.mdx): Demonstrates how you can manage access to Windows desktops with Teleport.
-- [Session Recording and Playback](protect-resources/desktop-access/sessions.mdx): Recording and playing back Teleport desktop access sessions.
-- [Troubleshooting Desktop Access](protect-resources/desktop-access/troubleshooting.mdx): Common issues and resolutions for Teleport's desktop access
 
 ## Teleport Kubernetes Access
 

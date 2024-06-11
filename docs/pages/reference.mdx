@@ -9,6 +9,7 @@ description: Comprehensive guides to commands, configuration options, and other 
 
 Contains guides to frequently asked questions for various Teleport features and use cases. ([more info](reference/faq.mdx))
 
+- [Database Access FAQ](reference/faq/database-access.mdx): Frequently asked questions about Teleport database access.
 - [Kubernetes Access FAQ](reference/faq/kubernetes-access.mdx): Frequently asked questions about Teleport Kubernetes Access
 - [Teleport Enterprise Cloud FAQ](reference/faq/cloud-hosting.mdx): Teleport cloud frequently asked questions.
 - [Teleport FAQ](reference/faq/faq.mdx): Frequently Asked Questions About Using Teleport
@@ -25,13 +26,18 @@ References for concepts and tools available for operating Teleport. ([more info]
 - [Teleport Signals Reference](reference/operations/signals.mdx): Signals you can send to a running teleport process.
 - [User Types](reference/operations/user-types.mdx): Describes the different types of Teleport users and their properties.
 
-## Teleport Access Controls References
+## Teleport Agent Service References
 
-Available options for configuring access to Teleport privileges and infrastructure resources. ([more info](reference/rbac.mdx))
+Commands and configuration options for Teleport agent services, e.g., for protecting servers, databases, Kubernetes clusters, and Windows desktops. ([more info](reference/agents.mdx))
 
-- [Access Controls for Servers](reference/rbac/server-rbac.mdx): Role-based access control (RBAC) for Teleport server access.
-- [Role-Based Access Control for Desktops](reference/rbac/desktop-access.mdx): Role-based access control (RBAC) for desktops protected by Teleport.
-- [Teleport Kubernetes Access Controls](reference/rbac/controls.mdx): How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
+- [Access Controls for Servers](reference/agents/server-rbac.mdx): Role-based access control (RBAC) for Teleport server access.
+- [Application Access Reference Documentation](reference/agents/application-access.mdx): Configuration and CLI reference documentation for Teleport application access.
+- [Application Access Role-Based Access Control](reference/agents/applications.mdx): Role-Based Access Control (RBAC) for Teleport application access.
+- [Database Access AWS IAM Reference](reference/agents/database-iam.mdx): AWS IAM policies for Teleport database access.
+- [Database Labels Reference](reference/agents/database-labels.mdx): Database labels reference for Teleport database access.
+- [Okta Service Reference Documentation](reference/agents/okta.mdx): Configuration and CLI reference documentation for Teleport Okta service.
+- [Role-Based Access Control for Desktops](reference/agents/desktop-access.mdx): Role-based access control (RBAC) for desktops protected by Teleport.
+- [Teleport Kubernetes Access Controls](reference/agents/controls.mdx): How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
 
 ## Teleport Architecture Guides
 
@@ -55,6 +61,7 @@ Guides to the inner workings of components within a Teleport cluster. ([more inf
 Comprehensive lists of commands, arguments, and flags for Teleport CLI tools. ([more info](reference/cli.mdx))
 
 - [CLI Reference Introduction](reference/cli/overview.mdx): Detailed guide and reference documentation for Teleport's command line interface (CLI) tools.
+- [Database Access CLI Reference](reference/cli/database-commands.mdx): CLI reference for Teleport database access.
 - [Desktop Access CLI Reference](reference/cli/desktop-access.mdx): CLI reference for Teleport desktop access.
 - [tbot CLI reference](reference/cli/tbot.mdx): Comprehensive reference of subcommands, flags, and arguments for the tbot CLI tool.
 - [tctl CLI reference](reference/cli/tctl.mdx): Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
@@ -65,6 +72,7 @@ Comprehensive lists of commands, arguments, and flags for Teleport CLI tools. ([
 
 Comprehensive guides to configuring Teleport. ([more info](reference/config-references.mdx))
 
+- [Database Access Configuration Reference](reference/config-references/database-access.mdx): Configuration reference for Teleport database access.
 - [Desktop Access Configuration Reference](reference/config-references/database-access-config.mdx): Configuration reference for Teleport desktop access.
 - [Helm Chart Reference (section)](reference/config-references/helm-reference.mdx): Comprehensive lists of configuration values in Teleport's Helm charts
 - [Predicate Language](reference/config-references/predicate-language.mdx): How to use Teleport's predicate language to define filter conditions.

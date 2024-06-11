@@ -3,23 +3,30 @@ title: Protect Databases with Teleport
 description: How to enrolls databases in your Teleport cluster.
 ---
 
+Teleport can provide secure connections to your databases while improving both
+access control and visibility.
+
+Some of the things you can do with database access:
+
+- Enable users to retrieve short-lived database certificates using a Single Sign-On
+  flow, thus maintaining their organization-wide identity.
+- Configure role-based access controls for databases and implement custom
+  [Access Request](../access-controls/access-requests.mdx) workflows.
+- Capture database activity in the Teleport audit log.
+
+Teleport protects databases through the Teleport Database Service, which is a
+Teleport agent service. For more information on agent services, read [Teleport
+Agent Architecture](../architecture/agents.mdx). You can also learn how to
+deploy a [pool of Teleport agents](../agents/introduction.mdx) to run multiple
+agent services.
+
+![Teleport Database Access Diagram](../../../img/database-access/architecture.svg)
+
 {/*TOPICS*/}
 
 - [Database Access Controls](database-access/rbac.mdx): Role-based access control (RBAC) for Teleport database access.
-- [Database Access FAQ](database-access/faq.mdx): Frequently asked questions about Teleport database access.
 - [Database Access Getting Started Guide](database-access/getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
-- [Database Access](database-access/overview.mdx): Teleport database access introduction, demo and resources.
 - [Troubleshooting Database Access](database-access/troubleshooting.mdx): Common issues and resolutions for Teleport's Database Access
-
-## Database Access Reference
-
-Configuration and CLI reference for the Teleport Database Service. ([more info](database-access/reference.mdx))
-
-- [Database Access AWS IAM Reference](database-access/reference/aws.mdx): AWS IAM policies for Teleport database access.
-- [Database Access Audit Events Reference](database-access/reference/audit.mdx): Audit events reference for Teleport database access.
-- [Database Access CLI Reference](database-access/reference/cli.mdx): CLI reference for Teleport database access.
-- [Database Access Configuration Reference](database-access/reference/configuration.mdx): Configuration reference for Teleport database access.
-- [Database Labels Reference](database-access/reference/labels.mdx): Database labels reference for Teleport database access.
 
 ## Database Automatic User Provisioning
 
