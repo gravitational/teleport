@@ -107,7 +107,7 @@ type SSHMultiplexerService struct {
 	identity *identity.Facade
 
 	agentMu sync.Mutex
-	agent   agent.Agent
+	agent   agent.ExtendedAgent
 }
 
 func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
@@ -299,7 +299,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		return nil, trace.Wrap(err, "adding identity to agent")
 	}
 	s.agentMu.Lock()
-	s.agent = newAgent
+	s.agent = newAgent.(agent.ExtendedAgent)
 	s.agentMu.Unlock()
 
 	return id, nil
@@ -596,7 +596,12 @@ func (s *SSHMultiplexerService) handleConn(
 		target = net.JoinHostPort(node.GetName(), "0")
 	}
 
-	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, nil)
+	// We need the agent to support proxy recording mode.
+	s.agentMu.Lock()
+	currentAgent := s.agent
+	s.agentMu.Unlock()
+
+	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, currentAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -609,7 +614,8 @@ func (s *SSHMultiplexerService) handleConn(
 			func(ctx context.Context, hostID string) (net.Conn, error) {
 				log.DebugContext(ctx, "Resuming connection")
 				// if the connection is being resumed, it means that
-				// we didn't need the agent in the first place
+				// we didn't need the agent in the first place as proxy
+				// recording mode does not require it.
 				var noAgent agent.ExtendedAgent
 				conn, _, err := hostDialer.DialHost(
 					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
