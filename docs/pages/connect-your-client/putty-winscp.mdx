@@ -29,7 +29,11 @@ You will learn how to:
 
   <Admonition type="note">
     Do not place `tsh.exe` in the `System32` directory, as this can cause issues when using WinSCP.
-    You should use `%WINDIR%` (e.g. `C:\Windows`) or `%USERPROFILE%` (e.g. `C:\Users\<username>`) instead.
+    You should use `%SystemRoot%` (e.g. `C:\Windows`) instead, which is already included in `%PATH`.
+
+    If you do not have administrator rights on the Windows system you're using, you can use `%USERPROFILE%`
+    (e.g. `C:\Users\<username>`) instead - but note that you will not be able to run `tsh` commands globally
+    from the command line unless you are in the same directory as `tsh.exe`.
   </Admonition>
 
 - PuTTY for Windows version 0.78 or higher. You can download the latest version of PuTTY from the [PuTTY download page](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html).
@@ -300,10 +304,10 @@ Here are two locations where `tsh.exe` can be stored which are not affected by t
 - `%WINDIR%` (e.g. `C:\Windows` - requires administrator privileges)
 
 To fix this issue, follow these steps:
-- Place the `tsh.exe` application into a different directory, as detailed above.
-- Re-run `tsh puttyconfig` for each PuTTY session in order to replace the configured path to `tsh.exe` inside the session.
-- Delete each saved session inside WinSCP.
-- Re-import saved PuTTY sessions into WinSCP by following the process detailed in steps 2-3 above.
+1. Place the `tsh.exe` application into a different directory, as detailed above.
+1. Re-run `tsh puttyconfig` for each PuTTY session in order to replace the configured path to `tsh.exe` inside the session.
+1. Delete each saved session inside WinSCP.
+1. Re-import saved PuTTY sessions into WinSCP by following the process detailed in steps 2-3 above.
 
 ### `proxy: ERROR: access denied to <user> connecting to <proxy>`
 
