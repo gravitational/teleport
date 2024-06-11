@@ -613,11 +613,16 @@ func (s *SSHMultiplexerService) String() string {
 	return config.SSHMultiplexerServiceType
 }
 
+type hostDialer interface {
+	DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error)
+	Close() error
+}
+
 // cyclingHostDialClient handles cycling through proxy clients every configured
 // number of connections. This prevents a single client being overwhelmed.
 type cyclingHostDialClient struct {
-	max    int32
-	config proxyclient.ClientConfig
+	max          int32
+	hostDialerFn func(ctx context.Context) (hostDialer, error)
 
 	mu         sync.Mutex
 	started    int32
@@ -625,7 +630,7 @@ type cyclingHostDialClient struct {
 }
 
 type refCountProxyClient struct {
-	clt      *proxyclient.Client
+	clt      hostDialer
 	refCount atomic.Int32
 }
 
@@ -651,13 +656,18 @@ func (r *refCountConn) Close() error {
 }
 
 func newCyclingHostDialClient(max int32, config proxyclient.ClientConfig) *cyclingHostDialClient {
-	return &cyclingHostDialClient{max: max, config: config}
+	return &cyclingHostDialClient{
+		max: max,
+		hostDialerFn: func(ctx context.Context) (hostDialer, error) {
+			return proxyclient.NewClient(ctx, config)
+		},
+	}
 }
 
 func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
 	s.mu.Lock()
 	if s.currentClt == nil {
-		clt, err := proxyclient.NewClient(ctx, s.config)
+		clt, err := s.hostDialerFn(ctx)
 		if err != nil {
 			s.mu.Unlock()
 			return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
