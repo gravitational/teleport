@@ -463,10 +463,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is used to program RBAC for
-	// Teleport Assist resources.
-	KindAssistant = "assistant"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -1029,6 +1025,8 @@ const (
 	NotificationAccessRequestApprovedSubKind = "access-request-approved"
 	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
+	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
+	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
 )
 
 const (
