@@ -46,7 +46,7 @@ func TestClone(t *testing.T) {
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
 	require.Empty(t, diff)
 	require.NoError(t, err)
-	require.Equal(t, itemCount, len(result.Items))
+	require.Len(t, result.Items, itemCount)
 }
 
 func TestCloneForce(t *testing.T) {
@@ -87,5 +87,5 @@ func TestCloneForce(t *testing.T) {
 
 	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
 	require.Empty(t, diff)
-	require.Equal(t, itemCount, len(result.Items))
+	require.Len(t, result.Items, itemCount)
 }
