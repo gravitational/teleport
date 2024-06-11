@@ -300,8 +300,8 @@ triggers a bug in WinSCP which causes the path to `tsh.exe` to be erroneously re
 failure. This bug does not seem to affect PuTTY sessions.
 
 Here are two locations where `tsh.exe` can be stored which are not affected by this bug:
+- `%SystemRoot%` (e.g. `C:\Windows` - requires administrator privileges, and is incuded in `%PATH%` by default)
 - `%USERPROFILE` (e.g. `C:\Users\<username>` - does not require administrator privileges)
-- `%WINDIR%` (e.g. `C:\Windows` - requires administrator privileges)
 
 To fix this issue, follow these steps:
 1. Place the `tsh.exe` application into a different directory, as detailed above.
