@@ -103,7 +103,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.NoError(t, err, string(out))
@@ -130,7 +130,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -150,7 +150,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -213,7 +213,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.NoError(t, err, string(out))

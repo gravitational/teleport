@@ -1275,52 +1275,52 @@
           "slug": "/database-access/enroll-aws-databases/",
           "entries": [
             {
-              "title": "AWS Cross-Account Database Access",
-              "slug": "/database-access/enroll-aws-databases/aws-cross-account/"
-            },
-            {
-              "title": "AWS DynamoDB",
+              "title": "Amazon DynamoDB",
               "slug": "/database-access/enroll-aws-databases/aws-dynamodb/"
             },
             {
-              "title": "AWS OpenSearch",
-              "slug": "/database-access/enroll-aws-databases/aws-opensearch/"
-            },
-            {
-              "title": "AWS RDS Proxy for MariaDB/MySQL",
-              "slug": "/database-access/enroll-aws-databases/rds-proxy-mysql/"
-            },
-            {
-              "title": "Microsoft SQL Server with Active Directory authentication",
-              "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
-            },
-            {
-              "title": "AWS ElastiCache and AWS MemoryDB for Redis",
+              "title": "Amazon ElastiCache and MemoryDB for Redis",
               "slug": "/database-access/enroll-aws-databases/redis-aws/"
             },
             {
-              "title": "AWS Keyspaces (Apache Cassandra)",
+              "title": "Amazon Keyspaces (Apache Cassandra)",
               "slug": "/database-access/enroll-aws-databases/aws-cassandra-keyspaces/"
             },
             {
-              "title": "AWS RDS Proxy for PostgreSQL",
-              "slug": "/database-access/enroll-aws-databases/rds-proxy-postgres/"
+              "title": "Amazon OpenSearch",
+              "slug": "/database-access/enroll-aws-databases/aws-opensearch/"
             },
             {
-              "title": "Redshift Serverless on AWS",
-              "slug": "/database-access/enroll-aws-databases/redshift-serverless/"
+              "title": "Amazon RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-mysql/"
             },
             {
-              "title": "AWS RDS Proxy for Microsoft SQL Server",
+              "title": "Amazon RDS Proxy for Microsoft SQL Server",
               "slug": "/database-access/enroll-aws-databases/rds-proxy-sqlserver/"
             },
             {
-              "title": "Redshift on AWS",
+              "title": "Amazon RDS Proxy for PostgreSQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-postgres/"
+            },
+            {
+              "title": "Amazon RDS and Aurora",
+              "slug": "/database-access/enroll-aws-databases/rds/"
+            },
+            {
+              "title": "Amazon RDS for Microsoft SQL Server",
+              "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
+            },
+            {
+              "title": "Amazon Redshift",
               "slug": "/database-access/enroll-aws-databases/postgres-redshift/"
             },
             {
-              "title": "AWS RDS and Aurora",
-              "slug": "/database-access/enroll-aws-databases/rds/"
+              "title": "Amazon Redshift Serverless",
+              "slug": "/database-access/enroll-aws-databases/redshift-serverless/"
+            },
+            {
+              "title": "Cross-Account Access",
+              "slug": "/database-access/enroll-aws-databases/aws-cross-account/"
             }
           ]
         },
