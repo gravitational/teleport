@@ -471,7 +471,11 @@ func (s *SSHMultiplexerService) handleConn(
 		oteltrace.WithNewRoot(),
 	)
 	defer func() { tracing.EndSpan(span, err) }()
-	defer downstream.Close()
+	defer func() {
+		if err := downstream.Close(); err != nil {
+			s.log.DebugContext(ctx, "Error closing downstream connection", "error", err)
+		}
+	}()
 
 	// The first thing downstream will send is the multiplexing request which is
 	// the "[host]:[port]\x00" format.
@@ -483,7 +487,7 @@ func (s *SSHMultiplexerService) handleConn(
 	req = req[:len(req)-1] // Drop the NUL.
 	host, port, err := utils.SplitHostPort(req)
 	if err != nil {
-		return trace.Wrap(err, "malformed request")
+		return trace.Wrap(err, "malformed request %q", req)
 	}
 
 	log := s.log.With(
@@ -557,31 +561,52 @@ func (s *SSHMultiplexerService) handleConn(
 			return trace.Wrap(err, "wrapping conn for session resumption")
 		}
 	}
-
-	// Drain the buffer we used to read in the request in case it read in more
-	// than just the initial request.
-	if _, err := io.CopyN(upstream, buf, int64(buf.Buffered())); err != nil {
-		err := trace.Wrap(err, "draining request buffer to upstream")
+	defer func() {
 		if err := upstream.Close(); err != nil {
-			return trace.NewAggregate(
-				trace.Wrap(err, "closing upstream"), err,
-			)
+			s.log.DebugContext(ctx, "Error closing upstream connection", "error", err)
 		}
-		return err
-	}
+	}()
+
+	defer context.AfterFunc(ctx, func() {
+		if err := trace.NewAggregate(
+			upstream.Close(),
+			downstream.Close(),
+		); err != nil {
+			s.log.DebugContext(ctx, "Error closing connections", "error", err)
+		}
+	})()
 
 	log.InfoContext(ctx, "Proxying connection for multiplexing request")
 	startedProxying := time.Now()
-	err = utils.ProxyConn(ctx, downstream, upstream)
+
+	errCh := make(chan error, 2)
+	go func() {
+		defer upstream.Close()
+		defer downstream.Close()
+		// Drain the buffer we used to read in the request in case it read in more
+		// than just the initial request.
+		_, err := io.CopyN(upstream, buf, int64(buf.Buffered()))
+		if err != nil {
+			errCh <- trace.Wrap(err, "draining request buffer upstream")
+		}
+		_, err = io.Copy(upstream, downstream)
+		errCh <- trace.Wrap(err, "downstream->upstream")
+	}()
+
+	go func() {
+		defer upstream.Close()
+		defer downstream.Close()
+		_, err := io.Copy(downstream, upstream)
+		errCh <- trace.Wrap(err, "upstream->downstream")
+	}()
+
+	err = trace.NewAggregate(<-errCh, <-errCh)
 	log.InfoContext(
 		ctx,
 		"Finished proxying connection multiplexing request",
 		"proxied_duration", time.Since(startedProxying),
 	)
-	if err != nil {
-		return trace.Wrap(err, "proxying connection")
-	}
-	return nil
+	return err
 }
 
 func (s *SSHMultiplexerService) String() string {
