@@ -47,8 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -160,9 +158,6 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
-	// Assist is a service that implements the Teleport Assist functionality.
-	Assist services.Assistant
-
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
 
@@ -221,9 +216,6 @@ type InitConfig struct {
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
-	// Embeddings is a service that manages Embeddings
-	Embeddings services.Embeddings
-
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -276,12 +268,6 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
-
-	// EmbeddingRetriever is a retriever for embeddings.
-	EmbeddingRetriever *ai.SimpleRetriever
-
-	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient embedding.Embedder
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
