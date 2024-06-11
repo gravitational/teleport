@@ -35,6 +35,16 @@ and is done in the same way as SSH recordings. The main difference is that all
 events are also emitted as regular audit events, which means they're accessible
 outside the recording files.
 
+In contrast to SSH recordings, database access recordings do not have a 1-1
+relation to the user's inputs. This means the recordings might contain
+additional queries (executed by the clients) and client-side generated queries.
+For example, if the user uses a GUI client, it might execute multiple queries
+during the connection setup to grab scheme information. This information will be
+present on the recordings even if the user didn’t directly produce it.  Another
+example is when the user uses `psql` and performs one of the shortcuts, for
+example, `\du`. Only the queries generated/executed by `psql` will be on the
+recording, not the `\du` execution.
+
 The start/end and query events are recorded. In addition to those events,
 there are also protocol-specific events, for example `PostgresExecute` is
 emitted on PostgreSQL when a prepared statement is executed.
@@ -81,6 +91,7 @@ To have a complete recording with users input and server response, we'll
 include the command result event:
 
 ```proto
+// NOTE: This message already exists, we are just reusing as it is.
 // Copied from: api/proto/teleport/legacy/types/events/events.proto
 message Status {
   // Success indicates the success or failure of the operation
@@ -184,15 +195,18 @@ Web UI. We're going to convert database recording events into `SessionPrint`
 events, which can be rendered by the players.
 
 This conversion will be agnostic to the database protocol. This will make it
-easier to keep the session recording play consistent across protocols.
+easier to keep the session recording play consistent across protocols. However,
+protocol-specific messages will still require special handling, otherwise the
+player won't be able to present them.
 
 It will present the session recording events in different text formats:
 
 - Status (result): Show the user message. If none is present, show "SUCCESS" in
   case of success or "ERROR" in case of error.
 - The player will define if there is need to display the number of affected
-  records. For example, if the query was a `SELECT` the player might display it
-  as "Returned X rows" after the status.
+  records. Protocol-specific variations can be added for this. For example, if
+  the query was a `SELECT` the player might display it as "Returned X rows"
+  after the status.
 
 Example of player visualization:
 
@@ -214,6 +228,26 @@ SUCCESS
 (session end)
 ```
 
+#### Legacy session recordings
+
+Older sessions records will not contain the results, however, the player will
+still be able to play them. For this, the player will only present the queries
+executed, following the same format described earlier.
+
+Example:
+
+```code
+mydatabse=# SELECT id, name FROM events;
+
+mydatabase=# INSERT INTO events (name) VALUES ('session.query');
+
+mydatabase=# SELECT with_error;
+
+mydatabase=# ALTER SYSTEM SET client_min_messages = 'notice';
+
+(session end)
+```
+
 ### Performance considerations
 
 Recording queries and responses will increase storage requirements and
@@ -225,9 +259,6 @@ will be taken:
   uploaded to the auth server after the session ends.
 - Server response events will be generated and recorded in a separate goroutine,
   avoiding delayed message delivery to the clients.
-- Record a predefined maximum number of rows per result. If this limit is
-  exceeded, the rows will be truncated. In addition to this limit, the record
-  will also ensure the Protobuf max message size is not exceeded.
 
 ### References
 
