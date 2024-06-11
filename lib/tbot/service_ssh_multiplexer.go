@@ -588,6 +588,7 @@ func (s *SSHMultiplexerService) handleConn(
 		_, err := io.CopyN(upstream, buf, int64(buf.Buffered()))
 		if err != nil {
 			errCh <- trace.Wrap(err, "draining request buffer upstream")
+			return
 		}
 		_, err = io.Copy(upstream, downstream)
 		errCh <- trace.Wrap(err, "downstream->upstream")
