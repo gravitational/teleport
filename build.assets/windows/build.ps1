@@ -507,6 +507,17 @@ function Write-Version-Objects {
         --product-version $TeleportVersion `
         --file-version $TeleportVersion `
         --out "$TeleportSourceDirectory\tool\tctl\resource.syso"
+
+    # generate windowsauth version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport Authentication Package" `
+        --original-filename "teleport-windows-auth-setup-v$TeleportVersion-amd64.exe" `
+        --copyright "Copyright (C) $Year Gravitational, Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\e\windowsauth\installer\resource.syso"
 }
 
 function Build-Artifacts {
