@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvals
 
-* Engineering: @greedy52 && (@Tener || @GavinFrazar)
+* Engineering: (@r0mant || @smallinsky) && @greedy52
 * Product: @klizhentas || @xinding33
 
 ## What
