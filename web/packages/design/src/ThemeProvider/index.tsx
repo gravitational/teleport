@@ -52,10 +52,9 @@ export function getCurrentTheme(currentTheme: Theme): Theme {
 }
 
 export function getNextTheme(currentTheme: Theme): Theme {
-  if (currentTheme === Theme.UNSPECIFIED) {
-    return getPrefersDark() ? Theme.LIGHT : Theme.DARK;
-  }
-  return currentTheme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT;
+  return getCurrentTheme(currentTheme) === Theme.LIGHT
+    ? Theme.DARK
+    : Theme.LIGHT;
 }
 
 export function getPrefersDark(): boolean {
