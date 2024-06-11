@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -25,7 +25,7 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
-import { DocumentSsh } from 'teleport/Console/stores';
+import { DocumentKubeExec } from 'teleport/Console/stores';
 
 import type {
   ParticipantMode,
@@ -35,8 +35,18 @@ import type {
 
 const tracer = trace.getTracer('TTY');
 
-export default function useSshSession(doc: DocumentSsh) {
-  const { clusterId, sid, serverId, login, mode } = doc;
+export default function useKubeExecSession(doc: DocumentKubeExec) {
+  const {
+    clusterId,
+    sid,
+    kubeCluster,
+    kubeNamespace,
+    pod,
+    container,
+    command,
+    isInteractive,
+    mode,
+  } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
@@ -45,6 +55,24 @@ export default function useSshSession(doc: DocumentSsh) {
 
   function closeDocument() {
     ctx.closeTab(doc);
+  }
+
+  function sendKubeExecData(
+    namespace: string,
+    pod: string,
+    container: string,
+    command: string,
+    isInteractive: boolean
+  ): void {
+    tty.sendKubeExecData({
+      kubeCluster: doc.kubeCluster,
+      namespace,
+      pod,
+      container,
+      command,
+      isInteractive,
+    });
+    setStatus('initialized');
   }
 
   React.useEffect(() => {
@@ -59,44 +87,34 @@ export default function useSshSession(doc: DocumentSsh) {
           // subscribe to tty events to handle connect/disconnects events
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
-          tty.on(TermEvent.CONN_CLOSE, () =>
-            ctx.updateSshDocument(doc.id, { status: 'disconnected' })
-          );
+          tty.on(TermEvent.CONN_CLOSE, () => {
+            ctx.updateKubeExecDocument(doc.id, { status: 'disconnected' });
+          });
 
           tty.on(TermEvent.SESSION, payload => {
             const data = JSON.parse(payload);
-            data.session.kind = 'ssh';
-            data.session.resourceName = data.session.server_hostname;
+            data.session.kind = 'k8s';
             setSession(data.session);
-            handleTtyConnect(ctx, data.session, doc.id);
-          });
-
-          tty.on(TermEvent.LATENCY, payload => {
-            const stats = JSON.parse(payload);
-            ctx.updateSshDocument(doc.id, {
-              latency: {
-                client: stats.ws,
-                server: stats.ssh,
-              },
-            });
+            handleTtyConnect(ctx, data.session, doc.id, isInteractive, command);
           });
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);
-          setStatus('initialized');
+          setStatus('waiting-for-exec-data');
           span.end();
         }
       );
     }
     initTty(
       {
-        kind: 'ssh',
-        login,
-        serverId,
+        kind: 'k8s',
+        resourceName: kubeCluster,
+        login: [kubeNamespace, pod, container].join('/'),
+        isInteractive,
+        command,
         clusterId,
         sid,
-        kubeExec: doc.kubeExec,
       },
       mode
     );
@@ -113,32 +131,45 @@ export default function useSshSession(doc: DocumentSsh) {
     status,
     session,
     closeDocument,
+    sendKubeExecData,
   };
 }
 
 function handleTtyConnect(
   ctx: ConsoleContext,
   session: SessionMetadata,
-  docId: number
+  docId: number,
+  isInteractive: boolean,
+  command: string
 ) {
   const {
-    resourceName,
     login,
     id: sid,
     cluster_name: clusterId,
-    server_id: serverId,
     created,
+    kubernetes_cluster_name,
   } = session;
 
-  const url = cfg.getSshSessionRoute({ sid, clusterId });
+  const splits = login.split('/');
+
+  const kubeCluster = kubernetes_cluster_name;
+  const kubeNamespace = splits[0];
+  const pod = splits[1];
+  const container = splits?.[2];
+
+  const url = cfg.getKubeExecSessionRoute({ clusterId, sid });
   const createdDate = new Date(created);
-  ctx.updateSshDocument(docId, {
-    title: `${login}@${resourceName}`,
+  ctx.updateKubeExecDocument(docId, {
+    title: `${kubeNamespace}/${pod}@${kubeCluster}`,
     status: 'connected',
     url,
-    serverId,
     created: createdDate,
-    login,
+    kubeNamespace,
+    kubeCluster,
+    pod,
+    container,
+    isInteractive,
+    command,
     sid,
     clusterId,
   });
@@ -146,4 +177,4 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-type Status = 'initialized' | 'loading';
+export type Status = 'loading' | 'waiting-for-exec-data' | 'initialized';

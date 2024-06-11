@@ -3906,6 +3906,9 @@ message DeviceMetadata {
   // Web Session ID associated with the device.
   // Present in events related to device web authentication.
   string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
+  // Device web authentication attempt ID.
+  // Present in events related to device web authentication.
+  string web_authentication_id = 8 [(gogoproto.jsontag) = "web_authentication_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -6240,6 +6243,9 @@ message AccessPathChanged {
 
   // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
   string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
+
+  // AffectedResourceType is the type of the affected resource, ex: user, role, etc.
+  string AffectedResourceType = 5 [(gogoproto.jsontag) = "affected_resource_type"];
 }
 
 // SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.
