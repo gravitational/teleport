@@ -375,6 +375,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "SAML IdP RBAC",
+              "slug": "/access-controls/idps/saml-rbac/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
               "forScopes": ["enterprise", "cloud"]
