@@ -41,12 +41,14 @@ CGOFLAG ?= CGO_ENABLED=1
 # should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
 RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 
+GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
+
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -246,9 +248,16 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
+GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
 endif
 endif # OS == linux
+
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+# Temporary link flags due to changes in Apple's linker
+# https://github.com/golang/go/issues/67854
+GO_LDFLAGS += -extldflags=-ld_classic
+endif
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
