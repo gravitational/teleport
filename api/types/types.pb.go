@@ -4870,13 +4870,13 @@ var xxx_messageInfo_ProvisionTokenSpecV2GCP proto.InternalMessageInfo
 // Rule is a set of properties the GCP-ussued token might have to be allowed
 // to use this ProvisionToken.
 type ProvisionTokenSpecV2GCP_Rule struct {
-	// ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+	// ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
 	ProjectIDs []string `protobuf:"bytes,1,rep,name=ProjectIDs,proto3" json:"project_ids,omitempty"`
 	// Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
 	// "us-west1-b").
 	Locations []string `protobuf:"bytes,2,rep,name=Locations,proto3" json:"locations,omitempty"`
 	// ServiceAccounts is a list of service account emails (e.g.
-	// "<project-number>-compute@developer.gserviceaccount.com").
+	// `<project-number>-compute@developer.gserviceaccount.com`).
 	ServiceAccounts      []string `protobuf:"bytes,3,rep,name=ServiceAccounts,proto3" json:"service_accounts,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -11591,7 +11591,7 @@ type SAMLConnectorSpecV2 struct {
 	// SSO is the URL of the identity provider's SSO service.
 	SSO string `protobuf:"bytes,2,opt,name=SSO,proto3" json:"sso"`
 	// Cert is the identity provider certificate PEM.
-	// IDP signs <Response> responses using this certificate.
+	// IDP signs `<Response>` responses using this certificate.
 	Cert string `protobuf:"bytes,3,opt,name=Cert,proto3" json:"cert"`
 	// Display controls how this connector is displayed.
 	Display string `protobuf:"bytes,4,opt,name=Display,proto3" json:"display"`
@@ -12539,10 +12539,10 @@ type TrustedClusterSpecV2 struct {
 	// Token is the authorization token provided by another cluster needed by this cluster to join.
 	Token string `protobuf:"bytes,3,opt,name=Token,proto3" json:"token"`
 	// ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-	// it is derived from <metadata.name>:<default web proxy server port>.
+	// it is derived from `<metadata.name>:<default web proxy server port>`.
 	ProxyAddress string `protobuf:"bytes,4,opt,name=ProxyAddress,proto3" json:"web_proxy_addr"`
 	// ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-	// not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+	// not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
 	ReverseTunnelAddress string `protobuf:"bytes,5,opt,name=ReverseTunnelAddress,proto3" json:"tunnel_addr"`
 	// RoleMap specifies role mappings to remote roles.
 	RoleMap              []RoleMapping `protobuf:"bytes,6,rep,name=RoleMap,proto3" json:"role_map,omitempty"`
