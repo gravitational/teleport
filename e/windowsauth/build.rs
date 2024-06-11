@@ -1,5 +1,6 @@
 extern crate embed_resource;
 
+use chrono::prelude::*;
 use std::env;
 use std::ffi::OsString;
 
@@ -20,8 +21,16 @@ fn main() {
     };
     let version_comma = format!("VERSION_COMMA={}", version_comma.replace('.', ","));
     let version = format!("VERSION={}", version);
+
+    let now: DateTime<Utc> = Utc::now();
+    let year = format!("YEAR={}", now.year());
+
     embed_resource::compile(
         "version.rc",
-        [OsString::from(version), OsString::from(version_comma)],
+        [
+            OsString::from(version),
+            OsString::from(version_comma),
+            OsString::from(year),
+        ],
     );
 }
