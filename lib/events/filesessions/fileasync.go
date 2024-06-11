@@ -48,6 +48,8 @@ type UploaderConfig struct {
 	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
+	// InitialScanDelay is how long to wait before performing the initial scan.
+	InitialScanDelay time.Duration
 	// ScanPeriod is a uploader dir scan period
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
@@ -191,9 +193,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step:  u.cfg.ScanPeriod,
-		Max:   u.cfg.ScanPeriod * 100,
-		Clock: u.cfg.Clock,
+		First:  u.cfg.InitialScanDelay,
+		Step:   u.cfg.ScanPeriod,
+		Max:    u.cfg.ScanPeriod * 100,
+		Clock:  u.cfg.Clock,
+		Jitter: retryutils.NewSeventhJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -219,8 +223,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			default:
 				backoff.Inc()
-				u.log.WithError(event.Error).Warningf(
-					"Backing off, will retry after %v.", backoff.Duration())
+				u.log.Warnf("Increasing session upload backoff due to error, will retry after %v.", backoff.Duration())
 			}
 			// forward the event to channel that used in tests
 			if u.cfg.EventsC != nil {
@@ -232,18 +235,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 			}
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
-			var failed bool
 			if _, err := u.Scan(ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Uploader scan failed.")
+				if !errors.Is(trace.Unwrap(err), errContext) {
+					backoff.Inc()
+					u.log.WithError(err).Warningf("Uploader scan failed, will retry after %v.", backoff.Duration())
 				}
-			}
-			if failed {
-				backoff.Inc()
-				u.log.Debugf("Scan failed, backing off, will retry after %v.", backoff.Duration())
-			} else {
-				backoff.ResetToDelay()
 			}
 		}
 	}
@@ -530,6 +526,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	select {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
+	case <-stream.Done():
+		if errStream, ok := stream.(interface{ Error() error }); ok {
+			return trace.ConnectionProblem(errStream.Error(), errStream.Error().Error())
+		}
+
+		return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
 	case <-stream.Status():
 	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")

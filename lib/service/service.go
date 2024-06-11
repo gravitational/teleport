@@ -3008,10 +3008,11 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:     uploaderClient,
-		ScanDir:      uploadsDir,
-		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.Testing.UploadEventsC,
+		Streamer:         uploaderClient,
+		ScanDir:          uploadsDir,
+		CorruptedDir:     corruptedDir,
+		EventsC:          process.Config.Testing.UploadEventsC,
+		InitialScanDelay: 15 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
