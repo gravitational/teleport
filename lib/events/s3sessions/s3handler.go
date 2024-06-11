@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
@@ -177,6 +178,11 @@ func (s *Config) CheckAndSetDefaults() error {
 		if s.Credentials != nil {
 			sess.Config.Credentials = s.Credentials
 		}
+		hc, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sess.Config.HTTPClient = hc
 
 		sess.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint)
 
