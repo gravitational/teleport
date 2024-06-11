@@ -403,7 +403,7 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 		cfg.batchMaxItems = defaultBatchItems
 	}
 	if cfg.noOfWorkers == 0 {
-		cfg.noOfWorkers = 50
+		cfg.noOfWorkers = 5
 	}
 	if cfg.logger == nil {
 		cfg.logger = log.WithFields(log.Fields{
