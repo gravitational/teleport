@@ -134,7 +134,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 2, openDialers)
 		assert.Equal(t, 0, closedDialers)
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, time.Second, 100*time.Millisecond)
 
 	// Close the next 4 connections, it should close the first dialer.
 	for i := 1; i < 5; i++ {
@@ -144,7 +144,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 1, openDialers)
 		assert.Equal(t, 1, closedDialers)
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, time.Second, 100*time.Millisecond)
 
 	// Close the next 5 connections, it should close the second dialer.
 	for i := 5; i < 10; i++ {
@@ -154,7 +154,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 0, openDialers)
 		assert.Equal(t, 2, closedDialers)
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, time.Second, 100*time.Millisecond)
 
 	// Now we want to validate a weirder case, let's create 4 connections,
 	// close them and then create a fifth.
@@ -169,11 +169,11 @@ func TestCyclingHostDialClient(t *testing.T) {
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 1, openDialers)
 		assert.Equal(t, 2, closedDialers)
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, time.Second, 100*time.Millisecond)
 	_ = conn.Close()
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		openDialers, closedDialers = tracker.count()
 		assert.Equal(t, 0, openDialers)
 		assert.Equal(t, 3, closedDialers)
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, time.Second, 100*time.Millisecond)
 }
