@@ -83,13 +83,13 @@ func New(opts ...Option) (*Forwarder, error) {
 	}
 
 	// Director is called by the ReverseProxy to modify the request.
-	fwd.Director = func(request *http.Request) {
-		modifyRequest(request)
+	fwd.Rewrite = func(request *httputil.ProxyRequest) {
+		modifyRequest(request.Out)
 		if fwd.headerRewriter != nil {
-			fwd.headerRewriter.Rewrite(request)
+			fwd.headerRewriter.Rewrite(request.Out)
 		}
 		if !fwd.passHostHeader {
-			request.Host = request.URL.Host
+			request.Out.Host = request.Out.URL.Host
 		}
 	}
 
