@@ -463,10 +463,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is used to program RBAC for
-	// Teleport Assist resources.
-	KindAssistant = "assistant"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 

@@ -58,6 +58,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -65,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -79,8 +79,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -211,9 +209,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
-	if cfg.Assist == nil {
-		cfg.Assist = local.NewAssistService(cfg.Backend)
-	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -311,9 +306,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Embeddings == nil {
-		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
-	}
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
@@ -406,7 +398,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Embeddings:                cfg.Embeddings,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
@@ -415,7 +406,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
 		UsageReporter:             cfg.UsageReporter,
-		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
@@ -444,8 +434,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                    cfg.FIPS,
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		embeddingsRetriever:     cfg.EmbeddingRetriever,
-		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services,
@@ -587,8 +575,6 @@ type Services struct {
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
-	services.Assistant
-	services.Embeddings
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
@@ -972,12 +958,6 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
-
-	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
-	embeddingsRetriever *ai.SimpleRetriever
-
-	// embedder is an embedder client used to generate embeddings.
-	embedder embedding.Embedder
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
@@ -2142,6 +2122,8 @@ type GenerateUserTestCertsRequest struct {
 	PinnedIP             string
 	MFAVerified          string
 	AttestationStatement *keys.AttestationStatement
+	AppName              string
+	AppSessionID         string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2172,6 +2154,8 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		pinIP:                req.PinnedIP != "",
 		mfaVerified:          req.MFAVerified,
 		attestationStatement: req.AttestationStatement,
+		appName:              req.AppName,
+		appSessionID:         req.AppSessionID,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -4971,7 +4955,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Expires: timestamppb.New(req.Expiry()),
 				},
 			},
 		},
@@ -5244,7 +5229,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"request-id":                 params.RequestID,
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
-			}},
+			},
+			Expires: timestamppb.New(req.Expiry())},
 	}
 }
 
@@ -6850,39 +6836,6 @@ func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username 
 
 	err = a.Services.UpsertHeadlessAuthentication(ctx, stub)
 	return trace.Wrap(err)
-}
-
-// GetAssistantMessages returns all messages with given conversation ID.
-func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	resp, err := a.Services.GetAssistantMessages(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// CreateAssistantMessage adds the message to the backend.
-func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
-}
-
-// UpdateAssistantConversationInfo stores the given conversation title in the backend.
-func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
-}
-
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	resp, err := a.Services.CreateAssistantConversation(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// GetAssistantConversations returns all conversations started by a user.
-func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	resp, err := a.Services.GetAssistantConversations(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// DeleteAssistantConversation deletes a conversation from the backend.
-func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
-	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare
