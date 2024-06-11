@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	awscredentialsv2 "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
@@ -73,6 +75,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -93,6 +96,8 @@ type Clients interface {
 	GCPClients
 	// AWSClients is an interface for providing AWS API clients.
 	AWSClients
+	// AWSClientsV2 is an interface for providing AWS API clients.
+	AWSClientsV2
 	// AzureClients is an interface for Azure-specific API clients
 	AzureClients
 	// Closer closes all initialized clients.
@@ -112,6 +117,7 @@ type GCPClients interface {
 }
 
 // AWSClients is an interface for providing AWS API clients.
+// TODO DELETE when migrated to AWSV2Clients.
 type AWSClients interface {
 	// GetAWSSession returns AWS session for the specified region and any role(s).
 	GetAWSSession(ctx context.Context, region string, opts ...AWSOptionsFn) (*awssession.Session, error)
@@ -261,6 +267,10 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	awsClientsV2, err := newAWSClientsV2()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cloudClients := &cloudClients{
 		awsSessionsCache: awsSessionsCache,
 		gcpClients: gcpClients{
@@ -269,6 +279,7 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
+		awsClientsV2: awsClientsV2,
 	}
 
 	for _, opt := range opts {
@@ -293,12 +304,7 @@ func WithAWSIntegrationSessionProvider(sessionProvider AWSIntegrationSessionProv
 // This is used to generate aws sessions for clients that must use an Integration instead of ambient credentials.
 type AWSIntegrationSessionProvider func(ctx context.Context, region string, integration string) (*awssession.Session, error)
 
-type awsSessionCacheKey struct {
-	region      string
-	integration string
-	roleARN     string
-	externalID  string
-}
+type awsSessionCacheKey = awsConfigCacheKey
 
 type cloudClients struct {
 	// awsSessionsCache is a cache of AWS sessions, where the cache key is
@@ -312,6 +318,8 @@ type cloudClients struct {
 	gcpClients
 	// azureClients contains Azure-specific clients.
 	*azureClients
+	// awsClientsV2 contains AWS-specific clients using aws-=sdk-go-v2.
+	*awsClientsV2
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -377,6 +385,9 @@ type awsOptions struct {
 	// baseSession is a session to use instead of the default session for an
 	// AWS region, which is used to enable role chaining.
 	baseSession *awssession.Session
+	// baseConfigV2 is a AWS config to use instead of the default config for an
+	// AWS region, which is used to enable role chaining.
+	baseConfigV2 *awsv2.Config
 	// assumeRoleARN is the AWS IAM Role ARN to assume.
 	assumeRoleARN string
 	// assumeRoleExternalID is used to assume an external AWS IAM Role.
@@ -432,9 +443,14 @@ func WithAssumeRoleFromAWSMeta(meta types.AWS) AWSOptionsFn {
 
 // WithChainedAssumeRole sets a role to assume with a base session to use
 // for assuming the role, which enables role chaining.
-func WithChainedAssumeRole(session *awssession.Session, roleARN, externalID string) AWSOptionsFn {
+func WithChainedAssumeRole[Base *awssession.Session | *awsv2.Config](base Base, roleARN, externalID string) AWSOptionsFn {
 	return func(options *awsOptions) {
-		options.baseSession = session
+		switch v := any(base).(type) {
+		case *awssession.Session:
+			options.baseSession = v
+		case *awsv2.Config:
+			options.baseConfigV2 = v
+		}
 		options.assumeRoleARN = roleARN
 		options.assumeRoleExternalID = externalID
 	}
@@ -1010,25 +1026,30 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                     rdsiface.RDSAPI
-	RDSPerRegion            map[string]rdsiface.RDSAPI
-	Redshift                redshiftiface.RedshiftAPI
-	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
-	ElastiCache             elasticacheiface.ElastiCacheAPI
-	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
-	MemoryDB                memorydbiface.MemoryDBAPI
-	SecretsManager          secretsmanageriface.SecretsManagerAPI
-	IAM                     iamiface.IAMAPI
-	STS                     stsiface.STSAPI
-	GCPSQL                  gcp.SQLAdminClient
-	GCPGKE                  gcp.GKEClient
-	GCPInstances            gcp.InstancesClient
-	EC2                     ec2iface.EC2API
-	SSM                     ssmiface.SSMAPI
-	InstanceMetadata        imds.Client
-	EKS                     eksiface.EKSAPI
-	KMS                     kmsiface.KMSAPI
-	S3                      s3iface.S3API
+	STSAPI cloudaws.STSAPI
+
+	// TODO remove legacy AWS clients.
+	RDS                rdsiface.RDSAPI
+	RDSPerRegion       map[string]rdsiface.RDSAPI
+	Redshift           redshiftiface.RedshiftAPI
+	RedshiftServerless redshiftserverlessiface.RedshiftServerlessAPI
+	ElastiCache        elasticacheiface.ElastiCacheAPI
+	OpenSearch         opensearchserviceiface.OpenSearchServiceAPI
+	MemoryDB           memorydbiface.MemoryDBAPI
+	SecretsManager     secretsmanageriface.SecretsManagerAPI
+	IAM                iamiface.IAMAPI
+	STS                stsiface.STSAPI
+	EC2                ec2iface.EC2API
+	SSM                ssmiface.SSMAPI
+	InstanceMetadata   imds.Client
+	EKS                eksiface.EKSAPI
+	KMS                kmsiface.KMSAPI
+	S3                 s3iface.S3API
+
+	GCPSQL       gcp.SQLAdminClient
+	GCPGKE       gcp.GKEClient
+	GCPInstances gcp.InstancesClient
+
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1044,6 +1065,30 @@ type TestCloudClients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
+}
+
+func (c *TestCloudClients) GetAWSConfigV2(ctx context.Context, region string, opts ...AWSOptionsFn) (*awsv2.Config, error) {
+	var options awsOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	if options.baseConfigV2 == nil {
+		options.baseConfigV2 = &awsv2.Config{
+			Region:      region,
+			Credentials: awscredentialsv2.NewStaticCredentialsProvider("fakeClientKeyID", "fakeClientSecret", ""),
+		}
+	}
+	if options.assumeRoleARN == "" {
+		return options.baseConfigV2, nil
+	}
+	return newAWSConfigForRole(ctx, c.STSAPI, region, options)
+}
+
+func (c *TestCloudClients) GetAWSSTSClientV2(ctx context.Context, region string, opts ...AWSOptionsFn) (cloudaws.STSAPI, error) {
+	if _, err := c.GetAWSConfigV2(ctx, region, opts...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.STSAPI, nil
 }
 
 // GetAWSSession returns AWS session for the specified region, optionally

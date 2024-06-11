@@ -117,6 +117,17 @@ func GetIdentityWithClient(ctx context.Context, stsClient stsiface.STSAPI) (Iden
 	return IdentityFromArn(aws.StringValue(out.Arn))
 }
 
+// GetIdentityFromSTSAPI determines AWS identity of this Teleport process using
+// the provided STS API client.
+func GetIdentityFromSTSAPI(ctx context.Context, client STSAPI) (Identity, error) {
+	out, err := client.GetCallerIdentity(ctx, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return IdentityFromArn(aws.StringValue(out.Arn))
+}
+
 // IdentityFromArn returns an `Identity` interface based on the provided ARN.
 func IdentityFromArn(arnString string) (Identity, error) {
 	parsedARN, err := arn.Parse(arnString)

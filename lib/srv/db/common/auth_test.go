@@ -617,7 +617,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 
 	for name, tt := range map[string]struct {
 		db                   types.Database
-		stsMock              *mocks.STSMock
+		stsAPIMock           *mocks.STSAPIMock
 		username             string
 		expectedKeyId        string
 		expectedAssumedRoles []string
@@ -626,7 +626,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 	}{
 		"username is full role ARN": {
 			db:                   newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock:              &mocks.STSMock{},
+			stsAPIMock:           &mocks.STSAPIMock{},
 			username:             "arn:aws:iam::123456789012:role/role-name",
 			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
@@ -635,9 +635,9 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		},
 		"username is partial role ARN": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
+			stsAPIMock: &mocks.STSAPIMock{
 				// This is the role returned by the STS GetCallerIdentity.
-				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
+				CallerIdentityARN: "arn:aws:iam::222222222222:role/teleport-service-role",
 			},
 			username:             "role/role-name",
 			expectedKeyId:        "arn:aws:iam::222222222222:role/role-name",
@@ -647,8 +647,8 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		},
 		"unable to fetch account ID": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
-				ARN: "",
+			stsAPIMock: &mocks.STSAPIMock{
+				CallerIdentityARN: "",
 			},
 			username:  "role/role-name",
 			expectErr: require.Error,
@@ -658,8 +658,8 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				ExternalID:    "123123",
 				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
 			}),
-			stsMock: &mocks.STSMock{
-				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
+			stsAPIMock: &mocks.STSAPIMock{
+				CallerIdentityARN: "arn:aws:iam::111111111111:role/teleport-service-role",
 			},
 			username:      "role/role-name",
 			expectedKeyId: "arn:aws:iam::222222222222:role/role-name",
@@ -676,7 +676,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				Clock:      clock,
 				AuthClient: new(authClientMock),
 				Clients: &cloud.TestCloudClients{
-					STS: tt.stsMock,
+					STSAPI: tt.stsAPIMock,
 				},
 			})
 			require.NoError(t, err)
@@ -684,8 +684,8 @@ func TestGetAWSIAMCreds(t *testing.T) {
 			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, tt.db, tt.username)
 			tt.expectErr(t, err)
 			require.Equal(t, tt.expectedKeyId, keyId)
-			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
-			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsMock.GetAssumedRoleExternalIDs())
+			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsAPIMock.GetAssumedRoleARNs())
+			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsAPIMock.GetAssumedRoleExternalIDs())
 		})
 	}
 }
