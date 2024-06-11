@@ -126,34 +126,6 @@ export const requiredNoDuplicateUsers: Rule<Option[]> =
   };
 
 /**
- * A rule function that combines multiple inner rule functions. All rules must
- * return `valid`, otherwise it returns a comma separated string containing all
- * invalid rule messages.
- * @param rules a list of rule functions to apply
- * @returns a rule function that ANDs all input rules
- */
-export function requiredAll<T>(...rules: Rule<T>[]): Rule<T> {
-  return (value: T) => () => {
-    let messages = [];
-    for (let r of rules) {
-      let result = r(value)();
-      if (!result.valid) {
-        messages.push(result.message);
-      }
-    }
-
-    if (messages.length > 0) {
-      return {
-        valid: false,
-        message: messages.join('. '),
-      };
-    }
-
-    return { valid: true };
-  };
-}
-
-/**
  * A rule function that checks if the value exists at most `max` times within
  * an iterable. This allows for self-checks where `max = 1` if the iterable may
  * contain the value itself (but only once), or for uniqueness checks if

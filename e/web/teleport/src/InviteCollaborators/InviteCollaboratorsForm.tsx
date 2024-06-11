@@ -14,6 +14,7 @@ import { Option } from 'shared/components/Select';
 import {
   requiredField,
   requiredEmailLike,
+  requiredAll,
 } from 'shared/components/Validation/rules';
 
 import { StylesConfig, OptionProps } from 'react-select';
@@ -23,7 +24,6 @@ import {
   requiredAllUsersDoNotExist,
   requiredNoDuplicateUsers,
   requiredAllEmailLike,
-  requiredAll,
   requiredMaxDuplicates,
 } from './rules';
 
