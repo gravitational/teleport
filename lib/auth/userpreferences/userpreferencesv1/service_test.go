@@ -55,10 +55,6 @@ func TestService_GetUserPreferences(t *testing.T) {
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want: &userpreferencesv1.GetUserPreferencesResponse{
 				Preferences: &userpreferencesv1.UserPreferences{
-					Assist: &userpreferencesv1.AssistUserPreferences{
-						PreferredLogins: []string{},
-						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-					},
 					Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
@@ -104,10 +100,6 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 	t.Parallel()
 
 	defaultPreferences := &userpreferencesv1.UserPreferences{
-		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: []string{},
-			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-		},
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},

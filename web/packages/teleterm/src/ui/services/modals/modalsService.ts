@@ -23,8 +23,6 @@ import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
-import { PromptMfaRequest } from 'teleterm/services/tshdEvents';
-
 import { ImmutableStore } from '../immutableStore';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -211,7 +209,7 @@ export interface DialogHeadlessAuthentication {
 
 export interface DialogReAuthenticate {
   kind: 'reauthenticate';
-  promptMfaRequest: PromptMfaRequest;
+  promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
   onCancel(): void;
 }

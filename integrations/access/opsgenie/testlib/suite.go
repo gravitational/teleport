@@ -97,8 +97,8 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 // startApp starts the OpsGenie plugin, waits for it to become ready and returns.
 func (s *OpsgenieBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := opsgenie.NewOpsgenieApp(context.Background(), &s.appConfig)
 	require.NoError(t, err)

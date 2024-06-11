@@ -5,7 +5,7 @@
       "title": "Home",
       "entries": [
         {
-          "title": "Get Started with Teleport",
+          "title": "Introduction to Teleport",
           "slug": "/"
         },
         {
@@ -71,11 +71,6 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
-        },
-        {
-          "title": "Teleport Assist",
-          "slug": "/ai-assist/",
-          "forScopes": ["oss"]
         }
       ]
     },
@@ -110,6 +105,11 @@
             {
               "title": "Downloads",
               "slug": "/choose-an-edition/teleport-cloud/downloads/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "Public IP Allowlist",
+              "slug": "/choose-an-edition/teleport-cloud/ips/",
               "forScopes": ["cloud"]
             },
             {
@@ -157,6 +157,10 @@
           "slug": "/deploy-a-cluster/introduction/",
           "forScopes": ["oss", "enterprise"]
         },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
@@ -865,7 +869,7 @@
       ]
     },
     {
-      "title": "Run Teleport Agents",
+      "title": "Protect Infrastructure",
       "icon": "layers",
       "entries": [
         {
@@ -873,7 +877,7 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy via Terraform",
+          "title": "Deploy Agents via Terraform",
           "slug": "/agents/deploy-agents-terraform/"
         },
         {
@@ -1276,52 +1280,52 @@
           "slug": "/database-access/enroll-aws-databases/",
           "entries": [
             {
-              "title": "AWS Cross-Account Database Access",
-              "slug": "/database-access/enroll-aws-databases/aws-cross-account/"
-            },
-            {
-              "title": "AWS DynamoDB",
+              "title": "Amazon DynamoDB",
               "slug": "/database-access/enroll-aws-databases/aws-dynamodb/"
             },
             {
-              "title": "AWS OpenSearch",
-              "slug": "/database-access/enroll-aws-databases/aws-opensearch/"
-            },
-            {
-              "title": "AWS RDS Proxy for MariaDB/MySQL",
-              "slug": "/database-access/enroll-aws-databases/rds-proxy-mysql/"
-            },
-            {
-              "title": "Microsoft SQL Server with Active Directory authentication",
-              "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
-            },
-            {
-              "title": "AWS ElastiCache and AWS MemoryDB for Redis",
+              "title": "Amazon ElastiCache and MemoryDB for Redis",
               "slug": "/database-access/enroll-aws-databases/redis-aws/"
             },
             {
-              "title": "AWS Keyspaces (Apache Cassandra)",
+              "title": "Amazon Keyspaces (Apache Cassandra)",
               "slug": "/database-access/enroll-aws-databases/aws-cassandra-keyspaces/"
             },
             {
-              "title": "AWS RDS Proxy for PostgreSQL",
-              "slug": "/database-access/enroll-aws-databases/rds-proxy-postgres/"
+              "title": "Amazon OpenSearch",
+              "slug": "/database-access/enroll-aws-databases/aws-opensearch/"
             },
             {
-              "title": "Redshift Serverless on AWS",
-              "slug": "/database-access/enroll-aws-databases/redshift-serverless/"
+              "title": "Amazon RDS Proxy for MariaDB/MySQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-mysql/"
             },
             {
-              "title": "AWS RDS Proxy for Microsoft SQL Server",
+              "title": "Amazon RDS Proxy for Microsoft SQL Server",
               "slug": "/database-access/enroll-aws-databases/rds-proxy-sqlserver/"
             },
             {
-              "title": "Redshift on AWS",
+              "title": "Amazon RDS Proxy for PostgreSQL",
+              "slug": "/database-access/enroll-aws-databases/rds-proxy-postgres/"
+            },
+            {
+              "title": "Amazon RDS and Aurora",
+              "slug": "/database-access/enroll-aws-databases/rds/"
+            },
+            {
+              "title": "Amazon RDS for Microsoft SQL Server",
+              "slug": "/database-access/enroll-aws-databases/sql-server-ad/"
+            },
+            {
+              "title": "Amazon Redshift",
               "slug": "/database-access/enroll-aws-databases/postgres-redshift/"
             },
             {
-              "title": "AWS RDS and Aurora",
-              "slug": "/database-access/enroll-aws-databases/rds/"
+              "title": "Amazon Redshift Serverless",
+              "slug": "/database-access/enroll-aws-databases/redshift-serverless/"
+            },
+            {
+              "title": "Cross-Account Access",
+              "slug": "/database-access/enroll-aws-databases/aws-cross-account/"
             }
           ]
         },
@@ -1922,7 +1926,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.3.7",
+      "version": "15.4.0",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",

@@ -77,12 +77,22 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           <Text>Could not stop VNet: {stopAttempt.statusText}</Text>
         )}
 
-        {status === 'stopped' && (
-          <Text>VNet automatically authenticates connections to TCP apps.</Text>
-        )}
+        {status.value === 'stopped' &&
+          (status.reason.value === 'unexpected-shutdown' ? (
+            <Text>
+              VNet unexpectedly shut down:{' '}
+              {status.reason.errorMessage ||
+                'no direct reason was given, please check logs'}
+              .
+            </Text>
+          ) : (
+            <Text>
+              VNet automatically authenticates connections to TCP apps.
+            </Text>
+          ))}
       </Flex>
 
-      {status === 'running' &&
+      {status.value === 'running' &&
         (rootClusters.length === 0 ? (
           <Text p={textSpacing}>
             No clusters connected yet, VNet is not proxying any connections.
