@@ -64,7 +64,7 @@ func GenerateKnownHosts(ctx context.Context, bot certAuthorityGetter, clusterNam
 
 		for _, pubKey := range pubKeys {
 			bytes := ssh.MarshalAuthorizedKey(pubKey)
-			fmt.Fprintf(sb, 
+			fmt.Fprintf(&sb, 
 				"@cert-authority %s,%s,*.%s %s type=host\n",
 				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
 			)
