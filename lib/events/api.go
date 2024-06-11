@@ -765,6 +765,8 @@ const (
 	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.
 	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
+	// TODO(jakule): Remove once e is updated to the new name.
+	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
 )
 
 const (
