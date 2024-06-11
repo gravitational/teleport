@@ -5,24 +5,13 @@ description: Using VNet
 
 ## How it works
 
-VNet is a virtual network emulation tool which enables any program on your computer to connect to
-TCP applications protected by Teleport, with no extra changes required to the program itself. It is
-available in Teleport Connect and tsh on macOS, with Windows and Linux version in the works.
+VNet automatically proxies connections from your computer to TCP apps available through Teleport. A
+program on your device can connect to `tcp-app.teleport.example.com`, without having to know about
+Teleport. Underneath, VNet authenticates the connection with your credentials, using [the same TLS
+routing technology](../architecture/tls-routing.mdx) as `tsh proxy app`. This is all done
+client-side – VNet sets up a local DNS name server and a virtual network device.
 
-Let's say you work on software which needs to connect to a TCP-based application accessible
-through a Teleport cluster. Before VNet, you had two options. You could use `tsh app login` to
-obtain certs for that TCP app. But this meant that your software had to be aware of those certs and
-supply them to the TCP app. To avoid dealing with certs, you could set up an authenticated tunnel
-with `tsh proxy app --tunnel`. Your program could then connect to the tunnel, running on a random
-port on localhost, without worrying about certs. But now you had to manage the tunnel itself,
-remember to start it and remember what its port number is. This was quite inconvenient, especially
-when dealing with many TCP apps.
-
-VNet goes one step further. It automatically proxies connections on the fly whenever your
-computer wants to reach a TCP app available through Teleport. Your software can talk to
-`tcp-app.teleport.example.com` instead of talking to a port on localhost. Underneath, VNet uses [the
-same TLS routing technology](../architecture/tls-routing.mdx) as `tsh proxy app`, just with extra
-DNS and virtual network setup on the client side.
+Vnet is available in Teleport Connect and tsh on macOS, with Windows and Linux version in the works.
 
 ## Prerequisites
 
