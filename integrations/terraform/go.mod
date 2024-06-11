@@ -19,7 +19,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
@@ -347,7 +347,6 @@ require (
 	github.com/russellhaering/gosaml2 v0.9.1 // indirect
 	github.com/russellhaering/goxmldsig v1.4.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sashabaranov/go-openai v1.23.0 // indirect
 	github.com/schollz/progressbar/v3 v3.14.2 // indirect
 	github.com/scim2/filter-parser/v2 v2.2.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
