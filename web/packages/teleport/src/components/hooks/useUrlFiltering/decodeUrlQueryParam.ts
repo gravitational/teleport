@@ -16,6 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { useUrlFiltering } from './useUrlFiltering';
-export { encodeUrlQueryParams } from './encodeUrlQueryParams';
-export { decodeUrlQueryParam } from './decodeUrlQueryParam';
+/**
+ * calls native decodeURIComponent under the hood but goes
+ * one step further by replacing lone % with %25
+ * to prevent URI malformed error.
+ */
+export function decodeUrlQueryParam(param: string) {
+  const decodedQuery = decodeURIComponent(
+    param.replace(/%(?![0-9][0-9a-fA-F]+)/g, '%25')
+  );
+
+  return decodedQuery;
+}
