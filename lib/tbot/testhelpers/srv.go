@@ -64,7 +64,8 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 
 	fc := &config.FileConfig{
 		Global: config.Global{
-			DataDir: t.TempDir(),
+			DataDir:  t.TempDir(),
+			NodeName: "test",
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
@@ -77,7 +78,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []*servicecfg.FileDescript
 			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
-			ClusterName: "localhost",
+			ClusterName: "test-cluster.local",
 			Service: config.Service{
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
