@@ -1,7 +1,10 @@
 # Changelog
 
-## 15.4.1 (06/10/24)
+## 15.4.2 (06/11/24)
 
+* Fixed a Desktop Access resize bug which occurs when window was resized during MFA. [#42705](https://github.com/gravitational/teleport/pull/42705)
+* Fixed listing available db users in Teleport Connect for databases from leaf clusters obtained through access requests. [#42679](https://github.com/gravitational/teleport/pull/42679)
+* Fixed file upload/download for Teleport-created users in `insecure-drop` mode. [#42660](https://github.com/gravitational/teleport/pull/42660)
 * Updated OpenSSL to 3.0.14. [#42642](https://github.com/gravitational/teleport/pull/42642)
 * Fixed fetching resources with tons of metadata (such as labels or description) in Teleport Connect. [#42627](https://github.com/gravitational/teleport/pull/42627)
 * Added support for Microsoft Entra ID directory synchronization (Teleport Enterprise only, preview). [#42555](https://github.com/gravitational/teleport/pull/42555)
