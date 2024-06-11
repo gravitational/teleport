@@ -873,14 +873,8 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	}); err != nil && !trace.IsNotFound(err) {
 		sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
 	}
-	if sessionDeletionErrs != nil {
-		return trace.Wrap(sessionDeletionErrs)
-	}
 
-	if err := s.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(sessionDeletionErrs)
 }
 
 func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
