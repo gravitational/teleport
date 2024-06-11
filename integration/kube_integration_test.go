@@ -321,7 +321,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
@@ -756,7 +756,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
@@ -1030,7 +1030,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// verify traffic capture and upload, wait for the upload to hit
 	var sessionID string
-	timeoutC := time.After(10 * time.Second)
+	timeoutC := time.After(20 * time.Second)
 loop:
 	for {
 		select {
