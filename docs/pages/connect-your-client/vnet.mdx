@@ -72,11 +72,12 @@ $ tsh vnet
 
 ## Troubleshooting
 
-### Try connecting to the app without VNet
+### Connecting to the app without VNet
 
-Sometimes connectivity issues are not related to VNet, and you can narrow that down by trying to connect
-to your app without VNet. Make sure your app appears in the Connect resources view, or the output of
-`tsh apps ls`. Turn off VNet and try creating a local proxy to your app (with debug logging enabled) with `tsh proxy app -d <app-name>`.
+Sometimes connectivity issues are not related to VNet, and you can narrow that down by trying to
+connect to your app without VNet. Make sure your app appears in the Connect resources view, or the
+output of `tsh apps ls`. Turn off VNet and try creating a local proxy to your app (with debug
+logging enabled) with `tsh proxy app -d <app-name>`.
 
 ### Timeouts when trying to reach a Teleport cluster
 
