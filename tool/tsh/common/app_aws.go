@@ -55,7 +55,7 @@ func onAWS(cf *CLIConf) error {
 		cf.AWSEndpointURLMode = true
 	}
 
-	err = awsApp.StartLocalProxies()
+	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -168,9 +168,7 @@ func (a *awsApp) GetAppName() string {
 //
 // The first method is always preferred as the original hostname is preserved
 // through forward proxy.
-func (a *awsApp) StartLocalProxies(opts ...alpnproxy.LocalProxyConfigOpt) error {
-	ctx := context.TODO()
-
+func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	cred, err := a.GetAWSCredentials()
 	if err != nil {
 		return trace.Wrap(err)

@@ -187,7 +187,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
-		dpCertParams := ReissueParams{
+		dbCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
 			RouteToDatabase: proto.RouteToDatabase{
 				ServiceName: c.RouteToApp.ServiceName,
@@ -204,7 +204,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dpCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName)))
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName)))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -301,8 +301,8 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return appCert, nil
 }
 
-// LocalCertGenerator is a HTTPS listener that can generate TLS certificates based
-// on SNI during HTTPS handshake.
+// LocalCertGenerator is a TLS Certificate generator used to inject
+// valid TLS certificates based on SNI during local HTTPS handshakes.
 type LocalCertGenerator struct {
 	certChecker *CertChecker
 	caPath      string

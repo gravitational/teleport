@@ -51,7 +51,7 @@ func onAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = app.StartLocalProxies()
+	err = app.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,9 +134,7 @@ func getMSISecret() (string, error) {
 // However, with MSI_ENDPOINT variable set, clients will reach out to this address for tokens.
 // We intercept calls to https://azure-msi.teleport.dev using alpnproxy.AzureMSIMiddleware.
 // These calls are served entirely locally, which helps the overall performance experienced by the user.
-func (a *azureApp) StartLocalProxies() error {
-	ctx := context.TODO()
-
+func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 	azureMiddleware := &alpnproxy.AzureMSIMiddleware{
 		Key:    a.signer,
 		Secret: a.msiSecret,

@@ -423,7 +423,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = awsApp.StartLocalProxies()
+	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -516,7 +516,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = azApp.StartLocalProxies()
+	err = azApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -547,7 +547,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = gcpApp.StartLocalProxies()
+	err = gcpApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

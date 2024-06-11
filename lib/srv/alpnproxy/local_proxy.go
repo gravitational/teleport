@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -166,21 +165,21 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware != nil {
-		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	if l.cfg.Middleware != nil {
+		if err := l.cfg.Middleware.OnStart(ctx, l); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.startHTTPAccessProxy(ctx))
+	}
+
 	return trace.Wrap(l.start(ctx))
 }
 
 // start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
 func (l *LocalProxy) start(ctx context.Context) error {
-	if l.cfg.Middleware != nil {
-		err := l.cfg.Middleware.OnStart(ctx, l)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -344,21 +343,10 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
+// startHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if l.cfg.Middleware != nil {
-		err := l.cfg.Middleware.OnStart(ctx, l)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	l.cfg.Log.Info("Starting HTTP access proxy")
@@ -415,19 +403,17 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
 	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
 	if trace.IsNotImplemented(err) {
-		return l.makeHTTPReverseProxy(l.GetCert()), nil
+		return l.makeHTTPReverseProxy(l.getCert()), nil
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println("overwriting certs")
+	l.cfg.Log.Debug("overwrote certs")
 	return l.makeHTTPReverseProxy(certs...), nil
 }
 
-// getCerts returns the local proxy's configured TLS certificates.
-// For thread-safety, it is important that the returned slice and its contents
-// are not be mutated by callers, therefore this method is not exported.
-func (l *LocalProxy) GetCert() tls.Certificate {
+// getCert returns the local proxy's configured TLS certificate.
+func (l *LocalProxy) getCert() tls.Certificate {
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 	return l.cfg.Cert
@@ -506,7 +492,7 @@ func (l *LocalProxy) SetCert(cert tls.Certificate) {
 // net.Conn should be used for further operation.
 func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, net.Conn, error) {
 	if !l.cfg.CheckCertNeeded {
-		return l.GetCert(), downstreamConn, nil
+		return l.getCert(), downstreamConn, nil
 	}
 	if l.isPostgresProxy() {
 		// `psql` cli doesn't send cancel requests with SSL, unfortunately.
@@ -524,7 +510,7 @@ func (l *LocalProxy) getCertForConn(downstreamConn net.Conn) (tls.Certificate, n
 		if !isCancelReq {
 			return tls.Certificate{}, conn, nil
 		}
-		cert := l.GetCert()
+		cert := l.getCert()
 		if len(cert.Certificate) == 0 {
 			return tls.Certificate{}, nil, trace.NotFound("local proxy has no TLS certificates configured")
 		}
@@ -537,7 +523,7 @@ func (l *LocalProxy) getCertWithoutConn() (tls.Certificate, error) {
 	if l.cfg.CheckCertNeeded {
 		return tls.Certificate{}, trace.BadParameter("getCertWithoutConn called while CheckCertNeeded is true: this is a bug")
 	}
-	return l.GetCert(), nil
+	return l.getCert(), nil
 }
 
 func (l *LocalProxy) isPostgresProxy() bool {

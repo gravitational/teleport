@@ -388,7 +388,7 @@ func (k *kubeLocalProxy) Start(ctx context.Context) error {
 		errChan <- k.forwardProxy.Start()
 	}()
 	go func() {
-		errChan <- k.localProxy.StartHTTPAccessProxy(ctx)
+		errChan <- k.localProxy.Start(ctx)
 	}()
 
 	select {

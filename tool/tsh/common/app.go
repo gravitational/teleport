@@ -487,7 +487,7 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 }
 
 // getAppInfo fetches app information using the user's tsh profile,
-// command line args, and if the ListApps endpoint if necessary. If
+// command line args, and the ListApps endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
 // tsh profile.
 func getAppInfo(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
@@ -542,7 +542,8 @@ type appInfo struct {
 
 // checkAndSetDefaults checks the app route, applies cli flags, and sets defaults.
 func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus) error {
-	if a.IsAWSConsole() {
+	switch {
+	case a.IsAWSConsole():
 		app, err := a.GetApp(cf.Context, tc)
 		if err != nil {
 			return trace.Wrap(err)
@@ -553,18 +554,16 @@ func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, pr
 			return trace.Wrap(err)
 		}
 		a.AWSRoleARN = awsRoleARN
-	}
 
-	if a.IsAzureCloud() {
+	case a.IsAzureCloud():
 		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		log.Debugf("Azure identity is %q", azureIdentity)
 		a.AzureIdentity = azureIdentity
-	}
 
-	if a.IsGCP() {
+	case a.IsGCP():
 		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
 		if err != nil {
 			return trace.Wrap(err)
@@ -603,7 +602,7 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.app != nil {
-		return a.app, nil
+		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
 	app, err := getApp(ctx, tc, a.Name)
@@ -611,7 +610,7 @@ func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.
 		return nil, trace.Wrap(err)
 	}
 	a.app = app
-	return a.app, nil
+	return a.app.Copy(), nil
 }
 
 // getApp returns the registered application with the specified name.

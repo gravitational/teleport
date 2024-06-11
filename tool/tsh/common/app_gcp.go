@@ -53,7 +53,7 @@ func onGcloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = app.StartLocalProxies()
+	err = app.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -76,7 +76,7 @@ func onGsutil(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = app.StartLocalProxies()
+	err = app.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,9 +143,7 @@ func getGCPSecret() (string, error) {
 //
 // The request flow to remote server (i.e. GCP APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
-func (a *gcpApp) StartLocalProxies() error {
-	ctx := context.TODO()
-
+func (a *gcpApp) StartLocalProxies(ctx context.Context) error {
 	// configuration files
 	if err := a.writeBotoConfig(); err != nil {
 		return trace.Wrap(err)
