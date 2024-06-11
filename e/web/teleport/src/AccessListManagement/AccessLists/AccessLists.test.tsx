@@ -15,7 +15,8 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -24,7 +25,12 @@ import { ApiError } from 'teleport/services/api/parseError';
 
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  AccessList,
+  accessManagementService,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { AccessLists } from './AccessLists';
@@ -92,6 +98,98 @@ describe('upsell links', () => {
     const link = screen.getByText(/contact sales/i);
     expect(link).toHaveAttribute('href', expect.stringMatching(/upgrade-igs/i));
   });
+
+  test('if router state contains newly created access list, it is added to the items list', async () => {
+    ecfg.oss.isIgsEnabled = true;
+    jest
+      .spyOn(accessManagementService, 'fetchAccessLists')
+      .mockResolvedValue([mockAccessListApple]);
+
+    const history = createMemoryHistory({
+      initialEntries: [{ state: { createdList: mockAccessListBanana } }],
+    });
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/apple/i);
+    expect(screen.getByText(/banana/i)).toBeInTheDocument();
+  });
+
+  test('if router state contains newly created access list, is is NOT duplicated if it already exists in items list', async () => {
+    ecfg.oss.isIgsEnabled = true;
+    jest
+      .spyOn(accessManagementService, 'fetchAccessLists')
+      .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);
+
+    const history = createMemoryHistory({
+      initialEntries: [{ state: { createdList: mockAccessListBanana } }],
+    });
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/apple/i);
+    expect(screen.getByText(/banana/i)).toBeInTheDocument();
+  });
+
+  test('if router state contains deleted access list ID, it is removed from the items list', async () => {
+    ecfg.oss.isIgsEnabled = true;
+    jest
+      .spyOn(accessManagementService, 'fetchAccessLists')
+      .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);
+
+    const history = createMemoryHistory({
+      initialEntries: [{ state: { deletedAccessListId: 'id-banana' } }],
+    });
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/apple/i);
+    expect(screen.queryByText(/banana/i)).not.toBeInTheDocument();
+  });
+
+  test('search param is respected', async () => {
+    ecfg.oss.isIgsEnabled = true;
+    jest
+      .spyOn(accessManagementService, 'fetchAccessLists')
+      .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);
+
+    const history = createMemoryHistory({
+      initialEntries: [{ pathname: 'web/random', search: '?search=bana' }],
+    });
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/banana/i);
+    expect(screen.queryByText(/apple/i)).not.toBeInTheDocument();
+  });
 });
 
 function renderComponent(ctx: TeleportEContext) {
@@ -103,3 +201,43 @@ function renderComponent(ctx: TeleportEContext) {
     </MemoryRouter>
   );
 }
+
+const mockAccessListApple: AccessList = {
+  id: 'id-apple',
+  title: 'apple',
+  description: '',
+  owners: [{ name: 'lisa', description: '', ineligibleReason: '' }],
+  members: [],
+  membersCount: 0,
+  grants: { roles: ['access'], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
+  audit: {
+    recurrence: {
+      frequency: ReviewFrequency.SixMonths,
+      dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+    },
+    nextDate: new Date('2024-06-08T07:00:00.000Z'),
+  },
+  ownershipRequires: { roles: [], traits: {} },
+  membershipRequires: { roles: [], traits: {} },
+};
+
+const mockAccessListBanana: AccessList = {
+  id: 'id-banana',
+  title: 'banana',
+  description: '',
+  owners: [{ name: 'lisa', description: '', ineligibleReason: '' }],
+  members: [],
+  membersCount: 0,
+  grants: { roles: ['access'], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
+  audit: {
+    recurrence: {
+      frequency: ReviewFrequency.SixMonths,
+      dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+    },
+    nextDate: new Date('2024-06-08T07:00:00.000Z'),
+  },
+  ownershipRequires: { roles: [], traits: {} },
+  membershipRequires: { roles: [], traits: {} },
+};

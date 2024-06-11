@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useLocation, useHistory } from 'react-router';
 import styled from 'styled-components';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { ButtonPrimary, Box, Indicator, Alert, Flex } from 'design';
@@ -9,6 +10,8 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { ApiError } from 'teleport/services/api/parseError';
+import { decodeUrlQueryParam } from 'teleport/components/hooks/useUrlFiltering';
+import { compareByString } from 'teleport/lib/util';
 
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -34,16 +37,22 @@ export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
 
 export function AccessLists() {
   const ctx = useTeleport();
+  const history = useHistory();
+  const location = useLocation<{
+    createdList?: AccessList;
+    deletedAccessListId?: string;
+  }>();
+  const searchParams = new URLSearchParams(location.search);
+
   const perm = ctx.storeUser.getAccessListAccess();
   const canUpsertAsAdmin = perm.create && perm.edit;
 
   const { attempt, setAttempt } = useAttempt('processing');
 
   const [accesses, setAccesses] = useState<AccessListWithModifiedGrants[]>([]);
-  const [searchValue, setSearchValue] = useState('');
-  const [filteredAccesses, setFilteredAccesses] = useState<
-    AccessListWithModifiedGrants[]
-  >([]);
+  const [searchValue, setSearchValue] = useState(
+    decodeUrlQueryParam(searchParams.get('search') || '')
+  );
 
   useEffect(() => {
     setAttempt({ status: 'processing' });
@@ -51,6 +60,35 @@ export function AccessLists() {
       .fetchAccessLists()
       .then(fetchedLists => {
         setAttempt({ status: 'success' });
+
+        // If a location state was set, user came to this view from
+        // either creating or deleting an access list.
+        // Because of caching, the list from backend won't be updated
+        // right way, so we manually update the list here.
+        const { createdList, deletedAccessListId } = location.state || {};
+        if (createdList) {
+          const foundList = fetchedLists.find(l => l.id === createdList.id);
+          if (!foundList) {
+            fetchedLists.push(createdList);
+          }
+        }
+        if (deletedAccessListId) {
+          fetchedLists = fetchedLists.filter(l => l.id !== deletedAccessListId);
+        }
+
+        fetchedLists.sort((a, b) =>
+          compareByString(
+            a.title.toLocaleLowerCase(),
+            b.title.toLocaleLowerCase()
+          )
+        );
+
+        // Clear loc state afterwards but preserving query.
+        history.replace({
+          state: {},
+          pathname: location.pathname,
+          search: location.search,
+        });
 
         // Update notifications for access lists.
         ctx.storeNotifications.setNotificationsForAccessListsRequiringReview(
@@ -60,7 +98,7 @@ export function AccessLists() {
 
         // Process traits.
         const todayDate = new Date();
-        const updatedAccessList = fetchedLists.map(r => {
+        const updatedAccessLists = fetchedLists.map(r => {
           const memberTraitList = [];
           const memberTraitKeys = Object.keys(r.grants.traits);
           if (memberTraitKeys.length > 0) {
@@ -89,8 +127,7 @@ export function AccessLists() {
               : null,
           };
         });
-        setAccesses(updatedAccessList);
-        setFilteredAccesses(updatedAccessList);
+        setAccesses(updatedAccessLists);
       })
       .catch((e: Error) => {
         if (e instanceof ApiError) {
@@ -109,17 +146,22 @@ export function AccessLists() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // onSearch currently only searchs through access lists
+  const encodeUrlQueryParams = (search: string) => {
+    const searchParams = new URLSearchParams({ search }).toString();
+    return searchParams
+      ? `${location.pathname}?${searchParams}`
+      : location.pathname;
+  };
+
+  // filterAccessLists currently only searchs through access lists
   // "title" and "description".
-  // TODO(lisa): Consider separating searching logic from updating state,
-  // making it a pure function, and adding a unit test
-  function onSearch(s: string) {
-    if (!s) {
-      setFilteredAccesses(accesses);
+  function filterAccessLists() {
+    if (!searchValue) {
+      return accesses;
     }
     // Split the search string into separate words
     // so we can search for each category regardless of order.
-    const splitted = s.split(' ').map(s => s.toLowerCase());
+    const splitted = searchValue.split(' ').map(s => s.toLowerCase());
     const foundResources = accesses.filter(r => {
       const title = r.title.toLowerCase();
       const titleMatch = splitted.every(s => title.includes(s));
@@ -139,9 +181,26 @@ export function AccessLists() {
         return true;
       }
     });
-    setFilteredAccesses(foundResources);
-    setSearchValue(s);
+    return foundResources;
   }
+
+  function handleOnClickViewAccessList(accessListId: string) {
+    history.push(cfg.getAccessListManagementRoute(accessListId), {
+      previousPath: encodeUrlQueryParams(searchValue),
+    });
+  }
+
+  function handleOnSubmitSearch(e: FormEvent<HTMLFormElement>) {
+    const { searchValue } = e.target as typeof e.target & {
+      searchValue: { value: string };
+    };
+
+    e.preventDefault(); // prevent form default
+    history.replace(encodeUrlQueryParams(searchValue.value));
+    setSearchValue(searchValue.value);
+  }
+
+  const filteredAccesses = filterAccessLists();
 
   let MainContent: React.ReactElement;
   let showCreateBtn = true;
@@ -170,20 +229,26 @@ export function AccessLists() {
     MainContent = (
       <>
         <Box width="600px" mb={4}>
-          <InputWrapper mb={2}>
+          <InputWrapper mb={2} onSubmit={handleOnSubmitSearch}>
             <StyledInput
               placeholder="Search by title or description"
               autoFocus
-              value={searchValue}
-              onChange={e => onSearch(e.target.value)}
               max={100}
+              defaultValue={searchValue}
+              name="searchValue"
             />
           </InputWrapper>
         </Box>
         <AccessListContainer>
-          {filteredAccesses.map(a => (
-            <AccessCard accessList={a} key={a.id} />
-          ))}
+          {filteredAccesses.length > 0
+            ? filteredAccesses.map(a => (
+                <AccessCard
+                  accessList={a}
+                  key={a.id}
+                  onClick={() => handleOnClickViewAccessList(a.id)}
+                />
+              ))
+            : 'No Access Lists Found'}
         </AccessListContainer>
         {!cfg.oss.isIgsEnabled && <FeatureLimitBlurb />}
       </>
@@ -226,7 +291,7 @@ const AccessListContainer = styled(Flex)`
   flex-wrap: wrap;
 `;
 
-const InputWrapper = styled.div`
+const InputWrapper = styled.form`
   border-radius: ${props => props.theme.radii[5]}px;
   height: 40px;
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};

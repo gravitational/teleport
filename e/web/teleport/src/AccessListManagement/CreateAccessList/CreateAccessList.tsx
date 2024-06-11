@@ -238,7 +238,11 @@ export function CreateAccessList() {
         })),
       })
       // After creating, go back to access list listing.
-      .then(() => history.push(cfg.getAccessListManagementRoute()))
+      // Because of backend caching, we send the created list
+      // as router state to be used to update the listing.
+      .then(createdList => {
+        history.push(cfg.getAccessListManagementRoute(), { createdList });
+      })
       .catch((e: Error) =>
         setCreateAttempt({ status: 'failed', statusText: e.message })
       );

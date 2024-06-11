@@ -33,7 +33,13 @@ export function DeleteAccessListConfirmDialog({
     setAttempt({ status: 'processing' });
     accessManagementService
       .deleteAccessList(accessListId)
-      .then(() => history.push(cfg.getAccessListManagementRoute()))
+      .then(() =>
+        // Because of backend caching, we send the deleted ID
+        // as router state to be used to update the listing.
+        history.push(cfg.getAccessListManagementRoute(), {
+          deletedAccessListId: accessListId,
+        })
+      )
       .catch((e: Error) =>
         setAttempt({ status: 'failed', statusText: e.message })
       );

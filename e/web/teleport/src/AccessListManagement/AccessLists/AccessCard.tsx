@@ -1,11 +1,8 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { useHistory } from 'react-router';
 import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
 import { User } from 'design/Icon';
-
-import cfg from 'e-teleport/config';
 
 import { ToolTipText, TruncatingLabel } from '../Shared/Shared';
 import { OktaBadge } from '../Shared/OktaBadge';
@@ -16,12 +13,13 @@ export type Props = {
   accessList: AccessListWithModifiedGrants;
   // onlyRender flag makes access card non-interactable.
   onlyRender?: boolean;
+  onClick(): void;
 };
 
 // TODO(lisa): design is very similar to unifiedresources/ResourceCard.tsx
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
-export function AccessCard({ accessList, onlyRender = false }: Props) {
+export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
   const {
     id,
     title,
@@ -31,12 +29,6 @@ export function AccessCard({ accessList, onlyRender = false }: Props) {
     needsReviewBy,
     isOkta,
   } = accessList;
-  const history = useHistory();
-
-  function handleOnClick() {
-    history.push(cfg.getAccessListManagementRoute(id));
-  }
-
   let truncatedDesc = description;
   // Roughly two lines worth of text.
   // TODO(lisa): consider using fixed font size and line height attributes,
@@ -55,11 +47,7 @@ export function AccessCard({ accessList, onlyRender = false }: Props) {
   const requiresReview = needsReviewBy && !isMember;
 
   return (
-    <AccessCardContainer
-      key={id}
-      onClick={handleOnClick}
-      $onlyRender={onlyRender}
-    >
+    <AccessCardContainer key={id} onClick={onClick} $onlyRender={onlyRender}>
       {requiresReview && (
         <ReviewBadge>Review by {format(needsReviewBy, 'MM/dd')}</ReviewBadge>
       )}

@@ -62,6 +62,9 @@ const noAccessDeleteMsg = 'You do not have access to delete this access_list';
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
+  const location = useLocation<{
+    previousPath?: string;
+  }>();
   const { accessListId } = useParams<{ accessListId: string }>();
   const loc = useLocation<{ reviewed: boolean }>();
   const history = useHistory();
@@ -274,11 +277,15 @@ export function ViewEditAccessList() {
         <FeatureHeaderTitle>
           <Flex alignItems="center">
             <ArrowBack
+              data-testid="back-button"
               as={Link}
               mr={2}
               size="large"
               color="text.main"
-              to={cfg.getAccessListManagementRoute()}
+              to={
+                location.state?.previousPath ||
+                cfg.getAccessListManagementRoute()
+              }
             />
             {FeatureTitle}
           </Flex>

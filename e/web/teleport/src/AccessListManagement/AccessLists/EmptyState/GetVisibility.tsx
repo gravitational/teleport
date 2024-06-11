@@ -38,6 +38,7 @@ export const GetVisibilityPreview = () => {
           key={accessList.id}
           onlyRender={true}
           accessList={accessList}
+          onClick={() => null}
         />
       ))}
     </Flex>
