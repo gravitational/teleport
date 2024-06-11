@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -54,10 +53,13 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	middleware := libclient.NewDBCertCheckerWithCustomIssuer(func(ctx context.Context) (tls.Certificate, error) {
-		cert, err := d.cfg.OnExpiredCert(ctx, d)
-		return cert, trace.Wrap(err)
-	}, d.RouteToDatabase(), d.cfg.Clock)
+	middleware := &dbMiddleware{
+		log: d.cfg.Log,
+		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
+			cert, err := d.cfg.OnExpiredCert(ctx, d)
+			return cert, trace.Wrap(err)
+		},
+	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify:      d.cfg.Insecure,
