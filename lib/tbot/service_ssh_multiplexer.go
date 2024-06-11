@@ -60,9 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	sshMuxSocketName = "v1.sock"
-)
+const sshMuxSocketName = "v1.sock"
 
 var (
 	muxReqsStartedCounter = prometheus.NewCounter(
