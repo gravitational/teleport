@@ -59,7 +59,7 @@ export const Failed = () => {
   );
 };
 
-export function createContext() {
+export function createContext(): ConsoleCtx {
   const ctx = new ConsoleCtx();
 
   ctx.clustersService.fetchClusters = () => {
