@@ -81,42 +81,16 @@ To have a complete recording with users input and server response, we'll
 include the command result event:
 
 ```proto
-// DatabaseFieldType enum for database data fields data types.
-enum DatabaseDataFieldType {
-  UNSPECIFIED = 0;
-  STRING = 1;
-  NUMBER = 2;
-  DATE = 3;
-  BINARY = 4;
-}
+// Copied from: api/proto/teleport/legacy/types/events/events.proto
+message Status {
+  // Success indicates the success or failure of the operation
+  bool Success = 1 [(gogoproto.jsontag) = "success"];
 
-// DatabaseDataFieldMetadata contains metadata for database data fields.
-message DatabaseDataFieldMetadata {
-  // Name is the field name.
-  string Name = 1;
-  // Type is the field type. Since the values are stored inside the event as
-  // strings, this type can convert the row values back into their original
-  // type. This information can be used to format the row values.
-  DatabaseDataFieldType Type = 2;
-}
+  // Error includes system error message for the failed attempt
+  string Error = 2 [(gogoproto.jsontag) = "error,omitempty"];
 
-// DatabaseDataRow represents a single data row, containing a list field values.
-message DatabaseDataRow {
-  // Values the row field values.
-  // Value is the row field values. The values aren not expected to be the
-  // direct database type but their string representation, making it possible to
-  // display them without parsing. For example, binary data can be encoded into
-  // base64.
-  repeated string Values = 1;
-}
-
-// DatabaseResultData database results data, containing fields metadata and also
-// the data itself.
-message DatabaseResultData {
-  // FieldMetadata list of fields metadata.
-  repeated DatabaseDataFieldMetadata Fields = 1;
-  // Rows list of the field values.
-  repeated DatabaseDataRow Rows = 2;
+  // UserMessage is a user-friendly message for successfull or unsuccessfull auth attempt
+  string UserMessage = 3 [(gogoproto.jsontag) = "message,omitempty"];
 }
 
 // DatabaseSessionCommandResult represents the result of a user command. It is
@@ -131,14 +105,11 @@ message DatabaseSessionCommandResult {
   SessionMetadata Session = 3;
   // Database contains database related metadata.
   DatabaseMetadata Database = 4;
-
-  oneof Result {
-    // Status of the query execution. It is used when the command doesn't return
-    // any data.
-    Status status = 5;
-    // Data contains the fields and data of the query execution.
-    DatabaseResultData Data = 6;
-  }
+  // Status of the execution.
+  Status status = 5;
+  // AfftectedRecords represents the number of records that were affected by the
+  // user query.
+  uint64 AffectedRecords = 6;
 }
 ```
 
@@ -149,16 +120,10 @@ message DatabaseSessionCommandResult {
 ```json
 {
   ...
-  "data": {
-    "fields": [
-      {"name": "id", "type": "INTEGER"},
-      {"name": "name", "type": "STRING"}
-    ],
-    "rows": [
-      ["1", "session.start"],
-      ["2", "session.end"]
-    ]
-  }
+  "status": {
+    "success": true
+  },
+  "affected_records": 5
 }
 ```
 
@@ -168,9 +133,9 @@ message DatabaseSessionCommandResult {
 {
   ...
   "status": {
-    "success": true,
-    "message": "3 rows affected"
-  }
+    "success": true
+  },
+  "affected_records": 3
 }
 ```
 
@@ -182,7 +147,8 @@ message DatabaseSessionCommandResult {
   "status": {
     "success": false,
     "error": "ERROR: column \"err\" does not exist"
-  }
+  },
+  "affected_records": 0
 }
 ```
 
@@ -191,15 +157,9 @@ message DatabaseSessionCommandResult {
 Database session recording options will be defined per role. This configuration
 will be under the `options.record_session.db` role option. It will support the
 following values:
-- `on`: Enables session recording, but only queries are recorded. This will
-  mimic the current behavior.
-- `full`: Enables session recording. Queries and responses are recorded.
+- `on`: Enables session recording.
 - `off`: Disables session recording. Audit events are kept unchanged (start,
   end, and query events emitted).
-- `recording_only`: Enables recording, but events will not be emitted, they
-  will only be present on recordings. This mode will be the same format as SSH
-  sessions, where the commands and their results are only present on the
-  recording.
 
 The value will be set to `on` by default, keeping the current behavior.
 
@@ -213,7 +173,7 @@ spec:
     ...
   options:
     record_session:
-      db: on|full|recording_only|off
+      db: on|off
 ```
 
 ### Player
@@ -228,32 +188,28 @@ easier to keep the session recording play consistent across protocols.
 
 It will present the session recording events in different text formats:
 
-- User queries will be presented as received with additional information about
-  the database name.
-- Data with fields metadata: Format the data into an ASCII table, where each
-  field is a column.
-- Data without field metadata: Print each row as a single line.
-- Status (result) without data: Show the user message. If none is present, show
-  "OK" in case of success or "ERROR" in case of error.
+- Status (result): Show the user message. If none is present, show "SUCCESS" in
+  case of success or "ERROR" in case of error.
+- The player will define if there is need to display the number of affected
+  records. For example, if the query was a `SELECT` the player might display it
+  as "Returned X rows" after the status.
 
 Example of player visualization:
 
 ```code
 mydatabse=# SELECT id, name FROM events;
-| id |      name     |
-+----+---------------+
-|  1 | session.start |
-|  2 | session.end   |
+SUCCESS
+(Returned 3 rows)
 
 mydatabase=# INSERT INTO events (name) VALUES ('session.query');
-
-1 row affected
+SUCCESS
+(1 row inserted)
 
 mydatabase=# SELECT with_error;
 ERROR: column "with_error" does not exist
 
 mydatabase=# ALTER SYSTEM SET client_min_messages = 'notice';
-OK
+SUCCESS
 
 (session end)
 ```
@@ -272,24 +228,6 @@ will be taken:
 - Record a predefined maximum number of rows per result. If this limit is
   exceeded, the rows will be truncated. In addition to this limit, the record
   will also ensure the Protobuf max message size is not exceeded.
-
-### Security
-
-Depending on the configured recording mode, the proposed database session
-recording additions will capture and store data from users' databases. This
-introduces considerations around data sensitivity and the potential exposure
-of confidential information within the session recording files.
-
-Like SSH session recordings, where users might execute commands revealing
-sensitive information, database session recordings can also contain sensitive
-data.
-
-Administrators can disable or configure the extent of session recording to
-address these concerns. By changing the recording options, organizations can
-tailor the recording behavior to their security policies and compliance
-requirements. Additionally, system administrators can configure stricter auditor
-roles to restrict access to sensitive information within the session recordings,
-ensuring only authorized personnel can view them.
 
 ### References
 
