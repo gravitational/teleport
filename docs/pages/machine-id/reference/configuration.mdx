@@ -464,7 +464,7 @@ This differs to using `identity` output for SSH in a few ways:
   service and cannot be used in one-shot mode. It must be running in order for
   SSH connections to be established and to continue running.
 - Resource consumption is significantly reduced by multiplexing SSH connections
-  through a fewer number of upstream connections to the Teleport Proxy.
+  through a fewer number of upstream connections to the Teleport Proxy Service.
 
 By default, the `ssh-multiplexer` service outputs an `ssh_config` which uses
 `tbot` itself as the ProxyCommand. You can further reduce the resource
