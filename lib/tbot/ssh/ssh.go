@@ -39,10 +39,21 @@ const (
 )
 
 type certAuthorityGetter interface {
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, includeSigningKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(
+		ctx context.Context,
+		id types.CertAuthID,
+		includeSigningKeys bool,
+	) (types.CertAuthority, error)
 }
 
-func GenerateKnownHosts(ctx context.Context, bot certAuthorityGetter, clusterNames []string, proxyHosts string) (string, error) {
+// GenerateKnownHosts generates a known_hosts file for the provided cluster
+// names and proxy hosts.
+func GenerateKnownHosts(
+	ctx context.Context,
+	bot certAuthorityGetter,
+	clusterNames []string,
+	proxyHosts string,
+) (string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
 		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
@@ -64,7 +75,7 @@ func GenerateKnownHosts(ctx context.Context, bot certAuthorityGetter, clusterNam
 
 		for _, pubKey := range pubKeys {
 			bytes := ssh.MarshalAuthorizedKey(pubKey)
-			fmt.Fprintf(&sb, 
+			fmt.Fprintf(&sb,
 				"@cert-authority %s,%s,*.%s %s type=host\n",
 				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
 			)
