@@ -24,11 +24,6 @@ import {
   AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import {
-  AssistUserPreferences,
-  AssistViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
-
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
@@ -47,7 +42,6 @@ interface BackendClusterUserPreferences {
 }
 
 export interface BackendUserPreferences {
-  assist?: AssistUserPreferences;
   theme: Theme;
   onboard?: OnboardUserPreferences;
   clusterPreferences?: BackendClusterUserPreferences;
@@ -91,10 +85,6 @@ export function makeDefaultUserPreferences(): UserPreferences {
   const prefersDark = getPrefersDark();
   return {
     theme: prefersDark ? Theme.DARK : Theme.LIGHT,
-    assist: {
-      viewMode: AssistViewMode.DOCKED,
-      preferredLogins: [],
-    },
     onboard: {
       preferredResources: [],
       marketingParams: {

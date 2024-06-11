@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -250,39 +251,41 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.AccessPoint,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindAccessGraph,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.Config.ServerID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Expires:       s.clock.Now().Add(semaphoreExpiration),
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.NewJitter(),
+			},
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		select {
-		case <-ctx.Done():
-			return
-		case <-lease.Done():
-			cancel()
-		}
-	}()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
