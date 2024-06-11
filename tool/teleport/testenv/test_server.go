@@ -173,7 +173,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	webListenerAddr := NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)
 	_, webListenerPort, err := net.SplitHostPort(webListenerAddr)
 	require.NoError(t, err)
-	cfg.Proxy.PublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: net.JoinHostPort(Host, webListenerPort)}}
+	cfg.Proxy.PublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: net.JoinHostPort(Loopback, webListenerPort)}}
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: webListenerAddr}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
 	cfg.Proxy.Kube.Enabled = true
