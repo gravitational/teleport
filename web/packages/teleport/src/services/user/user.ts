@@ -69,7 +69,7 @@ const service = {
     return api.put(cfg.getUsersUrl(), user).then(makeUser);
   },
 
-    /**
+  /**
    * Create user.
    * use allTraits to create new or replace entire user traits.
    * use traits to selectively add/update user traits.

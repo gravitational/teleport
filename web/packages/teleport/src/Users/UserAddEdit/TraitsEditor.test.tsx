@@ -16,9 +16,8 @@ describe('Render traits correctly', () => {
     db_names: ['postgres', 'aurora'],
   } as AllUserTraits;
 
-  test('Avalable traits are rendered', async () => {
-    let configuredTraits = [] as TraitsOption[];
-
+  test('Available traits are rendered', async () => {
+    const configuredTraits = [] as TraitsOption[];
     const setConfiguredTraits = jest.fn();
 
     const { rerender } = render(
@@ -31,7 +30,6 @@ describe('Render traits correctly', () => {
     );
 
     expect(screen.getByText('User Traits')).toBeInTheDocument();
-
     expect(setConfiguredTraits).toHaveBeenLastCalledWith(
       traitsToTraitsOption(userTraits)
     );
@@ -52,9 +50,7 @@ describe('Render traits correctly', () => {
 
   test('Add and remove Trait', async () => {
     const userTraits = {} as AllUserTraits;
-
-    let configuredTraits = [] as TraitsOption[];
-
+    const configuredTraits = [] as TraitsOption[];
     const setConfiguredTraits = jest.fn();
 
     const { rerender } = render(

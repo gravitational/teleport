@@ -26,7 +26,11 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-const availableTraitNames = [
+/**
+ * traitsPreset is a list of system defined traits in Teleport.
+ * The list is used to populate traits key option.
+ */
+const traitsPreset = [
   'aws_role_arns',
   'azure_identities',
   'db_names',
@@ -41,6 +45,13 @@ const availableTraitNames = [
   'windows_logins',
 ];
 
+/**
+ * TraitsEditor supports add, edit or remove traits functionality.
+ * @param allTraits all traits pre-configured for user.
+ * @param attempt attempt is Attempt status.
+ * @param configuredTraits holds traits configured for user in current editor.
+ * @param setConfiguredTraits sets user traits in current editor.
+ */
 export function TraitsEditor({
   allTraits,
   attempt,
@@ -71,13 +82,13 @@ export function TraitsEditor({
     }
   }
 
-  function addTrait() {
+  function addNewTraitPair() {
     let newTraits = [...configuredTraits];
     newTraits.push(emptyTrait);
     setConfiguredTraits(newTraits);
   }
 
-  function removeTrait(index: number) {
+  function removeTraitPair(index: number) {
     let newTraits = [...configuredTraits];
     newTraits.splice(index, 1);
     setConfiguredTraits(newTraits);
@@ -97,7 +108,7 @@ export function TraitsEditor({
                 <Box width="290px" mr={1} mt={4}>
                   <FieldSelectCreatable
                     data-testid="trait-key"
-                    options={availableTraitNames.map(r => ({
+                    options={traitsPreset.map(r => ({
                       value: r,
                       label: r,
                     }))}
@@ -159,7 +170,7 @@ export function TraitsEditor({
                   size={1}
                   title="Remove Trait"
                   aria-label="Remove Trait"
-                  onClick={() => removeTrait(index)}
+                  onClick={() => removeTraitPair(index)}
                   css={`
                     &:disabled {
                       opacity: 0.65;
@@ -178,7 +189,7 @@ export function TraitsEditor({
 
       <Box mt={5}>
         <ButtonBorder
-          onClick={addTrait}
+          onClick={addNewTraitPair}
           label={addLabelText}
           css={`
             padding-left: 12px;
