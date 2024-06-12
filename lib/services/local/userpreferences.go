@@ -36,15 +36,12 @@ type UserPreferencesService struct {
 
 func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 	return &userpreferencesv1.UserPreferences{
-		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: []string{},
-			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-		},
 		Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-			DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
-			ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
-			LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+			DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+			ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+			LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+			AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 		},
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},

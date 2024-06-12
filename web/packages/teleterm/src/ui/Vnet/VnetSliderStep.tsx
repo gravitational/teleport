@@ -16,13 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback } from 'react';
 import { StepComponentProps } from 'design/StepSlider';
 import { Box, Flex, Text } from 'design';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { useRefAutoFocus } from 'shared/hooks';
+import * as whatwg from 'whatwg-url';
+
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 import { useVnetContext } from './vnetContext';
-import { VnetSliderStepHeader, AppConnectionItem } from './VnetConnectionItem';
+import { VnetSliderStepHeader } from './VnetConnectionItem';
 
 /**
  * VnetSliderStep is the second step of StepSlider used in TopBar/Connections. It is shown after
@@ -34,6 +38,14 @@ export const VnetSliderStep = (props: StepComponentProps) => {
   const autoFocusRef = useRefAutoFocus<HTMLElement>({
     shouldFocus: visible,
   });
+  const clusters = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters, [])
+  );
+  const rootClusters = [...clusters.values()].filter(cluster => !cluster.leaf);
+  const rootProxyHostnames = rootClusters.map(
+    cluster => new whatwg.URL(`https://${cluster.proxyHost}`).hostname
+  );
 
   return (
     // Padding needs to align with the padding of the previous slider step.
@@ -65,35 +77,37 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           <Text>Could not stop VNet: {stopAttempt.statusText}</Text>
         )}
 
-        {status === 'stopped' && (
-          <Text>VNet automatically authenticates connections to TCP apps.</Text>
-        )}
+        {status.value === 'stopped' &&
+          (status.reason.value === 'unexpected-shutdown' ? (
+            <Text>
+              VNet unexpectedly shut down:{' '}
+              {status.reason.errorMessage ||
+                'no direct reason was given, please check logs'}
+              .
+            </Text>
+          ) : (
+            <Text>
+              VNet automatically authenticates connections to TCP apps.
+            </Text>
+          ))}
       </Flex>
 
-      {status === 'running' && (
-        <>
+      {status.value === 'running' &&
+        (rootClusters.length === 0 ? (
           <Text p={textSpacing}>
-            Proxying connections to .teleport-local.dev, .company.private
+            No clusters connected yet, VNet is not proxying any connections.
           </Text>
-          <Flex flexDirection="column" gap={1}>
-            <AppConnectionItem app="api.company.private" status="on" />
-            <AppConnectionItem app="kafka.teleport-local.dev" status="on" />
-            <AppConnectionItem
-              app="redis.teleport-local.dev"
-              status="error"
-              error={dnsError}
-            />
-            <AppConnectionItem
-              app="aerospike.teleport-local.dev"
-              status="off"
-            />
-          </Flex>
-        </>
-      )}
+        ) : (
+          <>
+            {/* TODO(ravicious): Add leaf clusters and custom DNS zones when support for them
+                lands in VNet. */}
+            <Text p={textSpacing}>
+              Proxying TCP connections to {rootProxyHostnames.join(', ')}
+            </Text>
+          </>
+        ))}
     </Box>
   );
 };
 
 const textSpacing = 1;
-
-const dnsError = `DNS query for "redis.teleport-local.dev" in custom DNS zone failed: no matching Teleport app and upstream nameserver did not respond`;

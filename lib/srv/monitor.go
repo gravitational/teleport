@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -457,7 +458,8 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 			RemoteAddr: w.Conn.RemoteAddr().String(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID: w.ServerID,
+			ServerVersion: teleport.Version,
+			ServerID:      w.ServerID,
 		},
 		Reason: reason,
 	}

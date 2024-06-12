@@ -33,6 +33,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,22 +64,31 @@ func TestMain(m *testing.M) {
 type testPack struct {
 	vnetIPv6Prefix tcpip.Address
 	dnsIPv6        tcpip.Address
-	manager        *Manager
+	ns             *NetworkStack
 
 	testStack        *stack.Stack
 	testLinkEndpoint *channel.Endpoint
 	localAddress     tcpip.Address
 }
 
-func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, appProvider AppProvider) *testPack {
+type testPackConfig struct {
+	clock       clockwork.FakeClock
+	appProvider AppProvider
+
+	// customDNSZones is a map where the keys are custom DNS zones that should be valid, and the values are a
+	// slice of all Teleport clusters they should be valid for.
+	customDNSZones map[string][]string
+}
+
+func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
 	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
 	tun1, tun2 := newSplitTUN()
 
 	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
 	// connected to the VNet over the TUN interface. This emulates the host networking stack.
-	// This is a completely separate gvisor network stack than the one that will be created in NewManager -
-	// the two will be connected over a fake TUN interface. This exists so that the test can setup IP routes
-	// without affecting the host running the Test.
+	// This is a completely separate gvisor network stack than the one that will be created in
+	// NewNetworkStack - the two will be connected over a fake TUN interface. This exists so that the
+	// test can setup IP routes without affecting the host running the Test.
 	testStack, testLinkEndpoint, err := createStack()
 	require.NoError(t, err)
 
@@ -121,11 +130,25 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	tcpHandlerResolver, err := NewTCPAppResolver(appProvider, withClock(clock))
+	lookupTXT := func(ctx context.Context, customDNSZone string) ([]string, error) {
+		clusters, ok := cfg.customDNSZones[customDNSZone]
+		if !ok {
+			return nil, nil
+		}
+		txtRecords := make([]string, 0, len(clusters))
+		for _, cluster := range clusters {
+			txtRecords = append(txtRecords, clusterTXTRecordPrefix+cluster)
+		}
+		return txtRecords, nil
+	}
+
+	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider,
+		withClock(cfg.clock),
+		withLookupTXTFunc(lookupTXT))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
-	manager, err := NewManager(&Config{
+	ns, err := newNetworkStack(&Config{
 		TUNDevice:                tun2,
 		IPv6Prefix:               vnetIPv6Prefix,
 		DNSIPv6:                  dnsIPv6,
@@ -137,7 +160,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := manager.Run(ctx); !errIsOK(err) {
+			if err := ns.Run(ctx); !errIsOK(err) {
 				return trace.Wrap(err)
 			}
 			return nil
@@ -147,7 +170,7 @@ func newTestPack(t *testing.T, ctx context.Context, clock clockwork.FakeClock, a
 	return &testPack{
 		vnetIPv6Prefix:   vnetIPv6Prefix,
 		dnsIPv6:          dnsIPv6,
-		manager:          manager,
+		ns:               ns,
 		testStack:        testStack,
 		testLinkEndpoint: testLinkEndpoint,
 		localAddress:     localAddress,
@@ -168,7 +191,7 @@ func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint
 			NIC:      nicID,
 			Addr:     addr,
 			Port:     port,
-			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
+			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
 		},
 		ipv6.ProtocolNumber,
 	)
@@ -187,7 +210,7 @@ func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16)
 			NIC:      nicID,
 			Addr:     addr,
 			Port:     port,
-			LinkAddr: p.manager.linkEndpoint.LinkAddress(),
+			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
 		},
 		ipv6.ProtocolNumber,
 	)
@@ -231,15 +254,17 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type testClusterSpec struct {
-	apps         []string
-	cidrRange    string
-	leafClusters map[string]testClusterSpec
+	apps           []string
+	cidrRange      string
+	customDNSZones []string
+	leafClusters   map[string]testClusterSpec
 }
 
 type echoAppProvider struct {
-	clusters       map[string]testClusterSpec
-	dialOpts       DialOptions
-	reissueAppCert func() tls.Certificate
+	clusters                 map[string]testClusterSpec
+	dialOpts                 DialOptions
+	reissueAppCert           func() tls.Certificate
+	onNewConnectionCallCount atomic.Uint32
 }
 
 // newEchoAppProvider returns an app provider with the list of named apps in each profile and leaf cluster.
@@ -259,16 +284,16 @@ func (p *echoAppProvider) ListProfiles() ([]string, error) {
 // GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 // expected to be cached, as this may be called frequently.
-func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
 	rootCluster, ok := p.clusters[profileName]
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s", profileName)
 	}
 	if leafClusterName == "" {
-		return &client.ClusterClient{
-			AuthClient: &echoAppAuthClient{
+		return &fakeClusterClient{
+			authClient: &fakeAuthClient{
+				clusterSpec: rootCluster,
 				clusterName: profileName,
-				apps:        rootCluster.apps,
 			},
 		}, nil
 	}
@@ -276,10 +301,10 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	if !ok {
 		return nil, trace.NotFound("no cluster for %s.%s", profileName, leafClusterName)
 	}
-	return &client.ClusterClient{
-		AuthClient: &echoAppAuthClient{
+	return &fakeClusterClient{
+		authClient: &fakeAuthClient{
+			clusterSpec: leafCluster,
 			clusterName: leafClusterName,
-			apps:        leafCluster.apps,
 		},
 	}, nil
 }
@@ -301,7 +326,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		return &vnet.VnetConfig{
+		cfg := &vnet.VnetConfig{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
@@ -310,7 +335,13 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 			Spec: &vnet.VnetConfigSpec{
 				Ipv4CidrRange: rootCluster.cidrRange,
 			},
-		}, nil
+		}
+		for _, zone := range rootCluster.customDNSZones {
+			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+				&vnet.CustomDNSZone{Suffix: zone},
+			)
+		}
+		return cfg, nil
 	}
 	leafCluster, ok := rootCluster.leafClusters[leafClusterName]
 	if !ok {
@@ -319,7 +350,7 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	return &vnet.VnetConfig{
+	cfg := &vnet.VnetConfig{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -328,23 +359,45 @@ func (p *echoAppProvider) GetVnetConfig(ctx context.Context, profileName, leafCl
 		Spec: &vnet.VnetConfigSpec{
 			Ipv4CidrRange: leafCluster.cidrRange,
 		},
-	}, nil
+	}
+	for _, zone := range leafCluster.customDNSZones {
+		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
+			&vnet.CustomDNSZone{Suffix: zone},
+		)
+	}
+	return cfg, nil
 }
 
-// echoAppAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
+func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+	p.onNewConnectionCallCount.Add(1)
+	return nil
+}
+
+type fakeClusterClient struct {
+	authClient *fakeAuthClient
+}
+
+func (c *fakeClusterClient) CurrentCluster() authclient.ClientI {
+	return c.authClient
+}
+
+func (c *fakeClusterClient) ClusterName() string {
+	return c.authClient.clusterName
+}
+
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
-type echoAppAuthClient struct {
+type fakeAuthClient struct {
 	authclient.ClientI
+	clusterSpec testClusterSpec
 	clusterName string
-	apps        []string
 }
 
-func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resp := &proto.ListResourcesResponse{}
-	for _, app := range c.apps {
+	for _, app := range c.clusterSpec.apps {
 		// Poor-man's predicate expression filter.
-		appPublicAddr := app + "." + c.clusterName
-		if !strings.Contains(req.PredicateExpression, appPublicAddr) {
+		if !strings.Contains(req.PredicateExpression, app) {
 			continue
 		}
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
@@ -372,93 +425,47 @@ func (c *echoAppAuthClient) GetResources(ctx context.Context, req *proto.ListRes
 	return resp, nil
 }
 
+func (c *fakeAuthClient) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
+	remoteClusters := make([]types.RemoteCluster, 0, len(c.clusterSpec.leafClusters))
+	for leafClusterName := range c.clusterSpec.leafClusters {
+		rc, err := types.NewRemoteCluster(leafClusterName)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		remoteClusters = append(remoteClusters, rc)
+	}
+	return remoteClusters, "", nil
+}
+
+func (c *fakeAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return proto.PingResponse{
+		ClusterName:     c.clusterName,
+		ProxyPublicAddr: c.clusterName,
+	}, nil
+}
+
+func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
+	vnetConfig := &vnet.VnetConfig{
+		Spec: &vnet.VnetConfigSpec{
+			Ipv4CidrRange: c.clusterSpec.cidrRange,
+		},
+	}
+	for _, zone := range c.clusterSpec.customDNSZones {
+		vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{
+			Suffix: zone,
+		})
+	}
+	return vnetConfig, nil
+}
+
 func TestDialFakeApp(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
-
 	ca := newSelfSignedCA(t)
-
-	roots := x509.NewCertPool()
-	caX509, err := x509.ParseCertificate(ca.Certificate[0])
-	require.NoError(t, err)
-	roots.AddCert(caX509)
-
-	const proxyCN = "testproxy"
-	proxyCert := newServerCert(t, ca, proxyCN, clock.Now().Add(365*24*time.Hour))
-
-	proxyTLSConfig := &tls.Config{
-		Certificates: []tls.Certificate{proxyCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    roots,
-	}
-
-	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
-	require.NoError(t, err)
-
-	// Run a fake web proxy that will accept any client connection and echo the input back.
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "web proxy",
-		Task: func(ctx context.Context) error {
-			for {
-				conn, err := listener.Accept()
-				if err != nil {
-					if utils.IsOKNetworkError(err) {
-						return nil
-					}
-					return trace.Wrap(err)
-				}
-				go func() {
-					defer conn.Close()
-
-					// Not using require/assert here and below because this is not in the right subtest or in
-					// the main test goroutine. The test will fail if the conn is not handled.
-					tlsConn, ok := conn.(*tls.Conn)
-					if !ok {
-						t.Log("client conn is not TLS")
-						return
-					}
-					if err := tlsConn.Handshake(); err != nil {
-						t.Log("error completing tls handshake")
-						return
-					}
-					clientCerts := tlsConn.ConnectionState().PeerCertificates
-					if len(clientCerts) == 0 {
-						t.Log("client has no certs")
-						return
-					}
-					// Manually checking the cert expiry compared to the time of the fake clock, since the TLS
-					// library will only compare the cert expiry to the real clock.
-					// It's important that the fake clock is never far behind the real clock, and that the
-					// cert NotBefore is always at/before the real current time, so the TLS library is
-					// satisfied.
-					if clock.Now().After(clientCerts[0].NotAfter) {
-						t.Logf("client cert is expired: currentTime=%s expiry=%s", clock.Now(), clientCerts[0].NotAfter)
-						return
-					}
-
-					_, err := io.Copy(conn, conn)
-					if err != nil && !utils.IsOKNetworkError(err) {
-						t.Logf("error in io.Copy for echo proxy server: %v", err)
-					}
-				}()
-			}
-		},
-		Terminate: func() error {
-			if err := listener.Close(); !utils.IsOKNetworkError(err) {
-				return trace.Wrap(err)
-			}
-			return nil
-		},
-	})
-
-	dialOpts := DialOptions{
-		WebProxyAddr:          listener.Addr().String(),
-		RootClusterCACertPool: roots,
-		SNI:                   proxyCN,
-	}
+	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
@@ -467,25 +474,47 @@ func TestDialFakeApp(t *testing.T) {
 
 	appProvider := newEchoAppProvider(map[string]testClusterSpec{
 		"root1.example.com": {
-			apps:      []string{"echo1", "echo2"},
+			apps: []string{
+				"echo1.root1.example.com",
+				"echo2.root1.example.com",
+				"echo.myzone.example.com",
+				"echo.nested.myzone.example.com",
+				"not.in.a.custom.zone",
+				"in.an.invalid.zone",
+			},
+			customDNSZones: []string{
+				"myzone.example.com",
+				// This zone will not have a valid TXT record because it is not included in the
+				// customDNSZones passed to newTestPack.
+				"an.invalid.zone",
+			},
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf1.example.com": {
-					apps: []string{"echo1"},
+					apps: []string{"echo1.leaf1.example.com"},
+				},
+				"leaf2.example.com": {
+					apps: []string{"echo1.leaf2.example.com"},
 				},
 			},
 		},
 		"root2.example.com": {
-			apps: []string{"echo1", "echo2"},
+			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
 			leafClusters: map[string]testClusterSpec{
-				"leaf2.example.com": {
-					apps: []string{"echo1"},
+				"leaf3.example.com": {
+					apps: []string{"echo1.leaf3.example.com"},
 				},
 			},
 		},
 	}, dialOpts, reissueClientCert)
 
-	p := newTestPack(t, ctx, clock, appProvider)
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+		customDNSZones: map[string][]string{
+			"myzone.example.com": {"root1.example.com", "another.random.cluster.example.com"},
+		},
+	})
 
 	validTestCases := []struct {
 		app        string
@@ -500,11 +529,31 @@ func TestDialFakeApp(t *testing.T) {
 			expectCIDR: "192.168.2.0/24",
 		},
 		{
+			app:        "echo.myzone.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo.nested.myzone.example.com",
+			expectCIDR: "192.168.2.0/24",
+		},
+		{
+			app:        "echo1.leaf1.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
+			app:        "echo1.leaf2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
 			app:        "echo1.root2.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
 		{
 			app:        "echo2.root2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
+			app:        "echo1.leaf3.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
 	}
@@ -552,9 +601,8 @@ func TestDialFakeApp(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
-			// Leaf clusters not supported yet.
-			"echo1.leaf1.example.com.",
-			"echo2.leaf1.example.com.",
+			"not.in.a.custom.zone",
+			"in.an.invalid.zone",
 		}
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {
@@ -587,6 +635,51 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 		require.NoError(t, err)
 		require.Equal(t, string(writeBuf), string(readBuf[:n]))
 	}
+}
+
+func TestOnNewConnection(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	ca := newSelfSignedCA(t)
+	dialOpts := mustStartFakeWebProxy(ctx, t, ca, clock)
+
+	const appCertLifetime = time.Hour
+	reissueClientCert := func() tls.Certificate {
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+	}
+
+	appProvider := newEchoAppProvider(map[string]testClusterSpec{
+		"root1.example.com": {
+			apps:         []string{"echo1"},
+			cidrRange:    "192.168.2.0/24",
+			leafClusters: map[string]testClusterSpec{},
+		},
+	}, dialOpts, reissueClientCert)
+
+	validAppName := "echo1.root1.example.com"
+	invalidAppName := "not.an.app.example.com."
+
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:       clock,
+		appProvider: appProvider,
+	})
+
+	// Attempt to establish a connection to an invalid app and verify that OnNewConnection was not
+	// called.
+	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer lookupCtxCancel()
+	_, err := p.lookupHost(lookupCtx, invalidAppName)
+	require.Error(t, err, "Expected lookup of an invalid app to fail")
+	require.Equal(t, uint32(0), appProvider.onNewConnectionCallCount.Load())
+
+	// Establish a connection to a valid app and verify that OnNewConnection was called.
+	conn, err := p.dialHost(ctx, validAppName)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.Equal(t, uint32(1), appProvider.onNewConnectionCallCount.Load())
 }
 
 func randomULAAddress() (tcpip.Address, error) {
@@ -733,4 +826,89 @@ func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time,
 		Certificate: [][]byte{certBytes},
 		PrivateKey:  priv,
 	}
+}
+
+func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate, clock clockwork.FakeClock) DialOptions {
+	t.Helper()
+
+	roots := x509.NewCertPool()
+	caX509, err := x509.ParseCertificate(ca.Certificate[0])
+	require.NoError(t, err)
+	roots.AddCert(caX509)
+
+	const proxyCN = "testproxy"
+	proxyCert := newServerCert(t, ca, proxyCN, clock.Now().Add(365*24*time.Hour))
+
+	proxyTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{proxyCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    roots,
+	}
+
+	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
+	require.NoError(t, err)
+
+	// Run a fake web proxy that will accept any client connection and echo the input back.
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "web proxy",
+		Task: func(ctx context.Context) error {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					if utils.IsOKNetworkError(err) {
+						return nil
+					}
+					return trace.Wrap(err)
+				}
+				go func() {
+					defer conn.Close()
+
+					// Not using require/assert here and below because this is not in the right subtest or in
+					// the main test goroutine. The test will fail if the conn is not handled.
+					tlsConn, ok := conn.(*tls.Conn)
+					if !ok {
+						t.Log("client conn is not TLS")
+						return
+					}
+					if err := tlsConn.Handshake(); err != nil {
+						t.Log("error completing tls handshake")
+						return
+					}
+					clientCerts := tlsConn.ConnectionState().PeerCertificates
+					if len(clientCerts) == 0 {
+						t.Log("client has no certs")
+						return
+					}
+					// Manually checking the cert expiry compared to the time of the fake clock, since the TLS
+					// library will only compare the cert expiry to the real clock.
+					// It's important that the fake clock is never far behind the real clock, and that the
+					// cert NotBefore is always at/before the real current time, so the TLS library is
+					// satisfied.
+					if clock.Now().After(clientCerts[0].NotAfter) {
+						t.Logf("client cert is expired: currentTime=%s expiry=%s", clock.Now(), clientCerts[0].NotAfter)
+						return
+					}
+
+					_, err := io.Copy(conn, conn)
+					if err != nil && !utils.IsOKNetworkError(err) {
+						t.Logf("error in io.Copy for echo proxy server: %v", err)
+					}
+				}()
+			}
+		},
+		Terminate: func() error {
+			if err := listener.Close(); !utils.IsOKNetworkError(err) {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+	})
+
+	dialOpts := DialOptions{
+		WebProxyAddr:          listener.Addr().String(),
+		RootClusterCACertPool: roots,
+		SNI:                   proxyCN,
+	}
+
+	return dialOpts
 }

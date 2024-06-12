@@ -36,7 +36,7 @@ import { NavigationCategory } from 'teleport/Navigation/categories';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
 import { makeUserContext } from 'teleport/services/user';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 
 class MockUserFeature implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -142,7 +142,7 @@ describe('navigation items', () => {
     ctx.storeNotifications.setNotifications([
       {
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: 'banana',
           route: '',
         },

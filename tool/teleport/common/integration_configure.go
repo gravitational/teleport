@@ -224,6 +224,12 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
+	if err := azureoidc.EnsureAZLogin(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
+
 	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
 	if err != nil {
 		return trace.Wrap(err)

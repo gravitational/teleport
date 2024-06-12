@@ -241,6 +241,7 @@ enum CTA {
   CTA_ACCESS_MONITORING = 9;
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
+  CTA_ENTRA_ID = 12;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -563,6 +564,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
+  INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
 }
 
 // IntegrationEnrollMetadata contains common metadata
