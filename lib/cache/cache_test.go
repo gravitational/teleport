@@ -132,6 +132,17 @@ type testFuncs[T types.Resource] struct {
 	deleteAll   func(context.Context) error
 }
 
+// testFuncs153 are functions to support testing an RFD153-style resource in a cache.
+type testFuncs153[T types.Resource153] struct {
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheGet    func(context.Context, string) (T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
+}
+
 func (t *testPack) Close() {
 	var errors []error
 	if t.backend != nil {
@@ -2495,34 +2506,6 @@ func TestCrownJewel(t *testing.T) {
 	})
 }
 
-// TestGlobalNotifications tests that CRUD operations on global notification resources are
-// replicated from the backend to the cache.
-func TestGlobalNotifications(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs153[*notificationsv1.GlobalNotification]{
-		newResource: func(name string) (*notificationsv1.GlobalNotification, error) {
-			return newGlobalNotification(t, name), nil
-		},
-		create: func(ctx context.Context, item *notificationsv1.GlobalNotification) error {
-			_, err := p.notifications.CreateGlobalNotification(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: p.notifications.DeleteAllGlobalNotifications,
-	})
-}
-
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2593,6 +2576,82 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		out, err = funcs.cacheList(ctx)
 		assert.NoError(t, err)
 		return len(out) == 0
+	}, time.Second*2, time.Millisecond*250)
+}
+
+// testResources153 is a generic tester for RFD153-style resources.
+func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs153[T]) {
+	ctx := context.Background()
+
+	// Create a resource.
+	r, err := funcs.newResource("test-resource")
+	require.NoError(t, err)
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		r.GetMetadata().Labels = map[string]string{"label": "value1"}
+	}
+
+	err = funcs.create(ctx, r)
+	require.NoError(t, err)
+
+	cmpOpts := []cmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+
+	// Check that the resource is now in the backend.
+	out, err := funcs.list(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+
+	// Wait until the information has been replicated to the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
+
+	// cacheGet is optional as not every resource implements it
+	if funcs.cacheGet != nil {
+		// Make sure a single cache get works.
+		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+	}
+
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		// Update the resource and upsert it into the backend again.
+		r.GetMetadata().Labels["label"] = "value2"
+		err = funcs.update(ctx, r)
+		require.NoError(t, err)
+	}
+
+	// Check that the resource is in the backend and only one exists (so an
+	// update occurred).
+	out, err = funcs.list(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+
+	// Check that information has been replicated to the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		return len(cmp.Diff([]T{r}, out, cmpOpts...)) == 0
+	}, time.Second*2, time.Millisecond*250)
+
+	// Remove all resources from the backend.
+	err = funcs.deleteAll(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, out)
 	}, time.Second*2, time.Millisecond*250)
 }
 
