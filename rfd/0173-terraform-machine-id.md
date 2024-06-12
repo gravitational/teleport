@@ -17,48 +17,61 @@ Reduce the Terraform provider setup complexity and shorten the time-to-value for
 
 ## Why
 
-We introduced two fundamental changes in Tlepeort since the birth of the TF provider:
+We introduced two fundamental changes in Teleport since the birth of the TF provider:
 - added MachineID for machines to obtain credentials and interact with Teleport
-- started rolling out "MFA for admin" (MFA4A in the rest od the document) which makes Teleport require MFA certificates
-  for administrative actions
+- started rolling out "MFA for admin" (MFA4A in the rest od the document) in v15 which makes Teleport require MFA
+  certificates for administrative actions
 
-The recommendation was to create a TF user and sign a long-lived certificate with impersonation.
+The previous recommendation was to create a TF user and sign a long-lived certificate with impersonation.
 When MFA4A is enabled (by default on clusters with webauthn only since v15) this certificate does not allow Terraform to
 perform administrative actions (i.e. creating users, roles, configuring SSO bindings).
 
 The current workaround is to do a full MachineID/tbot setup and have Terraform use the generated certificates.
 While this approach works, it has two main issues:
-- setting up MachineID/tbot is complex and increases the time to value for new users wanting to test the provider locally.
-- MachineID/tbot does not have a great story (yet) about using different secret tokens for the same bot (this will
-  happen soon). When running the TF provider on a dev laptop (as opposed as in the CI/on a dedicated master), the
+
+- setting up MachineID/tbot is complex and increases the time-to-value for new users wanting to test the provider
+  locally. MachineID/tbot does not have a great story (yet) about using different secret tokens for the same bot (this
+  will happen soon) so the complex setup must be done every time the user needs to run Terraform and the bot certs are
+  expired.
+- When running the TF provider on a dev laptop (as opposed as in the CI/on a dedicated master), the
   current workaround leaves certificates with administrative rights on the laptops.
 
 ## Details
 
-### User stories
+### User stories and personas
 
-With this RFD we want to address two distinct user stories:
+With this RFD we want to address two distinct personas, each with their own story:
 
 #### The existing advanced user
 
 > I am an existing Teleport user who uses Terraform to manage my Teleport resources.
 > I want to benefit from MFA4A while keeping my Terraform pipeline working.
-> My Terraform code is commited in a git repo and applied in CI pipelines, either via a regular CI runner (GitHub
+> My Terraform code is commited in a git repo and applied in CI pipelines, either via a CI runner (GitHub
 > Actions/GitLab CI) or via a dedicated service (Terraform Cloud/Spacelift).
 
-For this story, the user is expected to know the Teleport basics and be able to perform advanced setup actions such as
-creating roles and bot resources for MachineID.
+The user is expected to know the Teleport basics and be able to perform advanced setup actions such as
+creating roles and bot resources for MachineID. Some setup complexity is not an issue for this persona.
 
-#### The "getting started" user
+#### The "getting started" users
 
-> I am not yet a Teleport user (prospect) and want to test what IaC Teleport provides before adopting the tool.
-> I can also be an existing Teleport user that have been managing Teleport resources manually and want to
-> make my setup more robust by leveraging an IaC tool.
-> I don't have dedicated infrastructure such as CI runners to deploy my Terraform code and want to do everything from my
-> laptop.
+We have two personas:
 
-For this story, the user has very little knowledge about Teleport and does not know what MachineID is and how to set it
-up. We want those users to succeed as fast as possible without having to read all the MachineID docs. When they will go
+- The prospect:
+> I am not yet a Teleport user and want to test what the Teleport IaC experience looks like before using/buying Teleport.
+> IaC will be mandatory for me because I am subject to various internal policies and I must check if Teleport is
+> compatible with my IaC policies.
+> I have prior Terraform experience.
+
+- The existing manual user
+> I am an existing Teleport user that have been managing Teleport resources manually.
+> Today I am investigating how to make my setup more robust by leveraging an IaC tool.
+> I might not have prior Terraform experience.
+
+Both personas don't have (yet) dedicated infrastructure such as CI runners to deploy the Terraform code.
+The want to prototype and validate everything works using the local computer.
+
+Both personas have very little knowledge about Teleport and don't know what MachineID is and how to configure it.
+We want those users to succeed as fast as possible without having to read all the MachineID docs. When they will go
 to production, they will hopefully turn into [existing advanced users](#the-existing-advanced-user) and setup CI/CD
 pipelines for their deployment.
 
@@ -70,8 +83,10 @@ We will introduce two new mechanisms in the Terraform provider:
 
 #### MachineID joining
 
-The Terraform provider will be able to take a MachineID token and join method to join the Teleport cluster.
-The Terraform provider will run an in-process `tbot` instance and generate a client with automatically-rotated certificates.
+The Terraform provider will be able to take a MachineID token and join method to join the Teleport cluster without the
+need to configure and run a sidecar tbot process.
+
+The Terraform provider will run an in-process `tbot` instance and generate a client with automatic cert-renewal.
 The `tbot` instance will not persist its certificates on the disk.
 
 A typical GitHub actions provider configuration would look like:
@@ -88,15 +103,21 @@ provider "teleport" {
 
 As Teleport does not support yet reusable bot tokens so the `token` join method will not be supported.
 
-Implementation-wise, this would reuse the same in-process tbot library we used for the Teleport operator.
+Implementation-wise, this would reuse the
+same [in-process tbot library](https://github.com/gravitational/teleport/tree/rfd/173-terraform-machine-id/integrations/operator/embeddedtbot)
+we used for the Teleport operator.
 
 #### Resource bootstrapping
 
-When configured to do so, the Terraform provider will use the user's local profile (from `~/.tsh`) to create resources
-it needs to interact with the Teleport cluster. Such resources include:
-- the `terraform-provider` role (this is an upsert so we can add new rules after a provider update). This resource does not expire.
-- the `terraform-provider-<user>-<random hash>` bot allowed to issue certificates for the `terraform-provider` role. This resource expires.
-- the `terraform-provider-<user>-<random hash>` secret random provision token allowing to join as the `terraform-provider-<user>-<random hash>` bot. This resource expires but will be consumed automatically on join.
+When bootstrapping is turned on, the Terraform provider will use the user's local profile (from `~/.tsh`) to create
+resources it needs to interact with the Teleport cluster. Such resources include:
+
+- the `terraform-provider` role (this is an upsert so we can add new rules after a provider update). This resource does
+  not expire.
+- the `terraform-provider-<user>-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
+  This resource expires.
+- the `terraform-provider-<user>-<random hash>` secret random provision token allowing to join as
+  the `terraform-provider-<user>-<random hash>` bot. This resource expires but will be consumed automatically on join.
 
 Each local Terraform invocation will create a new bot and join token. To avoid resource accumulation those resource will
 have an expiry of 1 hour by default.
@@ -110,18 +131,18 @@ provider "teleport" {
     enabled = true
     resource_prefix = "terraform-provider"
     
-    # optional
+    # optional, must be higer than your Terraform `apply` command duration
     expires_after = "1h"
   }
 }
 ```
 
 When running with this configuration, the provider will:
-- get the local `~/.tsh` profile associated with this `addr`
-- ping the cluster to validate the user client and store the user name
+- get a client from the local `~/.tsh` profile associated with this `addr`
+- ping the cluster to validate the user client and recover the user's name
 - generate a random secret token (16 bytes of hex-encoded random, the Teleport default)
 - create the 3 bootstrap resources
-  - if the call fails because of MFA4A, perform the MFA challenge once, save the MFa certs valid for a minute and use
+  - if the call fails because of MFA4A, perform the MFA challenge once, save the MFA certs valid for a minute and use
     them to create the 3 resources
   - if the call fails because of missing permissions, output a user-friendly message:
     ```
@@ -129,7 +150,7 @@ When running with this configuration, the provider will:
     Please chech you have the rights to create role, bot and token resources. If you got recently granted those rights you might need to re-log in.
     (tsh logout --proxy="mytenant.teleport.sh:443" --user="hugo.hervieux@goteleport.com")
     ```
-- continue the Provider flow with the following onboarding config
+- continue the provider flow with the following onboarding config
   ```hcl
   onboarding = {
     token = "<secret token that got generated earlier>"
@@ -161,12 +182,11 @@ You must set only one value.
 This approach makes using MachineID and adopting short-lived certificates easier, especially in CI/CD pipelines.
 Switching to short-lived certificates and delegated join methods improves security as there's less material to
 exfiltrate and users can fine-tune the token permissions (allow joining based on the service account/github
-project/workload location). Adopting "MFA for admin" will be easier for existing users.
+project/workload location). Adopting "MFA for admin" will also be easier for existing users.
 
 This approach also improves security by not writing to disk the MachineID-generated certs. In case of
-misconfigured/broad ACLs, an attacker already present on the host will not be able to obtain certs from reading the
+misconfigured/permissive ACLs, an attacker already present on the host will not be able to obtain certs from reading the
 filesystem. Exfiltrating the MachineID certs requires dumping the process memory.
-
 
 #### Risks
 
@@ -178,14 +198,15 @@ by:
   use existing bot resources and the `onboarding` configuration.
 - the bootstrap resource expiry, by default 1 hour.
 
-Reusing the same resource (delete/re-create) proved to be very harmful when we did this in the operator.
-This caused a lot of instability/consistency issues and it took a full operator rewrite to solve them.
+Reusing the same resource (delete/re-create) proved to be very harmful when we did this in the Kubernetes operator.
+This caused a lot of instability/consistency issues, it took a full operator rewrite to solve them.
 
 If needed we can list how many terraform bot resources are living in Teleport and warn the user if it goes above a
 certain threshold, but this should not be necessary.
 
 The issue caused by the number of resources will very likely be addressed in the future by the work done on
-the `BotInstance` resource. This will allow tokens (even secret) and bots to be reused by multiple instances.
+[the `BotInstance` resource](https://github.com/gravitational/teleport/pull/36510).
+This will allow tokens (even secret ones) and bots to be shared by multiple instances.
 
 ### Privacy
 
@@ -195,13 +216,14 @@ audit log.
 
 ### UX
 
-This improves the UX for the "existing advanced user" persona as they don't need to install and configure tbot anymore.
-This also unblocks support for runtimes where running tbot was not possible: e.g. Terraform Cloud.
+This improves the UX for the "existing advanced user" persona as they don't need to install and configure `tbot`
+anymore. This also unblocks support for runtimes where running `tbot` was not possible:
+e.g. [Terraform Cloud](https://github.com/gravitational/teleport/issues/26345).
 
-This greatly improves the UX of the "getting started" persona as the provider will hide all the complexity and shorten
+This greatly improves the UX of the "getting started" personas as the provider will hide all the complexity and shorten
 the time to value for IaC adoption. The
 whole [setup Terraform provider page](https://github.com/gravitational/teleport/blob/master/docs/pages/management/dynamic-resources/terraform-provider.mdx)
-becomes a 2-step guide: run tsh login and create the `main.tf`.
+becomes a 2-step guide: run `tsh login` and create the `main.tf`.
 
 Two documentation guides will be published:
 - Getting started with the Terraform Provider, explaining users how to run the provider locally
