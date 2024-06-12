@@ -46,14 +46,12 @@ At a glance, you can view all the resources a user can access:
 
 ## Navigation
 
-![Navigation](../../img/access-graph/sidebar.png)
-
 The left hand side menu contains the main navigation options:
 
-- Graph view
-- Search
-- SQL editor
-- Integrations
+- Graph view ![Graph view](../../img/access-graph/graph_view.png)
+- Search ![Search view](../../img/access-graph/search_view.png)
+- SQL editor ![Query editor](../../img/access-graph/query_view.png)
+- Integrations ![Connection view](../../img/access-graph/connection_view.png)
 
 ## Graph View
 
@@ -119,127 +117,4 @@ The number on the right hand side shows the number of resources that a resource 
 
 Resources are the things that users can or cannot access. They can be
 servers, databases, or Kubernetes clusters.
-
-## Connecting to resources
-
-## Graph paths
-
-Teleport Access Graph shows the relationships between users, roles, and
-resources. It does this by showing paths between nodes. Paths are the
-relationships between nodes. Paths always connect nodes in the following order:
-
-1. Users
-1. User Groups
-1. Actions
-1. Resource Groups
-1. Resources
-
-Paths can be divided into two categories:
-
-1. Allow paths
-
-![Allow Path](../../img/access-graph/allow-path.png)
-
-Allow paths connect identities to resources. They show what an identity can access
-and what actions they can perform.
-
-2. Deny paths
-
-![Deny Path](../../img/access-graph/deny-path.png)
-
-Deny paths connect identities to resources. They show what an identity cannot access
-and what actions they cannot perform. Deny paths take precedence over allow
-paths.
-
-## SQL Editor
-
-Access Graph allows creating SQL like queries to explore the graph.
-
-![SQL Editor](../../img/access-graph/sql-editor.png)
-
-The query language allows to create different views of the graph, ex:
-
-Show only allowed paths
-
-```sql
-SELECT * FROM access_path WHERE kind = 'ALLOWED';
-```
-
-Show only denied paths
-```sql
-SELECT * FROM access_path WHERE kind = 'DENIED';
-```
-
-Show all access paths for a user
-
-```sql
-SELECT * FROM access_path WHERE identity = 'bob';
-```
-
-Show all access paths for a user AND resource
-
-```sql
-SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
-```
-
-More actionable examples is available under ? icon.
-
-## Integrations
-
-![Integrations](../../img/access-graph/integrations.png)
-
-Integrations page shows integrations that can be enabled or are already enabled in Access Graph.
-
-<Admonition title="Note" type="tip">
-Resources imported into Teleport through Teleport enabled integrations are automatically imported into
-Access graph without any additional configuration.
-</Admonition>
-
-## How resources and identities are represented
-
-Access Graph imports all resources and identities from Teleport and keeps them up to date, so every time you make a change
-to your Teleport resources, the Access Graph will reflect those changes.
-
-### Identities
-
-Users are created from Teleport Users.
-Local users are imported as soon as they are created.
-External users (created from authentication connectors for GitHub, SAML, etc.) are imported when they log in for the first time.
-
-### User Groups
-
-User Groups are created from Teleport Roles and access requests. Roles create User Groups where the members
-are the users that have that role. Access requests create a temporary User Group where the members are the users that
-got the access through the accepted access request.
-
-### Actions
-
-Actions are created from Teleport roles. Actions can be divided into three
-categories:
-
-1. Allow Actions
-
-Allow Actions are created from Teleport roles. Allow Actions are the things
-that users can do. For example, a user can SSH into a node.
-
-2. Deny Actions
-
-Deny Actions are created from Teleport roles. Deny Actions are the things
-that users cannot do. For example, a user cannot SSH into a node. Deny
-Actions take precedence over Allow Actions.
-
-3. Temporary Actions
-
-Temporary Actions are created when a user is granted temporary access to a
-resource. They are automatically deleted when the user's access expires.
-The temporary actions can be identified by having `Temporary: true` property.
-
-#### Resource Groups
-
-Resource Groups are created from Teleport roles.
-
-#### Resources
-
-Resources are created from Teleport resources like nodes, databases, and
-Kubernetes clusters.
 
