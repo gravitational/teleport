@@ -220,9 +220,9 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 // resolveTargetHostWithClient resolves the target host using the provided
 // client and search and query parameters.
 func resolveTargetHostWithClient(
-	ctx context.Context, apiClient client.ListUnifiedResourcesClient, search, query string,
+	ctx context.Context, clt client.ListUnifiedResourcesClient, search, query string,
 ) (types.Server, error) {
-	res, err := apiClient.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+	resources, _, err := client.GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
 		// We only want a single node, but, we set limit=2 so we can throw a
 		// helpful error when multiple match. In the happy path, where a single
 		// node matches, this does not degrade performance because even if
@@ -236,15 +236,15 @@ func resolveTargetHostWithClient(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(res.Resources) == 0 {
+	if len(resources) == 0 {
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
-	if len(res.Resources) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", res.Resources[:2])
+	if len(resources) > 1 {
+		return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
 	}
-	node := res.Resources[0].GetNode()
+	node := resources[0].ResourceWithLabels.(*types.ServerV2)
 	if node == nil {
-		return nil, trace.BadParameter("expected node resource, got %T", res.Resources[0].Resource)
+		return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
 	}
 	return node, nil
 }
