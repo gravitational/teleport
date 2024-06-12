@@ -20,7 +20,10 @@ import { useEffect, useState } from 'react';
 
 import { ResourceFilter } from 'teleport/services/agents';
 
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
+import {
+  decodeUrlQueryParam,
+  encodeUrlQueryParams,
+} from 'teleport/components/hooks/useUrlFiltering';
 
 export default function useServersideSearchPanel({
   pathname,
@@ -88,15 +91,6 @@ export default function useServersideSearchPanel({
     setIsAdvancedSearch,
     onSubmitSearch,
   };
-}
-
-function decodeUrlQueryParam(param: string) {
-  // Prevents URI malformed error by replacing lone % with %25
-  const decodedQuery = decodeURIComponent(
-    param.replace(/%(?![0-9][0-9a-fA-F]+)/g, '%25')
-  );
-
-  return decodedQuery;
 }
 
 export type HookProps = {
