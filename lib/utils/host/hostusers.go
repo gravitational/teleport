@@ -112,7 +112,7 @@ func AddUserToGroups(username string, groups []string) (exitCode int, err error)
 func UserDel(username string) (exitCode int, err error) {
 	userdelBin, err := exec.LookPath("userdel")
 	if err != nil {
-		return -1, trace.Wrap(err, "cant find userdel binary")
+		return -1, trace.NotFound("cant find userdel binary: %s", err)
 	}
 	u, err := user.Lookup(username)
 	if err != nil {
@@ -134,7 +134,7 @@ func UserDel(username string) (exitCode int, err error) {
 func GetAllUsers() ([]string, int, error) {
 	getentBin, err := exec.LookPath("getent")
 	if err != nil {
-		return nil, -1, trace.Wrap(err, "cant find getent binary")
+		return nil, -1, trace.NotFound("cant find getent binary: %s", err)
 	}
 	// getent passwd
 	cmd := exec.Command(getentBin, "passwd")
