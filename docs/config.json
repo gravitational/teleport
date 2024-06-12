@@ -28,7 +28,7 @@
 	    },
 	    {
 	       "title": "Set up Single Sign-On",
-	       "slug": "/access-controls/sso/overview/"
+	       "slug": "/admin-guides/authentication/sso/overview/"
 	    },
 	    {
 	    	"title": "Use Infrastructure as Code",
