@@ -397,7 +397,13 @@ func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, 
 		return nil, trace.Wrap(err)
 	}
 
-	pingInfo, err := client.Ping(ctx)
+	// Remove the MFA resp from the context before pinging.
+	// Otherwise, it will be consumed before the Create which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	pingCtx := mfa.ContextWithMFAResponse(ctx, nil)
+	pingInfo, err := client.Ping(pingCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
