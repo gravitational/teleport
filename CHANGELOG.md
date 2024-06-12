@@ -1,61 +1,217 @@
 # Changelog
 
-## 16.0.0 (xx/xx/xx)
+## 16.0.0 (06/13/24)
 
-### Breaking changes
+Teleport 16 brings the following new features and improvements:
+
+- Teleport VNet
+- Device Trust for the Web UI
+- Increased support for per-session MFA
+- Web UI notification system
+- Access requests from the resources view
+- `tctl` for Windows
+- Teleport plugins improvements
+
+### Description
+
+#### Teleport VNet
+
+Teleport 16 introduces Teleport VNet, a new feature that provides a virtual IP
+subnet and DNS server which automatically proxies TCP connections to Teleport
+apps over mutually authenticated tunnels.
+
+This allows scripts and software applications to connect to any
+Teleport-protected application as if they were connected to a VPN, without the
+need to manage local tunnels.
+
+Teleport VNet is powered by the Teleport Connect client and is available for
+macOS. Support for other operating systems will come in a future release.
+
+#### Device Trust for the Web UI
+
+Teleport Device Trust can now be enforced for browser-based workflows like
+remote desktop and web application access. The Teleport Connect client must be
+installed in order to satisfy device locality checks.
+
+#### Increased support for per-session MFA
+
+Teleport 16 now supports per-session MFA checks when accessing both web and TCP
+applications via all supported clients (Web UI, `tsh`, and Teleport Connect).
+
+Additionally, Teleport Connect now includes support for per-session MFA when
+accessing database resources.
+
+#### Web UI notification system
+
+Teleport’s Web UI includes a new notifications system that notifies users of
+items requiring attention (for example, access requests needing review).
+
+#### Access requests from the resources view
+
+The resources view in the web UI now shows both resources you currently have
+access to and resources you can request access to. This allows users to request
+access to resources without navigating to a separate page.
+
+Cluster administrators who prefer the previous behavior of hiding requestable
+resources from the main view can set `show_resources: accessible_only` in their
+UI config:
+
+For dynamic configuration, run `tctl edit ui_config`:
+
+```yaml
+kind: ui_config
+version: v1
+metadata:
+  name: ui-config
+spec:
+  show_resources: accessible_only
+```
+
+Alternatively, self-hosted Teleport users can update the `ui` section of their
+proxy configuration:
+
+```yaml
+proxy_service:
+  enabled: yes
+  ui:
+    show_resources: accessible_only
+```
+
+#### `tctl` for Windows
+
+Teleport 16 includes Windows builds of the `tctl` administrative tool, allowing
+Windows users to administer their cluster without the need for a macOS or Linux
+workstation.
+
+Additionally, there are no longer enterprise-specific versions of `tctl`. All
+Teleport clients (`tsh`, `tctl`, and Teleport Connect) are available in a single
+distribution that works on both Enterprise and Community Edition clusters.
+
+#### Teleport plugins improvements
+
+Teleport 16 includes major improvements to the plugins. All plugins now have:
+
+- amd64 and arm64 binaries available
+- amd64 and arm64 multi-arch images
+- Major and minor version rolling tags (ie
+  `public.ecr.aws/gravitational/teleport-plugin-email:16`)
+- Image signatures for all images
+- Additional debug images with all of the above features
+
+In addition, we now support plugins for each supported major version, starting
+with v15. This means that if we fix a bug or security issue in a v16 plugin
+version, we will also apply and release the change for the v15 plugin version.
+
+#### Other
+
+The Jamf plugin now authenticates with Jamf API credentials instead of username
+and password.
+
+### Breaking changes and deprecations
+
+#### Community Edition license
+
+Starting with this release, Teleport Community Edition restricts commercial
+usage.
+
+https://goteleport.com/blog/teleport-community-license/
+
+#### License file validation on startup
+
+Teleport 16 introduces license file validation on startup. This only applies to
+customers running **Teleport Enterprise Self-Hosted**. No action is required for
+customers running Teleport Enterprise Cloud or Teleport Community Edition.
+
+If, after updating to Teleport 16, you receive an error message regarding an
+outdated license file, follow our step-by-step [guide](docs/pages/choose-an-edition/teleport-enterprise/license.mdx)
+to update your license file.
+
+#### Multi-factor authentication is now required for local users
+
+Support for disabling second factor authentication has been removed. Teleport
+will refuse to start until the `second_factor` setting is set to `on`, `webauthn`
+or `otp`.
+
+This change only affects _self-hosted_ Teleport users, as Teleport Cloud has
+always required second factor authentication.
+
+**Important:** To avoid locking users out, we recommend the following steps:
+
+1. Ensure that all cluster administrators have second factor devices registered
+   in Teleport so that they will be able to reset any other users.
+2. Announce to the user base that all users must register an MFA device.
+   Consider creating a cluster alert with `tctl alerts create` to help spread
+   the word.
+3. While you are still on Teleport 15, set `second_factor: on`. This will help
+   identify any users who have not registered MFA devices and allow you to
+   quickly revert to `second_factor: optional` if necessary.
+4. Upgrade to Teleport 16.
+
+Any users who do not register MFA devices prior to the Teleport 16 upgrade will
+be unable to log in and must be reset by an administrator (`tctl users reset`).
+
+#### Incompatible clients are rejected
+
+In accordance with our [component compatibility](docs/pages/upgrading/overview.mdx#component-compatibility)
+guidelines, Teleport 16 will start rejecting connections from clients and agents
+running incompatible (ie too old) versions.
+
+If Teleport detects connection attempts from outdated clients, it will show an
+alert to cluster administrators in both the web UI and `tsh`.
+
+To disable this behavior and run in an unsupported configuration that  allows
+incompatible agents to connect to your cluster, start your auth server with the
+`TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes` environment variable.
 
 #### Opsgenie plugin annotations
 
-Opsgenie plugin users, role annotations must now contain
-`teleport.dev/notify-services` to receive notification on Opsgenie.
-`teleport.dev/schedules` is now the label used to determine auto approval flow.
-See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
-for setup instructions.
+Prior to Teleport 16, when using an Opsgenie plugin, the `teleport.dev/schedules`
+role annotation was used to specify both schedules for access request
+notifications as well as schedules to check for the request auto-approval.
 
-#### Teleport Assist has been removed
+Starting with Teleport 16, the annotations were split to provide behavior
+consistent with other access request plugins: a role must now contain the
+`teleport.dev/notify-services` to receive notifications on Opsgenie and the
+`teleport.dev/schedules` to check for auto-approval.
 
-Teleport Assist chat has been removed from Teleport 16.
+Detailed setup instructions are available in the [documentation](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/access-controls/access-request-plugins/opsgenie.mdx).
 
-#### DynamoDB permission requirements have changed
+#### New required permissions for DynamoDB
 
-Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
-permission. For a full list of all required permissions see the dynamo backend iam
-policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
+Teleport clusters using the DynamoDB backend on AWS now require the
+`dynamodb:ConditionCheckItem` permissions. For a full list of required
+permissions, see the IAM policy [example](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/includes/dynamodb-iam-policy.mdx).
 
-#### Disabling second factor authentication_type
+#### Updated keyboard shortcuts in Teleport connect
 
-Support for disabling second factor authentication has been removed
+On Windows and Linux, some of Teleport Connect’s keyboard shortcuts conflicted
+with the default bash or nano shortcuts (Ctrl+E, Ctrl+K, etc). On those
+platforms, the default shortcuts have been changed to a combination of
+Ctrl+Shift+*.
+
+On macOS, the default shortcut to open a new terminal has been changed to
+Ctrl+Shift+`.
+
+See the [configuration guide](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/connect-your-client/teleport-connect.mdx#configuration)
+for a list of updated keyboard shortcuts.
 
 #### Machine ID and OpenSSH client config changes
 
-Users with custom `ssh_config` should modify their ProxyCommand to use the new,
-more performant, `tbot ssh-proxy-command`. See the
-[v16 upgrade guide](docs/pages/machine-id/reference/v16-upgrade-guide.mdx) for
-more details.
+Users with custom `ssh_config` should modify their `ProxyCommand` to use the new,
+more performant `tbot ssh-proxy` command. See the [v16 upgrade guide](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/machine-id/reference/v16-upgrade-guide.mdx)
+for more details.
 
-#### Default keyboard shortcuts in Teleport Connect have been changed
+#### Removal of Active Directory configuration flow
 
-On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts 
-(e.g. Ctrl + E, Ctrl + K).
-On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
-We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.  
-See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
-for the current list of shortcuts.
+The Active Directory installation and configuration wizard has been removed.
+Users who don’t already have Active Directory should leverage Teleport’s local
+user support, and users with existing Active Directory environments should
+follow the manual setup guide.
 
-### Teleport plugins improvement
+#### Teleport Assist is removed
 
-Teleport plugins have under major improvements in v16. Starting with v16, all
-plugins will have:
-* amd64 and arm64 binaries available
-* amd64 and arm64 images available via multi-arch image manifests
-* major and minor version rolling tags (i.e. `public.ecr.aws/gravitational/teleport-plugin-email:16`)
-* image signatures for all images
-* additional debug images with all of the above features (i.e. public.ecr.aws/gravitational/teleport-plugin-email-debug:16)
-
-Additionally, we will now support plugins for all supported major Teleport
-versions, starting with v15. This means that if we fix a bug or security issue
-in a v16 plugin version, we will now also apply and release the change for the
-v15 plugin version.
+All Teleport Assist functionality and OpenAI integration has been removed from
+Teleport.
 
 ## 15.4.2 (06/11/24)
 
@@ -100,7 +256,7 @@ workloads based on UID/PID/GID.
 ### Other improvements and fixes
 
 * Fixed an issue where mix-and-match of join tokens could interfere with some services appearing correctly in heartbeats. [#42189](https://github.com/gravitational/teleport/pull/42189)
-* Added an alternate EC2 auto discover flow using AWS Systems Manager as a more scalable method than EICE in the "Enroll New Resource" view in the web UI. [#42205](https://github.com/gravitational/teleport/pull/42205)
+* Added an alternate EC2 auto discover flow using AWS Systems Manager as a more scalable method than Endpoint Instance Connect in the "Enroll New Resource" view in the web UI. [#42205](https://github.com/gravitational/teleport/pull/42205)
 * Fixed `kubectl exec` functionality when Teleport is running behind L7 load balancer. [#42192](https://github.com/gravitational/teleport/pull/42192)
 * Fixed the plugins AMR cache to be updated when Access requests are removed from the subject of an existing rule. [#42186](https://github.com/gravitational/teleport/pull/42186)
 * Improved temporary disk space usage for session recording processing. [#42174](https://github.com/gravitational/teleport/pull/42174)
@@ -1316,7 +1472,7 @@ own proxy headers.
 * Updated `google.golang.org/grpc` to v1.57.1. [#33487](https://github.com/gravitational/teleport/pull/33487)
   * swift-nio-http2 vulnerable to HTTP/2 Stream Cancellation Attack: [CVE-2023-44487](https://github.com/advisories/GHSA-qppj-fm5r-hxr3)
 * Updated OpenTelemetry dependency. [#33523](https://github.com/gravitational/teleport/pull/33523) [#33550](https://github.com/gravitational/teleport/pull/33550)
-  * OpenTelemetry-Go Contrib vulnerable to denial of service in otelhttp due to unbound cardinality metrics: [CVE-2023-45142](https://github.com/advisories/GHSA-rcjv-mgp8-qvmr)
+  * OpenTelemetry-Go Contrib vulnerable to denial of service in `otelhttp` due to unbound cardinality metrics: [CVE-2023-45142](https://github.com/advisories/GHSA-rcjv-mgp8-qvmr)
 * Updated babel/core to 7.3.2. [#33441](https://github.com/gravitational/teleport/pull/33441)
   * Arbitrary code execution when compiling specifically crafted malicious code: [CVE-2023-45133](https://github.com/babel/babel/security/advisories/GHSA-67hx-6x53-jw92)
 
@@ -1370,7 +1526,7 @@ this vulnerability.
  * Fixed panic on `tsh device enroll --current-device` [#32756](https://github.com/gravitational/teleport/pull/32756)
  * The Teleport `etcd` backend will now start if some nodes are unreachable [#32779](https://github.com/gravitational/teleport/pull/32779)
  * Fixed certificate verification issues when using `kubectl exec` [#32768](https://github.com/gravitational/teleport/pull/32768)
- * Added Discover flow for enrolling EC2 Instances with EICE [#32760](https://github.com/gravitational/teleport/pull/32760)
+ * Added Discover flow for enrolling EC2 Instances with Endpoint Instance Connect [#32760](https://github.com/gravitational/teleport/pull/32760)
  * Added connection information to multiplexer logs [#32738](https://github.com/gravitational/teleport/pull/32738)
  * Fixed issue causing keys to be incorrectly removed in tsh and Teleport Connect on Windows [#32963](https://github.com/gravitational/teleport/pull/32963)
  * Improved Unified Resource Cache performance [#33027](https://github.com/gravitational/teleport/pull/33027)
