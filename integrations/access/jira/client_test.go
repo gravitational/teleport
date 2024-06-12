@@ -27,10 +27,9 @@ import (
 
 func TestBuildSummary(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		reqData     RequestData
-		expected    string
-		expectedLen int
+		name     string
+		reqData  RequestData
+		expected string
 	}{
 		{
 			name: "single role",
@@ -38,32 +37,20 @@ func TestBuildSummary(t *testing.T) {
 				Roles: []string{"editor"},
 				User:  "my-user",
 			},
-			expected:    "my-user requested editor",
-			expectedLen: 24,
+			expected: "my-user requested editor",
 		},
 		{
 			name: "lots of roles that exceed the field size are truncated",
 			reqData: RequestData{
-				Roles: strings.Split(strings.Repeat("editor,", 1000), ","),
+				Roles: strings.Split(strings.TrimRight(strings.Repeat("editor,", 1000), ","), ","),
 				User:  "my-user",
 			},
-			expected:    "my-user requested " + strings.Repeat("editor, ", 28) + "editor",
-			expectedLen: 248,
-		},
-		{
-			name: "small role names should not cause an exceeding number of chars",
-			reqData: RequestData{
-				Roles: strings.Split(strings.Repeat("r,", 1000), ","),
-				User:  "my-user",
-			},
-			expected:    "my-user requested " + strings.Repeat("r, ", 78) + "r",
-			expectedLen: 253,
+			expected: "my-user requested access to 1000 roles",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := buildSummary(tt.reqData)
 			require.Equal(t, tt.expected, got)
-			require.Len(t, got, tt.expectedLen)
 		})
 	}
 }
