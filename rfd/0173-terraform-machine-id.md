@@ -68,7 +68,7 @@ We have two personas:
 > I might not have prior Terraform experience.
 
 Both personas don't have (yet) dedicated infrastructure such as CI runners to deploy the Terraform code.
-The want to prototype and validate everything works using the local computer.
+They want to prototype and validate everything works using the local computer.
 
 Both personas have very little knowledge about Teleport and don't know what MachineID is and how to configure it.
 We want those users to succeed as fast as possible without having to read all the MachineID docs. When they will go
@@ -144,7 +144,7 @@ When running with this configuration, the provider will:
 - create the 3 bootstrap resources
   - if the call fails because of MFA4A, perform the MFA challenge once, save the MFA certs valid for a minute and use
     them to create the 3 resources
-  - if the call fails because of missing permissions, output a user-friendly message:
+  - if the call fails because of missing permissions, output a user-friendly error such as:
     ```
     Failed to create bootstrap resources using your local credentials (user "hugo.hervieux@goteleport.com", address "mytenant.telpeort.sh:443").
     Please chech you have the rights to create role, bot and token resources. If you got recently granted those rights you might need to re-log in.
@@ -166,9 +166,10 @@ This ensures compatibility with existing setups.
 `onboarding`, `bootstrap` and the `identity_` settings are mutually exclusive and the Provider will refuse to start if
 more than one is set. This will avoid any un-tested hybrid configuration.
 
+The error message would look like:
 ```
-Invalid provider configration. `bootstrap`, `onboarding` and `identity_*`/`key_*`/`profile_*` values are mutually exclusive.
-You must set only one value.
+Invalid provider configuration. `bootstrap`, `onboarding` and `identity_*`/`key_*`/`profile_*` values are mutually exclusive.
+You must set only one.
 
 - `bootstrap` is used when running Terraform on a developper laptop
 - `onboarding` is used when running Terraform in CI/CD pipelines such as GitHub Actions or GitLab CI.
