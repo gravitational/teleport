@@ -126,15 +126,16 @@ export function RequestCheckout<T extends PendingListItem>({
   appsGrantedByUserGroup = [],
   userGroupFetchAttempt,
   clearAttempt,
-  reviewers,
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  setMaxDuration,
-  setRequestTTL,
+  onMaxDurationChange,
+  maxDurationOptions,
+  setPendingRequestTtl,
+  pendingRequestTtlOptions,
   dryRunResponse,
   data,
   showClusterNameColumn,
@@ -143,14 +144,14 @@ export function RequestCheckout<T extends PendingListItem>({
   createRequest,
   selectedReviewers,
   maxDuration,
-  requestTTL,
+  pendingRequestTtl,
   resourceRequestRoles,
   isResourceRequest,
   selectedResourceRequestRoles,
   Header,
+  startTime,
+  onStartTimeChange,
 }: RequestCheckoutProps<T>) {
-  // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Date>();
   const [reason, setReason] = useState('');
   function updateReason(reason: string) {
     setReason(reason);
@@ -165,8 +166,8 @@ export function RequestCheckout<T extends PendingListItem>({
       reason,
       suggestedReviewers: selectedReviewers.map(r => r.value),
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: start,
+      requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
+      start: startTime,
     });
   }
 
@@ -313,7 +314,7 @@ export function RequestCheckout<T extends PendingListItem>({
               )}
               <Box mt={6} mb={1}>
                 <SelectReviewers
-                  reviewers={reviewers}
+                  reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
                   selectedReviewers={selectedReviewers}
                   setSelectedReviewers={setSelectedReviewers}
                 />
@@ -324,15 +325,14 @@ export function RequestCheckout<T extends PendingListItem>({
                     {dryRunResponse && (
                       <Box mb={1}>
                         <AssumeStartTime
-                          start={start}
-                          onStartChange={setStart}
+                          start={startTime}
+                          onStartChange={onStartTimeChange}
                           accessRequest={dryRunResponse}
                         />
                         <AccessDurationRequest
-                          assumeStartTime={start}
                           maxDuration={maxDuration}
-                          setMaxDuration={setMaxDuration}
-                          accessRequest={dryRunResponse}
+                          onMaxDurationChange={onMaxDurationChange}
+                          maxDurationOptions={maxDurationOptions}
                         />
                       </Box>
                     )}
@@ -343,11 +343,11 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration?.value}
-                        maxDuration={maxDuration}
-                        setRequestTTL={setRequestTTL}
-                        requestTTL={requestTTL}
+                        selectedMaxDurationTimestamp={maxDuration.value}
+                        setPendingRequestTtl={setPendingRequestTtl}
+                        pendingRequestTtl={pendingRequestTtl}
                         dryRunResponse={dryRunResponse}
+                        pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
                     <Flex
@@ -743,23 +743,26 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     selectedReviewers: ReviewerOption[];
     data: T[];
     showClusterNameColumn?: boolean;
-    setRequestTTL: (value: Option<number>) => void;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';
     fetchResourceRequestRolesAttempt: Attempt;
-    requestTTL: Option<number>;
+    pendingRequestTtl: Option<number>;
+    setPendingRequestTtl: (value: Option<number>) => void;
+    pendingRequestTtlOptions: Option<number>[];
     resourceRequestRoles: string[];
-    reviewers: string[];
+    maxDuration: Option<number>;
+    onMaxDurationChange: (value: Option<number>) => void;
+    maxDurationOptions: Option<number>[];
     setSelectedReviewers: (value: ReviewerOption[]) => void;
-    setMaxDuration: (value: Option<number>) => void;
     clearAttempt: () => void;
     createAttempt: Attempt;
     setSelectedResourceRequestRoles: (value: string[]) => void;
     numRequestedResources: number;
     selectedResourceRequestRoles: string[];
     dryRunResponse: AccessRequest;
-    maxDuration: Option<number>;
     Header?: () => JSX.Element;
+    startTime: Date;
+    onStartTimeChange(t?: Date): void;
   };
 
 type SuccessComponentParams = {
