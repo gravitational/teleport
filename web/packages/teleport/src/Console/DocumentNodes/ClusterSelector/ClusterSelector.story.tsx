@@ -36,7 +36,7 @@ export const Component = () => {
 
 export const Loading = () => {
   const ctx = mockContext();
-  ctx.fetchClusters = () => {
+  ctx.clustersService.fetchClusters = () => {
     return new Promise<any>(() => null);
   };
 
@@ -47,7 +47,7 @@ export const Loading = () => {
 
 export const Failed = () => {
   const ctx = mockContext();
-  ctx.fetchClusters = () => {
+  ctx.clustersService.fetchClusters = () => {
     return Promise.reject(new Error('server error'));
   };
 
@@ -74,7 +74,7 @@ function renderlusterSelector(ctx, { ...props } = {}) {
 
 function mockContext() {
   const ctx = new ConsoleContext();
-  ctx.fetchClusters = () => {
+  ctx.clustersService.fetchClusters = () => {
     return Promise.resolve<any>(clusters);
   };
 

@@ -23,7 +23,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
+import cfg, { UrlSshParams } from 'teleport/config';
 import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
@@ -171,14 +171,6 @@ export default class ConsoleContext {
         span.end();
       });
     });
-  }
-
-  fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params);
-  }
-
-  fetchClusters() {
-    return this.clustersService.fetchClusters();
   }
 
   logout() {
