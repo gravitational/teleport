@@ -381,12 +381,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appInfo, err := getAppInfo(cf, tc, profile, nil /*matchRouteToApp*/)
+	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -396,7 +391,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyApp(tc, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}

@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -97,8 +96,7 @@ func onGsutil(cf *CLIConf) error {
 type gcpApp struct {
 	*localProxyApp
 
-	cf      *CLIConf
-	profile *client.ProfileStatus
+	cf *CLIConf
 
 	secret string
 	// prefix is a prefix added to the name of configuration files, allowing two instances of gcpApp
@@ -107,7 +105,7 @@ type gcpApp struct {
 }
 
 // newGCPApp creates a new GCP app.
-func newGCPApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLIConf, routeToApp proto.RouteToApp) (*gcpApp, error) {
+func newGCPApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*gcpApp, error) {
 	secret, err := getGCPSecret()
 	if err != nil {
 		return nil, err
@@ -118,9 +116,8 @@ func newGCPApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLI
 	prefix := fmt.Sprintf("%x", h.Sum32())
 
 	return &gcpApp{
-		localProxyApp: newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
-		profile:       profile,
 		secret:        secret,
 		prefix:        prefix,
 	}, nil
@@ -165,7 +162,7 @@ func (a *gcpApp) Close() error {
 }
 
 func (a *gcpApp) getGcloudConfigPath() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name, "gcloud")
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name, "gcloud")
 }
 
 // removeBotoConfig removes config files written by WriteBotoConfig.
@@ -178,7 +175,7 @@ func (a *gcpApp) removeBotoConfig() []error {
 }
 
 func (a *gcpApp) getBotoConfigDir() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name)
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name)
 }
 
 func (a *gcpApp) getBotoConfigPath() string {
@@ -227,7 +224,7 @@ func (a *gcpApp) writeBotoConfig() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
-	projectID, err := gcp.ProjectIDFromServiceAccountName(a.routeToApp.GCPServiceAccount)
+	projectID, err := gcp.ProjectIDFromServiceAccountName(a.appInfo.RouteToApp.GCPServiceAccount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,7 +236,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.appInfo.appLocalCAPath(a.cf.SiteName),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -372,15 +369,10 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
+	appInfo, err := getAppInfo(cf, tc, matchGCPApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, profile, matchGCPApp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return newGCPApp(tc, profile, cf, appInfo.RouteToApp)
+	return newGCPApp(tc, cf, appInfo)
 }

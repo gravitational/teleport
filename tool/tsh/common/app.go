@@ -49,12 +49,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appInfo, err := getAppInfo(cf, tc, profile, nil /*matchRouteToApp*/)
+	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -67,7 +62,7 @@ func onAppLogin(cf *CLIConf) error {
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
 		RouteToApp:     appInfo.RouteToApp,
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
 	}
 
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -489,8 +484,17 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 // getAppInfo fetches app information using the user's tsh profile,
 // command line args, and the ListApps endpoint if necessary. If
 // provided, the matcher will be used to filter active apps in the
-// tsh profile.
-func getAppInfo(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
+// tsh profile. getAppInfo will also perform re-login if necessary.
+func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
+	var profile *client.ProfileStatus
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err = tc.ProfileStatus()
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	activeRoutes := profile.Apps
 	if matchRouteToApp != nil {
 		var filteredRoutes []tlsca.RouteToApp
@@ -538,10 +542,15 @@ type appInfo struct {
 	// isActive indicates an active app matched this app info.
 	isActive bool
 	mu       sync.Mutex
+
+	// profile is a cached profile status for the current login session.
+	profile *client.ProfileStatus
 }
 
 // checkAndSetDefaults checks the app route, applies cli flags, and sets defaults.
 func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+	a.profile = profile
+
 	switch {
 	case a.IsAWSConsole():
 		app, err := a.GetApp(cf.Context, tc)
@@ -594,6 +603,10 @@ func (a *appInfo) IsGCP() bool {
 		return a.app.IsGCP()
 	}
 	return a.RouteToApp.GCPServiceAccount != ""
+}
+
+func (a *appInfo) appLocalCAPath(cluster string) string {
+	return a.profile.AppLocalCAPath(cluster, a.RouteToApp.Name)
 }
 
 // GetApp returns the cached app or fetches it using the app route and

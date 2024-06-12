@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -133,25 +132,23 @@ func isAWSFlag(args []string, i int) bool {
 type awsApp struct {
 	*localProxyApp
 
-	cf      *CLIConf
-	profile *client.ProfileStatus
+	cf *CLIConf
 
 	credentials     *credentials.Credentials
 	credentialsOnce sync.Once
 }
 
 // newAWSApp creates a new AWS app.
-func newAWSApp(tc *client.TeleportClient, profile *client.ProfileStatus, cf *CLIConf, routeToApp proto.RouteToApp) (*awsApp, error) {
+func newAWSApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*awsApp, error) {
 	return &awsApp{
-		localProxyApp: newLocalProxyApp(tc, routeToApp, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
-		profile:       profile,
 	}, nil
 }
 
 // GetAppName returns the app name.
 func (a *awsApp) GetAppName() string {
-	return a.routeToApp.Name
+	return a.appInfo.RouteToApp.Name
 }
 
 // StartLocalProxies sets up local proxies for serving AWS clients.
@@ -237,7 +234,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.GetAppName()),
+		"AWS_CA_BUNDLE":         a.appInfo.appLocalCAPath(a.cf.SiteName),
 	}
 
 	// Set proxy settings.
@@ -353,15 +350,10 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
+	appInfo, err := getAppInfo(cf, tc, matchAWSApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, profile, matchAWSApp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return newAWSApp(tc, profile, cf, appInfo.RouteToApp)
+	return newAWSApp(tc, cf, appInfo)
 }

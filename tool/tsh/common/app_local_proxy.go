@@ -27,17 +27,16 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 )
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc         *client.TeleportClient
-	routeToApp proto.RouteToApp
-	insecure   bool
-	port       string
+	tc       *client.TeleportClient
+	appInfo  *appInfo
+	insecure bool
+	port     string
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
@@ -46,12 +45,12 @@ type localProxyApp struct {
 type requestMatcher func(req *http.Request) bool
 
 // newLocalProxyApp creates a new generic app.
-func newLocalProxyApp(tc *client.TeleportClient, routeToApp proto.RouteToApp, port string, insecure bool) *localProxyApp {
+func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, insecure bool) *localProxyApp {
 	return &localProxyApp{
-		tc:         tc,
-		routeToApp: routeToApp,
-		port:       port,
-		insecure:   insecure,
+		tc:       tc,
+		appInfo:  appInfo,
+		port:     port,
+		insecure: insecure,
 	}
 }
 
@@ -110,11 +109,11 @@ func (a *localProxyApp) Close() error {
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.routeToApp, nil)
+	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, a.routeToApp.Name)
+	cert, err := loadAppCertificate(a.tc, a.appInfo.RouteToApp.Name)
 	if err == nil {
 		appCertChecker.SetCert(cert)
 	}
@@ -143,7 +142,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, op
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Proxying connections to %s on %v\n", a.routeToApp.Name, a.localALPNProxy.GetAddr())
+	fmt.Printf("Proxying connections to %s on %v\n", a.appInfo.RouteToApp.Name, a.localALPNProxy.GetAddr())
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {
@@ -156,22 +155,17 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, op
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxyWithTLS(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.routeToApp, nil)
+	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, a.routeToApp.Name)
+	cert, err := loadAppCertificate(a.tc, a.appInfo.RouteToApp.Name)
 	if err == nil {
 		appCertChecker.SetCert(cert)
 	}
 
-	profile, err := a.tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	localCAPath := profile.AppLocalCAPath(a.tc.SiteName, a.routeToApp.Name)
-
-	localCertGenerator, err := client.NewLocalCertGenerator(appCertChecker, localCAPath)
+	appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
+	localCertGenerator, err := client.NewLocalCertGenerator(appCertChecker, appLocalCAPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,7 +196,7 @@ func (a *localProxyApp) startLocalALPNProxyWithTLS(ctx context.Context, port str
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Proxying connections to %s on %v\n", a.routeToApp.Name, a.localALPNProxy.GetAddr())
+	fmt.Printf("Proxying connections to %s on %v\n", a.appInfo.RouteToApp.Name, a.localALPNProxy.GetAddr())
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {

@@ -194,7 +194,10 @@ func Test_gcpApp_Config(t *testing.T) {
 
 	t.Setenv("TELEPORT_GCLOUD_SECRET", "my_secret")
 
-	app, err := newGCPApp(nil, profile, cf, route)
+	app, err := newGCPApp(nil, cf, &appInfo{
+		RouteToApp: route,
+		profile:    profile,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, app)
 
