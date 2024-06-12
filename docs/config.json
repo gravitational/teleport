@@ -816,6 +816,11 @@
                 "enterprise",
                 "cloud"
               ]
+            },
+            {
+              "title": "Notification Routing Rules",
+              "slug": "/access-controls/access-request-plugins/notification-routing-rules/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
