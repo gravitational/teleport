@@ -726,7 +726,7 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
 		"caCertPEM":          string(keyPair.Cert),
 		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBlob(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
 		"provisionToken":     tokenStr,
 		"internalResourceID": internalResourceID,

@@ -139,7 +139,7 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 	err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
 		"caCertPEM":    string(keyPair.Cert),
 		"caCertSHA1":   fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBlob(block.Bytes)),
+		"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

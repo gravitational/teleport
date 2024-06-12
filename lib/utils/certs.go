@@ -319,7 +319,7 @@ func InitCertLeaf(cert *tls.Certificate) error {
 
 const pemBlockCertificate = "CERTIFICATE"
 
-// CreateCertificateBlob creates Certificate BLOB
+// CreateCertificateBLOB creates Certificate BLOB
 // It has following structure:
 //
 //	CertificateBlob {
@@ -328,7 +328,14 @@ const pemBlockCertificate = "CERTIFICATE"
 //		Length: u32, little endian
 //		Value: certificate data
 //	}
-func CreateCertificateBlob(certData []byte) []byte {
+//
+// Documentation on this structure is a little thin, but one with the structure
+// exists in [MS-GPEF]. This doesn't list the `PropertyID` we use below, however
+// some references can be found scattered about the internet such as [here].
+//
+// [MS-GPEF]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpef/e051aba9-c9df-4f82-a42a-c13012c9d381
+// [here]: https://github.com/diyinfosec/010-Editor/blob/master/WINDOWS_CERTIFICATE_BLOB.bt
+func CreateCertificateBLOB(certData []byte) []byte {
 	buf := new(bytes.Buffer)
 	buf.Grow(len(certData) + 12)
 	// PropertyID for certificate is 32
