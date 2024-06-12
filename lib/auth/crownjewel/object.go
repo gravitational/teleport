@@ -19,11 +19,11 @@
 package crownjewel
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // NewCrownJewel creates a new CrownJewel object.
