@@ -171,8 +171,7 @@ func buildSummary(reqData RequestData) string {
 	if len(summary) <= 254 {
 		return summary
 	}
-
-	return summary[:strings.LastIndexAny(summary[:254], ",")]
+	return fmt.Sprintf("%s requested access to %d roles", reqData.User, len(reqData.Roles))
 }
 
 // HealthCheck checks Jira endpoint for validity and also checks the project permissions.
