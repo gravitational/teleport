@@ -466,6 +466,10 @@ This differs to using `identity` output for SSH in a few ways:
 - Resource consumption is significantly reduced by multiplexing SSH connections
   through a fewer number of upstream connections to the Teleport Proxy Service.
 
+Additionally, the `ssh-multiplexer` opens a socket that implements the SSH
+agent protocol. This allows the SSH client to authenticate without writing the
+sensitive private key to disk.
+
 By default, the `ssh-multiplexer` service outputs an `ssh_config` which uses
 `tbot` itself as the ProxyCommand. You can further reduce the resource
 consumption of SSH connections by installing and specifying the
@@ -505,13 +509,11 @@ Once configured, `tbot` will create the following artifacts in the specified
 destination:
 
 - `ssh_config`: an SSH configuration file that will configure OpenSSH to use
-   the multiplexer.
-- `key`: the SSH private key.
-- `key-cert.pub`: the SSH certificate signed by Teleport.
-- `key.pub`: the SSH public key.
+   the multiplexer and agent.
 - `known_hosts`: the known hosts file that will be used by OpenSSH to validate
    a server's identity.
 - `v1.sock`: the Unix socket that the multiplexer listens on.
+- `agent.sock`: the Unix socket that the SSH agent listens on.
 
 ### Destinations
 
