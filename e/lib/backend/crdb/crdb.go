@@ -37,9 +37,9 @@ const (
 )
 
 // defaultPageSize is the page size used for GetRange queries by default.
-// This was chosen based on load testing at 50k ssh nodes. At this scale range
-// queries over all nodes 50k rows fail due to ReadWithinUncertaintyIntervalError.
-var defaultPageSize = 7500
+// This was chosen based on load testing at 150k ssh nodes. At scale range queries
+// over many rows fail due to ReadWithinUncertaintyIntervalError.
+var defaultPageSize = 1000
 
 var schemas = []string{
 	`CREATE TABLE kv (
@@ -70,6 +70,9 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	if cfg.ChangeFeedConnString == "" {
 		cfg.ChangeFeedConnString = cfg.ConnString
+	}
+	if cfg.RangePageSize <= 0 {
+		cfg.RangePageSize = defaultPageSize
 	}
 
 	log := slog.With(teleport.ComponentKey, component)
@@ -133,6 +136,9 @@ type Config struct {
 	// TTLJobCron is a cron expression to specify the frequency at which
 	// rows will be deleted based on their expiry.
 	TTLJobCron string `json:"ttl_job_cron"`
+	// RangePageSize is maximum number of rows queried by GetRange in a single request.
+	// Queries with more rows will be broken up into multiple requests.
+	RangePageSize int `json:"range_page_size"`
 }
 
 // Backend implements [backend.Backend] for cockroachdb.
