@@ -6,7 +6,7 @@ import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
 
 import { RequestList } from './RequestList';
 import { AccessRequestWithFlags } from './useRequestList';
-import { sample } from './RequestList.story';
+import { sample } from './fixtures';
 
 test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.

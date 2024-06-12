@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { Option } from 'shared/components/Select';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
 import {
-  ReviewerOption,
   getDryRunMaxDuration,
   ResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
+import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import Ctx from 'e-teleport/teleportContextE';
 
@@ -32,32 +31,26 @@ export function useRequestCheckout({
   const { clusterId } = useStickyClusterId();
   const createAttempt = useAttempt('');
   const fetchResourceRequestRolesAttempt = useAttempt('');
-  const [resourceRequestRoles, setResourceRequestRoles] = useState<string[]>(
-    []
-  );
-  const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
-    useState<string[]>([]);
-
   const [fetchStatus, setFetchStatus] = useState<LoadingStatus>('loading');
 
-  // Access request lifetime upon creation.
-  // Duration countdown starts from access request creation.
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  // How long the request can be in a PENDING state before it expires.
-  const [requestTTL, setRequestTTL] = useState<Option<number>>();
-
-  // The reviewers defined in the users roles (static) and access list owners
-  // (dynamic).
-  const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
-  // DELETE IN 15.0.0: delete only the comment and remove the null type.
-  // A null value after fetchStatus === 'loaded' means max duration and session
-  // TTL is not supported (introduced v13.3.0).
-  const [dryRunResponse, setDryRunResponse] = useState<AccessRequest | null>();
-  // User selected reviewers from suggested reviewers options and/or
-  // any other reviewers they manually added.
-  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
-    []
-  );
+  const {
+    selectedReviewers,
+    setSelectedReviewers,
+    resourceRequestRoles,
+    setResourceRequestRoles,
+    selectedResourceRequestRoles,
+    setSelectedResourceRequestRoles,
+    maxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    dryRunResponse,
+    startTime,
+    onStartTimeChange,
+    onDryRunChange,
+  } = useSpecifiableFields();
 
   // Format data suitable for table listing.
   const data: {
@@ -90,33 +83,19 @@ export function useRequestCheckout({
     }
   }, [addedResources, numAddedResources]);
 
-  // Does an initial "dry run" of an empty access request to get all time
+  // Do a "dry run" of an empty access request to get time
   // options and calculate suggested reviewers.
-  React.useEffect(() => {
+  // Options and reviewers can change depending on the selected
+  // roles or resources.
+  useEffect(() => {
+    setFetchStatus('loading');
+
     createAccessRequest({
       maxDuration: getDryRunMaxDuration(),
       dryRun: true,
     })
       .then((resp: AccessRequest) => {
-        // sessionTTL and maxDuration were introduced in v13.3.0.
-        // Older backends will not return these values.
-        if (!resp.sessionTTL || !resp.maxDuration) {
-          setFetchStatus('loaded');
-          return;
-        }
-        setDryRunResponse(resp);
-
-        const reviewers = resp.reviewers.map(r => r.name).sort();
-        setSuggestedReviewers(reviewers);
-        // Initially select suggested reviewers for the requestor.
-        setSelectedReviewers(
-          reviewers.map(r => ({
-            value: r,
-            label: r,
-            isSelected: true,
-          }))
-        );
-
+        onDryRunChange(resp);
         setFetchStatus('loaded');
       })
       .catch(() => {
@@ -124,7 +103,7 @@ export function useRequestCheckout({
         // be able to show the max duration options.
         setFetchStatus('loaded');
       });
-  }, []);
+  }, [addedResources]);
 
   async function createAccessRequest(
     req: CreateRequest
@@ -148,7 +127,7 @@ export function useRequestCheckout({
       reason: req.reason,
       resourceIds,
       roles,
-      suggestedReviewers,
+      suggestedReviewers: req.suggestedReviewers || [],
       maxDuration: req.maxDuration,
       requestTTL: req.requestTTL,
       dryRun: req.dryRun,
@@ -208,7 +187,6 @@ export function useRequestCheckout({
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
     requireReason: ctx.storeUser.getAccessStrategy().type === 'reason',
-    reviewers: suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
     createRequest,
@@ -220,11 +198,15 @@ export function useRequestCheckout({
     setSelectedResourceRequestRoles,
     fetchStatus,
     maxDuration,
-    setMaxDuration,
-    requestTTL,
-    setRequestTTL,
+    onMaxDurationChange,
+    maxDurationOptions,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
     dryRunResponse,
     numAddedResources,
+    startTime,
+    onStartTimeChange,
   };
 }
 
