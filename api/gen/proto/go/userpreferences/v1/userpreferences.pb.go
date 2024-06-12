@@ -42,6 +42,7 @@ type UserPreferences struct {
 	unknownFields protoimpl.UnknownFields
 
 	// assist is the preferences for the Teleport Assist.
+	// TODO(jakule): DELETE IN v17
 	Assist *AssistUserPreferences `protobuf:"bytes,1,opt,name=assist,proto3" json:"assist,omitempty"`
 	// theme is the theme of the frontend.
 	Theme Theme `protobuf:"varint,2,opt,name=theme,proto3,enum=teleport.userpreferences.v1.Theme" json:"theme,omitempty"`
