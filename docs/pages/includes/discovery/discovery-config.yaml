@@ -12,6 +12,7 @@ discovery_service:
     # poll_interval is the cadence at which the discovery server will run each of its
     # discovery cycles. The default is 5m.
     poll_interval: 5m
+    # Matchers for discovering AWS-hosted resources.
     aws:
       # AWS resource types. Valid options are:
       # 'ec2' - discovers and registers AWS EC2 instances.
@@ -26,8 +27,8 @@ discovery_service:
     - types: ["ec2"]
       # AWS regions to search for resources from
       regions: ["us-east-1","us-west-1"]
-      # AWS resource tags to match when registering resources
-      # Optional section: Defaults to "*":"*"
+      # Optional AWS resource tags to match when registering resources
+      # Defaults to a wildcard selector that matches any resource: "*":"*"
       tags:
         "*": "*"
       # Optional AWS role that the Discovery Service will assume to discover
