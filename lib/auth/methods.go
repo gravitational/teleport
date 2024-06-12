@@ -198,9 +198,6 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 }
 
 var (
-	// authenticateHeadlessError is the generic error returned for failed headless
-	// authentication attempts.
-	authenticateHeadlessError = &trace.AccessDeniedError{Message: "headless authentication failed"}
 	// authenticateWebauthnError is the generic error returned for failed WebAuthn
 	// authentication attempts.
 	authenticateWebauthnError = &trace.AccessDeniedError{Message: "invalid credentials"}
