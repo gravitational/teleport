@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -166,7 +167,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 }
 
-func requireUserInGroups(t *testing.T, u *user.User, requiredGroups []string) {
+func getUserGroups(t *testing.T, u *user.User) []string {
 	var userGroups []string
 	userGids, err := u.GroupIds()
 	require.NoError(t, err)
@@ -175,7 +176,11 @@ func requireUserInGroups(t *testing.T, u *user.User, requiredGroups []string) {
 		require.NoError(t, err)
 		userGroups = append(userGroups, group.Name)
 	}
-	require.Subset(t, userGroups, requiredGroups)
+	return userGroups
+}
+
+func requireUserInGroups(t *testing.T, u *user.User, requiredGroups []string) {
+	require.Subset(t, getUserGroups(t, u), requiredGroups)
 }
 
 func cleanupUsersAndGroups(users []string, groups []string) func() {
@@ -205,7 +210,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
+		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -227,7 +232,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
+		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -252,8 +257,8 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := user.LookupGroupId(testGID)
 		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
 
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{
-			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 			UID:  testUID,
 			GID:  testGID,
 		})
@@ -271,11 +276,28 @@ func TestRootHostUsers(t *testing.T) {
 		require.Equal(t, u.Uid, testUID)
 		require.Equal(t, u.Gid, testGID)
 
-		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
-
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
 		require.Equal(t, err, user.UnknownUserError(testuser))
+	})
+
+	t.Run("test create permanent user", func(t *testing.T) {
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		expectedHome := filepath.Join("/home", testuser)
+		require.NoDirExists(t, expectedHome)
+
+		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP})
+		require.NoError(t, err)
+		require.Nil(t, closer)
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+		require.Equal(t, expectedHome, u.HomeDir)
+		require.DirExists(t, expectedHome)
+		t.Cleanup(func() {
+			os.RemoveAll(expectedHome)
+		})
 	})
 
 	t.Run("test create sudoers enabled users", func(t *testing.T) {
@@ -294,7 +316,7 @@ func TestRootHostUsers(t *testing.T) {
 			os.Remove(sudoersPath(testuser, uuid))
 			host.UserDel(testuser)
 		})
-		closer, err := users.CreateUser(testuser,
+		closer, err := users.UpsertUser(testuser,
 			&services.HostUsersInfo{
 				Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
@@ -325,12 +347,12 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
+			_, err := users.UpsertUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 			require.NoError(t, err)
 		}
 
 		// this user should not be in the service group as it was created with mode keep.
-		closer, err := users.CreateUser("teleport-user4", &services.HostUsersInfo{
+		closer, err := users.UpsertUser("teleport-user4", &services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
@@ -349,6 +371,71 @@ func TestRootHostUsers(t *testing.T) {
 		for _, us := range deleteableUsers {
 			_, err := user.Lookup(us)
 			require.Equal(t, err, user.UnknownUserError(us))
+		}
+	})
+
+	t.Run("test update changed groups", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			firstGroups  []string
+			secondGroups []string
+		}{
+			{
+				name:         "add groups",
+				secondGroups: []string{"group1", "group2"},
+			},
+			{
+				name:        "delete groups",
+				firstGroups: []string{"group1", "group2"},
+			},
+			{
+				name:         "change groups",
+				firstGroups:  []string{"group1", "group2"},
+				secondGroups: []string{"group2", "group3"},
+			},
+			{
+				name:         "no change",
+				firstGroups:  []string{"group1", "group2"},
+				secondGroups: []string{"group2", "group1"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				allGroups := make([]string, 0, len(tc.firstGroups)+len(tc.secondGroups))
+				allGroups = append(allGroups, tc.firstGroups...)
+				allGroups = append(allGroups, tc.secondGroups...)
+				t.Cleanup(cleanupUsersAndGroups([]string{testuser}, allGroups))
+
+				// Verify that the user is created with the first set of groups.
+				users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+				_, err := users.UpsertUser(testuser, &services.HostUsersInfo{
+					Groups: tc.firstGroups,
+					Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				})
+				require.NoError(t, err)
+				u, err := user.Lookup(testuser)
+				require.NoError(t, err)
+				requireUserInGroups(t, u, tc.firstGroups)
+
+				// Verify that the user is updated with the second set of groups.
+				_, err = users.UpsertUser(testuser, &services.HostUsersInfo{
+					Groups: tc.secondGroups,
+					Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				})
+				require.NoError(t, err)
+				u, err = user.Lookup(testuser)
+				require.NoError(t, err)
+				requireUserInGroups(t, u, tc.secondGroups)
+
+				// Verify that the appropriate groups form the first set were deleted.
+				userGroups := getUserGroups(t, u)
+				for _, group := range tc.firstGroups {
+					if !slices.Contains(tc.secondGroups, group) {
+						require.NotContains(t, userGroups, group)
+					}
+				}
+			})
 		}
 	})
 }
