@@ -65,7 +65,7 @@ type UnifiedResourceCacheConfig struct {
 
 // UnifiedResourceCache contains a representation of all resources that are displayable in the UI
 type UnifiedResourceCache struct {
-	mu  sync.Mutex
+	rw  sync.RWMutex
 	log *log.Entry
 	cfg UnifiedResourceCacheConfig
 	// nameTree is a BTree with items sorted by (hostname)/name/type
@@ -138,8 +138,8 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 // put stores the value into backend (creates if it does not
 // exist, updates it otherwise)
 func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	c.putLocked(resource)
 	return nil
 }
@@ -188,8 +188,8 @@ func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 // delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	if c.stale {
 		return nil
 	}
@@ -475,8 +475,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	// empty the trees
 	c.nameTree.Clear(false)
 	c.typeTree.Clear(false)
@@ -605,15 +605,15 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 // wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
 func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedResourceCache) error) error {
-	c.mu.Lock()
+	c.rw.RLock()
 
 	if !c.stale {
 		err := fn(c)
-		c.mu.Unlock()
+		c.rw.RUnlock()
 		return err
 	}
 
-	c.mu.Unlock()
+	c.rw.RUnlock()
 	ttlCache, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (*UnifiedResourceCache, error) {
 		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
@@ -632,15 +632,15 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 		}
 		return fallbackCache, nil
 	})
-	c.mu.Lock()
+	c.rw.RLock()
 
 	if !c.stale {
 		// primary became healthy while we were waiting
 		err := fn(c)
-		c.mu.Unlock()
+		c.rw.RUnlock()
 		return err
 	}
-	c.mu.Unlock()
+	c.rw.RUnlock()
 
 	if err != nil {
 		// ttl-tree setup failed
@@ -652,8 +652,8 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 }
 
 func (c *UnifiedResourceCache) notifyStale() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	c.stale = true
 }
 
@@ -678,8 +678,8 @@ func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context,
 }
 
 func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 
 	if c.stale {
 		return
