@@ -36,7 +36,11 @@ export const dryRunResponse: AccessRequest = {
   sessionTTL: new Date('2024-02-15T14:51:03.999893Z'),
   sessionTTLDuration: '',
   reviews: [],
-  reviewers: [],
+  reviewers: [
+    { name: 'bob', state: '' },
+    { name: 'cat', state: '' },
+    { name: 'george washington', state: '' },
+  ],
   thresholdNames: ['default'],
   resources: [],
   assumeStartTime: null,
