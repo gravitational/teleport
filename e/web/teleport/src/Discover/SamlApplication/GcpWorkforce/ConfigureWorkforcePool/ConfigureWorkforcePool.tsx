@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { Box, ButtonBorder, Link, Text, Toggle } from 'design';
+import { Box, ButtonBorder, Link, Text, Toggle, Flex } from 'design';
 
 import { Danger } from 'design/Alert';
 
@@ -14,6 +14,7 @@ import {
 } from 'teleport/Discover/Shared';
 
 import FieldInput from 'shared/components/FieldInput';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -146,7 +147,8 @@ export function ConfigurePool({
         configuration script and pre-pulates SAML service provider spec based on
         GCP configuration <br /> values you enter below.
       </HeaderSubtitle>
-      <Box mb={1} data-testid="testid-box">
+      <GCPPrerequisites />
+      <Box mt={6} mb={1} data-testid="testid-box">
         <Toggle
           className="toggle_test"
           isToggled={autoConfig}
@@ -225,7 +227,7 @@ export function ScriptGenInput({
               across GCP and follow GCP resource naming convention."
               name="poolName"
               value={agentMeta?.poolName || ''}
-              placeholder="teleport-workforce-pool"
+              placeholder="myorg-workforce-dev-pool"
               width="500px"
               mr="3"
               onChange={e => handleNameChange(e)}
@@ -233,13 +235,14 @@ export function ScriptGenInput({
             <FieldInput
               mb={3}
               rule={requiredField('Pool provider name is required')}
-              label="Give this workforce pool provider a name"
+              labelTip="Workforce pool provider name"
+              label="App Name"
               toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
               name="poolProviderName"
               value={agentMeta?.poolProviderName || ''}
-              placeholder="gcp-workforce-pool-provider"
+              placeholder="myorg-gcp-dev"
               width="500px"
               mr="3"
               onChange={e => handleNameChange(e)}
@@ -286,5 +289,48 @@ export function Script({ scriptUrl }: { scriptUrl: string }) {
         />
       </Box>
     </StyledBox>
+  );
+}
+
+function GCPPrerequisites() {
+  return (
+    <>
+      <Text fontSize={2} bold>
+        Prerequisites:
+      </Text>
+      <Flex gap={6} bg="levels.surface" borderRadius={2} mt={1} mb={4}>
+        <ul>
+          <li>
+            <Flex alignItems="center">
+              <Text>
+                IAM and Resource Manager APIs enabled for organization{' '}
+                <Link
+                  target="_blank"
+                  href="https://cloud.google.com/iam/docs/configuring-workforce-identity-federation#before_you_begin"
+                >
+                  (docs).
+                </Link>
+              </Text>
+            </Flex>
+          </li>
+          <li>
+            <Flex alignItems="center">
+              <Text>
+                User with IAM Workforce Pool Admin and Organization Viewer role{' '}
+                <Link
+                  target="_blank"
+                  href="https://cloud.google.com/iam/docs/configuring-workforce-identity-federation#required-roles"
+                >
+                  (docs).
+                </Link>
+              </Text>
+              <Flex ml={1}>
+                <ToolTipInfo>Always assign least privileged roles.</ToolTipInfo>
+              </Flex>
+            </Flex>
+          </li>
+        </ul>
+      </Flex>
+    </>
   );
 }
