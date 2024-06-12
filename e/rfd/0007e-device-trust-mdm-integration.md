@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented (Jamf only)
 ---
 
 # RFD 0007e - Device Trust MDM integration

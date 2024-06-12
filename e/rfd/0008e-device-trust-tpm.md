@@ -1,6 +1,6 @@
 ---
 authors: Joel Wejdenstal (jwejdenstal@goteleport.com), Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0008e - Device Trust TPM Support
@@ -221,12 +221,12 @@ message TPMEnrollPayload {
     // certificate contains the public key of the endorsement key. This is
     // preferred to ek_key.
     bytes ek_cert = 1;
-    
+
     // The device's public endorsement key in PKIX, ASN.1 DER form. This is
     // used when a TPM does not contain any endorsement certificates.
     bytes ek_key = 2;
   }
-  
+
   // The attestation key and the parameters necessary to remotely verify it as
   // related to the endorsement key.
   TPMAttestationParameters attestation_parameters = 3;
@@ -240,7 +240,7 @@ message TPMEnrollChallenge {
   // The encrypted credential for the client to prove possession of the EK and
   // AK.
   TPMEncryptedCredential encrypted_credential = 1;
-  
+
   // The nonce to use when producing the quotes over the PCRs with the TPM
   // during the platform attestation.
   bytes attestation_nonce = 2;
@@ -253,7 +253,7 @@ message TPMEnrollChallengeResponse {
   // The client's solution to `TPMEncryptedCredential` included in
   // `TPMEnrollChallenge` using `ActivateCredential`.
   bytes solution = 1;
-  
+
   // The result of the client's platform attestation with the nonce provided
   // in `TPMEnrollChallenge`.
   TPMPlatformParameters platform_parameters = 2;
@@ -268,15 +268,15 @@ message TPMAttestationParameters {
   // The encoded TPMT_PUBLIC structure containing the attestation public key
   // and signing parameters.
   bytes public = 1;
-  
+
   // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
   // structure.
   bytes create_data = 2;
-  
+
   // An assertion as to the details of the key, encoded as a TPMS_ATTEST
   // structure.
   bytes create_attestation = 3;
-  
+
   // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
   bytes create_signature = 4;
 }
@@ -294,7 +294,7 @@ message TPMEncryptedCredential {
   // command. This is used with the decrypted value of `secret` in a
   // cryptographic process to decrypt the solution.
   bytes credential_blob = 1;
-  
+
   // The `secret` parameter to be used with `ActivateCredential`. This is a
   // seed which can be decrypted with the EK. The decrypted seed is then used
   // when decrypting `credential_blob`.
@@ -404,17 +404,17 @@ message DeviceCredential {
   // Old fields
   // Unique identifier of the credential, defined client-side.
   string id = 1;
-  
+
   // Device public key marshaled as a PKIX, ASN.1 DER.
   // If the device is a TPM device, stores the attestation key to use for
   // platform attestation.
   bytes public_key_der = 2;
-  
+
   // New fields
-  
+
   // The degree to which the device credential is attested.
   DeviceAttestationType device_attestation_type = 3;
-  
+
   // If the device is a TPM device, stores the serial number from the TPM
   // endorsement certificate.
   string tpm_ekcert_serial = 4;
@@ -428,10 +428,10 @@ enum DeviceAttestationType {
   DEVICE_ATTESTATION_TYPE_UNSPECIFIED = 0;
   // Credential was verified through a TPM EK->AK chain on enrollment.
   DEVICE_ATTESTATION_TYPE_TPM_EKPUB = 1;
-  // Credential was verified through a TPM EKCert->AK chain on enrollment, 
+  // Credential was verified through a TPM EKCert->AK chain on enrollment,
   // but no allow-listed CAs were configured to validate this EKCert against.
   DEVICE_ATTESTATION_TYPE_TPM_EKCERT = 2;
-  // Credential was verified through a TPM EKCert->AK chain on enrollment, and 
+  // Credential was verified through a TPM EKCert->AK chain on enrollment, and
   // the EKCert was signed by a configured allow-listed CA.
   DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED = 3;
 }
@@ -460,7 +460,7 @@ message TPM {
   // CA specified here may be enrolled (existing enrollments are
   // unchanged).
   //
-  // If not present, then the CA of TPM EKCerts will not be checked during 
+  // If not present, then the CA of TPM EKCerts will not be checked during
   // enrollment, this allows any device to enroll.
   repeated string EKCertAllowedCAs = 1 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
