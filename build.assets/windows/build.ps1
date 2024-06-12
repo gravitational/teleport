@@ -478,7 +478,8 @@ function Write-Version-Objects {
         [Parameter(Mandatory)]
         [string] $TeleportVersion
     )
-    Write-Host "Generating version info files for tsh.exe and tctl.exe..."
+
+    Write-Host "Generating version info files for Windows artifacts"
 
     # install go-winres (v0.3.3)
     go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
@@ -490,7 +491,7 @@ function Write-Version-Objects {
     & $GoWinres simply --no-suffix --arch amd64 `
         --file-description "Teleport tsh command-line client" `
         --original-filename tsh.exe `
-        --copyright "Copyright (C) $Year Gravitational, Inc." `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
         --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
         --product-name Teleport `
         --product-version $TeleportVersion `
@@ -501,12 +502,23 @@ function Write-Version-Objects {
     & $GoWinres simply --no-suffix --arch amd64 `
         --file-description "Teleport tctl administrative tool" `
         --original-filename tctl.exe `
-        --copyright "Copyright (C) $Year Gravitational, Inc." `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
         --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
         --product-name Teleport `
         --product-version $TeleportVersion `
         --file-version $TeleportVersion `
         --out "$TeleportSourceDirectory\tool\tctl\resource.syso"
+
+    # generate windowsauth version info (note the --admin flag, as the installer must run as admin)
+    & $GoWinres simply --no-suffix --arch amd64 --admin `
+        --file-description "Teleport Authentication Package" `
+        --original-filename "teleport-windows-auth-setup-v$TeleportVersion-amd64.exe" `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\e\windowsauth\installer\resource.syso"
 }
 
 function Build-Artifacts {

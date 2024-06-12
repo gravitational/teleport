@@ -37,6 +37,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/gravitational/teleport/api/types"
@@ -923,9 +924,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Wait for files to be output
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, fileName := range []string{
-			"key",
-			"key.pub",
-			"key-cert.pub",
 			"known_hosts",
 			"ssh_config",
 		} {
@@ -934,21 +932,17 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	privateKeyBytes, err := os.ReadFile(filepath.Join(tmpDir, "key"))
+	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
 	require.NoError(t, err)
-	certBytes, err := os.ReadFile(filepath.Join(tmpDir, "key-cert.pub"))
-	require.NoError(t, err)
-	signer, err := ssh.ParsePrivateKey(privateKeyBytes)
-	require.NoError(t, err)
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
-	require.NoError(t, err)
-	certSigner, err := ssh.NewCertSigner(cert.(*ssh.Certificate), signer)
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		agentConn.Close()
+	})
+	agentClient := agent.NewClient(agentConn)
 	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 	require.NoError(t, err)
 	sshConfig := &ssh.ClientConfig{
 		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(certSigner),
+			ssh.PublicKeysCallback(agentClient.Signers),
 		},
 		User:            currentUser.Username,
 		HostKeyCallback: callback,
