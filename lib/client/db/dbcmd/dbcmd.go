@@ -757,7 +757,7 @@ func (j *jdbcOracleThinConnection) ConnString() string {
 }
 
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
-	tnsAdminPath := c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName)
+	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
 	if runtime.GOOS == constants.WindowsOS {
 		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
 	}
