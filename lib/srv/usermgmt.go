@@ -43,7 +43,7 @@ func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid stri
 	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostUsersBackend()
 	switch {
-	case trace.IsNotImplemented(err):
+	case trace.IsNotImplemented(err), trace.IsNotFound(err):
 		log.Debugf("Skipping host user management: %v", err)
 		return nil
 	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
@@ -99,11 +99,11 @@ type HostUsersBackend interface {
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
-	CreateUser(name string, groups []string, uid, gid string) error
+	CreateUser(name string, groups []string, home, uid, gid string) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
-	CreateHomeDirectory(user string, uid, gid string) error
+	CreateHomeDirectory(userHome string, uid, gid string) error
 }
 
 type userCloser struct {
@@ -298,6 +298,14 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		return nil, trace.WrapWithMessage(err, "error while creating groups")
 	}
 
+	var home string
+	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+		home, err = readDefaultHome(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
 		if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
 			return trace.Wrap(err)
@@ -310,7 +318,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 
-		err = u.backend.CreateUser(name, groups, ui.UID, ui.GID)
+		err = u.backend.CreateUser(name, groups, home, ui.UID, ui.GID)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
@@ -320,8 +328,8 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			return trace.Wrap(err)
 		}
 
-		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-			if err := u.backend.CreateHomeDirectory(name, user.Uid, user.Gid); err != nil {
+		if home != "" {
+			if err := u.backend.CreateHomeDirectory(home, user.Uid, user.Gid); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -465,9 +473,15 @@ func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		if err := u.DeleteAllUsers(); err != nil {
+		err := u.DeleteAllUsers()
+		switch {
+		case trace.IsNotFound(err):
+			log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
+			return
+		case err != nil:
 			log.Error("Error during temporary user cleanup: ", err)
 		}
+
 		select {
 		case <-cleanupTicker.C:
 		case <-u.ctx.Done():

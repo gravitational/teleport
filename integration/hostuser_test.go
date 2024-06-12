@@ -61,22 +61,26 @@ func TestRootHostUsersBackend(t *testing.T) {
 		SudoersPath: sudoersTestDir,
 		HostUUID:    "hostuuid",
 	}
-	t.Cleanup(func() {
-		// cleanup users if they got left behind due to a failing test
-		host.UserDel(testuser)
-		cmd := exec.Command("groupdel", testgroup)
-		cmd.Run()
-	})
 
 	t.Run("Test CreateGroup", func(t *testing.T) {
+		t.Cleanup(cleanupUsersAndGroups(nil, []string{testgroup}))
+
 		err := usersbk.CreateGroup(testgroup, "")
 		require.NoError(t, err)
 		err = usersbk.CreateGroup(testgroup, "")
 		require.True(t, trace.IsAlreadyExists(err))
+
+		_, err = usersbk.LookupGroup(testgroup)
+		require.NoError(t, err)
 	})
 
 	t.Run("Test CreateUser and group", func(t *testing.T) {
-		err := usersbk.CreateUser(testuser, []string{testgroup}, "", "")
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{testgroup}))
+		err := usersbk.CreateGroup(testgroup, "")
+		require.NoError(t, err)
+
+		testHome := filepath.Join("/home", testuser)
+		err = usersbk.CreateUser(testuser, []string{testgroup}, testHome, "", "")
 		require.NoError(t, err)
 
 		tuser, err := usersbk.Lookup(testuser)
@@ -89,17 +93,26 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, tuserGids, group.Gid)
 
-		err = usersbk.CreateUser(testuser, []string{}, "", "")
+		err = usersbk.CreateUser(testuser, []string{}, testHome, "", "")
 		require.True(t, trace.IsAlreadyExists(err))
 
-		require.NoFileExists(t, filepath.Join("/home", testuser))
-		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		require.NoFileExists(t, testHome)
+		err = usersbk.CreateHomeDirectory(testHome, tuser.Uid, tuser.Gid)
 		require.NoError(t, err)
-		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
+		t.Cleanup(func() {
+			os.RemoveAll(testHome)
+		})
+		require.FileExists(t, filepath.Join(testHome, ".bashrc"))
 	})
 
 	t.Run("Test DeleteUser", func(t *testing.T) {
-		err := usersbk.DeleteUser(testuser)
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
+		err := usersbk.CreateUser(testuser, nil, "", "", "")
+		require.NoError(t, err)
+		_, err = usersbk.Lookup(testuser)
+		require.NoError(t, err)
+
+		err = usersbk.DeleteUser(testuser)
 		require.NoError(t, err)
 
 		_, err = user.Lookup(testuser)
@@ -108,13 +121,10 @@ func TestRootHostUsersBackend(t *testing.T) {
 
 	t.Run("Test GetAllUsers", func(t *testing.T) {
 		checkUsers := []string{"teleport-usera", "teleport-userb", "teleport-userc"}
-		t.Cleanup(func() {
-			for _, u := range checkUsers {
-				usersbk.DeleteUser(u)
-			}
-		})
+		t.Cleanup(cleanupUsersAndGroups(checkUsers, nil))
+
 		for _, u := range checkUsers {
-			err := usersbk.CreateUser(u, []string{}, "", "")
+			err := usersbk.CreateUser(u, []string{}, "", "", "")
 			require.NoError(t, err)
 		}
 
@@ -143,7 +153,8 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
-		err := usersbk.CreateUser(testuser, []string{testgroup}, "", "")
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
+		err := usersbk.CreateUser(testuser, nil, "", "", "")
 		require.NoError(t, err)
 
 		tuser, err := usersbk.Lookup(testuser)
@@ -154,14 +165,15 @@ func TestRootHostUsersBackend(t *testing.T) {
 		bashrcPath := filepath.Join("/home", testuser, ".bashrc")
 		require.NoFileExists(t, bashrcPath)
 
-		require.NoError(t, os.MkdirAll(filepath.Join("/home", testuser), 0o700))
+		testHome := filepath.Join("/home", testuser)
+		require.NoError(t, os.MkdirAll(testHome, 0o700))
 
 		require.NoError(t, os.Symlink("/tmp/ignoreme", bashrcPath))
 		require.NoFileExists(t, "/tmp/ignoreme")
 
-		err = usersbk.CreateHomeDirectory(testuser, tuser.Uid, tuser.Gid)
+		err = usersbk.CreateHomeDirectory(testHome, tuser.Uid, tuser.Gid)
 		t.Cleanup(func() {
-			os.RemoveAll(filepath.Join("/home", testuser))
+			os.RemoveAll(testHome)
 		})
 		require.NoError(t, err)
 		require.NoFileExists(t, "/tmp/ignoreme")
@@ -216,7 +228,7 @@ func TestRootHostUsers(t *testing.T) {
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
 		requireUserInGroups(t, u, testGroups)
-		require.NoDirExists(t, u.HomeDir)
+		require.Equal(t, string(os.PathSeparator), u.HomeDir)
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
@@ -254,6 +266,25 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
 		require.Equal(t, err, user.UnknownUserError(testuser))
+	})
+
+	t.Run("test create permanent user", func(t *testing.T) {
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		expectedHome := filepath.Join("/home", testuser)
+		require.NoDirExists(t, expectedHome)
+
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP})
+		require.NoError(t, err)
+		require.Nil(t, closer)
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+		require.Equal(t, expectedHome, u.HomeDir)
+		require.DirExists(t, expectedHome)
+		t.Cleanup(func() {
+			os.RemoveAll(expectedHome)
+		})
 	})
 
 	t.Run("test create sudoers enabled users", func(t *testing.T) {

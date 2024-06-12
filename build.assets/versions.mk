@@ -4,7 +4,7 @@
 
 # Sync with devbox.json.
 GOLANG_VERSION ?= go1.22.4
-GOLANGCI_LINT_VERSION ?= v1.58.1
+GOLANGCI_LINT_VERSION ?= v1.59.1
 
 NODE_VERSION ?= 20.13.0
 
