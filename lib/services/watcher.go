@@ -61,6 +61,11 @@ type resourceCollector interface {
 	initializationChan() <-chan struct{}
 }
 
+type bulkResourceCollector interface {
+	resourceCollector
+	processEventsAndUpdateCurrent(context.Context, []types.Event)
+}
+
 func watchKindsString(kinds []types.WatchKind) string {
 	var sb strings.Builder
 	for i, k := range kinds {
@@ -342,7 +347,25 @@ func (p *resourceWatcher) watch() error {
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			p.collector.processEventAndUpdateCurrent(p.ctx, event)
+			if bulk, ok := p.collector.(bulkResourceCollector); ok {
+				// bulk resource collectors want to process events in batches
+				// when possible in order to reduce contention on their locks.
+				// we therefore optimistically try to gather as many events
+				// as possible without blocking.
+				events := []types.Event{event}
+			CollectEvents:
+				for {
+					select {
+					case additionalEvent := <-watcher.Events():
+						events = append(events, additionalEvent)
+					default:
+						break CollectEvents
+					}
+				}
+				bulk.processEventsAndUpdateCurrent(p.ctx, events)
+			} else {
+				p.collector.processEventAndUpdateCurrent(p.ctx, event)
+			}
 		case p.LoopC <- struct{}{}:
 			// Used in tests to detect the watch loop is running.
 		case <-p.StaleC:

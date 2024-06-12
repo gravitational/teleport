@@ -140,6 +140,11 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.putLocked(resource)
+	return nil
+}
+
+func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
 	oldResource, exists := c.resources[key]
@@ -156,7 +161,6 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 	c.resources[key] = resource
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
-	return nil
 }
 
 func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
@@ -184,23 +188,26 @@ func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 // delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
-	key := resourceKey(res)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stale {
+		return nil
+	}
 
-	// delete generally only sends the id, so we will fetch the actual resource from our resources
-	// map and generate our sort keys. Then we can delete from the map and all the trees at once
+	return trace.Wrap(c.deleteLocked(res))
+}
+
+func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
+	key := resourceKey(res)
 	resource, exists := c.resources[key]
 	if !exists {
 		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
 	}
 
 	sortKey := makeResourceSortKey(resource)
-
-	return c.read(ctx, func(cache *UnifiedResourceCache) error {
-		cache.deleteSortKey(sortKey)
-		// delete from resource map
-		delete(c.resources, key)
-		return nil
-	})
+	c.deleteSortKey(sortKey)
+	delete(c.resources, key)
+	return nil
 }
 
 func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*item], error) {
@@ -666,19 +673,33 @@ func (c *UnifiedResourceCache) IsInitialized() bool {
 }
 
 func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil {
-		c.log.Warnf("Unexpected event: %v.", event)
+	panic("not implemented")
+	//c.processEventsAndUpdateCurrent(ctx, []types.Event{event})
+}
+
+func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.stale {
 		return
 	}
 
-	switch event.Type {
-	case types.OpDelete:
-		c.delete(ctx, event.Resource)
-	case types.OpPut:
-		c.put(ctx, event.Resource.(resource))
-	default:
-		c.log.Warnf("unsupported event type %s.", event.Type)
-		return
+	for _, event := range events {
+		if event.Resource == nil {
+			c.log.Warnf("Unexpected event: %v.", event)
+			continue
+		}
+
+		switch event.Type {
+		case types.OpDelete:
+			c.deleteLocked(event.Resource)
+		case types.OpPut:
+			c.putLocked(event.Resource.(resource))
+		default:
+			c.log.Warnf("unsupported event type %s.", event.Type)
+			continue
+		}
 	}
 }
 
