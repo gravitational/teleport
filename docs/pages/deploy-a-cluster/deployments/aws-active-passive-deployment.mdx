@@ -1,0 +1,140 @@
+---
+title: "AWS Multi-Region Active-Passive Architecture Deployment"
+description: "Deploying a high-availability Teleport cluster in two AWS regions."
+---
+
+For mission-critical Teleport use cases, you may use the architecture described in this guide to achieve 
+an automatic failover across multiple AWS regions. This architecture keeps Teleport accessible with minimal 
+disruption during the event of an entire cloud provider region outage. While this example is for AWS, the 
+general architecture can apply to various cloud providers and self-hosted examples as well.
+
+In this architecture, the Auth and Proxy components and their networking components run in parallel across two 
+different cloud regions. These components utilize a global DynamoDB storage backend for the cluster state and audit 
+logs, while two S3 buckets with cross-regional replication enabled are used for session recordings. The Route53 DNS
+failover is the control point to switch 
+between the active and passive clusters during the event of a regional outage. This document mainly focuses on Kubernetes,
+but the same concepts apply to Virtual Machines/EC2 instances.
+
+## Overview
+
+![Diagram showing this Teleport
+architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-deployment.png)
+
+### Key Components
+- Two ReplicaSets/Auto Scaling Groups of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
+  region Teleport cluster is the Active cluster, and the us-east-1 (Secondary) region Teleport cluster is the Passive cluster.
+- All teleport cluster components are deployed as ReplicaSets/Auto Scaling Groups in both regions.
+- DynamoDB is used for cluster state and audit log storage.
+  - Enable the us-west-1 (Active Region) DynamoDB table with global replication in the us-east-1 (Passive Region) to ensure cluster 
+    state and audit logs are maintained in both regions.
+  - DynamoDB [Global Replication Steps](https://aws.amazon.com/blogs/aws/new-convert-your-single-region-amazon-dynamodb-tables-to-global-tables/)
+-  Two S3 buckets with cross-region replication enabled are used for session recording storage.
+  - Enable cross-region replication on the S3 bucket to ensure objects are replicated between both the Active and 
+    Passive regions.
+  - S3 [Replication Steps](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
+  - Make sure proper IAM permissions are in place for the successful [Replication of 
+  S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
+- Configure the Route53 DNS records pointed to the Teleport Cluster to use the
+  [Failover Routing Policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
+  [Latency-Based Routing Policy] (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html)
+  with the Active cluster's load balancer as the primary record and the Passive cluster's load balancer as the secondary record.
+  - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
+    Passive cluster in the event of an outage in the Active region. It will then automatically route the traffic back to the Active 
+    cluster once the Active cluster's health checks report a normal state.
+  - Teleport supports latency-based routing via AWS Route 53 for Global Server Load Balancing. To make this work, Teleport proxy DNS records need 
+    to be configured in a specific manner. In Teleport's client configuration, point the proxy_server: to the GSLB(Global Server Load Balancing) 
+    domain configured in Route53, not to the specific proxy NLB address.
+  - Implementing latency-based routing requires creation of a CNAME record for each region where you have VPCs containing Teleport-connected resources.
+
+<Notice type="warning">
+
+If you are using proxy peering then we will have to use Latency based routing for the proxy service and Failover Routing only on the Auth Server Load
+Balancer.
+
+</Notice>
+
+
+### Advantages of this deployment architecture
+
+- Having a Teleport cluster across multiple regions ensures your cluster can remain available in the event of a regional outage.
+- Downtime can be minimized vs traditional disaster recovery from a backup.
+- All required Teleport components can be provisioned within the AWS ecosystem.
+- High-availability Auto Scaling group of Auth Service pods that must remain in a Primary region
+- High-availability Auto Scaling group of Proxy Service pods deployed across multiple regions
+
+### Disadvantages of this deployment architecture
+
+- Long-term cost may be a prohibitive factor for some organizations and can increase total cost of ownership
+  (TCO) throughout the system's lifetime.
+- Deploying and maintaining the added layer of regional components takes more engineering effort.
+- This architecture is more technically complex to deploy than a single region Teleport cluster or simple disaster recovery.
+
+### Configuration Example in Kubernetes with the `teleport-cluster` Helm Chart:
+
+## Prerequisites
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+
+## Step 1/6. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/6. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+## Step 3/6. Set up Teleport Cluster in Primary Region (In this example us-west-1 is the Primary Region):
+- Running an HA Teleport cluster using [AWS, EKS, Helm](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
+- Configure [Single Sign-on](https://goteleport.com/docs/access-controls/sso/) and test your access to the Teleport cluster.
+
+## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In this example us-east-1 is the Secondary Region):
+- Check the Key Components section of this document for DynamoDB Global replication and S3 Replication.
+- Post successful completion of Replication DynamoDB and S3 proceed to Step 5/6.
+
+## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 3/6:
+- We will use the same `aws-values.yaml` & `aws-issuer.yaml` config files from the Primary region cluster to install the `teleport-cluster` 
+  Helm chart in the Secondary Region (`us-east-1`), by changing the `clusterName`. So that it will use same backend as defined in Primary 
+  Region (us-west-1) for DynamoDB and S3 buckets. Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO 
+  access by logging in via Secondary region (us-east-1) UI/tsh Configuration. SSO login will work fine from both the Primary (us-west-1) and 
+  Secondary (us-east-1) region Teleport clusters.
+## Step 6/6. Configure Proxy Peering:
+In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
+resources to proxies in the Teleport Cluster.
+ 
+### Auth Service Proxy Peering configuration 
+
+The Teleport Auth Service must be configured to use the `proxy_peering` tunnel strategy as shown in the example below:
+The Teleport proxy pod replica count should always be 2 per cluster all times in the active region. The default configuration of two proxy replicas 
+in each active region of Teleport is, in part, a recommendation for high availability ensuring uninterrupted access. Having more than one proxy also 
+allows for load to be distributed across multiple proxies, reducing the risk of a single point of failure and increasing the system's resilience to 
+outages.
+- To enable proxy peering using Helm chart, we should make slight modifications to the `teleportConfig` section within proxy 
+  configuration of your Teleport Helm chart.
+- In the teleportConfig section, you can customize the Teleport configuration for proxy pods. To set up proxy peering, you would 
+  insert the `auth_service` section and define the `tunnel_strategy` within that:
+ ## yaml
+  ```
+  proxy:
+    teleportConfig:
+      auth_service:
+        tunnel_strategy:
+          type: proxy_peering
+          agent_connection_count: 2
+  ```
+  - In the above snippet, the `type` is set to `proxy_peering` and `agent_connection_count` is set to `2`. The `agent_connection_count` 
+    indicates how many Teleport Proxy instances agents are required to connect to. You might want to set this to a value more than `1` for 
+    higher availability. Remember to look at these changes to your Helm chart accordingly.
+  - Just note that the Teleport Helm chart generates its own configuration, but anything you provide in `teleportConfig` will merge with, 
+    and take precedence over, the auto-generated config. Be aware that it can potentially lead to conflicts if not done carefully.
+
+Reference the [Auth Server configuration](../../reference/config.mdx#auth-service) reference page 
+for additional settings.
+
+<Notice type="warning">
+
+The Teleport Kubernetes Operator must run in the same Kubernetes cluster and namespace if running multiple replicas.
+It is not possible to enable the Kubernetes operator in the secondary region as it will cause instability in the cluster. 
+
+</Notice>
+
+
