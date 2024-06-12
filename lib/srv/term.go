@@ -231,8 +231,7 @@ func (t *terminal) Run(ctx context.Context) error {
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.cmd.Wait()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := err.(*exec.ExitError); ok {
 			status := exitErr.Sys().(syscall.WaitStatus)
 			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
 		}
@@ -595,8 +594,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 
 	err = t.session.Wait()
 	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := err.(*ssh.ExitError); ok {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
 				Command: execRequest.GetCommand(),
@@ -651,6 +649,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -658,12 +657,8 @@ func (t *remoteTerminal) Close() error {
 		return trace.Wrap(err)
 	}
 
-	// Wait for parties to be relased after closing the remote session. This
-	// avoid cases where the parties are blocked, reading from the remote
-	// session.
-	t.wg.Wait()
-
 	t.log.Debugf("Closed remote terminal and underlying SSH session")
+
 	return nil
 }
 

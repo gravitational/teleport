@@ -1,0 +1,13 @@
+[Unit]
+Description=Teleport Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+User=ubuntu
+LimitNOFILE=524288
+ExecStart=/home/ubuntu/go/src/github.com/gravitational/teleport/build/teleport start --config=/etc/teleport/teleport.yaml -d --diag-addr=127.0.0.1:3000
+
+[Install]
+WantedBy=multi-user.target

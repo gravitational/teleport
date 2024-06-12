@@ -37,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/integrations/terraform/provider"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-
-	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
 
 //go:embed fixtures/*
@@ -164,8 +163,6 @@ func (s *TerraformBaseSuite) SetupSuite() {
 }
 
 func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, outputPath string) {
-	s.T().Helper()
-
 	key, err := libclient.GenerateRSAKey()
 	require.NoError(s.T(), err)
 
@@ -202,7 +199,6 @@ func (s *TerraformBaseSuite) SetupTest() {
 }
 
 func (s *TerraformBaseSuite) closeClient() {
-	s.T().Helper()
 	p, ok := s.terraformProvider.(*provider.Provider)
 	require.True(s.T(), ok)
 	if p != nil && p.Client != nil {

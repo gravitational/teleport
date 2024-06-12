@@ -19,10 +19,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import { AddBotsPicker } from './AddBotsPicker';
 
 export default {
@@ -30,13 +26,9 @@ export default {
 };
 
 export const Picker = () => {
-  const ctx = createTeleportContext();
-
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <AddBotsPicker />
-      </ContextProvider>
+      <AddBotsPicker />
     </MemoryRouter>
   );
 };

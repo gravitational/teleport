@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -201,11 +200,9 @@ type TerminalHandlerConfig struct {
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	// Make sure whatever session is requested is a valid session id.
-	if !t.SessionData.ID.IsZero() {
-		_, err := session.ParseID(t.SessionData.ID.String())
-		if err != nil {
-			return trace.BadParameter("sid: invalid session id")
-		}
+	_, err := session.ParseID(t.SessionData.ID.String())
+	if err != nil {
+		return trace.BadParameter("sid: invalid session id")
 	}
 
 	if t.SessionData.Login == "" {
@@ -351,7 +348,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.handler(ws, r)
 }
 
-func (t *TerminalHandler) writeSessionData() error {
+func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
 	envelope := &terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
@@ -788,6 +785,10 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
+	if err := t.writeSessionData(ctx); err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
+	}
+
 	var beforeStart func(io.Writer)
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
@@ -808,47 +809,9 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		}
 	}()
 
-	sessionDataSent := make(chan struct{})
-	// If we are joining a session, send the session data right away, we
-	// know the session ID
-	if t.tracker != nil {
-		if err := t.writeSessionData(); err != nil {
-			t.log.WithError(err).Warn("Failure sending session data")
-		}
-		close(sessionDataSent)
-	} else {
-		// We are creating a new session and the server will generate a
-		// new session ID, send the session data once the session is
-		// created and the server sends us the session ID it is using
-		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
-		defer writeSessionCancel()
-		waitForSessionID := prepareToReceiveSessionID(writeSessionCtx, t.log, nc)
-
-		// wait in a new goroutine because the server won't set a
-		// session ID until we open a shell
-		go func() {
-			defer close(sessionDataSent)
-
-			sid, status := waitForSessionID()
-			switch status {
-			case sessionIDReceived:
-				t.sessionData.ID = sid
-				fallthrough
-			case sessionIDNotModified:
-				if err := t.writeSessionData(); err != nil {
-					t.log.WithError(err).Warn("Failure sending session data")
-				}
-			case sessionIDNotSent:
-				t.log.Warn("Failed to receive session data")
-			default:
-				t.log.Warnf("Invalid session ID status %v", status)
-			}
-		}()
-	}
-
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, nil, beforeStart); err != nil {
+	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
 		if !t.closedByClient.Load() {
 			t.stream.WriteError(err.Error())
 		}
@@ -858,9 +821,6 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.closedByClient.Load() {
 		return
 	}
-
-	// Wait for the session data to be sent before closing the session
-	<-sessionDataSent
 
 	// Send close envelope to web terminal upon exit without an error.
 	if err := t.stream.SendCloseMessage(t.sessionData.ServerID); err != nil {
@@ -950,23 +910,6 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 	nc.ProxyPublicAddr = t.proxyPublicAddr
 
 	return nc, nil
-}
-
-// sendError sends an error message to the client using the provided websocket.
-func (t *sshBaseHandler) sendError(errMsg string, err error, ws terminal.WSConn) {
-	envelope := &terminal.Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketError,
-		Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
-	}
-
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		t.log.WithError(err).Error("failed to marshal error message")
-	}
-	if err := ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-		t.log.WithError(err).Error("failed to send error message")
-	}
 }
 
 // streamEvents receives events over the SSH connection and forwards them to

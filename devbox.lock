@@ -197,26 +197,6 @@
       "source": "devbox-search",
       "version": "0.9.0"
     },
-    "wasm-bindgen-cli@latest": {
-      "last_modified": "2024-01-14T03:55:27Z",
-      "resolved": "github:NixOS/nixpkgs/dd5621df6dcb90122b50da5ec31c411a0de3e538#wasm-bindgen-cli",
-      "source": "devbox-search",
-      "version": "0.2.89",
-      "systems": {
-        "aarch64-darwin": {
-          "store_path": "/nix/store/vy4rp4yw7357rdgakld1fncvnrl6ddp8-wasm-bindgen-cli-0.2.89"
-        },
-        "aarch64-linux": {
-          "store_path": "/nix/store/9fz6p3r68d3svs92cf43vxiyrg5q6rw6-wasm-bindgen-cli-0.2.89"
-        },
-        "x86_64-darwin": {
-          "store_path": "/nix/store/axl4ccnl5zzhsbjr1jcjm9640yxda38x-wasm-bindgen-cli-0.2.89"
-        },
-        "x86_64-linux": {
-          "store_path": "/nix/store/sam7m4x114khfcx7sf0ivicdjgcn1qvr-wasm-bindgen-cli-0.2.89"
-        }
-      }
-    },
     "wasm-pack@latest": {
       "last_modified": "2023-12-13T22:54:10Z",
       "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#wasm-pack",

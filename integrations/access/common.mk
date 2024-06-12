@@ -19,11 +19,10 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 DOCKER_VERSION = $(subst +,_,$(VERSION))
 DOCKER_NAME = teleport-plugin-$(ACCESS_PLUGIN)
 DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
-DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
-DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
+DOCKER_IMAGE = $(DOCKER_PRIVATE_REGISTRY)/gravitational/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
+DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)" --build-arg ACCESS_PLUGIN=$(ACCESS_PLUGIN) --build-arg VERSION=$(VERSION) --build-arg BUILDBOX=$(BUILDBOX)
 # In staging
 # DOCKER_PRIVATE_REGISTRY = 603330915152.dkr.ecr.us-west-2.amazonaws.com
 # DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
@@ -44,7 +43,7 @@ clean:
 	rm -rf *.gz
 
 .PHONY: release
-release: $(BINARY)
+release: clean $(BINARY)
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir build/$(RELEASE_NAME)
 	cp -rf $(BINARY) \
@@ -57,9 +56,8 @@ release: $(BINARY)
 	@echo "---> Created build/$(RELEASE).tar.gz."
 
 .PHONY: docker-build
-docker-build: OS = linux
-docker-build: release ## Build docker image with the plugin.
-	docker buildx build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ../Dockerfile ./build
+docker-build: ## Build docker image with the plugin.
+	docker buildx build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ../Dockerfile ../../..
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the plugin.

@@ -75,7 +75,7 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 	lp, err := alpnproxy.NewLocalProxy(
 		localProxyConfig,
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(a.cfg.Protocol)),
-		alpnproxy.WithClientCert(a.cfg.Cert),
+		alpnproxy.WithClientCerts(a.cfg.Cert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.closeContext, a.cfg.RootClusterCACertPoolFunc),
 		alpnproxy.WithMiddleware(middleware),
 	)

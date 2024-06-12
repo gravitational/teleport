@@ -38,7 +38,7 @@ func TestAppPublicAddrValidation(t *testing.T) {
 	}
 	hasErrTypeBadParameter := func() check {
 		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err))
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		}
 	}
 
@@ -303,6 +303,7 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{
 				Name:        "myapp",
 				Description: "my fancy app",
+				ID:          123,
 			},
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
@@ -312,6 +313,7 @@ func TestNewAppV3(t *testing.T) {
 					Name:        "myapp",
 					Namespace:   "default",
 					Description: "my fancy app",
+					ID:          123,
 				}, Spec: AppSpecV3{URI: "example.com"},
 			},
 			wantErr: require.NoError,
@@ -321,6 +323,7 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{
 				Name:        "myapp",
 				Description: "my fancy app",
+				ID:          123,
 			},
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
@@ -330,6 +333,7 @@ func TestNewAppV3(t *testing.T) {
 					Name:        "myapp",
 					Namespace:   "default",
 					Description: "my fancy app",
+					ID:          123,
 				},
 				Spec: AppSpecV3{URI: "example.com"},
 			},

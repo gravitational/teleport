@@ -44,6 +44,9 @@ import (
 // Keygen is a key generator that precomputes keys to provide quick access to
 // public/private key pairs.
 type Keygen struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// clock is used to control time.
 	clock clockwork.Clock
 }
@@ -59,9 +62,12 @@ func SetClock(clock clockwork.Clock) Option {
 }
 
 // New returns a new key generator.
-func New(_ context.Context, opts ...Option) *Keygen {
+func New(ctx context.Context, opts ...Option) *Keygen {
+	ctx, cancel := context.WithCancel(ctx)
 	k := &Keygen{
-		clock: clockwork.NewRealClock(),
+		ctx:    ctx,
+		cancel: cancel,
+		clock:  clockwork.NewRealClock(),
 	}
 	for _, opt := range opts {
 		opt(k)
@@ -70,7 +76,13 @@ func New(_ context.Context, opts ...Option) *Keygen {
 	return k
 }
 
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute.
+// Close stops the precomputation of keys (if enabled) and releases all resources.
+func (k *Keygen) Close() {
+	k.cancel()
+}
+
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
+// execute.
 func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
 	return native.GenerateKeyPair()
 }

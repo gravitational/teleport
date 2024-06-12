@@ -9,11 +9,11 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.5.0"
+bitflags = "2.4.2"
 boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 byteorder = "1.5.0"
-bytes = "1.6.0"
-env_logger = "0.11.3"
+bytes = "1.4.0"
+env_logger = "0.10.1"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
 ironrdp-pdu.workspace = true
@@ -26,22 +26,22 @@ ironrdp-displaycontrol.workspace = true
 ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
-iso7816-tlv = "0.4.4"
-log = "0.4.21"
-parking_lot = "0.12.3"
+iso7816-tlv = "0.4.3"
+log = "0.4.20"
+parking_lot = "0.12.1"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
 sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
-tokio = { version = "1.38", features = ["full"] }
+tokio = { version = "1.36", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.8.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.10.1"
+tempfile = "3.9.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]

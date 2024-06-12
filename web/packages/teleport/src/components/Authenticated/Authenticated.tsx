@@ -58,10 +58,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
       }
 
       try {
-        const result = await session.validateCookieAndSession();
-        if (result.hasDeviceExtensions) {
-          session.setIsDeviceTrusted();
-        }
+        await session.validateCookieAndSession();
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {

@@ -15,7 +15,7 @@ GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 BUILDDIR ?= build
 BINARY = $(BUILDDIR)/teleport-event-handler
 
-GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
+GITREF ?= $(shell git describe --dirty --long --tags --match '*event-handler*')
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
@@ -30,11 +30,10 @@ IDENTITY_FILE=example/keys/identity
 DOCKER_VERSION = $(subst +,_,$(VERSION))
 DOCKER_NAME=teleport-plugin-event-handler
 DOCKER_PRIVATE_REGISTRY = 146628656107.dkr.ecr.us-west-2.amazonaws.com
-DOCKER_IMAGE_BASE = $(DOCKER_PRIVATE_REGISTRY)/gravitational
-DOCKER_IMAGE = $(DOCKER_IMAGE_BASE)/$(DOCKER_NAME):$(DOCKER_VERSION)
+DOCKER_IMAGE = $(DOCKER_PRIVATE_REGISTRY)/gravitational/$(DOCKER_NAME):$(DOCKER_VERSION)
 DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational
 DOCKER_IMAGE_ECR_PUBLIC = $(DOCKER_ECR_PUBLIC_REGISTRY)/$(DOCKER_NAME):$(DOCKER_VERSION)
-DOCKER_BUILD_ARGS = --load --platform="$(OS)/$(ARCH)"
+DOCKER_BUILD_ARGS = --build-arg GO_VERSION=${GO_VERSION} --build-arg GITREF=$(GITREF) --build-arg VERSION=$(VERSION) --build-arg VERSION=$(VERSION) --load --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX)
 RELEASE_NAME = teleport-event-handler
 RELEASE = $(RELEASE_NAME)-v$(VERSION)-$(OS)-$(ARCH)-bin
 RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
@@ -43,7 +42,7 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 # DOCKER_ECR_PUBLIC_REGISTRY = public.ecr.aws/gravitational-staging
 
 .PHONY: build
-build:
+build: clean
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
 
 .PHONY: release
@@ -58,16 +57,15 @@ release: build
 	tar -czf $(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf $(RELEASE_NAME)/
 	@echo "---> Created $(RELEASE).tar.gz."
-  
+
 
 .PHONY: clean
 clean:
 	go clean
 
 .PHONY: docker-build
-docker-build: OS = linux
-docker-build: release ## Build docker image with the plugin.
-	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile .
+docker-build: ## Build docker image with the plugin.
+	docker build ${DOCKER_BUILD_ARGS} -t ${DOCKER_IMAGE} -f ./Dockerfile ../..
 
 .PHONY: docker-push
 docker-push:
@@ -96,7 +94,7 @@ configure: build
 
 .PHONY: fluentd
 fluentd:
-	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge 
+	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 
 .PHONY: example
 example: build

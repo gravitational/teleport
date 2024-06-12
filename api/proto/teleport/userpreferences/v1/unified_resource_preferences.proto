@@ -26,8 +26,6 @@ message UnifiedResourcePreferences {
   ViewMode view_mode = 2;
   // labels_view_mode is whether the labels for resources should all be collapsed or expanded in the unified resource Web UI list view.
   LabelsViewMode labels_view_mode = 3;
-  // available_resource_mode specifies which option in the availability filter menu the user has selected, if any
-  AvailableResourceMode available_resource_mode = 4;
 }
 
 // DefaultTab is the default tab selected in the unified resource web UI
@@ -55,13 +53,4 @@ enum LabelsViewMode {
   LABELS_VIEW_MODE_EXPANDED = 1;
   // COLLAPSED is the collapsed state which hides all labels for every resource.
   LABELS_VIEW_MODE_COLLAPSED = 2;
-}
-
-/** AvailableResourceMode specifies which option in the availability filter menu the user has selected, if any */
-enum AvailableResourceMode {
-  AVAILABLE_RESOURCE_MODE_UNSPECIFIED = 0;
-  AVAILABLE_RESOURCE_MODE_ALL = 1;
-  AVAILABLE_RESOURCE_MODE_ACCESSIBLE = 2;
-  AVAILABLE_RESOURCE_MODE_REQUESTABLE = 3;
-  AVAILABLE_RESOURCE_MODE_NONE = 4;
 }

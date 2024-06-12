@@ -144,6 +144,7 @@
     "dockerized",
     "Doyensec",
     "dpkg",
+    "dronegen",
     "Dtmfa",
     "dynamodbattribute",
     "eastus",
@@ -569,6 +570,7 @@
     "subselection",
     "subselects",
     "subtests",
+    "succesfully",
     "suchinformation",
     "sudoer",
     "sudoersfile",
@@ -692,6 +694,9 @@
     "Yubikeys",
     "Zdunek",
     "Zilla"
+    
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

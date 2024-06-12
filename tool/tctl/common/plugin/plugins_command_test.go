@@ -37,8 +37,6 @@ import (
 )
 
 func TestPluginsInstallOkta(t *testing.T) {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-
 	testCases := []struct {
 		name                     string
 		cmd                      PluginsCommand
@@ -235,8 +233,8 @@ func TestPluginsInstallOkta(t *testing.T) {
 					},
 				},
 			},
-			expectPing:               true,
 			expectSAMLConnectorQuery: "teleport-saml-connector-id",
+			expectPing:               true,
 			expectRequest: &pluginsv1.CreatePluginRequest{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,

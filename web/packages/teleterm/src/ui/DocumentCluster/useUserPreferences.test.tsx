@@ -19,7 +19,6 @@
 import { renderHook, act } from '@testing-library/react';
 
 import {
-  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   ViewMode,
@@ -45,7 +44,6 @@ const preferences: UserPreferences = {
     viewMode: ViewMode.CARD,
     defaultTab: DefaultTab.ALL,
     labelsViewMode: LabelsViewMode.COLLAPSED,
-    availableResourceMode: AvailableResourceMode.ACCESSIBLE,
   },
 };
 
@@ -163,7 +161,6 @@ describe('updating preferences', () => {
         viewMode: ViewMode.LIST,
         defaultTab: DefaultTab.PINNED,
         labelsViewMode: LabelsViewMode.COLLAPSED,
-        availableResourceMode: AvailableResourceMode.ACCESSIBLE,
       },
     };
 
@@ -232,7 +229,6 @@ describe('updating preferences', () => {
         viewMode: ViewMode.LIST,
         defaultTab: DefaultTab.PINNED,
         labelsViewMode: LabelsViewMode.COLLAPSED,
-        availableResourceMode: AvailableResourceMode.ACCESSIBLE,
       },
     };
 
@@ -267,7 +263,6 @@ describe('updating preferences', () => {
             viewMode: ViewMode.CARD,
             defaultTab: DefaultTab.PINNED,
             labelsViewMode: LabelsViewMode.COLLAPSED,
-            availableResourceMode: AvailableResourceMode.ACCESSIBLE,
           },
         },
       })

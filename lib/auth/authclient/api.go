@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -119,7 +118,7 @@ type ReadNodeAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -177,7 +176,7 @@ type ReadProxyAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -249,10 +248,10 @@ type ReadProxyAccessPoint interface {
 	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -344,7 +343,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -392,10 +391,10 @@ type ReadRemoteProxyAccessPoint interface {
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -435,7 +434,7 @@ type ReadKubernetesAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -511,7 +510,7 @@ type ReadAppsAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -578,7 +577,7 @@ type ReadDatabaseAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -645,7 +644,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -917,7 +916,7 @@ type AccessCache interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -945,7 +944,7 @@ type Cache interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -984,7 +983,10 @@ type Cache interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+
+	// ListUsersExt is equivalent to ListUsers but supports additional parameters.
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -1029,10 +1031,10 @@ type Cache interface {
 	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -1151,17 +1153,8 @@ type Cache interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
-	// ListCrownJewels returns a paginated list of crown jewels.
-	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
-
-	// GetCrownJewel returns the specified crown jewel.
-	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
-
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
-
-	// NotificationGetter defines list methods for notifications.
-	services.NotificationGetter
 
 	// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
@@ -1169,9 +1162,6 @@ type Cache interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 	// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
-
-	// DatabaseObjectsGetter defines methods for fetching database objects.
-	services.DatabaseObjectsGetter
 }
 
 type NodeWrapper struct {

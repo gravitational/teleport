@@ -49,7 +49,7 @@ const (
 var (
 	// cmpOpts are general cmpOpts for all comparisons across the service tests.
 	cmpOpts = []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		cmpopts.SortSlices(func(a, b *userloginstate.UserLoginState) bool {
 			return a.GetName() < b.GetName()
 		}),

@@ -138,7 +138,13 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
+	// DELETE IN 17.0
+	// Kept for legacy app access.
+	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
+	// DELETE IN 17.0
+	// when deleting, replace with the commented handler below:
+	//   h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 

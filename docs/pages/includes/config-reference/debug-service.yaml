@@ -1,3 +1,0 @@
-# These settings apply to the Debug service:
-debug_service:
-    enabled: true

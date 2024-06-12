@@ -30,7 +30,7 @@ jobs:
       - name: Get Go version
         id: go-version
         shell: bash
-        run: echo "go-version=$(make -s print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
+        run: echo "go-version=$(make --no-print-directory print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
 
       - name: Setup Go
         uses: actions/setup-go@v5

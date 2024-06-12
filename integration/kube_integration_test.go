@@ -32,14 +32,10 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -87,8 +82,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 type KubeSuite struct {
@@ -193,7 +186,6 @@ func TestKube(t *testing.T) {
 	// be able to exec into a pod
 	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
 	t.Run("EphemeralContainers", suite.bind(testKubeEphemeralContainers))
-	t.Run("ExecInWeb", suite.bind(testKubeExecWeb))
 }
 
 func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
@@ -691,7 +683,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
-		tc, err := main.Process.GetAuthServer().GetRemoteCluster(ctx, aux.Secrets.SiteName)
+		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
 		if err != nil {
 			return false
 		}
@@ -969,7 +961,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
-		tc, err := main.Process.GetAuthServer().GetRemoteCluster(ctx, aux.Secrets.SiteName)
+		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
 		if err != nil {
 			return false
 		}
@@ -1619,199 +1611,6 @@ func getContainerStatusByName(pod *v1.Pod, containerName string) *v1.ContainerSt
 		}
 	}
 	return nil
-}
-
-func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
-	clusterName := "cluster"
-	kubeClusterName := "cluster"
-	clusterConf := suite.teleKubeConfig(Host)
-	clusterConf.Auth.Preference.SetSecondFactor("off") // So we can do web login.
-
-	cluster := helpers.NewInstance(t, helpers.InstanceConfig{
-		ClusterName: clusterName,
-		HostID:      helpers.HostID,
-		NodeName:    Host,
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		Log:         suite.log,
-	})
-
-	// Setup user and role.
-	testUser := suite.me.Username
-	kubeGroups := []string{kube.TestImpersonationGroup}
-	kubeUsers := []string{testUser}
-	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins:     []string{testUser},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
-			KubernetesLabels: types.Labels{
-				types.Wildcard: {types.Wildcard},
-			},
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	cluster.AddUserWithRole(testUser, role)
-
-	err = cluster.CreateEx(t, nil, clusterConf)
-	require.NoError(t, err)
-
-	// Start the cluster.
-	err = cluster.Start()
-	require.NoError(t, err)
-	defer cluster.StopAll()
-
-	proxyAddr, err := cluster.Process.ProxyWebAddr()
-	require.NoError(t, err)
-
-	auth := cluster.Process.GetAuthServer()
-
-	userPassword := uuid.NewString()
-	require.NoError(t, auth.UpsertPassword(testUser, []byte(userPassword)))
-
-	// Login and run the tests.
-	webPack := helpers.LoginWebClient(t, proxyAddr.String(), testUser, userPassword)
-	endpoint := "sites/$site/kube/exec/ws"
-
-	openWebsocketAndReadSession := func(t *testing.T, endpoint string, req web.PodExecRequest) *websocket.Conn {
-		termSize := struct {
-			Term session.TerminalParams `json:"term"`
-		}{
-			Term: session.TerminalParams{W: req.Term.W, H: req.Term.H},
-		}
-		ws, resp, err := webPack.OpenWebsocket(t, endpoint, termSize)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-
-		data, err := json.Marshal(req)
-		require.NoError(t, err)
-
-		reqEnvelope := &terminal.Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketKubeExec,
-			Payload: string(data),
-		}
-
-		envelopeBytes, err := proto.Marshal(reqEnvelope)
-		require.NoError(t, err)
-
-		err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-		require.NoError(t, err)
-
-		_, data, err = ws.ReadMessage()
-		require.NoError(t, err)
-		require.Equal(t, `{"type":"create_session_response","status":"ok"}`+"\n", string(data))
-
-		execSocket := executionWebsocketReader{ws}
-
-		// First message: session metadata
-		sessionEnvelope, err := execSocket.Read()
-		require.NoError(t, err)
-		var sessionMetadata sessionMetadataResponse
-		require.NoError(t, json.Unmarshal([]byte(sessionEnvelope.Payload), &sessionMetadata))
-
-		return ws
-	}
-
-	findTextInReader := func(t *testing.T, reader ReaderWithDeadline, text string, timeout time.Duration) {
-		// Make sure we don't wait forever on a read.
-		err := reader.SetReadDeadline(time.Now().Add(timeout))
-		require.NoError(t, err)
-
-		readData := make([]byte, 255)
-		accum := make([]byte, 0, 255)
-		for {
-			n, err := reader.Read(readData)
-			require.NoError(t, err)
-
-			accum = append(accum, readData[:n]...)
-
-			if strings.Contains(string(accum), text) {
-				break
-			}
-		}
-	}
-
-	t.Run("Non-interactive", func(t *testing.T) {
-		req := web.PodExecRequest{
-			KubeCluster: kubeClusterName,
-			Namespace:   testNamespace,
-			Pod:         testPod,
-			Command:     "/bin/cat /var/run/secrets/kubernetes.io/serviceaccount/namespace",
-			Term:        session.TerminalParams{W: 80, H: 24},
-		}
-
-		ws := openWebsocketAndReadSession(t, endpoint, req)
-
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
-
-		// Check for the expected string in the output.
-		findTextInReader(t, wsStream, testNamespace, time.Second*2)
-
-		err = ws.Close()
-		require.NoError(t, err)
-	})
-
-	t.Run("Interactive", func(t *testing.T) {
-		req := web.PodExecRequest{
-			KubeCluster:   kubeClusterName,
-			Namespace:     testNamespace,
-			Pod:           testPod,
-			Command:       "/bin/sh",
-			IsInteractive: true,
-			Term:          session.TerminalParams{W: 80, H: 24},
-		}
-
-		ws := openWebsocketAndReadSession(t, endpoint, req)
-
-		wsStream := terminal.NewWStream(context.Background(), ws, suite.log, nil)
-
-		// Read first prompt from the server.
-		readData := make([]byte, 255)
-		_, err = wsStream.Read(readData)
-		require.NoError(t, err)
-
-		// Send our command.
-		_, err = wsStream.Write([]byte("/bin/cat /var/run/secrets/kubernetes.io/serviceaccount/namespace\n"))
-		require.NoError(t, err)
-
-		// Check for the expected string in the output.
-		findTextInReader(t, wsStream, testNamespace, time.Second*2)
-
-		err = ws.Close()
-		require.NoError(t, err)
-	})
-
-}
-
-type ReaderWithDeadline interface {
-	io.Reader
-	SetReadDeadline(time.Time) error
-}
-
-// Small helper that wraps a websocket and unmarshalls messages as Teleport
-// websocket ones.
-type executionWebsocketReader struct {
-	*websocket.Conn
-}
-
-func (r executionWebsocketReader) Read() (terminal.Envelope, error) {
-	_, data, err := r.ReadMessage()
-	if err != nil {
-		return terminal.Envelope{}, trace.Wrap(err)
-	}
-	var envelope terminal.Envelope
-	return envelope, trace.Wrap(proto.Unmarshal(data, &envelope))
-}
-
-// This is used for unmarshalling
-type sessionMetadataResponse struct {
-	Session session.Session `json:"session"`
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on

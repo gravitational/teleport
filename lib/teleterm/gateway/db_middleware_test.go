@@ -108,9 +108,9 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 			hasCalledOnExpiredCert := false
 
 			middleware := &dbMiddleware{
-				onExpiredCert: func(context.Context) (tls.Certificate, error) {
+				onExpiredCert: func(context.Context) error {
 					hasCalledOnExpiredCert = true
-					return tls.Certificate{}, nil
+					return nil
 				},
 				log:     logrus.WithField(teleport.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,
@@ -124,9 +124,9 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			localProxy.SetCert(tlsCert)
+			localProxy.SetCerts([]tls.Certificate{tlsCert})
 
-			err = middleware.OnNewConnection(ctx, localProxy)
+			err = middleware.OnNewConnection(ctx, localProxy, nil /* net.Conn, not used by middleware */)
 			tt.expectation(t, err, hasCalledOnExpiredCert)
 		})
 	}

@@ -373,6 +373,9 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (types.Semaphore, e
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		semaphore.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		semaphore.SetRevision(cfg.Revision)
 	}
@@ -395,7 +398,7 @@ func MarshalSemaphore(semaphore types.Semaphore, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, semaphore))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, semaphore))
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", semaphore)
 	}

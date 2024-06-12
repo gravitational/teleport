@@ -123,6 +123,16 @@ func (u *UserTokenV3) GetKind() string {
 	return u.Kind
 }
 
+// GetResourceID returns resource ID
+func (u *UserTokenV3) GetResourceID() int64 {
+	return u.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (u *UserTokenV3) SetResourceID(id int64) {
+	u.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (u *UserTokenV3) GetRevision() string {
 	return u.Metadata.GetRevision()

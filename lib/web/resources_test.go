@@ -334,7 +334,7 @@ func TestRoleCRUD(t *testing.T) {
 	require.NoError(t, err, "creating initial role resource")
 
 	createPayload := func(r types.Role) ui.ResourceItem {
-		raw, err := services.MarshalRole(r, services.PreserveRevision())
+		raw, err := services.MarshalRole(r, services.PreserveResourceID())
 		require.NoError(t, err, "marshaling role")
 
 		return ui.ResourceItem{
@@ -375,7 +375,7 @@ func TestRoleCRUD(t *testing.T) {
 	updated := unmarshalResponse(resp.Bytes())
 
 	require.Empty(t, cmp.Diff(created, updated,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 		cmpopts.IgnoreFields(types.RoleConditions{}, "Namespaces"),
 	))
 	require.NotEqual(t, expected.GetLogins(types.Allow), updated.GetLogins(types.Allow), "expected update to modify the logins")

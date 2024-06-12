@@ -100,6 +100,7 @@ required for your particular use case.
 </TabItem>
 </Tabs>
 </TabItem>
+
 </Tabs>
 
 ### Teleport Connect
@@ -180,6 +181,15 @@ button will open a new tab with a terminal emulator to provide access to that se
 </TabItem>
 </Tabs>
 
+### Transferring files (`scp`)
+
+`tsh scp` will let you transfer files to servers behind Teleport:
+
+```code
+$ tsh scp some-file.ext server.example.com:
+some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
+```
+
 ### Kubernetes access (`kubectl`)
 
 <Tabs>
@@ -236,42 +246,6 @@ via Teleport.
 
 ![Connect to a Kubernetes
 cluster](../../img/use-teleport/kubernetes-login.png)
-
-</TabItem>
-</Tabs>
-
-### Transferring files
-
-<Tabs>
-<TabItem label="tsh scp">
-
-`tsh scp` will let you transfer files to servers behind Teleport:
-
-```code
-$ tsh scp some-file.ext server.example.com:
-some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
-```
-</TabItem>
-<TabItem label="Teleport Connect">
-
-Teleport Connect allows you to transfer files to a remote server and runs on MacOS, Linux and Windows. You can use the arrows in the top-left corner of an active SSH session to upload and download files:
-
-![Download with connect](../../img/download_files_connect.png)
-
-You can upload files from systems using drag and drop:
-
-![Drag and drop in Connect](../../img/upload_files_connect_drag_drop.png)
-
-</TabItem>
-<TabItem label="Web UI">
-
-You can use the arrows in the top-left corner of the Web UI to download files:
-
-![Arrows in Web UI](../../img/download_files_webui.png)
-
-Or you can upload using drag and drop:
-
-![Upload in Web UI](../../img/upload_files_webui.png)
 
 </TabItem>
 </Tabs>

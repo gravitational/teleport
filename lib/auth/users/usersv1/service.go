@@ -43,8 +43,8 @@ import (
 type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	// ListUsersExt returns a page of users.
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -562,6 +562,6 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		}
 	}
 
-	rsp, err := s.cache.ListUsers(ctx, req)
+	rsp, err := s.cache.ListUsersExt(ctx, req)
 	return rsp, trace.Wrap(err)
 }

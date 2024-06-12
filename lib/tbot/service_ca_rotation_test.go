@@ -300,9 +300,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 	client, teleportProcess, fc := setupServerForCARotationTest(ctx, log, t, wg)
 
 	// Make and join a new bot instance.
-	botParams, _ := testhelpers.MakeBot(
-		t, client, "test", "access",
-	)
+	botParams, _ := testhelpers.MakeBot(t, client, "test", "access")
 	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, nil,
 		testhelpers.DefaultBotConfigOpts{
 			UseAuthServer: true,

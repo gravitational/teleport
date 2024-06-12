@@ -39,8 +39,8 @@ var AllPluginTypes = []PluginType{
 	PluginTypePagerDuty,
 	PluginTypeMattermost,
 	PluginTypeDiscord,
-	PluginTypeEntraID,
 	PluginTypeSCIM,
+	PluginTypeEntraID,
 }
 
 const (
@@ -68,10 +68,10 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
-	// PluginTypeEntraID indicates the Entra ID sync plugin
-	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeEntraID indicates the Entra ID sync plugin
+	PluginTypeEntraID = "entra-id"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -101,7 +101,6 @@ type Plugin interface {
 	GetType() PluginType
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
-	GetGeneration() string
 }
 
 // PluginCredentials are the credentials embedded in Plugin
@@ -303,18 +302,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
 		}
-	case *PluginSpecV1_EntraId:
-		if settings.EntraId == nil {
-			return trace.BadParameter("missing Entra ID settings")
-		}
-		if err := settings.EntraId.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
 		}
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_EntraId:
+		if settings.EntraId == nil {
+			return trace.BadParameter("missing Entra ID settings")
+		}
+		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -363,6 +362,16 @@ func (p *PluginV1) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (p *PluginV1) SetSubKind(s string) {
 	p.SubKind = s
+}
+
+// GetResourceID returns resource ID
+func (p *PluginV1) GetResourceID() int64 {
+	return p.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (p *PluginV1) SetResourceID(id int64) {
+	p.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -442,11 +451,6 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 	return nil
 }
 
-// GetGeneration returns the plugin generation.
-func (p *PluginV1) GetGeneration() string {
-	return p.Spec.Generation
-}
-
 // GetType implements Plugin
 func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
@@ -472,11 +476,10 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
-	case *PluginSpecV1_EntraId:
-		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-
+	case *PluginSpecV1_EntraId:
+		return PluginTypeEntraID
 	default:
 		return PluginTypeUnknown
 	}
@@ -627,6 +630,19 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
+	if c.DefaultRole == "" {
+		return trace.BadParameter("default_role must be set")
+	}
+
+	if c.SamlConnectorName == "" {
+		return trace.BadParameter("saml_connector_name must be set")
+
+	}
+
+	return nil
+}
+
 func (c *PluginEntraIDSettings) Validate() error {
 	if c.SyncSettings == nil {
 		return trace.BadParameter("sync_settings must be set")
@@ -636,18 +652,6 @@ func (c *PluginEntraIDSettings) Validate() error {
 	}
 	if c.SyncSettings.SsoConnectorId == "" {
 		return trace.BadParameter("sync_settings.sso_connector_id must be set")
-	}
-
-	return nil
-}
-
-func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
-	if c.SamlConnectorName == "" {
-		return trace.BadParameter("saml_connector_name must be set")
 	}
 
 	return nil

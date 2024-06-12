@@ -128,13 +128,14 @@ func exportSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	defer proxyClient.Close()
 
-	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0)
+	site := proxyClient.CurrentCluster()
+	evts, errs := site.StreamSessionEvents(cf.Context, *sid, 0)
 
 	var exporter sessionExporter
 	switch format {
@@ -150,9 +151,9 @@ func exportSession(cf *CLIConf) error {
 
 	for {
 		select {
-		case err := <-errC:
+		case err := <-errs:
 			return trace.Wrap(err)
-		case event, ok := <-eventC:
+		case event, ok := <-evts:
 			if !ok {
 				return nil
 			}

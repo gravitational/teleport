@@ -46,6 +46,7 @@ lint:
       - proto/teleport/lib/teleterm/v1/label.proto
       - proto/teleport/lib/teleterm/v1/server.proto
       - proto/teleport/lib/teleterm/v1/service.proto
+      - proto/teleport/lib/teleterm/v1/tshd_events_service.proto
       - proto/teleport/lib/teleterm/v1/usage_events.proto
     COMMENT_RPC:
       - proto/prehog

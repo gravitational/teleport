@@ -1,5 +1,5 @@
 ---
-title: Headless WebAuthn
+title: Headless WebAuthn 
 description: Headless WebAuthn
 ---
 
@@ -9,13 +9,13 @@ features which are usually not usable in WebAuthn-incompatible environments.
 For example:
 
 - Logging into Teleport with WebAuthn from a remote dev box
-- Connecting to a Teleport SSH Service from a remote dev box with per-session MFA
+- Connecting to a Teleport SSH Service from a remote dev box with per-session MFA 
 - Performing `tsh scp` from one Teleport SSH Service to another with per-session MFA
 - Logging into Teleport on a machine without a WebAuthn-compatible browser
 
 <Admonition type="note" title="Headless WebAuthn Support">
   Headless WebAuthn only supports the following `tsh` commands:
-
+  
   - `tsh ls`
   - `tsh ssh`
   - `tsh scp`
@@ -28,7 +28,7 @@ For example:
 - A v12.2+ Teleport cluster with WebAuthn configured.
   See the [Second Factor: WebAuthn](./webauthn.mdx) guide.
 - WebAuthn hardware device, such as YubiKey.
-- Machines for Headless WebAuthn activities have [Linux](../../installation.mdx#linux), [macOS](../../installation.mdx#macos) or [Windows](../../installation.mdx#windows-tsh-and-tctl-clients-only) `tsh` binary v12.2+ installed.
+- Machines for Headless WebAuthn activities have [Linux](../../installation.mdx#linux), [macOS](../../installation.mdx#macos) or [Windows](../../installation.mdx#windows-tsh-client-only) `tsh` binary v12.2+ installed.
 - Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary v12.2+ installed.
 - Optional: Teleport Connect v13.3.1+ for [seamless Headless WebAuthn approval](#optional-teleport-connect).
@@ -100,7 +100,7 @@ $ tctl create -f cap.yaml
 
 ## Step 2/3. Initiate Headless WebAuthn
 
-First open a terminal on the remote machine and confirm the `tsh` binary
+First open a terminal on the remote machine and confirm the `tsh` binary 
 is v12.2+ with `tsh version`.
 
 ```code
@@ -114,11 +114,11 @@ headless authentication, printing a URL and `tsh` command.
 ```code
 $ tsh ls --headless --proxy=proxy.example.com --user=alice
 # Complete headless authentication in your local web browser:
-#
+# 
 # https://proxy.example.com:3080/web/headless/86172f78-af7c-5935-a7c1-ed06b94f17dc
-#
+# 
 # or execute this command in your local terminal:
-#
+# 
 # tsh headless approve --user=alice --proxy=proxy.example.com 86172f78-af7c-5935-a7c1-ed06b94f17dc
 ```
 
@@ -134,17 +134,17 @@ lifetime of a single `tsh` request. This means that for each `tsh --headless`
 command, you will need to go through the Headless WebAuthn flow:
 
 ### Example: Listing SSH servers
-```code
+```code 
 $ tsh ls --headless --proxy=proxy.example.com --user=alice
 # Complete headless authentication in your local web browser:
-#
+# 
 # https://proxy.example.com:3080/web/headless/86172f78-af7c-5935-a7c1-ed06b94f17dc
-#
+# 
 # or execute this command in your local terminal:
-#
+# 
 # tsh headless approve --user=alice --proxy=proxy.example.com 86172f78-af7c-5935-a7c1-ed06b94f17dc
 # # User approves through link
-# Node Name Address        Labels
+# Node Name Address        Labels                                                                             
 # --------- -------------- -----------
 # server01  127.0.0.1:3022 arch=x86_64
 ```
@@ -153,23 +153,23 @@ $ tsh ls --headless --proxy=proxy.example.com --user=alice
 ```code
 $ tsh ssh --headless --proxy=proxy.example.com --user=alice alice@server01
 # Complete headless authentication in your local web browser:
-#
+# 
 # https://proxy.example.com:3080/web/headless/864cccd9-2425-46d9-a9f2-636387e66ebf
-#
+# 
 # or execute this command in your local terminal:
-#
+# 
 # tsh headless approve --user=alice --proxy=proxy.example.com 864cccd9-2425-46d9-a9f2-636387e66ebf
 # # User approves through link and a ssh terminal starts
 alice@server01 $
 ```
 
 <Notice type="note">
-  The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity.
+  The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity. 
   If no `--user` parameter or environment variables set the OS user in the machine terminal is used.
 
   The login username, `--login` parameter or login@hostname, for `tsh ssh` commands is the user
-  to open a SSH session as. If no login username for the SSH session is set the OS terminal username is used.
-  A Teleport user must have access to that login user for that server or they will receive
+  to open a SSH session as. If no login username for the SSH session is set the OS terminal username is used. 
+  A Teleport user must have access to that login user for that server or they will receive 
   an access denied message. The user could receive an access denied message after being approved
   for their Headless WebAuthn activity since the same access rights are granted or denied as if running from
   your local terminal.
@@ -201,7 +201,7 @@ You will be prompted to tap your MFA key to complete the approval process.
 
 When using Headless WebAuthn, `tsh` does not write private key and certificate data
 to disk(`~/.tsh`). Instead, `tsh` holds these secrets in memory for the duration of
-the request. Additionally, it will try to lock the process memory to further protect
+the request. Additionally, it will try to lock the process memory to further protect 
 the secrets from being stolen by other users on a shared machine.
 
 Below are some of the specific warning messages you may run into and how to fix them:

@@ -15,8 +15,8 @@ jobs:
         run: |
           echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
-      - uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+      - uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+      - uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-east-1
@@ -24,7 +24,7 @@ jobs:
         with:
           registry-type: public
       # Build and publish container image on ECR.
-      - uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
+      - uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           context: "examples/teleport-usage"
           tags: public.ecr.aws/gravitational/teleport-usage:${{ steps.version.outputs.version }}

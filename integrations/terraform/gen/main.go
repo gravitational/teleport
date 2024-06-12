@@ -285,10 +285,11 @@ var (
 		CreateMethod:           "UpsertToken",
 		UpdateMethod:           "UpsertToken",
 		DeleteMethod:           "DeleteToken",
-		ID:                     "provisionToken.Metadata.Revision", // must be a string
+		ID:                     "strconv.FormatInt(provisionToken.Metadata.ID, 10)", // must be a string
 		RandomMetadataName:     true,
 		Kind:                   "token",
 		HasStaticID:            false,
+		ExtraImports:           []string{"strconv"},
 		SchemaPackage:          "token",
 		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",

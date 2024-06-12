@@ -69,7 +69,6 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				BotName:       a.AnonymizeString(u.BotName),
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
-				UserName:      a.AnonymizeString(u.UserName),
 			},
 		},
 	}

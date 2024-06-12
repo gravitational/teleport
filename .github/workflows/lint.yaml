@@ -1,57 +1,27 @@
 name: Lint (Go)
-run-name: Lint (Go and Rust)
+run-name: make lint
 on:
   pull_request:
-
+    paths-ignore:
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
   merge_group:
+    paths-ignore:
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
 
 jobs:
-  changes:
-    name: Check for relevant changes
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
-    outputs:
-      has_go: ${{ steps.changes.outputs.has_go }}
-      has_rust: ${{ steps.changes.outputs.has_rust }}
-    steps:
-      - name: Checkout
-        if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        id: changes
-        with:
-          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
-          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
-          filters: |
-            has_go:
-              - '.github/workflows/lint.yaml'
-              - '**.go'
-              - 'go.mod'
-              - 'go.sum'
-              - 'build.assets/Makefile'
-              - 'build.assets/Dockerfile*'
-              - 'Makefile'
-              - '.golangci.yml'
-            has_rust:
-              - '.github/workflows/lint.yaml'
-              - '**.rs'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'build.assets/versions.mk'
-              - 'Makefile'
-
-  lint-go:
+  lint:
     name: Lint (Go)
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_go == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
 
     steps:
       - name: Checkout
@@ -77,63 +47,65 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --out-format=colored-line-number --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3a919529898de77ec3da873e3063ca4b10e7f5cc # v3.7.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/terraform)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/event-handler)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
           args: --out-format=colored-line-number
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@dde0b9351db90fbf78e345f41a57de8514bf1091 # v1.32.2
+      - uses: bufbuild/buf-setup-action@88db93f5d74ffa329bb43e42aa95cd822697d214 # v1.29.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
-      - uses: bufbuild/buf-lint-action@06f9dd823d873146471cfaaf108a993fe00e5325 # v1.1.1
+      - uses: bufbuild/buf-lint-action@044d13acb1f155179c606aaa2e53aea304d22058 # v1.1.0
       - name: buf breaking from parent to self
-        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        uses: bufbuild/buf-breaking-action@a074e988ee34efcd4927079e79c611f428354c01 # v1.1.3
         with:
-          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
       - name: buf breaking from self to master
-        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        uses: bufbuild/buf-breaking-action@a074e988ee34efcd4927079e79c611f428354c01 # v1.1.3
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
-          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
-          against: '.'
+          input: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+          against: "."
 
+      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
+      #  for Rust.
       - name: Run (non-action) linters
         run: make lint-no-actions
 
@@ -148,32 +120,3 @@ jobs:
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
-
-  lint-rust:
-    name: Lint (Rust)
-    runs-on: ubuntu-22.04
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rust == 'true' }}
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set Rust version
-        run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
-
-      - name: Set up Rust
-        run: |
-          echo "Setting up Rust version ${RUST_VERSION}"
-          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
-          rustup override set ${RUST_VERSION}
-          rustc --version
-          cargo --version
-          rustfmt --version
-          cargo clippy --version
-
-      - name: Run Rust linters
-        run: make lint-rust

@@ -65,7 +65,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -82,7 +82,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -99,7 +99,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -116,7 +116,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -132,7 +132,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -148,7 +148,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -164,7 +164,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.Apps{app0, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -178,7 +178,7 @@ func TestWatcher(t *testing.T) {
 	select {
 	case a := <-reconcileCh:
 		require.Empty(t, cmp.Diff(types.Apps{app0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")

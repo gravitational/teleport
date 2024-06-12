@@ -120,7 +120,6 @@ func TestStart(t *testing.T) {
 				ListeningC:     listeningC,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				InstallationID: "foo",
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())

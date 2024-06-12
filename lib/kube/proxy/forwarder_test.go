@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -59,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -90,11 +88,6 @@ func fakeClusterFeatures() proto.Features {
 	return proto.Features{
 		Kubernetes: true,
 	}
-}
-
-func TestMain(m *testing.M) {
-	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
 }
 
 func TestAuthenticate(t *testing.T) {

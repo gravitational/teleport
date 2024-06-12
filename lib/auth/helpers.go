@@ -42,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -87,6 +89,8 @@ type TestAuthServerConfig struct {
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
+	// Embedder is required to enable the assist in the auth server.
+	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
@@ -113,6 +117,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
+	}
+	if cfg.Embedder == nil {
+		cfg.Embedder = &noopEmbedder{}
 	}
 	return nil
 }
@@ -203,6 +210,14 @@ func WithClock(clock clockwork.Clock) ServerOption {
 	}
 }
 
+// WithEmbedder is a functional server option that sets the server's embedder.
+func WithEmbedder(embedder embedding.Embedder) ServerOption {
+	return func(s *Server) error {
+		s.embedder = embedder
+		return nil
+	}
+}
+
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -284,16 +299,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
-		Clock:                  cfg.Clock,
 		KeyStoreConfig: keystore.Config{
 			Software: keystore.SoftwareConfig{
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-		HostUUID:    uuid.New().String(),
-		AccessLists: accessLists,
+		EmbeddingRetriever: ai.NewSimpleRetriever(),
+		HostUUID:           uuid.New().String(),
+		AccessLists:        accessLists,
 	},
 		WithClock(cfg.Clock),
+		WithEmbedder(cfg.Embedder),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -357,17 +373,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := types.NewProvisionTokenFromSpec("static-token", time.Unix(0, 0).UTC(), types.ProvisionTokenSpecV2{
-		Roles: types.SystemRoles{types.RoleNode},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			*token.V1(),
-		},
+		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -458,7 +466,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
 		Events: srv.AuthServer.Services,
-		Getter: srv.AuthServer.Cache,
+		Getter: srv.AuthServer.Services,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -468,7 +476,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
 		Events: srv.AuthServer.Services,
-		Getter: srv.AuthServer.Cache,
+		Getter: srv.AuthServer.Services,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1321,7 +1329,14 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	return created, upsertedRole, nil
 }
 
-// flushClt is the set of methods expected by the flushCache helper.
+// noopEmbedder is a no op implementation of the Embedder interface.
+type noopEmbedder struct{}
+
+func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
+	return []embedding.Vector64{}, nil
+}
+
+// flushClt is the set of methods expected by the the flushCache helper.
 type flushClt interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)

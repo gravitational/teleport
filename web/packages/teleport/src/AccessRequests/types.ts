@@ -69,21 +69,3 @@ export interface CreateAccessRequest {
   maxDuration?: Date;
   dryRun?: boolean;
 }
-
-interface AccessRequestResourceBase {
-  id: string;
-  type: 'app' | 'node' | 'kubernetes' | 'desktop' | 'database';
-}
-
-interface AccessRequestGenericResource extends AccessRequestResourceBase {
-  type: 'app' | 'kubernetes' | 'desktop' | 'database';
-}
-
-interface AccessRequestNodeResource extends AccessRequestResourceBase {
-  type: 'node';
-  friendlyName: string;
-}
-
-export type AccessRequestResource =
-  | AccessRequestGenericResource
-  | AccessRequestNodeResource;

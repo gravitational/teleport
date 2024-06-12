@@ -28,7 +28,6 @@ export function Databases(props: ListProps & { databases: Database[] }) {
     onLabelClick,
     addedResources,
     addOrRemoveResource,
-    requestStarted,
     customSort,
   } = props;
 
@@ -61,10 +60,8 @@ export function Databases(props: ListProps & { databases: Database[] }) {
         {
           altKey: 'action-btn',
           render: agent =>
-            renderActionCell(
-              Boolean(addedResources.db[agent.name]),
-              requestStarted,
-              () => addOrRemoveResource('db', agent.name)
+            renderActionCell(Boolean(addedResources.db[agent.name]), () =>
+              addOrRemoveResource('db', agent.name)
             ),
         },
       ]}

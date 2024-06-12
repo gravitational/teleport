@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -184,24 +183,23 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	return out
 }
 
-func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
-	t.Helper()
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
 	decoder := yaml.NewDecoder(r)
 	for {
 		var entry T
 		if err := decoder.Decode(&entry); err != nil {
 			// Break when there are no more documents to decode
-			if !errors.Is(err, io.EOF) {
-				require.FailNow(t, "error decoding YAML: %v", err)
+			if err != io.EOF {
+				return err
 			}
 			break
 		}
 		*out = append(*out, entry)
 	}
+	return nil
 }
 
 func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
-	t.Helper()
 	var out T
 	err := yaml.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)

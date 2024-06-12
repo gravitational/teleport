@@ -179,7 +179,6 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) *authclient.Clie
 func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
-
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
 			Metadata: &headerv1.Metadata{
@@ -191,7 +190,6 @@ func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		},
 	})
 	require.NoError(t, err)
-
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	require.NoError(t, err)
 	tok, err := types.NewProvisionTokenFromSpec(
@@ -204,7 +202,6 @@ func MakeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 	require.NoError(t, err)
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
-
 	return &botconfig.OnboardingConfig{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
@@ -229,12 +226,10 @@ func DefaultBotConfig(
 	authCfg := servicecfg.MakeDefaultConfig()
 	err := config.ApplyFileConfig(fc, authCfg)
 	require.NoError(t, err)
-
 	var authServer = authCfg.Proxy.WebAddr.String()
 	if opts.UseAuthServer {
 		authServer = authCfg.AuthServerAddresses()[0].String()
 	}
-
 	cfg := &botconfig.BotConfig{
 		AuthServer: authServer,
 		Onboarding: *onboarding,
@@ -250,6 +245,5 @@ func DefaultBotConfig(
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
-
 	return cfg
 }

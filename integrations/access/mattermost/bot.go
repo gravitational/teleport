@@ -20,7 +20,6 @@ package mattermost
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -463,8 +462,7 @@ func (b Bot) tryLookupDirectChannel(ctx context.Context, userEmail string) strin
 	log := logger.Get(ctx).WithField("mm_user_email", userEmail)
 	channel, err := b.LookupDirectChannel(ctx, userEmail)
 	if err != nil {
-		var errResult *ErrorResult
-		if errors.As(trace.Unwrap(err), &errResult) {
+		if errResult, ok := trace.Unwrap(err).(*ErrorResult); ok {
 			log.Warningf("Failed to lookup direct channel info: %q", errResult.Message)
 		} else {
 			log.WithError(err).Error("Failed to lookup direct channel info")
@@ -481,8 +479,7 @@ func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
 	})
 	channel, err := b.LookupChannel(ctx, team, name)
 	if err != nil {
-		var errResult *ErrorResult
-		if errors.As(trace.Unwrap(err), &errResult) {
+		if errResult, ok := trace.Unwrap(err).(*ErrorResult); ok {
 			log.Warningf("Failed to lookup channel info: %q", errResult.Message)
 		} else {
 			log.WithError(err).Error("Failed to lookup channel info")

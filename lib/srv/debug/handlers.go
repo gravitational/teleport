@@ -45,26 +45,29 @@ func NewServeMux(logger *slog.Logger, leveler LogLeveler) *http.ServeMux {
 	mux.HandleFunc("/debug/pprof/profile", pprofMiddleware(logger, "profile", pprof.Profile))
 	mux.HandleFunc("/debug/pprof/symbol", pprofMiddleware(logger, "symbol", pprof.Symbol))
 	mux.HandleFunc("/debug/pprof/trace", pprofMiddleware(logger, "trace", pprof.Trace))
-	mux.HandleFunc("/debug/pprof/{profile}", func(w http.ResponseWriter, r *http.Request) {
-		pprofMiddleware(logger, r.PathValue("profile"), pprof.Index)(w, r)
+	mux.HandleFunc("/debug/pprof/", func(w http.ResponseWriter, r *http.Request) {
+		profile, _ := strings.CutPrefix(r.URL.Path, "/debug/pprof/")
+		pprofMiddleware(logger, profile, pprof.Index)(w, r)
 	})
-	mux.Handle("GET /log-level", handleGetLog(logger, leveler))
-	mux.Handle("PUT /log-level", handleSetLog(logger, leveler))
+	mux.Handle("/log-level", handleLog(logger, leveler))
 	return mux
 }
 
-// handleGetLog returns the http get log level handler.
-func handleGetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+// handleLog returns the http log level handler.
+func handleLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		level := leveler.GetLogLevel()
-		logger.InfoContext(r.Context(), "Log level requested", "log_level", level)
-		w.Write([]byte(marshalLogLevel(level)))
-	}
-}
+		if r.Method == http.MethodGet {
+			level := leveler.GetLogLevel()
+			logger.InfoContext(r.Context(), "Log level requested", "log_level", level)
+			w.Write([]byte(marshalLogLevel(level)))
+			return
+		}
 
-// handleSetLog returns the http set log level handler.
-func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		defer r.Body.Close()
 		if err != nil {

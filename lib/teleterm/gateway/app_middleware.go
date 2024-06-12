@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -37,7 +38,7 @@ type appMiddleware struct {
 // it on the local proxy.
 // Other middlewares typically also handle MFA here. App access doesn't support per-session MFA yet,
 // so detecting expired certs is all this middleware can do.
-func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy) error {
+func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) error {
 	err := lp.CheckCertExpiry()
 	if err == nil {
 		return nil
@@ -55,7 +56,7 @@ func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy
 		return trace.Wrap(err)
 	}
 
-	lp.SetCert(cert)
+	lp.SetCerts([]tls.Certificate{cert})
 	return nil
 }
 

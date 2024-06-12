@@ -4,6 +4,14 @@ description: Explains how to manually connect Teleport to an Active Directory do
 videoBanner: YvMqgcq0MTQ
 ---
 
+You can configure access for Active Directory users through the
+Teleport Web UI and the scripts described in [Configure access for
+Active Directory with scripts](./active-directory.mdx). However, if automation
+won't work for your environment—for example, because you use an older version of
+Teleport or have custom configuration or network requirements—you can manually
+configure access for Active Directory domain users using the instructions in
+this guide.
+
 This guide demonstrates how to connect an Active Directory domain and how to log
 into a Windows desktop from the connected domain.
 
@@ -40,6 +48,11 @@ To complete the steps in this guide, verify your environment meets the following
   encrypted LDAP connection, you should verify that your domain uses Active Directory
   Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS
   certificates.
+
+  If you don't have Active Directory or Active Directory Certificate Services installed,
+  you can add roles and services using Server Manager or refer to [Configure access for
+  Active Directory with scripts](./active-directory.mdx) for how to
+  use the Teleport-provided scripts to install these services.
 
 - Administrative access to a domain controller.
 

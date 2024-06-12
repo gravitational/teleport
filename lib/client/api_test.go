@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,7 +48,6 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -453,11 +451,6 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		{
 			name:          "ipv4 unspecified, API domain should be used ",
 			kubeProxyAddr: "0.0.0.0",
-			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
-		},
-		{
-			name:          "localhost, API domain should be used ",
-			kubeProxyAddr: "localhost",
 			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
@@ -888,15 +881,16 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			var traceErr *trace.TraceErr
-			if errors.As(err, &traceErr) {
+			traceErr, isTraceErr := err.(*trace.TraceErr)
+
+			if isTraceErr {
 				require.EqualError(t, traceErr.OrigError(), tt.wantError)
 			} else {
 				require.EqualError(t, err, tt.wantError)
 			}
 
 			if tt.wantUserMessage != "" {
-				require.Error(t, traceErr)
+				require.True(t, isTraceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})
@@ -1219,8 +1213,8 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	clusterClient, err := clt.ConnectToCluster(ctx)
-	require.Nil(t, clusterClient)
+	proxy, err := clt.ConnectToProxy(ctx)
+	require.Nil(t, proxy)
 	require.Error(t, err)
 }
 

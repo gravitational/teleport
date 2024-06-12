@@ -357,7 +357,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.initCertPool(t)
 
 	// Initialize Teleport client with the user's credentials.
-	p.initTeleportClient(t)
+	p.initTeleportClient(t, opts)
 
 	return p
 }

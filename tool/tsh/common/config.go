@@ -61,20 +61,15 @@ func onConfig(cf *CLIConf) error {
 	// destination (possibly their ssh config file) may get polluted with
 	// invalid output. Instead, rely on the normal error messages (which are
 	// sent to stderr) and expect the user to log in manually.
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	defer proxyClient.Close()
 
-	rootAuthClient, err := clusterClient.ConnectToRootCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer rootAuthClient.Close()
-
-	leafClusters, err := rootAuthClient.GetRemoteClusters(cf.Context)
-	if err != nil {
+	rootClusterName, rootErr := proxyClient.RootClusterName(cf.Context)
+	leafClusters, leafErr := proxyClient.GetLeafClusters(cf.Context)
+	if err := trace.NewAggregate(rootErr, leafErr); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -89,16 +84,17 @@ func onConfig(cf *CLIConf) error {
 
 	var sb strings.Builder
 	if err := writeSSHConfig(&sb, &openssh.SSHConfigParameters{
-		AppName:             openssh.TshApp,
-		ClusterNames:        append([]string{clusterClient.RootClusterName()}, leafClustersNames...),
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, clusterClient.RootClusterName()),
-		ProxyHost:           proxyHost,
-		ProxyPort:           proxyPort,
-		ExecutablePath:      cf.executablePath,
-		Username:            cf.NodeLogin,
-		Port:                int(cf.NodePort),
+		AppName:          openssh.TshApp,
+		ClusterNames:     append([]string{rootClusterName}, leafClustersNames...),
+		KnownHostsPath:   knownHostsPath,
+		IdentityFilePath: identityFilePath,
+		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
+			tc.Config.Username, rootClusterName),
+		ProxyHost:      proxyHost,
+		ProxyPort:      proxyPort,
+		ExecutablePath: cf.executablePath,
+		Username:       cf.NodeLogin,
+		Port:           int(cf.NodePort),
 	}, nil); err != nil {
 		return trace.Wrap(err)
 	}

@@ -110,8 +110,17 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
+	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
+	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
+	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
+	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
+
+	// Generating certificates for user and host authorities
+	// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
+	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
+
 	// Operations on users
-	// TODO(tross): DELETE IN 17.0.0
+	// TODO(tross): DELETE IN 16.0.0
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
 
 	// Passwords and sessions
@@ -137,10 +146,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Remote clusters
-	// TODO(noah): DELETE IN 17.0.0 - all these methods are now gRPC.
+	srv.POST("/:version/remoteclusters", srv.WithAuth(srv.createRemoteCluster))
 	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
 	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
 	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
+	srv.DELETE("/:version/remoteclusters", srv.WithAuth(srv.deleteAllRemoteClusters))
 
 	// Reverse tunnels
 	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
@@ -154,9 +164,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Active sessions
-	// TODO(zmb3): remove these endpoints when Assist no longer needs them
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))  // DELETE IN 16(zmb3)
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents)) // DELETE IN 16(zmb3)
 
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))
@@ -341,7 +350,7 @@ func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter,
 func marshalServers(servers []types.Server, version string) (interface{}, error) {
 	items := make([]json.RawMessage, len(servers))
 	for i, server := range servers {
-		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveRevision())
+		data, err := services.MarshalServer(server, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -385,7 +394,7 @@ func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWrit
 	}
 	items := make([]json.RawMessage, len(reverseTunnels))
 	for i, tunnel := range reverseTunnels {
-		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveRevision())
+		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -525,6 +534,35 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	return &m, nil
 }
 
+type generateHostCertReq struct {
+	Key         []byte            `json:"key"`
+	HostID      string            `json:"hostname"`
+	NodeName    string            `json:"node_name"`
+	Principals  []string          `json:"principals"`
+	ClusterName string            `json:"auth_domain"`
+	Roles       types.SystemRoles `json:"roles"`
+	TTL         time.Duration     `json:"ttl"`
+}
+
+// TODO(noah): DELETE IN 16.0.0 as replaced with gRPC equiv
+func (s *APIServer) generateHostCert(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *generateHostCertReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(req.Roles) != 1 {
+		return nil, trace.BadParameter("exactly one system role is required")
+	}
+
+	cert, err := auth.GenerateHostCert(r.Context(), req.Key, req.HostID, req.NodeName, req.Principals, req.ClusterName, req.Roles[0], req.TTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return string(cert), nil
+}
+
 func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -536,6 +574,38 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	}
 
 	return certs, nil
+}
+
+// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
+func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req types.RotateRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.RotateCertAuthority(r.Context(), req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+type rotateExternalCertAuthorityRawReq struct {
+	CA json.RawMessage `json:"ca"`
+}
+
+// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
+func (s *APIServer) rotateExternalCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req rotateExternalCertAuthorityRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := services.UnmarshalCertAuthority(req.CA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.RotateExternalCertAuthority(r.Context(), ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
@@ -589,7 +659,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(
-			response.Session, services.WithVersion(version), services.PreserveRevision())
+			response.Session, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -598,7 +668,7 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	raw.HostSigners = make([]json.RawMessage, len(response.HostSigners))
 	for i, ca := range response.HostSigners {
 		data, err := services.MarshalCertAuthority(
-			ca, services.WithVersion(version), services.PreserveRevision())
+			ca, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -818,7 +888,7 @@ func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
+	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 type setClusterNameReq struct {
@@ -874,7 +944,7 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -891,7 +961,7 @@ func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.Respon
 	}
 	items := make([]json.RawMessage, len(conns))
 	for i, conn := range conns {
-		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveRevision())
+		data, err := services.MarshalTunnelConnection(conn, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -927,15 +997,36 @@ func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.Res
 	return message("ok"), nil
 }
 
+type createRemoteClusterRawReq struct {
+	// RemoteCluster is marshaled remote cluster resource
+	RemoteCluster json.RawMessage `json:"remote_cluster"`
+}
+
+// createRemoteCluster creates remote cluster
+func (s *APIServer) createRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req createRemoteClusterRawReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := services.UnmarshalRemoteCluster(req.RemoteCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CreateRemoteCluster(conn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
 // getRemoteClusters returns a list of remote clusters
 func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	clusters, err := auth.GetRemoteClusters(r.Context())
+	clusters, err := auth.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	items := make([]json.RawMessage, len(clusters))
 	for i, cluster := range clusters {
-		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision())
+		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -946,16 +1037,25 @@ func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWrit
 
 // getRemoteCluster returns a remote cluster by name
 func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cluster, err := auth.GetRemoteCluster(r.Context(), p.ByName("cluster"))
+	cluster, err := auth.GetRemoteCluster(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision()))
+	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveResourceID()))
 }
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+// deleteAllRemoteClusters deletes all remote clusters
+func (s *APIServer) deleteAllRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	err := auth.DeleteAllRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

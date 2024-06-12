@@ -21,7 +21,6 @@ package e2e
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -29,11 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -63,7 +59,6 @@ func TestDatabases(t *testing.T) {
 	t.Run("unmatched discovery", awsDBDiscoveryUnmatched)
 	t.Run("rds", testRDS)
 	t.Run("redshift serverless", testRedshiftServerless)
-	t.Run("redshift cluster", testRedshiftCluster)
 }
 
 func awsDBDiscoveryUnmatched(t *testing.T) {
@@ -76,9 +71,8 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 	for matcherType, assumeRoleARN := range map[string]string{
 		// add a new matcher/role here to test that discovery properly
 		// does *not* that kind of database for some unmatched tag.
-		types.AWSMatcherRDS:                mustGetEnv(t, rdsDiscoveryRoleARNEnv),
-		types.AWSMatcherRedshiftServerless: mustGetEnv(t, rssDiscoveryRoleARNEnv),
-		types.AWSMatcherRedshift:           mustGetEnv(t, redshiftDiscoveryRoleARNEnv),
+		types.AWSMatcherRDS:                mustGetEnv(t, rdsDiscoveryRoleEnv),
+		types.AWSMatcherRedshiftServerless: mustGetEnv(t, rssDiscoveryRoleEnv),
 	} {
 		matchers = append(matchers, types.AWSMatcher{
 			Types: []string{matcherType},
@@ -163,10 +157,8 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 	defer cancel()
 	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
 
-	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/", lp.GetAddr()))
-	require.NoError(t, err)
-	pgconnConfig.User = route.Username
-	pgconnConfig.Database = route.Database
+	connString := fmt.Sprintf("postgres://%s@%v/%s",
+		route.Username, lp.GetAddr(), route.Database)
 	var pgConn *pgconn.PgConn
 	// retry for a while, the database service might need time to give
 	// itself IAM rds:connect permissions.
@@ -174,7 +166,7 @@ func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, use
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
 		defer cancel()
-		pgConn, err = pgconn.ConnectConfig(ctx, pgconnConfig)
+		pgConn, err = pgconn.Connect(ctx, connString)
 		assert.NoError(t, err)
 		assert.NotNil(t, pgConn)
 	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
@@ -253,7 +245,7 @@ func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      ctx,
-		Cert:               tlsCert,
+		Certs:              []tls.Certificate{tlsCert},
 	})
 	require.NoError(t, err)
 
@@ -322,72 +314,4 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			assert.Contains(t, seen, name)
 		}
 	}, 1*time.Minute, time.Second, "waiting for the database service to heartbeat the databases")
-}
-
-// dbUserLogin contains common info needed to connect as a db user via
-// password auth.
-type dbUserLogin struct {
-	username string
-	password string
-	address  string
-	port     int
-}
-
-func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName string) *pgx.Conn {
-	pgCfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s:%d/?sslmode=verify-full", info.address, info.port))
-	require.NoError(t, err)
-	pgCfg.User = info.username
-	pgCfg.Password = info.password
-	pgCfg.Database = dbName
-	pgCfg.TLSConfig = &tls.Config{
-		ServerName: info.address,
-		RootCAs:    awsCertPool.Clone(),
-	}
-
-	conn, err := pgx.ConnectConfig(ctx, pgCfg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close(ctx)
-	})
-	return conn
-}
-
-// secretPassword is used to unmarshal an AWS Secrets Manager
-// user password secret.
-type secretPassword struct {
-	Password string `json:"password"`
-}
-
-// getMasterUserPassword is a helper that fetches a db master user and password
-// from AWS Secrets Manager.
-func getMasterUserPassword(t *testing.T, ctx context.Context, secretID string) string {
-	t.Helper()
-	secretVal := getSecretValue(t, ctx, secretID)
-	require.NotNil(t, secretVal.SecretString)
-	var secret secretPassword
-	if err := json.Unmarshal([]byte(*secretVal.SecretString), &secret); err != nil {
-		// being paranoid. I don't want to leak the secret string in test error
-		// logs.
-		require.FailNow(t, "error unmarshaling secret string")
-	}
-	if len(secret.Password) == 0 {
-		require.FailNow(t, "empty master user secret string")
-	}
-	return secret.Password
-}
-
-func getSecretValue(t *testing.T, ctx context.Context, secretID string) secretsmanager.GetSecretValueOutput {
-	t.Helper()
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
-	)
-	require.NoError(t, err)
-
-	secretsClt := secretsmanager.NewFromConfig(cfg)
-	secretVal, err := secretsClt.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
-		SecretId: &secretID,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, secretVal)
-	return *secretVal
 }

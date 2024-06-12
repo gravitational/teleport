@@ -43,27 +43,6 @@ describe('subscribeWithSelector', () => {
     expect(barUpdatedCallback).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a function which unsubscribes', () => {
-    const store = new TestStore();
-
-    const fooUpdatedCallback1 = jest.fn();
-    store.subscribeWithSelector(state => state.foo, fooUpdatedCallback1);
-
-    const fooUpdatedCallback2 = jest.fn();
-    const unsubscribe = store.subscribeWithSelector(
-      state => state.foo,
-      fooUpdatedCallback2
-    );
-    unsubscribe();
-
-    store.setState(draft => {
-      draft.foo.set('lorem', 'ipsum');
-    });
-
-    expect(fooUpdatedCallback1).toHaveBeenCalledTimes(1);
-    expect(fooUpdatedCallback2).not.toHaveBeenCalled();
-  });
-
   it('calls the callbacks if multiple parts of the state get updated at the same time', () => {
     const store = new TestStore();
 

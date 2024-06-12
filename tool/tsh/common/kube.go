@@ -30,15 +30,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -118,13 +115,14 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	clusterClient, err := tc.ConnectToCluster(ctx)
+	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tracker, err := clusterClient.AuthClient.GetSessionTracker(ctx, c.session)
-	return tracker, trace.Wrap(err)
+	site := proxy.CurrentCluster()
+
+	return site.GetSessionTracker(ctx, c.session)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -530,13 +528,13 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	proxy, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
 
-	sessions, err := clusterClient.AuthClient.GetActiveSessionTrackers(cf.Context)
+	site := proxy.CurrentCluster()
+	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1010,70 +1008,32 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 }
 
 func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
-	clusters, err := getClusterClients(cf, types.KindKubeServer)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var listings kubeListings
 
-	defer func() {
-		// close all clients
-		for _, cluster := range clusters {
-			_ = cluster.Close()
-		}
-	}()
-
-	// Fetch listings for all clusters in parallel with an upper limit
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(10)
-
-	// mu guards access to dbListings
-	var (
-		mu       sync.Mutex
-		listings kubeListings
-		errors   []error
-	)
-	for _, cluster := range clusters {
-		cluster := cluster
-		if cluster.connectionError != nil {
-			mu.Lock()
-			errors = append(errors, cluster.connectionError)
-			mu.Unlock()
-			continue
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		req := proto.ListResourcesRequest{
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			Labels:              tc.Labels,
 		}
 
-		group.Go(func() error {
-			kc, err := kubeutils.ListKubeClustersWithFilters(groupCtx, cluster.auth, cluster.req)
-			if err != nil {
-				logrus.Errorf("Failed to get kube clusters: %v.", err)
-				mu.Lock()
-				errors = append(errors, trace.ConnectionProblem(err, "failed to list kube clusters for cluster %s: %v", cluster.name, err))
-				mu.Unlock()
-
-				return nil
-			}
-
-			localListings := make([]kubeListing, 0, len(kc))
-			for _, kubeCluster := range kc {
-				localListings = append(localListings, kubeListing{
-					Proxy:       cluster.profile.ProxyURL.Host,
-					Cluster:     cluster.name,
-					KubeCluster: kubeCluster,
+		kubeClusters, err := tc.ListKubernetesClustersWithFiltersAllClusters(cf.Context, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for clusterName, kubeClusters := range kubeClusters {
+			for _, kc := range kubeClusters {
+				listings = append(listings, kubeListing{
+					Proxy:       profile.ProxyURL.Host,
+					Cluster:     clusterName,
+					KubeCluster: kc,
 				})
 			}
-
-			mu.Lock()
-			listings = append(listings, localListings...)
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	if err := group.Wait(); err != nil {
+		}
+		return nil
+	})
+	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if len(listings) == 0 && len(errors) > 0 {
-		return trace.NewAggregate(errors...)
 	}
 
 	format := strings.ToLower(c.format)
@@ -1092,7 +1052,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		return trace.BadParameter("Unrecognized format %q", c.format)
 	}
 
-	return trace.NewAggregate(errors...)
+	return nil
 }
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
@@ -1401,14 +1361,17 @@ Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(ctx)
+		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer clusterClient.Close()
+		defer pc.Close()
 
-		teleportCluster = clusterClient.ClusterName()
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
+		ac := pc.CurrentCluster()
+		defer ac.Close()
+
+		teleportCluster = pc.ClusterName()
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,

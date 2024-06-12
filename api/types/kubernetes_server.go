@@ -24,11 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-var _ compare.IsEqual[KubeServer] = (*KubernetesServerV3)(nil)
 
 // KubeServer represents a single Kubernetes server.
 type KubeServer interface {
@@ -116,6 +113,16 @@ func (s *KubernetesServerV3) GetSubKind() string {
 // SetSubKind sets the resource subkind.
 func (s *KubernetesServerV3) SetSubKind(sk string) {
 	s.SubKind = sk
+}
+
+// GetResourceID returns the resource ID.
+func (s *KubernetesServerV3) GetResourceID() int64 {
+	return s.Metadata.ID
+}
+
+// SetResourceID sets the resource ID.
+func (s *KubernetesServerV3) SetResourceID(id int64) {
+	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -299,14 +306,6 @@ func (s *KubernetesServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *KubernetesServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
-}
-
-// IsEqual determines if two kube server resources are equivalent to one another.
-func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
-	if other, ok := i.(*KubernetesServerV3); ok {
-		return deriveTeleportEqualKubernetesServerV3(k, other)
-	}
-	return false
 }
 
 // KubeServers represents a list of kube servers.

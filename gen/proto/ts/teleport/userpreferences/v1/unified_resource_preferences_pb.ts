@@ -51,12 +51,6 @@ export interface UnifiedResourcePreferences {
      * @generated from protobuf field: teleport.userpreferences.v1.LabelsViewMode labels_view_mode = 3;
      */
     labelsViewMode: LabelsViewMode;
-    /**
-     * available_resource_mode specifies which option in the availability filter menu the user has selected, if any
-     *
-     * @generated from protobuf field: teleport.userpreferences.v1.AvailableResourceMode available_resource_mode = 4;
-     */
-    availableResourceMode: AvailableResourceMode;
 }
 /**
  * DefaultTab is the default tab selected in the unified resource web UI
@@ -127,41 +121,13 @@ export enum LabelsViewMode {
      */
     COLLAPSED = 2
 }
-/**
- * * AvailableResourceMode specifies which option in the availability filter menu the user has selected, if any
- *
- * @generated from protobuf enum teleport.userpreferences.v1.AvailableResourceMode
- */
-export enum AvailableResourceMode {
-    /**
-     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_ALL = 1;
-     */
-    ALL = 1,
-    /**
-     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_ACCESSIBLE = 2;
-     */
-    ACCESSIBLE = 2,
-    /**
-     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_REQUESTABLE = 3;
-     */
-    REQUESTABLE = 3,
-    /**
-     * @generated from protobuf enum value: AVAILABLE_RESOURCE_MODE_NONE = 4;
-     */
-    NONE = 4
-}
 // @generated message type with reflection information, may provide speed optimized methods
 class UnifiedResourcePreferences$Type extends MessageType<UnifiedResourcePreferences> {
     constructor() {
         super("teleport.userpreferences.v1.UnifiedResourcePreferences", [
             { no: 1, name: "default_tab", kind: "enum", T: () => ["teleport.userpreferences.v1.DefaultTab", DefaultTab, "DEFAULT_TAB_"] },
             { no: 2, name: "view_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.ViewMode", ViewMode, "VIEW_MODE_"] },
-            { no: 3, name: "labels_view_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.LabelsViewMode", LabelsViewMode, "LABELS_VIEW_MODE_"] },
-            { no: 4, name: "available_resource_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.AvailableResourceMode", AvailableResourceMode, "AVAILABLE_RESOURCE_MODE_"] }
+            { no: 3, name: "labels_view_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.LabelsViewMode", LabelsViewMode, "LABELS_VIEW_MODE_"] }
         ]);
     }
     create(value?: PartialMessage<UnifiedResourcePreferences>): UnifiedResourcePreferences {
@@ -169,7 +135,6 @@ class UnifiedResourcePreferences$Type extends MessageType<UnifiedResourcePrefere
         message.defaultTab = 0;
         message.viewMode = 0;
         message.labelsViewMode = 0;
-        message.availableResourceMode = 0;
         if (value !== undefined)
             reflectionMergePartial<UnifiedResourcePreferences>(this, message, value);
         return message;
@@ -187,9 +152,6 @@ class UnifiedResourcePreferences$Type extends MessageType<UnifiedResourcePrefere
                     break;
                 case /* teleport.userpreferences.v1.LabelsViewMode labels_view_mode */ 3:
                     message.labelsViewMode = reader.int32();
-                    break;
-                case /* teleport.userpreferences.v1.AvailableResourceMode available_resource_mode */ 4:
-                    message.availableResourceMode = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -212,9 +174,6 @@ class UnifiedResourcePreferences$Type extends MessageType<UnifiedResourcePrefere
         /* teleport.userpreferences.v1.LabelsViewMode labels_view_mode = 3; */
         if (message.labelsViewMode !== 0)
             writer.tag(3, WireType.Varint).int32(message.labelsViewMode);
-        /* teleport.userpreferences.v1.AvailableResourceMode available_resource_mode = 4; */
-        if (message.availableResourceMode !== 0)
-            writer.tag(4, WireType.Varint).int32(message.availableResourceMode);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

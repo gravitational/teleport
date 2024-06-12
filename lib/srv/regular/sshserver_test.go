@@ -67,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -93,7 +92,6 @@ var wildcardAllow = types.Labels{
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	modules.SetInsecureTestMode(true)
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 		return
@@ -221,6 +219,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
+		SetShell("/bin/sh"),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -1488,21 +1487,22 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClusterName:           f.testSrv.ClusterName(),
-		ClientTLS:             proxyClient.TLSConfig(),
-		ID:                    hostID,
-		Listener:              listener,
-		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
-		LocalAuthClient:       proxyClient,
-		LocalAccessPoint:      proxyClient,
-		NewCachingAccessPoint: noCache,
-		DataDir:               t.TempDir(),
-		Emitter:               proxyClient,
-		Log:                   logger,
-		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
-		CertAuthorityWatcher:  caWatcher,
-		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		ClusterName:                   f.testSrv.ClusterName(),
+		ClientTLS:                     proxyClient.TLSConfig(),
+		ID:                            hostID,
+		Listener:                      listener,
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:               proxyClient,
+		LocalAccessPoint:              proxyClient,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
+		DataDir:                       t.TempDir(),
+		Emitter:                       proxyClient,
+		Log:                           logger,
+		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
+		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1546,6 +1546,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1625,21 +1626,22 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           f.testSrv.ClusterName(),
-		Listener:              listener,
-		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
-		LocalAuthClient:       proxyClient,
-		LocalAccessPoint:      proxyClient,
-		NewCachingAccessPoint: noCache,
-		DataDir:               t.TempDir(),
-		Emitter:               proxyClient,
-		Log:                   logger,
-		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
-		CertAuthorityWatcher:  caWatcher,
-		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		ClientTLS:                     proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   f.testSrv.ClusterName(),
+		Listener:                      listener,
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:               proxyClient,
+		LocalAccessPoint:              proxyClient,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
+		DataDir:                       t.TempDir(),
+		Emitter:                       proxyClient,
+		Log:                           logger,
+		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
+		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
 
@@ -1684,6 +1686,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)
@@ -1916,6 +1919,7 @@ func TestLimiter(t *testing.T) {
 		utils.NetAddr{},
 		nodeClient,
 		SetLimiter(limiter),
+		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
@@ -2338,20 +2342,21 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			ClientTLS:             proxyClient.TLSConfig(),
-			ID:                    hostID,
-			ClusterName:           f.testSrv.ClusterName(),
-			Listener:              listener,
-			GetHostSigners:        sshutils.StaticHostSigners(f.signer),
-			LocalAuthClient:       proxyClient,
-			LocalAccessPoint:      proxyClient,
-			NewCachingAccessPoint: noCache,
-			DataDir:               t.TempDir(),
-			Emitter:               proxyClient,
-			Log:                   logrus.StandardLogger(),
-			LockWatcher:           lockWatcher,
-			NodeWatcher:           nodeWatcher,
-			CertAuthorityWatcher:  caWatcher,
+			ClientTLS:                     proxyClient.TLSConfig(),
+			ID:                            hostID,
+			ClusterName:                   f.testSrv.ClusterName(),
+			Listener:                      listener,
+			GetHostSigners:                sshutils.StaticHostSigners(f.signer),
+			LocalAuthClient:               proxyClient,
+			LocalAccessPoint:              proxyClient,
+			NewCachingAccessPoint:         noCache,
+			NewCachingAccessPointOldProxy: noCache,
+			DataDir:                       t.TempDir(),
+			Emitter:                       proxyClient,
+			Log:                           logrus.StandardLogger(),
+			LockWatcher:                   lockWatcher,
+			NodeWatcher:                   nodeWatcher,
+			CertAuthorityWatcher:          caWatcher,
 		})
 		require.NoError(t, err)
 
@@ -2399,6 +2404,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetBPF(&bpf.NOP{}),
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
+			SetNodeWatcher(nodeWatcher),
 			SetSessionController(sessionController),
 		)
 		require.NoError(t, err)
@@ -2600,20 +2606,21 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           f.testSrv.ClusterName(),
-		Listener:              listener,
-		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
-		LocalAuthClient:       proxyClient,
-		LocalAccessPoint:      proxyClient,
-		NewCachingAccessPoint: noCache,
-		DataDir:               t.TempDir(),
-		Emitter:               proxyClient,
-		Log:                   logger,
-		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
-		CertAuthorityWatcher:  caWatcher,
+		ClientTLS:                     proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   f.testSrv.ClusterName(),
+		Listener:                      listener,
+		GetHostSigners:                sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:               proxyClient,
+		LocalAccessPoint:              proxyClient,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
+		DataDir:                       t.TempDir(),
+		Emitter:                       proxyClient,
+		Log:                           logger,
+		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -2658,6 +2665,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 		SetSessionController(sessionController),
 	)
 	require.NoError(t, err)

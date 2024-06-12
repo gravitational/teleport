@@ -25,7 +25,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport16-amd64
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport15-amd64
 
     steps:
       - name: Checkout base

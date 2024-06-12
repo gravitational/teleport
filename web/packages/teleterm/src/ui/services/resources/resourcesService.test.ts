@@ -139,7 +139,6 @@ describe('searchResources', () => {
       search: '',
       filters: [],
       limit: 10,
-      includeRequestable: true,
     });
     expect(searchResults).toHaveLength(4);
 
@@ -168,7 +167,6 @@ describe('searchResources', () => {
       search: '',
       filters: [],
       limit: 10,
-      includeRequestable: true,
     });
     await expect(searchResults).rejects.toThrow(
       new ResourceSearchError('/clusters/foo', expectedCause)

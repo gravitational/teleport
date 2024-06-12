@@ -32,7 +32,17 @@ import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
 }
+export interface GatewayCertExpired extends api.GatewayCertExpired {
+  gatewayUri: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
+}
+
 export type SendNotificationRequest = api.SendNotificationRequest;
+export interface CannotProxyGatewayConnection
+  extends api.CannotProxyGatewayConnection {
+  gatewayUri: uri.GatewayUri;
+  targetUri: uri.DatabaseUri;
+}
 
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest {
@@ -140,7 +150,8 @@ function createService(logger: Logger): {
   >(
     rpcName: RpcName,
     call: grpc.ServerUnaryCall<Request, Response>,
-    callback: (error: Error | null, response: Response | null) => void
+    callback: (error: Error | null, response: Response | null) => void,
+    mapResponseObjectToResponseInstance: (responseObject: Response) => Response
   ) {
     const request = call.request;
 
@@ -172,7 +183,7 @@ function createService(logger: Logger): {
           return;
         }
 
-        callback(null, response);
+        callback(null, mapResponseObjectToResponseInstance(response));
 
         logger.info(
           `replied to ${rpcName}`,
@@ -204,24 +215,25 @@ function createService(logger: Logger): {
   }
 
   const service: apiService.ITshdEventsService = {
-    relogin: (call, callback) => processEvent('relogin', call, callback),
+    relogin: (call, callback) =>
+      processEvent('relogin', call, callback, () =>
+        api.ReloginResponse.create()
+      ),
 
     sendNotification: (call, callback) =>
-      processEvent('sendNotification', call, callback),
+      processEvent('sendNotification', call, callback, () =>
+        api.SendNotificationResponse.create()
+      ),
 
     sendPendingHeadlessAuthentication: (call, callback) =>
-      processEvent('sendPendingHeadlessAuthentication', call, callback),
+      processEvent('sendPendingHeadlessAuthentication', call, callback, () =>
+        api.SendPendingHeadlessAuthenticationResponse.create()
+      ),
 
     promptMFA: (call, callback) => {
-      processEvent('promptMFA', call, callback);
-    },
-
-    getUsageReportingSettings: (call, callback) => {
-      processEvent('getUsageReportingSettings', call, callback);
-    },
-
-    reportUnexpectedVnetShutdown: (call, callback) => {
-      processEvent('reportUnexpectedVnetShutdown', call, callback);
+      processEvent('promptMFA', call, callback, response =>
+        api.PromptMFAResponse.create({ totpCode: response?.totpCode })
+      );
     },
   };
 

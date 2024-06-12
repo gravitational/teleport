@@ -116,9 +116,6 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
 	}
 	err = exec(proxy)
-	if !isRelevantWebsocketError(err) {
-		err = nil
-	}
 	if err := proxy.sendStatus(err); err != nil {
 		log.Warningf("Failed to send status: %v", err)
 	}
@@ -355,7 +352,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 	for {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
-			if !errors.Is(err, io.EOF) {
+			if err != io.EOF {
 				log.Warningf("Failed to decode resize event: %v", err)
 			}
 			t.cancel()

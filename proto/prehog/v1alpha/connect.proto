@@ -42,14 +42,8 @@ message ConnectProtocolUseEvent {
   string user_name = 2;
   // one of ssh/db/kube
   string protocol = 3;
-  // origin denotes which part of Connect UI was used to access a resource.
-  // One of resource_table/search_bar/connection_list/reopened_session/vnet (optional for backwards
-  // compatibility).
+  // one of resource_table/search_bar/connection_list/reopened_session (optional)
   string origin = 4;
-  // access_through describes whether a resource was accessed by speaking to the proxy service
-  // directly, through a local proxy or through VNet.
-  // One of proxy_service/local_proxy/vnet (optional for backwards compatibility).
-  string access_through = 5;
 }
 
 message ConnectAccessRequestCreateEvent {

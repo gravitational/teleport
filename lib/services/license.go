@@ -62,10 +62,11 @@ func MarshalLicense(license types.License, opts ...MarshalOption) ([]byte, error
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveRevision {
+		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
 			copy := *license
+			copy.SetResourceID(0)
 			copy.SetRevision("")
 			license = &copy
 		}

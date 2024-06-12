@@ -17,49 +17,33 @@
  */
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import {
-  rootClusterUri,
-  leafClusterUri,
-  makeServer,
-  makeApp,
-  makeKube,
-  makeDatabase,
-} from 'teleterm/services/tshd/testHelpers';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
-  PendingAccessRequest,
 } from './accessRequestsService';
+import { PendingAccessRequest } from './workspacesService';
 
-function getMockPendingResourceAccessRequest(): PendingAccessRequest {
-  const server = makeServer();
-  const app1 = makeApp();
-  const app2 = makeApp({ uri: `${rootClusterUri}/apps/foo2`, name: 'foo2' });
-  const kube = makeKube();
-  const database = makeDatabase();
-
+function getMockPendingAccessRequest(): PendingAccessRequest {
   return {
-    kind: 'resource',
-    resources: new Map([
-      [server.uri, { kind: 'server', resource: server }],
-      [app1.uri, { kind: 'app', resource: app1 }],
-      [app2.uri, { kind: 'app', resource: app2 }],
-      [kube.uri, { kind: 'kube', resource: kube }],
-      [database.uri, { kind: 'database', resource: database }],
-    ]),
+    node: {
+      '123': 'node1',
+    },
+    app: {
+      '123': 'app1',
+      '456': 'app2',
+    },
+    db: {},
+    windows_desktop: {},
+    role: {
+      access: 'access',
+    },
+    kube_cluster: {},
+    user_group: {},
   };
 }
 
-function getMockPendingRoleAccessRequest(): PendingAccessRequest {
-  return {
-    kind: 'role',
-    roles: new Set(['admin']),
-  };
-}
-
-function getTestSetup(pending: PendingAccessRequest) {
+function createService(pending: PendingAccessRequest): AccessRequestsService {
   const store = new ImmutableStore<{
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
@@ -68,266 +52,60 @@ function getTestSetup(pending: PendingAccessRequest) {
     isBarCollapsed: false,
     pending,
   };
-  jest.mock('../modals');
-  const ModalsServiceMock = ModalsService as jest.MockedClass<
-    typeof ModalsService
-  >;
-  const modalsService = new ModalsServiceMock();
-  return {
-    accessRequestsService: new AccessRequestsService(
-      modalsService,
-      () => store.state,
-      draftState => store.setState(draftState)
-    ),
-    modalsService,
-  };
+  return new AccessRequestsService(
+    () => store.state,
+    draftState => store.setState(draftState)
+  );
 }
 
 test('getCollapsed() returns the bar collapse state', () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
+  let service = createService(getMockPendingAccessRequest());
   expect(service.getCollapsed()).toBe(false);
 });
 
 test('toggleBar() changes the collapse state', () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
+  let service = createService(getMockPendingAccessRequest());
   expect(service.getCollapsed()).toBe(false);
   service.toggleBar();
   expect(service.getCollapsed()).toBe(true);
 });
 
-test('clearPendingAccessRequest() clears pending access request', () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
+test('clearPendingAccessRequest() clears pending access reuqest', () => {
+  let service = createService(getMockPendingAccessRequest());
   service.clearPendingAccessRequest();
   expect(service.getPendingAccessRequest()).toStrictEqual(
     getEmptyPendingAccessRequest()
   );
 });
 
-test('getAddedItemsCount() returns added resource count for pending request', () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
-  expect(service.getAddedItemsCount()).toBe(5);
+test('getAddedResourceCount() returns added resource count for pending request', () => {
+  let service = createService(getMockPendingAccessRequest());
+  expect(service.getAddedResourceCount()).toBe(3);
   service.clearPendingAccessRequest();
-  expect(service.getAddedItemsCount()).toBe(0);
+  expect(service.getAddedResourceCount()).toBe(0);
 });
 
-test('addOrRemoveResource() adds resource to pending request', async () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
-  const server = makeServer({
-    uri: `${rootClusterUri}/servers/ser2`,
-    hostname: 'ser2',
-  });
-  await service.addOrRemoveResource({ kind: 'server', resource: server });
+test('addOrRemoveResource() adds resource to pending request', () => {
+  let service = createService(getMockPendingAccessRequest());
+  service.addOrRemoveResource('node', '456', 'node2');
   const pendingAccessRequest = service.getPendingAccessRequest();
-  expect(
-    pendingAccessRequest.kind === 'resource' &&
-      pendingAccessRequest.resources.get(server.uri)
-  ).toStrictEqual({
-    kind: 'server',
-    resource: { hostname: server.hostname, uri: server.uri },
-  });
+  expect(pendingAccessRequest['node']).toHaveProperty('456');
 });
 
-test('addOrRemoveRole() adds role to pending request', async () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingRoleAccessRequest()
-  );
-  await service.addOrRemoveRole('requester');
-
-  const pendingRequest = service.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'role' && Array.from(pendingRequest.roles.keys())
-  ).toStrictEqual(['admin', 'requester']);
-});
-
-test('addOrRemoveResource() removes resource if it already exists in pending request', async () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
-  const server = makeServer();
-  await service.addOrRemoveResource({ kind: 'server', resource: server });
+test('addOrRemoveResource() removes resource if it already exists on pending request', () => {
+  let service = createService(getMockPendingAccessRequest());
+  service.addOrRemoveResource('node', '123', 'node1');
   const pendingAccessRequest = service.getPendingAccessRequest();
-  expect(
-    pendingAccessRequest.kind === 'resource' &&
-      pendingAccessRequest.resources.has(server.uri)
-  ).toBe(false);
+  expect(pendingAccessRequest['node']).not.toHaveProperty('123');
 });
 
-test('addOrRemoveRole() removes role if it already exists in pending request', async () => {
-  const { accessRequestsService: service } = getTestSetup(
-    getMockPendingRoleAccessRequest()
-  );
-  await service.addOrRemoveRole('admin');
+test('addOrRemoveResource() uses resourceId when resourceName is empty', () => {
+  let service = createService(getMockPendingAccessRequest());
+  const resourceId = '567';
+  const resourceName = '';
 
-  const pendingRequest = service.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'role' && Array.from(pendingRequest.roles.keys())
-  ).toStrictEqual([]);
-});
+  service.addOrRemoveResource('app', resourceId, resourceName);
+  const pendingAccessRequest = service.getPendingAccessRequest();
 
-test('resources from different clusters but with the same ID can be combined in a single request', async () => {
-  const { accessRequestsService: service } = getTestSetup({
-    kind: 'resource',
-    resources: new Map(),
-  });
-
-  const server1 = makeServer({
-    uri: `/clusters/${rootClusterUri}/servers/foo1`,
-    hostname: 'foo1',
-  });
-  await service.addOrRemoveResource({
-    kind: 'server',
-    resource: server1,
-  });
-
-  const server2 = makeServer({
-    uri: `/clusters/${leafClusterUri}/servers/foo2`,
-    hostname: 'foo2',
-  });
-  await service.addOrRemoveResource({
-    kind: 'server',
-    resource: server2,
-  });
-
-  const pendingRequest = service.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'resource' &&
-      Array.from(pendingRequest.resources.entries())
-  ).toStrictEqual([
-    [
-      server1.uri,
-      {
-        kind: 'server',
-        resource: {
-          hostname: server1.hostname,
-          uri: server1.uri,
-        },
-      },
-    ],
-    [
-      server2.uri,
-      {
-        kind: 'server',
-        resource: {
-          hostname: server2.hostname,
-          uri: server2.uri,
-        },
-      },
-    ],
-  ]);
-});
-
-test('does not update the request when the user tries to mix roles with resources and does not agree to clear the current request', async () => {
-  const { accessRequestsService, modalsService } = getTestSetup(
-    getMockPendingRoleAccessRequest()
-  );
-
-  // Cancel the modal immediately.
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
-    if (dialog.kind === 'change-access-request-kind') {
-      dialog.onCancel();
-    } else {
-      throw new Error(`Got unexpected dialog ${dialog.kind}`);
-    }
-
-    return {
-      closeDialog: () => {},
-    };
-  });
-
-  const server1 = makeServer({
-    uri: `/clusters/${rootClusterUri}/servers/foo1`,
-    hostname: 'foo1',
-  });
-  await accessRequestsService.addOrRemoveResource({
-    kind: 'server',
-    resource: server1,
-  });
-
-  const pendingRequest = accessRequestsService.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'role' && Array.from(pendingRequest.roles.keys())
-  ).toStrictEqual(['admin']);
-});
-
-test('updates the request when the user tries to mix roles with resources and agrees to clear the current request', async () => {
-  const { accessRequestsService, modalsService } = getTestSetup(
-    getMockPendingRoleAccessRequest()
-  );
-
-  // Cancel the modal immediately.
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
-    if (dialog.kind === 'change-access-request-kind') {
-      dialog.onConfirm();
-    } else {
-      throw new Error(`Got unexpected dialog ${dialog.kind}`);
-    }
-
-    return {
-      closeDialog: () => {},
-    };
-  });
-
-  const server = makeServer({
-    uri: `/clusters/${rootClusterUri}/servers/foo1`,
-    hostname: 'foo1',
-  });
-  await accessRequestsService.addOrRemoveResource({
-    kind: 'server',
-    resource: server,
-  });
-
-  const pendingRequest = accessRequestsService.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'resource' &&
-      pendingRequest.resources.get(server.uri)
-  ).toStrictEqual({
-    kind: 'server',
-    resource: {
-      hostname: server.hostname,
-      uri: server.uri,
-    },
-  });
-});
-
-test('adding the same resource twice with addResource does not toggle it', async () => {
-  const { accessRequestsService } = getTestSetup(
-    getMockPendingResourceAccessRequest()
-  );
-
-  const server = makeServer({
-    uri: `/clusters/${rootClusterUri}/servers/foo1`,
-    hostname: 'foo1',
-  });
-
-  // Try to add the same resource twice.
-  await accessRequestsService.addResource({
-    kind: 'server',
-    resource: server,
-  });
-  await accessRequestsService.addResource({
-    kind: 'server',
-    resource: server,
-  });
-
-  const pendingRequest = accessRequestsService.getPendingAccessRequest();
-  expect(
-    pendingRequest.kind === 'resource' &&
-      pendingRequest.resources.get(server.uri)
-  ).toStrictEqual({
-    kind: 'server',
-    resource: {
-      hostname: server.hostname,
-      uri: server.uri,
-    },
-  });
+  expect(pendingAccessRequest['app'][resourceId]).toBe(resourceId);
 });

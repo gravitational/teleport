@@ -35,7 +35,7 @@ describe('parse errors', () => {
       error: new TypeError('whoops'),
     },
     { status: 'error', reason: 'unknown-protocol', protocol: 'foo:' },
-    { status: 'error', reason: 'unsupported-url' },
+    { status: 'error', reason: 'unsupported-uri' },
   ];
 
   test.each(tests)(
@@ -88,7 +88,6 @@ const successResult: DeepLinkParseResult = {
     port: '1234',
     pathname: '/connect_my_computer',
     username: 'alice',
-    searchParams: {},
   },
 };
 

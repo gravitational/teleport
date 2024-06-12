@@ -6,10 +6,10 @@ PRs with corrections and updates are welcome!
 * Install [Homebrew](https://brew.sh/)
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-
+  
   * Follow [official instructions](https://go.dev/doc/install) to install `Go`
     * **On an M1 Mac, download ARM64 installer from https://go.dev/dl/**
-    * Download the installer for `<version from go.mod>`
+    * Download the installer for `<version from go.mod>`  
     * After installing, don't forget to `export PATH="/usr/local/go/bin:$PATH"` in `~/.zprofile`
     * If you need other go versions, see https://go.dev/doc/manage-install
       * You will need to add `export PATH="$HOME/go/bin:$PATH"` to the `~/.zprofile`
@@ -22,7 +22,7 @@ PRs with corrections and updates are welcome!
   #
   # check which version will be installed by running:
   # brew info go
-
+  
   brew install go
   ````
 
@@ -36,27 +36,27 @@ PRs with corrections and updates are welcome!
   ```shell
   brew install rustup
   ```
-
+  
   * Initialize Rustup
-
+  
   ```shell
   rustup-init
   #
   # accept defaults
   #
   # Once command finishes successfully, you might need to add
-  #
+  # 
   # export PATH="$HOME/.cargo/bin:$PATH"
-  #
+  # 
   # into ~/.zprofile and run:
-  #
+  # 
   # . ~/.zprofile
-  #
+  # 
   # or open a new shell
   ```
-
+  
   * Install the required version
-
+  
   ```shell
   rustup toolchain install <version from build.assets/versions.mk>
   cd <teleport.git>
@@ -77,12 +77,9 @@ PRs with corrections and updates are welcome!
   brew install pkg-config
   ```
 
-* To install tools for building the UI:
+* To install `yarn` for building the UI
   * `brew install node yarn`
   * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
-    `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
 
 ##### Local Tests Dependencies
 
@@ -94,7 +91,7 @@ To run a full test suite locally, you will need
   brew install helm
   helm plugin install https://github.com/quintush/helm-unittest
   ```
-
+  
 * `bats-core` version from [build.assets/Dockerfile](https://github.com/gravitational/teleport/blob/master/build.assets/Dockerfile#L183) (search for `bats-core`)
 
   ```shell
@@ -109,14 +106,14 @@ To run a full test suite locally, you will need
   rm -rf bats-core-1.2.1 bats.tar.gz
   ```
 
-* `protoc` binary, typically found in `protobuf` package
+* `protoc` binary, typically found in `protobuf` package 
 
   ```shell
   brew install protobuf
   ```
 
 * increased `ulimit -n`
-
+  
   ```shell
   ulimit -n 2560 # 10x default
   ```

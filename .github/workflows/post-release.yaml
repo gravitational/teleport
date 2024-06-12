@@ -38,7 +38,7 @@ jobs:
             echo "type=other" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "version=$(make -s print-version)" >> "$GITHUB_OUTPUT"
+          echo "version=$(make --no-print-directory print-version)" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 

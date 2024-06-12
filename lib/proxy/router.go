@@ -111,7 +111,7 @@ type SiteGetter interface {
 // RemoteClusterGetter provides access to remote cluster resources
 type RemoteClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 }
 
 // RouterConfig contains all the dependencies required
@@ -365,7 +365,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	rc, err := r.clusterGetter.GetRemoteCluster(ctx, clusterName)
+	rc, err := r.clusterGetter.GetRemoteCluster(clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}

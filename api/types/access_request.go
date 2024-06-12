@@ -458,6 +458,16 @@ func (r *AccessRequestV3) GetMetadata() Metadata {
 	return r.Metadata
 }
 
+// GetResourceID gets ResourceID
+func (r *AccessRequestV3) GetResourceID() int64 {
+	return r.Metadata.GetID()
+}
+
+// SetResourceID sets ResourceID
+func (r *AccessRequestV3) SetResourceID(id int64) {
+	r.Metadata.SetID(id)
+}
+
 // GetRevision returns the revision
 func (r *AccessRequestV3) GetRevision() string {
 	return r.Metadata.GetRevision()

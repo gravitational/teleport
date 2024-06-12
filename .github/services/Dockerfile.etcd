@@ -3,7 +3,7 @@ ARG ETCD_VERSION
 
 FROM bitnami/etcd:${ETCD_VERSION}
 
-COPY fixtures/etcdcerts /certs
+COPY examples/etcd/certs /certs
 
 HEALTHCHECK CMD etcdctl --insecure-discovery --endpoint=https://etcd0:2379 --key-file /certs/client-key.pem --cert-file /certs/client-cert.pem --ca-file /certs/ca-cert.pem cluster-health
 

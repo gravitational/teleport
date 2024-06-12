@@ -18,6 +18,7 @@
 
 import React, {
   createContext,
+  lazy,
   ReactNode,
   Suspense,
   useContext,
@@ -36,6 +37,8 @@ import { matchPath, useHistory } from 'react-router';
 
 import Dialog from 'design/Dialog';
 import { sharedStyles } from 'design/theme/themes/sharedStyles';
+
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
 
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
@@ -61,6 +64,8 @@ import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
+
+const Assist = lazy(() => import('teleport/Assist'));
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -89,6 +94,9 @@ export function Main(props: MainProps) {
     run(() => ctx.init(preferences));
   }, []);
 
+  const viewMode = preferences?.assist?.viewMode;
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+  const [showAssist, setShowAssist] = useState(false);
   const featureFlags = ctx.getFeatureFlags();
 
   const features = useMemo(
@@ -204,11 +212,19 @@ export function Main(props: MainProps) {
             ? props.topBarProps.CustomLogo
             : null
         }
+        assistProps={{
+          showAssist,
+          setShowAssist,
+          assistEnabled,
+        }}
       />
       <Wrapper>
         <MainContainer>
           <Navigation />
-          <HorizontalSplit hasSidebar={hasSidebar}>
+          <HorizontalSplit
+            dockedView={showAssist && viewMode === AssistViewMode.DOCKED}
+            hasSidebar={hasSidebar}
+          >
             <ContentMinWidth>
               <BannerList
                 banners={banners}
@@ -221,6 +237,12 @@ export function Main(props: MainProps) {
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
+
+          {showAssist && (
+            <Suspense fallback={null}>
+              <Assist onClose={() => setShowAssist(false)} />
+            </Suspense>
+          )}
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
@@ -346,8 +368,14 @@ const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   );
 };
 
-function getWidth(hasSidebar: boolean) {
-  const { sidebarWidth } = sharedStyles;
+function getWidth(hasSidebar: boolean, isDockedView: boolean) {
+  const { dockedAssistWidth, sidebarWidth } = sharedStyles;
+  if (hasSidebar && isDockedView) {
+    return `max-width: calc(100% - ${sidebarWidth}px - ${dockedAssistWidth}px);`;
+  }
+  if (isDockedView) {
+    return `max-width: calc(100% - ${dockedAssistWidth}px);`;
+  }
   if (hasSidebar) {
     return `max-width: calc(100% - ${sidebarWidth}px);`;
   }
@@ -358,7 +386,7 @@ export const HorizontalSplit = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
-  ${props => getWidth(props.hasSidebar)}
+  ${props => getWidth(props.hasSidebar, props.dockedView)}
   overflow-x: auto;
 `;
 
@@ -371,9 +399,12 @@ export const StyledIndicator = styled(HorizontalSplit)`
   left: 50%;
 `;
 
-const Wrapper = styled(Box)`
+const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`
   display: flex;
   height: 100vh;
   flex-direction: column;
-  width: 100vw;
+  width: ${p =>
+    p.hasDockedElement
+      ? `calc(100vw - ${p.theme.dockedAssistWidth}px)`
+      : '100vw'};
 `;

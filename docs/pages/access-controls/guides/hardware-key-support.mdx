@@ -42,12 +42,15 @@ like `tctl edit`. With touch required, hardware key support provides better secu
     - Agentless OpenSSH server access.
     - Database access with `tsh proxy db` instead of `tsh db connect`.
     - Kubernetes access with `tsh proxy kube` instead of `tsh kube login`.
-    - Web access (Teleport Web UI).
-    - Application access.
+    - Teleport Web UI
+      - Web sessions are not backed by a hardware key directly, but they are strictly guarded by the
+      Auth/Proxy services. Therefore, web sessions are given permission to bypass hardware key support
+      and fallback to MFA prompts when user presence or verification is needed, like for per-session MFA.
 
   Not supported:
   
     - Desktop access.
+    - Application access.
     - Legacy OpenSSH server access
 
   If you require users to have a hardware key to access your infrastructure, they won't be able to
@@ -58,10 +61,6 @@ like `tctl edit`. With touch required, hardware key support provides better secu
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
   as needed with Access Requests so that users can avoid these issues for their normal login
   sessions.
-
-  Note: Web and app sessions are not backed by a hardware key directly, but they are strictly guarded by the
-  Auth Service and Proxy Service. Therefore, web and app sessions are given permission to bypass hardware key support
-  and fall back to MFA prompts when user presence or verification is needed, like for per-session MFA.
 </Admonition>
 
 ## Prerequisites

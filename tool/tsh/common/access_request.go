@@ -447,11 +447,13 @@ func onRequestSearch(cf *CLIConf) error {
 		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
 	default:
 		// For all other resources, we need to connect to the auth server.
-		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer clusterClient.Close()
+		defer proxyClient.Close()
+
+		authClient := proxyClient.CurrentCluster()
 
 		req := proto.ListResourcesRequest{
 			Labels:              tc.Labels,
@@ -460,7 +462,7 @@ func onRequestSearch(cf *CLIConf) error {
 			UseSearchAsRoles:    true,
 		}
 
-		resources, err = accessrequest.GetResourcesByKind(cf.Context, clusterClient.AuthClient, req, cf.ResourceKind)
+		resources, err = accessrequest.GetResourcesByKind(cf.Context, authClient, req, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}

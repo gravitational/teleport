@@ -264,7 +264,6 @@ proxy_service:
 
 auth_service:
   enabled: yes
-  proxy_protocol: on
   public_addr: ${TELEPORT_AUTH_SERVER_LB}:3025
   keep_alive_interval: 1m
   keep_alive_count_max: 3
@@ -361,11 +360,6 @@ EOF
 
     # if we are using Let's Encrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
-        # enable proxy protocol whenever ACM is not being used
-        # it cannot be enabled when there is a layer 7 LB in front of the teleport proxy, as with ACM
-        cat >>${USE_CONFIG_PATH} <<EOF
-  proxy_protocol: on
-EOF
         write_https_keypairs_section
     else
         # trust X-Forwarded-For headers sent by ALB

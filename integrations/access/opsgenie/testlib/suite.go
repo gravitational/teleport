@@ -28,11 +28,15 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
+	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
 const (
+	ResponderName1             = "Responder 1"
+	ResponderName2             = "Responder 2"
+	ResponderName3             = "Responder 3"
 	NotifyScheduleName         = "Teleport Notifications"
 	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ApprovalScheduleName       = "Teleport Approval"
@@ -50,6 +54,7 @@ type OpsgenieBaseSuite struct {
 	ogNotifyResponder opsgenie.Responder
 	ogResponder1      opsgenie.Responder
 	ogResponder2      opsgenie.Responder
+	ogResponder3      opsgenie.Responder
 }
 
 // SetupTest starts a fake OpsGenie and generates the plugin configuration.
@@ -80,13 +85,19 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 	// Responder 1 and 2 are on-call and should be automatically approved.
 	// Responder 3 is not.
 	s.ogResponder1 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: integration.Requester1UserName,
-		Type: opsgenie.ResponderTypeUser,
+		Name: ResponderName1,
 	})
 	s.ogResponder2 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: "Not a Teleport user",
-		Type: opsgenie.ResponderTypeUser,
+		Name: ResponderName2,
 	})
+	s.ogResponder3 = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
+		Name: ResponderName3,
+	})
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		pagerduty.ServicesDefaultAnnotation,
+		[]string{ResponderName1, ResponderName2},
+	)
 
 	var conf opsgenie.Config
 	conf.Teleport = s.TeleportConfig()
@@ -97,8 +108,8 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 // startApp starts the OpsGenie plugin, waits for it to become ready and returns.
 func (s *OpsgenieBaseSuite) startApp() {
-	s.T().Helper()
 	t := s.T()
+	t.Helper()
 
 	app, err := opsgenie.NewOpsgenieApp(context.Background(), &s.appConfig)
 	require.NoError(t, err)

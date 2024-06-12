@@ -39,7 +39,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -82,16 +81,6 @@ func WithLogFormat(format LoggingFormat) LoggerOption {
 	}
 }
 
-// IsTerminal checks whether writer is a terminal
-func IsTerminal(w io.Writer) bool {
-	switch v := w.(type) {
-	case *os.File:
-		return term.IsTerminal(int(v.Fd()))
-	default:
-		return false
-	}
-}
-
 // InitLogger configures the global logger for a given purpose / verbosity level
 func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) {
 	var o logOpts
@@ -112,14 +101,14 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == slog.LevelDebug {
-			enableColors = IsTerminal(os.Stderr)
+			enableColors = trace.IsTerminal(os.Stderr)
 			w = logutils.NewSharedWriter(os.Stderr)
 		} else {
 			w = io.Discard
 			enableColors = false
 		}
 	case LoggingForDaemon:
-		enableColors = IsTerminal(os.Stderr)
+		enableColors = trace.IsTerminal(os.Stderr)
 		w = logutils.NewSharedWriter(os.Stderr)
 	}
 

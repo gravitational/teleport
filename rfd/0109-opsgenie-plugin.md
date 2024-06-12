@@ -41,7 +41,7 @@ plugin_service:
     opsgenie:
         api_key: "path/to/key.txt" # Path to a file containing the Opsgenie API key
 ```
-This example would only match plugin resources with the labels 'type:opsgenie', or 'type:slack'.
+This example would only match plugin resources with the the labels 'type:opsgenie', or 'type:slack'.
 
 The Opsgenie plugin (and any others created) can then be configured using resources.
 Example plugin.yaml for Opsgenie that would match with this.
@@ -108,8 +108,8 @@ spec:
     request:
       roles: [someOtherRole]
       annotations:
-        teleport.dev/notify-services: ["schedule1", "schedule2"] # These are the Opsgenie schedules alerts will be created under
-        teleport.dev/schedules: ["schedule1", "schedule2"] # These are the Opsgenie schedules checked during auto approval
+        opsgenie_notify_services: ["service1", "service2"] # These are the Opsgenie services alerts will be created under
+        opsgenie_oncall_schedules: ["service1", "service2"] # These are the Opsgenie schedules checked during auto approval
 ```
 
 ## Implementation details

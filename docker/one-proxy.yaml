@@ -1,0 +1,23 @@
+# standalone proxy connected to
+version: v3
+teleport:
+  auth_token: foo
+  nodename: one-proxy
+  advertise_ip: 172.10.1.10
+  log:
+    output: stdout
+    severity: DEBUG
+  auth_server: one:3025
+  data_dir: /var/lib/teleport
+  storage:
+    path: /var/lib/teleport/backend
+    type: dir
+
+auth_service:
+  enabled: no
+
+ssh_service:
+  enabled: no
+
+proxy_service:
+  enabled: yes

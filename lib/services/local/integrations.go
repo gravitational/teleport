@@ -143,7 +143,13 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 // notReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
 // integration [name] is not referenced by any EAS (External Audit Storage) integration.
 func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
-	var conditionalActions []backend.ConditionalAction
+	conditionalActions := []backend.ConditionalAction{{
+		// Make sure another auth server on an older minor/patch version is not holding the lock that was used
+		// before this switched to AtomicWrite.
+		Key:       backend.LockKey(externalAuditStorageLockName),
+		Condition: backend.NotExists(),
+		Action:    backend.Nop(),
+	}}
 	for _, key := range [][]byte{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
 		condition := backend.ConditionalAction{
 			Key:    key,

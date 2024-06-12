@@ -20,7 +20,6 @@ package service
 
 import (
 	"crypto/tls"
-	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -160,10 +159,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
 		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		// Device authorization breaks browser-based access.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
-			// Ignore the global device_trust.mode toggle, but allow role-based
-			// settings to be applied.
 			DisableGlobalMode: true,
+			DisableRoleMode:   true,
 		},
 	})
 	if err != nil {
@@ -212,7 +211,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
 		DataDir:      process.Config.DataDir,
-		Logger:       process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Log:          process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
 		Emitter:      conn.Client,
@@ -274,7 +273,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 		err = srv.Serve(mux.TLS())
 		if err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
+			if err == http.ErrServerClosed {
 				return nil
 			}
 			return trace.Wrap(err)

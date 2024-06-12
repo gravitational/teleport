@@ -223,6 +223,16 @@ func (c *LicenseV3) GetKind() string {
 	return c.Kind
 }
 
+// GetResourceID returns resource ID
+func (c *LicenseV3) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *LicenseV3) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (c *LicenseV3) GetRevision() string {
 	return c.Metadata.GetRevision()

@@ -113,6 +113,7 @@ func TestResourceMethods(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:     "llama",
 			Expires:  &expiry,
+			ID:       1234,
 			Revision: "alpaca",
 			Labels: map[string]string{
 				types.OriginLabel: "earth",
@@ -131,6 +132,7 @@ func TestResourceMethods(t *testing.T) {
 		Metadata: &headerv1.Metadata{
 			Name:     "Bernard",
 			Expires:  timestamppb.New(expiry),
+			Id:       4567,
 			Revision: "tinman",
 			Labels: map[string]string{
 				types.OriginLabel: "mars",
@@ -163,6 +165,23 @@ func TestResourceMethods(t *testing.T) {
 		objExpiry, err = types.GetExpiry(bot)
 		require.NoError(t, err)
 		require.Equal(t, time.Time{}, objExpiry)
+	})
+
+	t.Run("GetResourceID", func(t *testing.T) {
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		_, err := types.GetResourceID("invalid type")
+		require.Error(t, err)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err := types.GetResourceID(user)
+		require.NoError(t, err)
+		require.Equal(t, user.GetResourceID(), id)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err = types.GetResourceID(bot)
+		require.NoError(t, err)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		require.Equal(t, bot.GetMetadata().Id, id)
 	})
 
 	t.Run("GetRevision", func(t *testing.T) {

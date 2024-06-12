@@ -52,51 +52,7 @@ TLS Routing already combines all proxy ports into a single port. However, most l
 of custom ALPN, SNI, or mTLS, which are required by TLS Routing, when the load balancers are configured to terminate
 TLS.
 
-### The WebSocket upgrade
-
-The Teleport client make a WebSocket connection upgrade through a web API on the Teleport Proxy:
-
-```
- ┌───┐                     ┌─────────────┐                 ┌──────────────┐
- │tsh│                     │Load Balancer│                 │Teleport Proxy│
- └─┬─┘                     └───────┬─────┘                 └───────┬──────┘
-   │                               │                               │
-   │ GET /webapi/connectionupgrade │                               │
-   │ Upgrade: websocket            │                               │
-   ├──────────────────────────────►│                               │
-   │                               │  ┌───────────────┐            │
-   │                               ├──┤TLS Termination│            │
-   │                               │  └───────────────┘            │
-   │                               │                               │
-   │                               │ GET /webapi/connectionupgrade │
-   │                               │ Upgrade: websocket            │
-   │                               ├──────────────────────────────►│
-   │                               │                               │
-   │                               │ HTTP 101 Switching Protocols  │
-   │                               │◄──────────────────────────────┤
-   │ HTTP 101 Switching Protocols  │                               │
-   │◄──────────────────────────────┤                               │
-   │                               │                               │
-   │ TLS Routing: teleport-mysql   │                               │
-   │◄──────────────────────────────┼──────────────────────────────►│
-   │                               │                               │
-```
-
-This allows the client to tunnel the "original TLS Routing" call through a Layer 7 (HTTP) load balancer.
-
-In addition to the `Upgrade` header, the following headers are also set from the client:
-- `Connection` header is set to `Upgrade` to meet [RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)
-- `Sec-WebSocket-Version` is set to 13.
-- `Sec-WebSocket-Protocol` specifies the sub-protocol used for this upgrade: `alpn` or `alpn-ping`.
-- `Sec-WebSocket-Key` is required by WebSocket standard. More details in security section.
-
-A WebSocket frame can be one of 6 types: `text`, `binary`, `ping`, `pong`, `close` and `continuation`. The "original TLS
-Routing" layer will be embedded as `binary` frames. When the sub-protocol is `alpn-ping`, Proxy Server will send native
-WebSocket `ping` frames periodically and the client will respond with `pong`.
-
-### The legacy "connection upgrade"
-
-This section describes the legacy Teleport-custom connection upgrade used before v15.1.
+### The "connection upgrade"
 
 Borrowed from the "WebSocket" design, the Teleport client can make a connection upgrade through a web API on the
 Teleport Proxy:
@@ -133,22 +89,6 @@ In addition to the `Upgrade` header, the following headers are also set from the
 - `Connection` header is set to `Upgrade` to meet [RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)
 - `X-Teleport-Upgrade` header is set to the same value as the `Upgrade` header as some load balancers have seen
   dropping values from the `Upgrade` header
-
-#### Migration from "legacy" to WebSocket
-
-Both WebSocket and the "legacy" upgrade methods will be supported by the Teleport clients and servers for 1-2 major
-releases for backwards compatibility. And the "legacy" upgrade is expected to be removed in a later version.
-
-During the transition period, the client will send both upgrade types in the "Upgrade" headers, with "websocket" as the
-first choice. Upon receiving 101 Switching Protocols, the client will pick the negotiated protocol based on the value of
-the "Upgrade" header from the response ([RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)).
-
-On the server side, older servers ignore any upgrade types other than the "legacy" upgrade types. Therefore "websocket"
-sent by newer clients will be skipped and "legacy" upgrades will be negotiated as long as the "legacy" types are also
-present in the request headers.
-
-During the transition period, newer servers prefer the "websocket" upgrade type if both WebSocket and "legacy" types are
-provided.
 
 ### Teleport Proxy with self-signed certs
 
@@ -437,14 +377,6 @@ headers.
 Further more, requests with multiple XFF headers or headers containing multiple IPs will be rejected as it is difficult
 to know which is the truth without extra knowledge of the setup.
 
-#### 3 - `Sec-WebSocket-Key` and `Sec-WebSocket-Accept`
-
-The Teleport clients generate a new random `Sec-WebSocket-Key` on each WebSocket upgrade request, following [RFC
-6455](https://www.rfc-editor.org/rfc/rfc6455#section-11.3.1), and verify the value of `Sec-WebSocket-Accept` from the
-server response. This ensures the middleman between Teleport clients and Proxy either understands the WebSocket protocol
-or bypasses it without caching. The magic string `258EAFA5-E914-47DA-95CA-C5AB0DC85B11` is used as GUID for calculating
-`Sec-WebSocket-Accept` as specified in the RFC spec.
-
 ### Performance
 
 #### 1 - Performance on the connection upgrade
@@ -477,9 +409,5 @@ Some load balancers (e.g. AWS ALB) can drop a connection when the traffic is idl
 such cases, using short TCP keepalive would not help maintain long-lived connections.
 
 For now, the connection upgrade flow assumes the tunnelled Teleport ALPN protocol either handles keepalives on its own
-or requests an `alpn-ping` version of the upgrade. For example, SSH and reverse tunnel connections use `alpn-ping`.
-
-When `alpn-ping` is requested by the client, the Proxy server will send out pings periodically. For WebSocket upgrades,
-native WebSocket `ping` frames are sent. For "legacy" upgrades, [TLS Routing
-Ping](https://github.com/gravitational/teleport/blob/master/rfd/0081-tls-ping.md) is used to wrap the connection.
-
+or is not long-lived. [TLS Routing Ping](https://github.com/gravitational/teleport/blob/master/rfd/0081-tls-ping.md) has
+been added to all database protocols to prevent idle timeouts.

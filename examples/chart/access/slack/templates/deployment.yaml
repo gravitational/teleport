@@ -15,7 +15,7 @@ spec:
       {{- include "slack.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
+      {{- with or .Values.annotations.pod .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

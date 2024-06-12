@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -163,6 +164,86 @@ type mockAccessPoint struct {
 
 func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return ap.ca, nil
+}
+
+func TestCreateRemoteAccessPoint(t *testing.T) {
+	cases := []struct {
+		name           string
+		version        string
+		assertion      require.ErrorAssertionFunc
+		oldRemoteProxy bool
+	}{
+		{
+			name:      "invalid version",
+			assertion: require.Error,
+		},
+		{
+			name:      "remote running 13.0.0",
+			assertion: require.NoError,
+			version:   "13.0.0",
+		},
+		{
+			name:           "remote running 12.0.0",
+			assertion:      require.NoError,
+			version:        "12.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 11.0.0",
+			assertion:      require.NoError,
+			version:        "11.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 10.0.0",
+			assertion:      require.NoError,
+			version:        "10.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 9.0.0",
+			assertion:      require.NoError,
+			version:        "9.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 6.0.0",
+			assertion:      require.NoError,
+			version:        "6.0.0",
+			oldRemoteProxy: true,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			newProxyFn := func(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
+				if tt.oldRemoteProxy {
+					return nil, errors.New("expected to create an old remote proxy")
+				}
+
+				return nil, nil
+			}
+
+			oldProxyFn := func(clt authclient.ClientI, cacheName []string) (authclient.RemoteProxyAccessPoint, error) {
+				if !tt.oldRemoteProxy {
+					return nil, errors.New("expected to create an new remote proxy")
+				}
+
+				return nil, nil
+			}
+
+			clt := &mockAuthClient{}
+			srv := &server{
+				log: utils.NewLoggerForTests(),
+				Config: Config{
+					NewCachingAccessPoint:         newProxyFn,
+					NewCachingAccessPointOldProxy: oldProxyFn,
+				},
+			}
+			_, err := createRemoteAccessPoint(srv, clt, tt.version, "test")
+			tt.assertion(t, err)
+		})
+	}
 }
 
 func Test_ParseDialReq(t *testing.T) {

@@ -20,14 +20,15 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // provider is an interface that allows Templates to fetch information they
@@ -48,13 +49,11 @@ type provider interface {
 	// Config returns the current bot config
 	Config() *BotConfig
 
-	// GenerateHostCert uses the impersonatedClient to call trust.v1.GenerateHostCert.
-	GenerateHostCert(
-		ctx context.Context, req *trustpb.GenerateHostCertRequest,
-	) (*trustpb.GenerateHostCertResponse, error)
+	// GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
+	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
 	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)

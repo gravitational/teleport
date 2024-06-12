@@ -31,6 +31,7 @@ func TestFromHeaderMetadata(t *testing.T) {
 	expires := time.Now()
 
 	expectedHeader := types.Metadata{
+		ID:          12345,
 		Name:        "name",
 		Expires:     &expires,
 		Description: "description",
@@ -43,6 +44,7 @@ func TestFromHeaderMetadata(t *testing.T) {
 		Description: "description",
 		Labels:      map[string]string{"label": "value"},
 		Expires:     expires,
+		ID:          12345,
 		Revision:    "revision",
 	})
 

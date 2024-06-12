@@ -42,8 +42,7 @@ rules:
   resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/exec"]
-  # websocket protocol needs "get" permission
-  verbs: ["create", "get"]
+  verbs: ["create"]
   resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/portforward"]

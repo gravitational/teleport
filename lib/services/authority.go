@@ -49,7 +49,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -492,6 +492,9 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if err := ValidateCertAuthority(&ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			ca.SetResourceID(cfg.ID)
+		}
 		if cfg.Revision != "" {
 			ca.SetRevision(cfg.Revision)
 		}
@@ -526,7 +529,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, certAuthority))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

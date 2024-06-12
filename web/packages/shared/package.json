@@ -35,6 +35,7 @@
     "reactflow": "^11.7.4",
     "react-day-picker": "^8.10.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^8.0.7",
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",

@@ -20,7 +20,7 @@ import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
@@ -68,7 +68,6 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
   const tshClient = createTshdClient(tshdTransport);
-  const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
@@ -98,7 +97,6 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   return {
     mainProcessClient,
     tshClient,
-    vnetClient,
     ptyServiceClient,
     setupTshdEventContextBridgeService,
   };

@@ -42,8 +42,8 @@ message Notification {
 
 // NotificationSpec is the notification specification.
 message NotificationSpec {
-  reserved 1;
-  reserved "id";
+  // id is the UUID of the notification, in UUIDv7 format.
+  string id = 1;
   // created is when the notification was created, in UNIX time.
   google.protobuf.Timestamp created = 2;
   // unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.

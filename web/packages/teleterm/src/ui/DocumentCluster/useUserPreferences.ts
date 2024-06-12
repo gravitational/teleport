@@ -31,7 +31,6 @@ import {
 } from 'shared/hooks/useAsync';
 
 import {
-  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
@@ -66,7 +65,6 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
-      availableResourceMode: AvailableResourceMode.NONE,
     }
   );
   const [clusterPreferences, setClusterPreferences] = useState<
@@ -240,11 +238,5 @@ function mergeWithDefaultUnifiedResourcePreferences(
       unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.labelsViewMode
         : LabelsViewMode.COLLAPSED,
-    availableResourceMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.availableResourceMode !==
-        AvailableResourceMode.UNSPECIFIED
-        ? unifiedResourcePreferences.availableResourceMode
-        : AvailableResourceMode.NONE,
   };
 }

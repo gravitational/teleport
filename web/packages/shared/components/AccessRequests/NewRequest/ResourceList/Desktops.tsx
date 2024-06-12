@@ -28,7 +28,6 @@ export function Desktops(props: ListProps & { desktops: Desktop[] }) {
     addedResources,
     customSort,
     onLabelClick,
-    requestStarted,
     addOrRemoveResource,
   } = props;
 
@@ -57,7 +56,6 @@ export function Desktops(props: ListProps & { desktops: Desktop[] }) {
           render: agent =>
             renderActionCell(
               Boolean(addedResources.windows_desktop[agent.name]),
-              requestStarted,
               () => addOrRemoveResource('windows_desktop', agent.name)
             ),
         },

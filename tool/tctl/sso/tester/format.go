@@ -21,7 +21,6 @@ package tester
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/ghodss/yaml"
 
@@ -66,16 +65,4 @@ func formatUserDetails(description string, info *types.CreateUserParams) string 
 
 func formatError(fieldDesc string, err error) string {
 	return fmt.Sprintf("%v: error rendering field: %v\n", fieldDesc, err)
-}
-
-func formatSSOWarnings(description string, info *types.SSOWarnings) string {
-	if info == nil {
-		return ""
-	}
-
-	if len(info.Warnings) > 0 {
-		return fmt.Sprintf("%v: %v. Warnings:\n%v\n", description, info.Message, Indent(strings.Join(info.Warnings, "\n"), 2))
-	}
-
-	return fmt.Sprintf("%v: %v\n", description, info.Message)
 }

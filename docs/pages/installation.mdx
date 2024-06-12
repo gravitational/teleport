@@ -33,7 +33,7 @@ running Teleport on UNIX variants other than Linux \[1].
 | Operating System | `teleport` Daemon | `tctl` Admin Tool | `tsh` and Teleport Connect User Clients [2] | Web UI (via the browser) | `tbot` Daemon |
 | - | - | - | - | - | - |
 | Linux v2.6.23+ (RHEL/CentOS 7+, Amazon Linux 2+, Amazon Linux 2023+, Ubuntu 16.04+, Debian 9+, SLES 12 SP 5+, and SLES 15 SP 5+) \[3] | yes | yes | yes | yes | yes |
-| macOS v10.15+  (Catalina)| yes | yes | yes | yes | yes |
+| macOS v10.13+  (High Sierra)| yes | yes | yes | yes | yes |
 | Windows 10+ (rev. 1607) \[4] | no | no | yes | yes | no |
 
 \[1] *Teleport is written in Go and many of these system requirements are due to the requirements
@@ -44,8 +44,8 @@ of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
 
 \[3] *Enhanced Session Recording requires Linux kernel v5.8+*.
 
-\[4] *Teleport server does not run on Windows yet, but `tsh`, `tctl`, and Teleport Connect (the Teleport desktop clients)
-support most features on Windows 10 and later.*
+\[4] *Teleport server does not run on Windows yet, but `tsh` and Teleport Connect (the Teleport desktop clients)
+supports most features on Windows 10 and later.*
 
 ## Linux
 
@@ -126,7 +126,7 @@ Download and run the installation script on the server where you want to install
 Teleport:
 
 ```code
-$ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?}
+$ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} ${TELEPORT_EDITION?} 
 ```
 
 ### Package repositories
@@ -145,21 +145,21 @@ repositories.
 
    <Tabs>
    <TabItem label="Teleport Community Edition">
-
+   
    ```code
    $ export TELEPORT_PKG=teleport
    $ export TELEPORT_VERSION=v(=teleport.major_version=)
    $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
    ```
-
+   
    </TabItem>
    <TabItem label="Teleport Cloud">
-
+   
    Teleport Cloud installations must include the automatic agent updater. The
    following commands show you how to determine the Teleport version to install
    by querying your Teleport Cloud account. This way, the Teleport installation
    has the same major version as the service that conducts automatic updates:
-
+   
    ```code
    $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
    $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/stable/cloud/version | sed 's/v//')"
@@ -176,19 +176,19 @@ repositories.
 
    </TabItem>
    <TabItem label="Teleport Enterprise (Self-Hosted)">
-
+   
    ```code
    $ export TELEPORT_PKG=teleport-ent
    $ export TELEPORT_VERSION=v(=teleport.major_version=)
    $ export TELEPORT_CHANNEL=stable/${TELEPORT_VERSION?}
    ```
-
+   
    For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:
-
+   
    ```code
    $ export TELEPORT_PKG=teleport-ent-fips
    ```
-
+   
    </TabItem>
    </Tabs>
 
@@ -206,9 +206,9 @@ repositories.
    distribution variants. When installing Teleport using RPM repositories, you
    may need to replace the `ID` variable set in `/etc/os-release` with `ID_LIKE`
    to install packages of the closest supported distribution.
-
+   
    Currently supported distributions (and `ID` values) are:
-
+   
    | Distribution | Version              | `ID` value in `/etc/os-release` |
    |--------------|----------------------|---------------------------------|
    | Amazon Linux | 2 and 2023           | `amzn`                          |
@@ -217,12 +217,12 @@ repositories.
    | RHEL         | >= 7                 | `rhel`                          |
    | SLES         | >= 12 SP5, >= 15 SP5 | `sles`                          |
    | Ubuntu       | >= 16.04             | `ubuntu`                        |
-
+   
    Note that [Enhanced Session
    Recording](./server-access/guides/bpf-session-recording.mdx) requires Linux
    kernel version 5.8+. This means that it requires more recent OS versions than
    other Teleport features:
-
+   
    | Distribution | Version                  |
    |--------------|--------------------------|
    | Amazon Linux | 2 (post 11/2021), 2023   |
@@ -238,7 +238,7 @@ repositories.
 
    <Tabs>
    <TabItem label="apt">
-
+   
    ```code
    # Download the Teleport PGP public key
    $ sudo curl https://apt.releases.teleport.dev/gpg \
@@ -249,15 +249,15 @@ repositories.
    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} \
    ${TELEPORT_CHANNEL?}" \
    | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-
+   
    $ sudo apt-get update
    $ sudo apt-get install ${TELEPORT_PKG?}
    ```
-
+   
    </TabItem>
-
+   
    <TabItem label="yum">
-
+   
    ```code
    # Add the Teleport YUM repository. You'll need to update this file for each
    # major release of Teleport.
@@ -271,11 +271,11 @@ repositories.
    # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
    # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
-
+   
    </TabItem>
-
+   
    <TabItem label="zypper">
-
+   
    ```code
    # Add the Teleport Zypper repository. You'll need to update this file for each
    # major release of Teleport.
@@ -290,11 +290,11 @@ repositories.
    # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
    # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
-
+   
    </TabItem>
-
+   
    <TabItem label="dnf">
-
+   
    ```code
    # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
    # file for each major release of Teleport.
@@ -305,14 +305,14 @@ repositories.
    $ sudo yum install -y yum-utils
    # Use the dnf config manager plugin to add the teleport RPM repo
    $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
-
+   
    # Install teleport
    $ sudo dnf install ${TELEPORT_PKG}
-
+   
    # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
    # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
-
+   
    </TabItem>
    </Tabs>
 
@@ -351,7 +351,7 @@ script](#one-line-installation-script) or manually install Teleport from a
    $ SYSTEM_ARCH=""
    ```
 
-   The following architecture values are available:
+   The following architecture values are available:   
 
    - `amd64`
    - `arm64`
@@ -811,7 +811,7 @@ security.
 </TabItem>
 </Tabs>
 
-## Windows (`tsh` and `tctl` clients only)
+## Windows (tsh client only)
 
 (!docs/pages/includes/install-windows.mdx!)
 

@@ -248,6 +248,7 @@ func TestListenAndForwardCancel(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func newTestListener(t *testing.T, handle func(net.Conn)) net.Listener {

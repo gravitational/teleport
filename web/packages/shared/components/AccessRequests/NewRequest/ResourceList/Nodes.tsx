@@ -28,7 +28,6 @@ export function Nodes(props: ListProps & { nodes: Node[] }) {
     addedResources,
     customSort,
     onLabelClick,
-    requestStarted,
     addOrRemoveResource,
   } = props;
 
@@ -56,10 +55,8 @@ export function Nodes(props: ListProps & { nodes: Node[] }) {
         {
           altKey: 'action-btn',
           render: agent =>
-            renderActionCell(
-              Boolean(addedResources.node[agent.id]),
-              requestStarted,
-              () => addOrRemoveResource('node', agent.id, agent.hostname)
+            renderActionCell(Boolean(addedResources.node[agent.id]), () =>
+              addOrRemoveResource('node', agent.id, agent.hostname)
             ),
         },
       ]}

@@ -560,7 +560,7 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 }
 
 var (
-	minAppVersion15 = semver.New("15.3.4")
+	minAppVersion15 = semver.New("15.3.5")
 	minAppVersion14 = semver.New("14.3.19")
 	minAppVersion13 = semver.New("13.4.25")
 )

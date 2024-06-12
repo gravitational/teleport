@@ -94,21 +94,11 @@ export interface ConnectProtocolUseEvent {
      */
     protocol: string;
     /**
-     * origin denotes which part of Connect UI was used to access a resource.
-     * One of resource_table/search_bar/connection_list/reopened_session/vnet (optional for backwards
-     * compatibility).
+     * one of resource_table/search_bar/connection_list/reopened_session (optional)
      *
      * @generated from protobuf field: string origin = 4;
      */
     origin: string;
-    /**
-     * access_through describes whether a resource was accessed by speaking to the proxy service
-     * directly, through a local proxy or through VNet.
-     * One of proxy_service/local_proxy/vnet (optional for backwards compatibility).
-     *
-     * @generated from protobuf field: string access_through = 5;
-     */
-    accessThrough: string;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.ConnectAccessRequestCreateEvent
@@ -427,8 +417,7 @@ class ConnectProtocolUseEvent$Type extends MessageType<ConnectProtocolUseEvent> 
             { no: 1, name: "cluster_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "access_through", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConnectProtocolUseEvent>): ConnectProtocolUseEvent {
@@ -437,7 +426,6 @@ class ConnectProtocolUseEvent$Type extends MessageType<ConnectProtocolUseEvent> 
         message.userName = "";
         message.protocol = "";
         message.origin = "";
-        message.accessThrough = "";
         if (value !== undefined)
             reflectionMergePartial<ConnectProtocolUseEvent>(this, message, value);
         return message;
@@ -458,9 +446,6 @@ class ConnectProtocolUseEvent$Type extends MessageType<ConnectProtocolUseEvent> 
                     break;
                 case /* string origin */ 4:
                     message.origin = reader.string();
-                    break;
-                case /* string access_through */ 5:
-                    message.accessThrough = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -486,9 +471,6 @@ class ConnectProtocolUseEvent$Type extends MessageType<ConnectProtocolUseEvent> 
         /* string origin = 4; */
         if (message.origin !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.origin);
-        /* string access_through = 5; */
-        if (message.accessThrough !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.accessThrough);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

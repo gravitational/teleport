@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -54,7 +53,7 @@ func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servic
 
 	sso := app.Command("sso", "A family of commands for configuring and testing auth connectors (SSO).")
 	cmd.ConfigureCmd = sso.Command("configure", "Create auth connector configuration.")
-	cmd.AuthCommands = []*AuthKindCommand{addGithubCommand(cmd), addSAMLCommand(cmd), addOIDCCommand(cmd)}
+	cmd.AuthCommands = []*AuthKindCommand{addGithubCommand(cmd)}
 }
 
 // TryRun is executed after the CLI parsing is done. The command must
@@ -65,7 +64,7 @@ func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand stri
 			// the default tctl logging behavior is to ignore all logs, unless --debug is present.
 			// we want different behavior: log messages as normal, but with compact format (no time, no caller info).
 			if !cmd.Config.Debug {
-				formatter := logutils.NewDefaultTextFormatter(utils.IsTerminal(os.Stderr))
+				formatter := logutils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
 				formatter.FormatCaller = func() (caller string) { return "" }
 				cmd.Logger.Logger.SetFormatter(formatter)
 				cmd.Logger.Logger.SetOutput(os.Stderr)

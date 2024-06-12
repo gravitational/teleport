@@ -232,6 +232,7 @@ func itemFromPluginData(data types.PluginData) (backend.Item, error) {
 		Key:      pluginDataKey(data.GetSubKind(), data.GetName()),
 		Value:    value,
 		Expires:  data.Expiry(),
+		ID:       data.GetResourceID(),
 		Revision: rev,
 	}, nil
 }
@@ -239,6 +240,7 @@ func itemFromPluginData(data types.PluginData) (backend.Item, error) {
 func itemToPluginData(item backend.Item) (types.PluginData, error) {
 	data, err := services.UnmarshalPluginData(
 		item.Value,
+		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)

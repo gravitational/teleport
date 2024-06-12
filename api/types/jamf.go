@@ -40,15 +40,13 @@ var JamfOnMissingActions = []string{
 
 // ValidateJamfSpecV1 validates a [JamfSpecV1] instance.
 func ValidateJamfSpecV1(s *JamfSpecV1) error {
-	if s == nil {
+	switch {
+	case s == nil:
 		return trace.BadParameter("spec required")
-	}
-
-	// Jamf can handle both credential sets being present, so we let it pass.
-	hasUserPass := s.Username != "" && s.Password != ""
-	hasAPICreds := s.ClientId != "" && s.ClientSecret != ""
-	if !hasUserPass && !hasAPICreds {
-		return trace.BadParameter("either username+password or clientID+clientSecret must be provided")
+	case s.Username == "":
+		return trace.BadParameter("username required")
+	case s.Password == "":
+		return trace.BadParameter("password required")
 	}
 
 	switch u, err := url.Parse(s.ApiEndpoint); {

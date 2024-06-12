@@ -34,6 +34,7 @@ import (
 )
 
 func TestWorkloadIdentityIssue(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{

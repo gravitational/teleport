@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,20 +34,20 @@ func ConvertResponseError(err error) error {
 		return nil
 	}
 
-	var responseErr *azcore.ResponseError
-	var authenticationFailedErr *azidentity.AuthenticationFailedError
-	switch {
-	case errors.As(err, &responseErr):
-		switch responseErr.StatusCode {
+	switch v := err.(type) {
+	case *azcore.ResponseError:
+		switch v.StatusCode {
 		case http.StatusForbidden:
-			return trace.AccessDenied(responseErr.Error())
+			return trace.AccessDenied(v.Error())
 		case http.StatusConflict:
-			return trace.AlreadyExists(responseErr.Error())
+			return trace.AlreadyExists(v.Error())
 		case http.StatusNotFound:
-			return trace.NotFound(responseErr.Error())
+			return trace.NotFound(v.Error())
 		}
-	case errors.As(err, &authenticationFailedErr):
-		return trace.AccessDenied(authenticationFailedErr.Error())
+
+	case *azidentity.AuthenticationFailedError:
+		return trace.AccessDenied(v.Error())
+
 	}
 	return err // Return unmodified.
 }

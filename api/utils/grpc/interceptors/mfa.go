@@ -17,11 +17,11 @@ package interceptors
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/mfa"
@@ -53,7 +53,7 @@ func WithMFAUnaryInterceptor(mfaCeremony mfa.MFACeremony) grpc.UnaryClientInterc
 		// we just want the method name.
 		splitMethod := strings.Split(method, "/")
 		readableMethodName := splitMethod[len(splitMethod)-1]
-		slog.DebugContext(ctx, "Retrying API request with Admin MFA", "method", readableMethodName)
+		logrus.Debugf("Retrying API request %q with Admin MFA", readableMethodName)
 
 		// Start an MFA prompt that shares what API request caused MFA to be prompted.
 		// ex: MFA is required for admin-level API request: "CreateUser"

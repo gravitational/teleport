@@ -641,17 +641,6 @@ const (
 	// Device enroll tokens are issued by either a device admin or during
 	// client-side auto-enrollment.
 	DeviceEnrollTokenCreateEvent = "device.token.create"
-	// DeviceWebTokenCreateEvent is emitted when a new device web token is issued.
-	// Device web tokens are issued during Web login for users that own a suitable
-	// trusted device.
-	// Tokens are spent in exchange for a single on-behalf-of device
-	// authentication attempt.
-	DeviceWebTokenCreateEvent = "device.webtoken.create"
-	// DeviceAuthenticateConfirmEvent is emitted when a device web authentication
-	// attempt is confirmed (via the ConfirmDeviceWebAuthentication RPC).
-	// A confirmed web authentication means the WebSession itself now holds
-	// augmented TLS and SSH certificates.
-	DeviceAuthenticateConfirmEvent = "device.authenticate.confirm"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -702,9 +691,6 @@ const (
 
 	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
 	OktaAccessListSyncEvent = "okta.access_list.sync"
-
-	// OktaUserSyncEvent is emitted when an access list synchronization has completed.
-	OktaUserSyncEvent = "okta.user.sync"
 
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
@@ -761,12 +747,6 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
-
-	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
-	// and an identity/resource is affected.
-	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
-	// TODO(jakule): Remove once e is updated to the new name.
-	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
 )
 
 const (

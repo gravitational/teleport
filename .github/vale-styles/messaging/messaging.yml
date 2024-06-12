@@ -1,0 +1,12 @@
+extends: substitution
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
+message: For consistent product messaging in the docs, use '%s' instead of '%s'.
+level: error
+ignorecase: false
+swap:
+  2FA: MFA
+  '[Ss]econd-?factor': multi-factor

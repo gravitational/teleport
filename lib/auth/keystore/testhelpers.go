@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -173,8 +172,7 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
 	t.Logf("Running command: %q", cmd)
 	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := err.(*exec.ExitError); ok {
 			require.NoError(t, exitErr, "error creating test softhsm token: %s", string(exitErr.Stderr))
 		}
 		require.NoError(t, err, "error attempting to run softhsm2-util")

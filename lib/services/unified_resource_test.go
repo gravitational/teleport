@@ -30,12 +30,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	apimetadata "github.com/gravitational/teleport/api/metadata"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -152,8 +150,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -180,8 +178,8 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		expectedRes,
 		res,
 		cmpopts.EquateEmpty(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -342,7 +340,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	kube, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name:      "kube",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		types.KubernetesClusterSpecV3{},
 	)
@@ -350,7 +348,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	kubeServer, err := types.NewKubernetesServerV3(
 		types.Metadata{
 			Name:      "kube_server",
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		types.KubernetesServerSpecV3{
 			Cluster: kube,
@@ -383,47 +381,6 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		res, _ := w.GetUnifiedResources(ctx)
 		return len(res) == 0
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be deleted")
-}
-
-func Test_PaginatedResourcesSAMLIdPServiceProviderCompatibility(t *testing.T) {
-	samlApp, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp1",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	)
-	require.NoError(t, err)
-
-	// for a v15 client, expect AppServerOrSAMLIdPServiceProvider response
-	v15ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{apimetadata.VersionKey: "15.0.0"}))
-	v15response, err := services.MakePaginatedResources(v15ctx, types.KindUnifiedResource, []types.ResourceWithLabels{samlApp}, map[string]struct{}{})
-	require.NoError(t, err)
-	require.Equal(t,
-		&proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-				//nolint:staticcheck // SA1019. TODO(gzdunek): DELETE IN 17.0 (with the entire test)
-				AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-						SAMLIdPServiceProvider: samlApp.(*types.SAMLIdPServiceProviderV1),
-					},
-				}}},
-		v15response[0],
-	)
-
-	// for a v16 client, expect SAMLIdPServiceProvider response
-	v16ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{apimetadata.VersionKey: "16.0.0"}))
-	v16response, err := services.MakePaginatedResources(v16ctx, types.KindUnifiedResource, []types.ResourceWithLabels{samlApp}, map[string]struct{}{})
-	require.NoError(t, err)
-	require.Equal(t,
-		&proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{
-				SAMLIdPServiceProvider: samlApp.(*types.SAMLIdPServiceProviderV1),
-			}},
-		v16response[0],
-	)
 }
 
 func newTestEntityDescriptor(entityID string) string {

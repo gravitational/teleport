@@ -183,7 +183,7 @@ func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Clie
 		return err
 	}
 
-	err = u.PrintResetPasswordToken(token)
+	err = u.PrintResetPasswordToken(token, u.format)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,8 +192,9 @@ func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Clie
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) PrintResetPasswordToken(token types.UserToken) error {
+func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format string) error {
 	err := u.printResetPasswordToken(token,
+		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
 	if err != nil {
@@ -204,8 +205,9 @@ func (u *UserCommand) PrintResetPasswordToken(token types.UserToken) error {
 }
 
 // PrintResetPasswordTokenAsInvite prints ResetPasswordToken as Invite
-func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken) error {
+func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken, format string) error {
 	err := u.printResetPasswordToken(token,
+		format,
 		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,7 +217,7 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token types.UserToken) err
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken
-func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageFormat string) (err error) {
+func (u *UserCommand) printResetPasswordToken(token types.UserToken, format string, messageFormat string) (err error) {
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
@@ -324,7 +326,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		return trace.Wrap(err)
 	}
 
-	if err := u.PrintResetPasswordTokenAsInvite(token); err != nil {
+	if err := u.PrintResetPasswordTokenAsInvite(token, u.format); err != nil {
 		return trace.Wrap(err)
 	}
 

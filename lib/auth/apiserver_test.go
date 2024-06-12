@@ -138,7 +138,7 @@ func TestUpsertServer(t *testing.T) {
 			addServers(s.GetAuthServers())
 			addServers(s.GetNodes(ctx, apidefaults.Namespace))
 			addServers(s.GetProxies())
-			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		})
 	}
 }

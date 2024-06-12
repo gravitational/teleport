@@ -32,6 +32,31 @@ export function useClusters() {
       .filter(c => c.leaf && c.uri.startsWith(clusterUri));
   }
 
+  function hasPendingAccessRequest() {
+    const accessRequestsService =
+      workspacesService.getActiveWorkspaceAccessRequestsService();
+    if (!accessRequestsService) {
+      return false;
+    }
+
+    const pendingAccessRequest =
+      accessRequestsService.getPendingAccessRequest();
+
+    if (!pendingAccessRequest) {
+      return false;
+    }
+
+    const count = accessRequestsService.getAddedResourceCount();
+    return count > 0;
+  }
+
+  function clearPendingAccessRequest() {
+    const accessRequestsService =
+      workspacesService.getActiveWorkspaceAccessRequestsService();
+
+    accessRequestsService?.clearPendingAccessRequest();
+  }
+
   const rootClusterUri = workspacesService.getRootClusterUri();
   const localClusterUri =
     workspacesService.getActiveWorkspace()?.localClusterUri;
@@ -41,6 +66,8 @@ export function useClusters() {
 
   return {
     hasLeaves: items.some(i => i.leaf),
+    hasPendingAccessRequest: hasPendingAccessRequest(),
+    clearPendingAccessRequest,
     selectedItem:
       localClusterUri && clustersService.findCluster(localClusterUri),
     selectItem: (localClusterUri: ClusterUri) => {

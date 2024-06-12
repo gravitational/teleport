@@ -40,16 +40,6 @@ func (CombinedStdio) Write(p []byte) (int, error) {
 	return os.Stdout.Write(p)
 }
 
-// ReadFrom copies data from [os.Stdout] to the provided [io.Reader].
-func (CombinedStdio) ReadFrom(r io.Reader) (n int64, err error) {
-	return os.Stdout.ReadFrom(r)
-}
-
-// WriteTo copies data from [os.Stdin] to the provided [io.Writer].
-func (CombinedStdio) WriteTo(w io.Writer) (n int64, err error) {
-	return os.Stdin.WriteTo(w)
-}
-
 func (CombinedStdio) Close() error {
 	return nil
 }

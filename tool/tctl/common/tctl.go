@@ -27,10 +27,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -417,7 +417,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if profile.IsExpired(time.Now()) {
+	if profile.IsExpired(clockwork.NewRealClock()) {
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 

@@ -205,6 +205,15 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 		created = created.Add(time.Second)
 		_, err = svcs.CreateAccessRequestV2(ctx, r)
 		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			rsp, err := cache.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+				Filter: &types.AccessRequestFilter{
+					ID: rr.id,
+				},
+			})
+			return err == nil && len(rsp.AccessRequests) != 0
+		}, time.Second*15, time.Millisecond*50)
 	}
 
 	timeout := time.After(time.Second * 30)

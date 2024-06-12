@@ -185,7 +185,7 @@ spec:
 Note that we are using the request's `system_annotations` attribute in order to indirectly
 operate on a trait, rather than operating directly on the requesting user's traits.  This
 is intended to ensure that traits of requesting users are not inadvertently exposed to
-other users.  See the 'User Data Leakage' discussion below for more info.
+other users.  See the the 'User Data Leakage' discussion below for more info.
 
 In general, what the above configuration allows us to do, is to construct a "matcher" which
 allow us to answer the question "can user `X` serve as an approver for request `Y`" based

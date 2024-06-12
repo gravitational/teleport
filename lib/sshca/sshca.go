@@ -34,4 +34,7 @@ type Authority interface {
 	// GenerateUserCert generates user ssh certificate, it takes pkey as a signing
 	// private key (user certificate authority)
 	GenerateUserCert(certParams services.UserCertParams) ([]byte, error)
+
+	// Close will close the key-management facility.
+	Close()
 }

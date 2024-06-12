@@ -67,7 +67,7 @@ This tooling will leveraged to address gaps in our release branch scanning in th
 1. Create four repositories, one for each supported version (and one extra described below): `teleport-sec_scan-1`, `teleport-sec_scan-2`, `teleport-sec_scan-3`, and `teleport-sec_scan-4`. The 1 will refer to our latest release branch, determined by automation, with each subsequent repository covering a consecutively older version.
 2. Set up sync automation as documented above.
 3. Modify the Dependabot configuration to provide notifications only for security updates on these branches.
-4. Disable any unnecessary workflows.
+4. Disable any unecessary workflows.
 5. Adjust the CodeQL configuration to focus scanning on these branches. This would centralize security reporting and minimize inconsistencies between master and the release branches, thereby reducing the frequency of `Fixed` and `Reopened` status changes.
 
 It is important to minimize manual intervention in maintaining this process. Therefore, automating the detection of the current release branch is essential. One challenge is that all repositories will be updated as soon as the next version is created. To ensure constant coverage of supported versions, we maintain a fourth repository.

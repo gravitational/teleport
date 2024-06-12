@@ -76,9 +76,9 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 		Params: backend.Params{
 			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        prefix,
-			"tls_key_file":  "../../fixtures/etcdcerts/client-key.pem",
-			"tls_cert_file": "../../fixtures/etcdcerts/client-cert.pem",
-			"tls_ca_file":   "../../fixtures/etcdcerts/ca-cert.pem",
+			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
+			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
+			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
 		},
 	}
 	t.Cleanup(func() {

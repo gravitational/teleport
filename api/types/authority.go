@@ -144,6 +144,16 @@ func (ca *CertAuthorityV2) Expiry() time.Time {
 	return ca.Metadata.Expiry()
 }
 
+// GetResourceID returns resource ID
+func (ca *CertAuthorityV2) GetResourceID() int64 {
+	return ca.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (ca *CertAuthorityV2) SetResourceID(id int64) {
+	ca.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (ca *CertAuthorityV2) GetRevision() string {
 	return ca.Metadata.GetRevision()

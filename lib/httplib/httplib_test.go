@@ -376,6 +376,32 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	}
 }
 
+func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
+
+	applicationURL := "https://example.com"
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     fmt.Sprintf("'self' %s", applicationURL),
+	}
+
+	h := make(http.Header)
+	SetAppLaunchContentSecurityPolicy(h, applicationURL)
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
 func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 	t.Parallel()
 

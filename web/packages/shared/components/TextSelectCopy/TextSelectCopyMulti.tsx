@@ -62,7 +62,6 @@ export function TextSelectCopyMulti({
       pl={3}
       pt={2}
       pr={saveContent.save ? 10 : 6}
-      // pr={2}
       borderRadius={2}
       minHeight="50px"
       // Firefox does not add space for visible scrollbars

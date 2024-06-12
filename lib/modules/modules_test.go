@@ -20,7 +20,6 @@ package modules_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,11 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestMain(m *testing.M) {
-	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
-}
 
 func TestOSSModules(t *testing.T) {
 	require.False(t, modules.GetModules().IsBoringBinary())
@@ -60,7 +54,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 
 	authPref.SetSecondFactor(constants.SecondFactorOff)
 	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
+	require.EqualError(t, err, "cannot disable two-factor authentication on Cloud")
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {

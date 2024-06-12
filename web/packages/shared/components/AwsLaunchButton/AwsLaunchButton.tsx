@@ -53,7 +53,7 @@ export class AwsLaunchButton extends React.Component<Props> {
       <>
         <ButtonBorder
           textTransform="none"
-          width={this.props.width || '90px'}
+          width="90px"
           size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
@@ -180,7 +180,6 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
-  width?: string;
 };
 
 const StyledMenuItem = styled(MenuItem)(

@@ -20,7 +20,6 @@ package clusters
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -28,14 +27,14 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -118,21 +117,25 @@ func (c *Cluster) GetDatabases(ctx context.Context, authClient authclient.Client
 }
 
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
-	if dbrole.RequireDatabaseUserMatcher(routeToDatabase.Protocol) && routeToDatabase.Username == "" {
-		return tls.Certificate{}, trace.BadParameter("the username must be present")
+func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyClient, routeToDatabase tlsca.RouteToDatabase) error {
+	// When generating certificate for MongoDB access, database username must
+	// be encoded into it. This is required to be able to tell which database
+	// user to authenticate the connection as.
+	if routeToDatabase.Protocol == libdefaults.ProtocolMongoDB && routeToDatabase.Username == "" {
+		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	// Fetch the certs for the database.
+	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToDatabase: proto.RouteToDatabase{
 			ServiceName: routeToDatabase.ServiceName,
@@ -140,14 +143,18 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 			Username:    routeToDatabase.Username,
 		},
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
-		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", routeToDatabase.ServiceName)))
+	})
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	dbCert, err := key.DBTLSCert(routeToDatabase.ServiceName)
-	return dbCert, trace.Wrap(err)
+	// Update the database-specific connection profile file.
+	err = dbprofile.Add(ctx, c.clusterClient, routeToDatabase, c.status)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.

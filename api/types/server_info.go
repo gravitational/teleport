@@ -93,6 +93,16 @@ func (s *ServerInfoV1) GetMetadata() Metadata {
 	return s.Metadata
 }
 
+// GetResourceID returns resource ID
+func (s *ServerInfoV1) GetResourceID() int64 {
+	return s.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (s *ServerInfoV1) SetResourceID(id int64) {
+	s.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (s *ServerInfoV1) GetRevision() string {
 	return s.Metadata.GetRevision()

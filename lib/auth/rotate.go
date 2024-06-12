@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -169,6 +170,64 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated rotation state, set current phase to: %q.", rotation.Phase)
 	case types.RotationStateStandby:
 		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated and completed rotation.")
+	}
+
+	return nil
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is called by remote trusted cluster and is used to update
+// only public keys and certificates of the certificate authority.
+// TODO(Joerger): DELETE IN v16.0.0, moved to Trust service
+func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	if ca == nil {
+		return trace.BadParameter("missing certificate authority")
+	}
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// this is just an extra precaution against local admins,
+	// because this is additionally enforced by RBAC as well
+	if ca.GetClusterName() == clusterName.GetClusterName() {
+		return trace.BadParameter("can not rotate local certificate authority")
+	}
+
+	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       ca.GetType(),
+		DomainName: ca.GetClusterName(),
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	updated := existing.Clone()
+	if err := updated.SetActiveKeys(ca.GetActiveKeys().Clone()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// a rotation state of "" gets stored as "standby" after
+	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
+	// this before checking if `updated` is the same as `existing` or the check
+	// will fail for no reason.
+	updated.SetRotation(ca.GetRotation())
+	if err := services.CheckAndSetDefaults(updated); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// writing `updated` over `existing` if they're equivalent will only cause
+	// backend and watcher spam for no gain, so we exit early if that's the case
+	if services.CertAuthoritiesEquivalent(existing, updated) {
+		return nil
+	}
+
+	// use update rather than upsert to ensure we are protected from concurrent writes.
+	if _, err := a.UpdateCertAuthority(ctx, updated); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

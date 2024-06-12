@@ -25,6 +25,7 @@ import (
 // TODO: Remove this once we get rid of the old Metadata object.
 func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
 	return types.Metadata{
+		ID:          metadata.ID,
 		Name:        metadata.Name,
 		Expires:     &metadata.Expires,
 		Description: metadata.Description,

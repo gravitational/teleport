@@ -53,7 +53,6 @@ export function ListView({
           labels={item.labels}
           pinned={pinnedResources.includes(key)}
           pinningSupport={pinningSupport}
-          requiresRequest={item.requiresRequest}
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}
           pinResource={() => onPinResource(key)}

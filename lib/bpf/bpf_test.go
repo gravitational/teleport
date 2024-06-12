@@ -24,7 +24,6 @@ package bpf
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -128,7 +127,7 @@ func waitForContinue() error {
 	defer waitFD.Close()
 
 	buff := make([]byte, 1)
-	if _, err := waitFD.Read(buff); err != nil && !errors.Is(err, io.EOF) {
+	if _, err := waitFD.Read(buff); err != nil && err != io.EOF {
 		return err
 	}
 

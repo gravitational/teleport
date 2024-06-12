@@ -27,9 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -141,19 +139,18 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         pubBytes,
-		HostId:      principals[0],
-		NodeName:    principals[0],
-		Principals:  principals,
-		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(0),
-	})
+	certBytes, err := c.authClient.GenerateHostCert(
+		ctx,
+		pubBytes,
+		principals[0],
+		principals[0],
+		principals,
+		clusterName,
+		types.RoleNode,
+		0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certBytes := res.SshCertificate
 
 	// create a *ssh.Certificate
 	privateKey, err := ssh.ParsePrivateKey(privBytes)

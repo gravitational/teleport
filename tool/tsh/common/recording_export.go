@@ -50,11 +50,14 @@ func onExportRecording(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	proxyClient, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	defer proxyClient.Close()
+
+	authClient := proxyClient.CurrentCluster()
+	defer authClient.Close()
 
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
@@ -63,7 +66,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
+	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
 	return trace.Wrap(err)
 }
 

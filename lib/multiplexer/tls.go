@@ -21,7 +21,6 @@ package multiplexer
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"io"
 	"net"
 	"time"
@@ -145,8 +144,8 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	}
 
 	start := l.cfg.Clock.Now()
-	if err := conn.HandshakeContext(l.context); err != nil {
-		if !errors.Is(trace.Unwrap(err), io.EOF) {
+	if err := conn.Handshake(); err != nil {
+		if trace.Unwrap(err) != io.EOF {
 			l.log.WithFields(log.Fields{
 				"src_addr": conn.RemoteAddr(),
 				"dst_addr": conn.LocalAddr(),

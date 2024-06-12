@@ -37,7 +37,6 @@ import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 import { useDisplayResults } from './useDisplayResults';
 
@@ -46,9 +45,6 @@ export function useActionAttempts() {
   const { modalsService, workspacesService } = ctx;
   const searchContext = useSearchContext();
   const { inputValue, filters, pauseUserInteraction } = searchContext;
-  const { isSupported: isVnetSupported } = useVnetContext();
-  const vnetLauncher = useVnetLauncher();
-  const launchVnet = isVnetSupported ? vnetLauncher : undefined;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());
@@ -127,10 +123,10 @@ export function useActionAttempts() {
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) =>
         rankResults(results, search).map(result =>
-          mapToAction(ctx, launchVnet, searchContext, result)
+          mapToAction(ctx, searchContext, result)
         )
       ),
-    [ctx, resourceSearchAttempt, searchContext, launchVnet]
+    [ctx, resourceSearchAttempt, searchContext]
   );
 
   const runFilterSearch = useFilterSearch();
@@ -138,14 +134,13 @@ export function useActionAttempts() {
     () =>
       // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
       runFilterSearch(inputValue, filters).map(result =>
-        mapToAction(ctx, launchVnet, searchContext, result)
+        mapToAction(ctx, searchContext, result)
       ),
-    [runFilterSearch, inputValue, filters, ctx, searchContext, launchVnet]
+    [runFilterSearch, inputValue, filters, ctx, searchContext]
   );
 
   const displayResultsAction = mapToAction(
     ctx,
-    launchVnet,
     searchContext,
     useDisplayResults({
       inputValue,

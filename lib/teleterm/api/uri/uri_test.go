@@ -406,29 +406,3 @@ func TestIsLeaf(t *testing.T) {
 		})
 	}
 }
-
-func TestAppendLeafCluster(t *testing.T) {
-	tests := []struct {
-		profileName string
-		leafName    string
-		out         string
-	}{
-		{
-			profileName: "foo",
-			leafName:    "bar",
-			out:         "/clusters/foo/leaves/bar",
-		},
-		{
-			profileName: "foo",
-			leafName:    "",
-			out:         "/clusters/foo",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.out, func(t *testing.T) {
-			actualOut := uri.NewClusterURI(tt.profileName).AppendLeafCluster(tt.leafName).String()
-			require.Equal(t, tt.out, actualOut)
-		})
-	}
-}

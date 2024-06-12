@@ -57,6 +57,9 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (types.ClusterNam
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		clusterName.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		clusterName.SetRevision(cfg.Revision)
 	}
@@ -80,7 +83,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, clusterName))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, clusterName))
 	default:
 		return nil, trace.BadParameter("unrecognized cluster name version %T", clusterName)
 	}

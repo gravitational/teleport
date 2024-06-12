@@ -11,7 +11,7 @@
 # Written mainly for macOS builders.
 set -eu
 
-readonly MACOS_VERSION_MIN=10.15
+readonly MACOS_VERSION_MIN=10.13
 
 # Cross-architecture building
 # Set C_ARCH to $(uname -m) if unset, and validate supported architecture
@@ -25,8 +25,8 @@ readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
 readonly CRYPTO_VERSION=openssl-3.0.14
 readonly CRYPTO_COMMIT=9cff14fd97814baf8a9a07d8447960a64d616ada
-readonly FIDO2_VERSION=1.14.0
-readonly FIDO2_COMMIT=1a9d335c8f0e821f9eff27482fdda96e59a4f577
+readonly FIDO2_VERSION=1.13.0
+readonly FIDO2_COMMIT=486a8f8667e42f55cee2bba301b41433cacec830
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"

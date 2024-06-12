@@ -65,7 +65,7 @@ func TestOktaImportRules(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listResp.NextPageToken)
 	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r1, r2, r3}, listResp.ImportRules,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	r1.SetExpiry(time.Now().Add(30 * time.Minute))
 	updateResp, err := svc.UpdateOktaImportRule(ctx, &oktapb.UpdateOktaImportRuleRequest{ImportRule: r1})
@@ -75,7 +75,7 @@ func TestOktaImportRules(t *testing.T) {
 	r, err := svc.GetOktaImportRule(ctx, &oktapb.GetOktaImportRuleRequest{Name: r1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = svc.DeleteOktaImportRule(ctx, &oktapb.DeleteOktaImportRuleRequest{Name: r1.GetName()})
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestOktaImportRules(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listResp.NextPageToken)
 	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r2, r3}, listResp.ImportRules,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = svc.DeleteAllOktaImportRules(ctx, &oktapb.DeleteAllOktaImportRulesRequest{})
 	require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestOktaAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listResp.NextPageToken)
 	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a1, a2, a3}, listResp.Assignments,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
 	updateResp, err := svc.UpdateOktaAssignment(ctx, &oktapb.UpdateOktaAssignmentRequest{Assignment: a1})
@@ -133,7 +133,7 @@ func TestOktaAssignments(t *testing.T) {
 	a, err := svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, a,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = svc.UpdateOktaAssignmentStatus(ctx, &oktapb.UpdateOktaAssignmentStatusRequest{
 		Name:   a1.GetName(),
@@ -146,7 +146,7 @@ func TestOktaAssignments(t *testing.T) {
 	require.NoError(t, err)
 	a1.SetLastTransition(a.GetLastTransition())
 	require.Empty(t, cmp.Diff(a1, a,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = svc.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestOktaAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listResp.NextPageToken)
 	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a2, a3}, listResp.Assignments,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = svc.DeleteAllOktaAssignments(ctx, &oktapb.DeleteAllOktaAssignmentsRequest{})
 	require.NoError(t, err)

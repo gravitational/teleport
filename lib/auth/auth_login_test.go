@@ -234,11 +234,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	clt, err := srv.NewClient(TestUser(u.username))
 	require.NoError(t, err)
 
-	res, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-		},
-	})
+	res, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 	require.NoError(t, err)
 
 	// MFA authentication works.
@@ -522,9 +518,6 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-			},
 			MFARequiredCheck: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Node{
 					Node: &proto.NodeLogin{
@@ -737,9 +730,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
-			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
 		})
 		require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -1146,9 +1136,6 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{}, // already authenticated
-		},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
 	require.NoError(t, err)
@@ -1714,9 +1701,6 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
-				},
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			})
 			require.NoError(t, err)

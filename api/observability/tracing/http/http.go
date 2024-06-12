@@ -18,19 +18,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
 )
-
-func init() {
-	// There's a memory leak in otelhttp caused by the default global
-	// delegating meter provider. Here we set the no op meter provider to
-	// avoid this.
-	//
-	// See the upstream issue for more:
-	// https://github.com/open-telemetry/opentelemetry-go-contrib/issues/5190
-	otel.SetMeterProvider(metricnoop.MeterProvider{})
-}
 
 // TransportFormatter is a span formatter that may be provided to
 // [otelhttp.WithSpanNameFormatter] to include the url path in the span

@@ -32,10 +32,10 @@ import {
 } from 'teleport/Navigation/common';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
-import { LocalNotificationKind } from 'teleport/services/notifications';
 import { useTeleport } from 'teleport';
 
 import { NavTitle, RecommendationStatus } from 'teleport/types';
+import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import type {
   TeleportFeature,
@@ -196,7 +196,7 @@ export function NavigationItem(props: NavigationItemProps) {
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {
     if (featureName === NavTitle.AccessLists) {
       const hasNotifications = ctx.storeNotifications.hasNotificationsByKind(
-        LocalNotificationKind.AccessList
+        NotificationKind.AccessList
       );
 
       if (hasNotifications) {

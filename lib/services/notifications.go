@@ -24,21 +24,16 @@ import (
 	"github.com/gravitational/trace"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/types"
 )
 
 // Notifications defines an interface for managing notifications.
 type Notifications interface {
 	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
 	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
-	DeleteAllUserNotifications(ctx context.Context) error
-	DeleteAllGlobalNotifications(ctx context.Context) error
-	CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
-	UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
+	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
 	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
-	UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
 	DeleteGlobalNotification(ctx context.Context, notificationId string) error
 	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error)
 	DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error
@@ -63,8 +58,8 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 		return trace.BadParameter("notification metadata is missing")
 	}
 
-	if _, exists := notification.Metadata.GetLabels()[types.NotificationTitleLabel]; !exists {
-		return trace.BadParameter("notification title label is missing")
+	if notification.Metadata.Labels == nil {
+		return trace.BadParameter("notification metadata labels are missing")
 	}
 
 	return nil

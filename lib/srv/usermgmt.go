@@ -228,7 +228,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 	}
 
 	tempUser, err := u.backend.Lookup(name)
-	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
+	if err != nil && err != user.UnknownUserError(name) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -493,7 +493,7 @@ func (u *HostUserManagement) Shutdown() {
 func (u *HostUserManagement) UserExists(username string) error {
 	_, err := u.backend.Lookup(username)
 	if err != nil {
-		if errors.Is(err, user.UnknownUserError(username)) {
+		if err == user.UnknownUserError(username) {
 			return trace.NotFound("User not found: %s", err)
 		}
 		return trace.Wrap(err)

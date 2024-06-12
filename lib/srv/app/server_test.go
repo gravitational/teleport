@@ -62,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -73,7 +72,6 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
-	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -465,7 +463,7 @@ func TestStart(t *testing.T) {
 
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -539,7 +537,7 @@ func TestShutdown(t *testing.T) {
 			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 			t.Cleanup(cancel)
 			if test.hasForkedChild {
 				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
@@ -551,7 +549,7 @@ func TestShutdown(t *testing.T) {
 			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.Empty(t, appServersAfterShutdown)
 			}

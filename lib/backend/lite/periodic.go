@@ -157,7 +157,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 	var lastID int64
 	err := l.inTransaction(l.ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(l.ctx,
-			"SELECT id, type, kv_key, kv_value, kv_expires, kv_revision FROM events WHERE id > ? ORDER BY id LIMIT ?")
+			"SELECT id, type, kv_key, kv_value, kv_modified, kv_expires, kv_revision FROM events WHERE id > ? ORDER BY id LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -174,7 +174,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 		for rows.Next() {
 			var event backend.Event
 			var expires sql.NullTime
-			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &expires, &event.Item.Revision); err != nil {
+			if err := rows.Scan(&lastID, &event.Type, &event.Item.Key, &event.Item.Value, &event.Item.ID, &expires, &event.Item.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 			if expires.Valid {

@@ -18,12 +18,13 @@
 
 import styled from 'styled-components';
 
-export const StaticListItem = styled.li`
+export const ListItem = styled.li`
   white-space: nowrap;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  cursor: pointer;
   width: 100%;
   position: relative;
   font-size: 14px;
@@ -35,10 +36,7 @@ export const StaticListItem = styled.li`
   background: inherit;
   border: none;
   border-radius: 4px;
-`;
 
-export const ListItem = styled(StaticListItem)`
-  cursor: pointer;
   background: ${props =>
     props.isActive ? props.theme.colors.spotBackground[0] : null};
 

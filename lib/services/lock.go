@@ -95,6 +95,9 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		lock.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		lock.SetRevision(cfg.Revision)
 	}
@@ -120,7 +123,7 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 		if version := lock.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched lock version %v and type %T", version, lock)
 		}
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, lock))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, lock))
 	default:
 		return nil, trace.BadParameter("unrecognized lock version %T", lock)
 	}

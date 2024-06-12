@@ -250,7 +250,7 @@ service NotificationService {
    rpc CreateUserNotificationState(CreateUserNotificationStateRequest) returns (UserNotificationState);
    // UpdateUserNotificationState updates a user notification state.
    rpc UpdateUserNotificationState(UpdateUserNotificationStateRequest) returns (UserNotificationState);
-   // DeleteUserNotificationState deletes a user notification state.
+   // DeleteUserNotificationState deltes a user notification state.
    rpc DeleteUserNotificationState(DeleteUserNotificationStateRequest) returns (google.protobuf.Empty);
    // ListUserNotificationStates returns a page of user notification states.
    rpc ListUserNotificationStates(ListUserNotificationStatesRequest) returns (ListUserNotificationStatesResponse);
@@ -336,7 +336,7 @@ message UpdateUserNotificationStateRequest {
 message DeleteUserNotificationStateRequest {
    // username is the username of the user.
    string username = 1;
-   // notification_id is the ID of the notification the notification state to delete is for.
+   // notification_id is the ID of the notification the notifiation state to delete is for.
    string notification_id = 2;
 }
 
@@ -355,7 +355,7 @@ message CreateUserLastSeenNotificationRequest {
 message UpdateUserLastSeenNotificationRequest {
    // username is the username of the user.
    string username = 1;
-   // user_notification_state is the updated user last seen notification item.
+   // user_notification_state is the udpated user last seen notification item.
    UserLastSeenNotification user_last_seen_notification = 2;
 }
 

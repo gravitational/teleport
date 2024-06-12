@@ -39,15 +39,9 @@ func NewStorage(cfg Config) (*Storage, error) {
 	return &Storage{Config: cfg}, nil
 }
 
-// ListProfileNames returns just the names of profiles in s.Dir.
-func (s *Storage) ListProfileNames() ([]string, error) {
+// ReadAll reads clusters from profiles
+func (s *Storage) ReadAll() ([]*Cluster, error) {
 	pfNames, err := profile.ListProfileNames(s.Dir)
-	return pfNames, trace.Wrap(err)
-}
-
-// ListRootClusters reads root clusters from profiles.
-func (s *Storage) ListRootClusters() ([]*Cluster, error) {
-	pfNames, err := s.ListProfileNames()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

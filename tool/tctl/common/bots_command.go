@@ -36,6 +36,7 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -124,6 +125,43 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient
 	return true, trace.Wrap(err)
 }
 
+// TODO(noah): DELETE IN 16.0.0
+func (c *BotsCommand) listBotsLegacy(ctx context.Context, client *authclient.Client) error {
+	users, err := client.GetBotUsers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if c.format == teleport.Text {
+		if len(users) == 0 {
+			fmt.Println("No users found")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
+		for _, u := range users {
+			var botName string
+			meta := u.GetMetadata()
+			if val, ok := meta.Labels[types.BotLabel]; ok {
+				botName = val
+			} else {
+				// Should not be possible, but not worth failing over.
+				botName = "-"
+			}
+
+			t.AddRow([]string{
+				botName, u.GetName(), strings.Join(u.GetRoles(), ","),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		err := utils.WriteJSONArray(os.Stdout, users)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+	}
+	return nil
+}
+
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
 func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
@@ -132,6 +170,9 @@ func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) e
 	for {
 		resp, err := client.BotServiceClient().ListBots(ctx, req)
 		if err != nil {
+			if trace.IsNotImplemented(err) {
+				return trace.Wrap(c.listBotsLegacy(ctx, client))
+			}
 			return trace.Wrap(err)
 		}
 
@@ -202,6 +243,63 @@ Please note:
   - {{.addr}} must be reachable from the new node
 `))
 
+// TODO(noah): DELETE IN 16.0.0
+func (c *BotsCommand) addBotLegacy(ctx context.Context, client *authclient.Client) error {
+	roles := splitEntries(c.botRoles)
+	if len(roles) == 0 {
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
+	}
+
+	traits := map[string][]string{
+		constants.TraitLogins: flattenSlice(c.allowedLogins),
+	}
+
+	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
+		Name:    c.botName,
+		TTL:     proto.Duration(c.tokenTTL),
+		Roles:   roles,
+		TokenID: c.tokenID,
+		Traits:  traits,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating bot")
+	}
+
+	if c.format == teleport.JSON {
+		out, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal CreateBot response")
+		}
+
+		fmt.Println(string(out))
+		return nil
+	}
+
+	proxies, err := client.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(proxies) == 0 {
+		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
+	}
+	addr := proxies[0].GetPublicAddr()
+	if addr == "" {
+		addr = proxies[0].GetAddr()
+	}
+
+	joinMethod := response.JoinMethod
+	if joinMethod == types.JoinMethodUnspecified {
+		joinMethod = types.JoinMethodToken
+	}
+
+	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+		"token":       response.TokenID,
+		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
+		"addr":        addr,
+		"join_method": joinMethod,
+	})
+}
+
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
@@ -210,6 +308,19 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
 	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
 		return trace.Wrap(err)
+	}
+
+	// Jankily call the endpoint invalidly. This lets us version check and use
+	// the legacy version of this CLI tool if we are talking to an older
+	// server.
+	// DELETE IN 16.0
+	{
+		_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+			Bot: nil,
+		})
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(c.addBotLegacy(ctx, client))
+		}
 	}
 
 	roles := splitEntries(c.botRoles)
@@ -342,7 +453,15 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) 
 		BotName: c.botName,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		if trace.IsNotImplemented(err) {
+			// This falls back to the deprecated RPC.
+			// TODO(noah): DELETE IN 16.0.0
+			if err := client.DeleteBot(ctx, c.botName); err != nil {
+				return trace.Wrap(err, "error deleting bot")
+			}
+		} else {
+			return trace.Wrap(err)
+		}
 	}
 
 	fmt.Printf("Bot %q deleted successfully.\n", c.botName)

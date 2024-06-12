@@ -67,7 +67,7 @@ func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, app))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, app))
 	default:
 		return nil, trace.BadParameter("unsupported app resource %T", app)
 	}
@@ -95,6 +95,9 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			app.SetResourceID(cfg.ID)
+		}
 		if cfg.Revision != "" {
 			app.SetRevision(cfg.Revision)
 		}
@@ -119,7 +122,7 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, appServer))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, appServer))
 	default:
 		return nil, trace.BadParameter("unsupported app server resource %T", appServer)
 	}
@@ -146,6 +149,9 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)

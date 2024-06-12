@@ -2148,7 +2148,7 @@ func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.Cluste
 	return mcg.localCluster, nil
 }
 
-func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil
 	}

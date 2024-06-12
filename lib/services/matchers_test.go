@@ -534,6 +534,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+
 		{
 			name: "AppServerOrSAMLIdPServiceProvider (App Server)r",
 			resource: func() types.ResourceWithLabels {
@@ -563,18 +564,6 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 			filters: MatchResourceFilter{
 				ResourceKind:        types.KindAppOrSAMLIdPServiceProvider,
-				PredicateExpression: filterExpression,
-			},
-		},
-		{
-			name: "SAMLIdPServiceProvider",
-			resource: func() types.ResourceWithLabels {
-				sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{Name: "foo"}, types.SAMLIdPServiceProviderSpecV1{ACSURL: "host", EntityID: "host"})
-				require.NoError(t, err)
-				return sp
-			},
-			filters: MatchResourceFilter{
-				ResourceKind:        types.KindSAMLIdPServiceProvider,
 				PredicateExpression: filterExpression,
 			},
 		},

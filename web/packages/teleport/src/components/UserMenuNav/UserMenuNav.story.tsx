@@ -67,7 +67,6 @@ const props = {
       getLink: () => 'test2',
     },
   ],
-  iconSize: 24,
   username: 'george',
   logout: () => null,
 };

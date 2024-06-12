@@ -1523,30 +1523,13 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
-// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
-//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ...AccessState) error {
-	_, debugf := rbacDebugLogger()
-
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
 	}
-
-	var state AccessState
-	if len(states) == 1 {
-		state = states[0]
-	}
-
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
-		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
-		return trace.Wrap(ErrSessionMFARequired)
-	}
-
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
-
 	for _, role := range set {
 		options := role.GetOptions()
 
@@ -1558,11 +1541,6 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ..
 		// If any role specifically denies access to the IdP, we'll return AccessDenied.
 		if !options.IDP.SAML.Enabled.Value {
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
-		}
-
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
-			return trace.Wrap(ErrSessionMFARequired)
 		}
 	}
 
@@ -3288,8 +3266,9 @@ type AccessState struct {
 type MFARequired string
 
 const (
-	// MFARequiredNever means that MFA is never required for any sessions started by this user.
-	// This means that it is not required by the cluster auth preference or any of the user's roles.
+	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
+	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
+	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
 	MFARequiredNever MFARequired = "never"
 	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
 	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require
@@ -3319,19 +3298,18 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
-
 	var role types.RoleV6
 	if err := utils.FastUnmarshal(bytes, &role); err != nil {
 		return nil, trace.BadParameter(err.Error())
-	}
-	if role.Version != version {
-		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
 	}
 
 	if err := ValidateRole(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		role.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		role.SetRevision(cfg.Revision)
 	}
@@ -3354,7 +3332,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, role))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

@@ -67,7 +67,7 @@ func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, g))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, g))
 	default:
 		return nil, trace.BadParameter("unsupported integration resource %T", g)
 	}
@@ -91,6 +91,9 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		ig.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		ig.SetRevision(cfg.Revision)
 	}

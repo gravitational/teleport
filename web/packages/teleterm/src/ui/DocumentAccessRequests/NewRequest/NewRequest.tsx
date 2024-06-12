@@ -16,32 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useMemo } from 'react';
+
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
+import { Alert, Box, Flex } from 'design';
 import { space, width } from 'design/system';
-import { Info as InfoIcon } from 'design/Icon';
-
-import {
-  ShowResources,
-  Cluster,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { SearchPagination, SearchPanel } from 'shared/components/Search';
-import {
-  ResourceList,
-  ResourceMap,
-} from 'shared/components/AccessRequests/NewRequest';
-
-import {
-  PendingAccessRequest,
-  extractResourceRequestProperties,
-} from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
 
 import useNewRequest, { ResourceKind } from './useNewRequest';
+import ChangeResourceDialog from './ChangeResourceDialog';
 
 const agentOptions: ResourceOption[] = [
   { value: 'role', label: 'Roles' },
@@ -64,17 +50,6 @@ const agentOptions: ResourceOption[] = [
 ];
 
 export function NewRequest() {
-  const ctx = useAppContext();
-
-  const { rootClusterUri } = useWorkspaceContext();
-  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
-  if (rootCluster.showResources === ShowResources.UNSPECIFIED) {
-    return <Indicator />;
-  }
-  return <Inner rootCluster={rootCluster} />;
-}
-
-function Inner(props: { rootCluster: Cluster }) {
   const {
     attempt,
     agentFilter,
@@ -83,6 +58,9 @@ function Inner(props: { rootCluster: Cluster }) {
     updateSearch,
     selectedResource,
     customSort,
+    handleConfirmChangeResource,
+    toResource,
+    setToResource,
     fetchStatus,
     onAgentLabelClick,
     addedResources,
@@ -90,29 +68,39 @@ function Inner(props: { rootCluster: Cluster }) {
     updateResourceKind,
     prevPage,
     requestableRoles,
+    isLeafCluster,
     nextPage,
     agents,
-    addedItemsCount,
-  } = useNewRequest(props.rootCluster);
-  const { documentsService, localClusterUri } = useWorkspaceContext();
+  } = useNewRequest();
 
-  const requestStarted = addedItemsCount > 0;
+  function handleUpdateSelectedResource(kind: ResourceKind) {
+    const numAddedAgents =
+      Object.keys(addedResources.node).length +
+      Object.keys(addedResources.db).length +
+      Object.keys(addedResources.app).length +
+      Object.keys(addedResources.kube_cluster).length +
+      Object.keys(addedResources.windows_desktop).length;
 
-  function openClusterDocument() {
-    const doc = documentsService.createClusterDocument({
-      clusterUri: localClusterUri,
-    });
-    documentsService.add(doc);
-    documentsService.open(doc.uri);
+    const numAddedRoles = Object.keys(addedResources.role).length;
+
+    if (
+      (kind === 'role' && numAddedAgents > 0) ||
+      (kind !== 'role' && numAddedRoles > 0)
+    ) {
+      setToResource(kind);
+    } else {
+      updateResourceKind(kind);
+    }
   }
 
-  const isRequestingResourcesFromResourcesViewEnabled =
-    props.rootCluster.showResources === ShowResources.REQUESTABLE;
-  // This means that we can only request roles.
-  // Let's hide all tabs in that case.
-  const filteredAgentOptions = isRequestingResourcesFromResourcesViewEnabled
-    ? []
-    : agentOptions;
+  // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
+  const filteredAgentOptions = useMemo(
+    () =>
+      agentOptions.filter(agent =>
+        isLeafCluster ? agent.value !== 'role' : agent
+      ),
+    [isLeafCluster]
+  );
 
   const isRoleList = selectedResource === 'role';
 
@@ -121,6 +109,11 @@ function Inner(props: { rootCluster: Cluster }) {
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
+      <ChangeResourceDialog
+        toResource={toResource}
+        onClose={() => setToResource(null)}
+        onConfirm={handleConfirmChangeResource}
+      />
       <StyledMain>
         <Flex mt={3} mb={3}>
           {filteredAgentOptions.map(agent => (
@@ -129,7 +122,7 @@ function Inner(props: { rootCluster: Cluster }) {
               mr={6}
               p={1}
               active={selectedResource === agent.value}
-              onClick={() => updateResourceKind(agent.value)}
+              onClick={() => handleUpdateSelectedResource(agent.value)}
             >
               {agent.label}
             </StyledNavButton>
@@ -149,10 +142,9 @@ function Inner(props: { rootCluster: Cluster }) {
         <ResourceList
           agents={agents}
           selectedResource={selectedResource}
-          requestStarted={requestStarted}
           customSort={customSort}
           onLabelClick={onAgentLabelClick}
-          addedResources={toResourceMap(addedResources)}
+          addedResources={addedResources}
           addOrRemoveResource={addOrRemoveResource}
           requestableRoles={requestableRoles}
           disableRows={fetchStatus === 'loading'}
@@ -164,25 +156,6 @@ function Inner(props: { rootCluster: Cluster }) {
           />
         )}
       </StyledMain>
-      {isRequestingResourcesFromResourcesViewEnabled && (
-        <Alert kind="outline-info" mb={2}>
-          <InfoIcon color="info" pr={2} />
-          <Text>
-            To request access to a resource, go to the{' '}
-            {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
-            <Link
-              css={`
-                cursor: pointer;
-                color: inherit !important;
-              `}
-              onClick={openClusterDocument}
-            >
-              resources view
-            </Link>{' '}
-            or find it in the search bar.
-          </Text>
-        </Alert>
-      )}
     </Layout>
   );
 }
@@ -237,29 +210,3 @@ type ResourceOption = {
   value: ResourceKind;
   label: string;
 };
-
-function toResourceMap(request: PendingAccessRequest): ResourceMap {
-  const resourceMap: ResourceMap = {
-    user_group: {},
-    windows_desktop: {},
-    role: {},
-    kube_cluster: {},
-    node: {},
-    db: {},
-    app: {},
-  };
-  if (request.kind === 'role') {
-    request.roles.forEach(role => {
-      resourceMap.role[role] = role;
-    });
-  }
-
-  if (request.kind === 'resource') {
-    request.resources.forEach(resourceRequest => {
-      const { kind, id, name } =
-        extractResourceRequestProperties(resourceRequest);
-      resourceMap[kind][id] = name;
-    });
-  }
-  return resourceMap;
-}

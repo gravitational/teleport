@@ -21,7 +21,6 @@ package forward
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -457,7 +456,7 @@ func (s *Server) Component() string {
 	return teleport.ComponentForwardingNode
 }
 
-// PermitUserEnvironment is always false because it's up to the remote host
+// PermitUserEnvironment is always false because it's up the the remote host
 // to decide if the user environment will be read or not.
 func (s *Server) PermitUserEnvironment() bool {
 	return false
@@ -968,13 +967,6 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 			return
 		}
 		// Pass request on unchanged.
-	case teleport.SessionIDQueryRequest:
-		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
-		if err := req.Reply(true, nil); err != nil {
-			s.log.WithError(err).Warnf("Failed to reply to session ID query request")
-		}
-		return
 	case teleport.KeepAliveReqType:
 	default:
 		s.log.Debugf("Rejecting unknown global request %q.", req.Type)
@@ -1135,8 +1127,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	if err != nil {
 		s.log.Warnf("Remote session open failed: %v", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
-		var e *ssh.OpenChannelError
-		if errors.As(trace.Unwrap(err), &e) {
+		if e, ok := trace.Unwrap(err).(*ssh.OpenChannelError); ok {
 			reason, msg = e.Reason, e.Message
 		}
 		if err := nch.Reject(reason, msg); err != nil {

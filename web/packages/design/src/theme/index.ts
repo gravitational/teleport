@@ -21,3 +21,4 @@ import lightTheme from './themes/lightTheme';
 import bblpTheme from './themes/bblpTheme';
 
 export { darkTheme, lightTheme, bblpTheme };
+export type { DeprecatedThemeOption } from './types';

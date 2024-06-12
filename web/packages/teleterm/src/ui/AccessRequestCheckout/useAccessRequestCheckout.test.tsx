@@ -36,9 +36,9 @@ test('fetching requestable roles for servers uses UUID, not hostname', async () 
     draftState.clusters.set(rootClusterUri, cluster);
   });
   await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
-  await appContext.workspacesService
+  appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
-    .addOrRemoveResource({ kind: 'server', resource: server });
+    .addOrRemoveResource('node', server.name, server.hostname);
 
   jest.spyOn(appContext.tshd, 'getRequestableRoles');
 

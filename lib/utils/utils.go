@@ -254,6 +254,21 @@ func StringsSet(in []string) map[string]struct{} {
 	return out
 }
 
+// ParseOnOff parses whether value is "on" or "off", parameterName is passed for error
+// reporting purposes, defaultValue is returned when no value is set
+func ParseOnOff(parameterName, val string, defaultValue bool) (bool, error) {
+	switch val {
+	case teleport.On:
+		return true, nil
+	case teleport.Off:
+		return false, nil
+	case "":
+		return defaultValue, nil
+	default:
+		return false, trace.BadParameter("bad %q parameter value: %q, supported values are on or off", parameterName, val)
+	}
+}
+
 // IsGroupMember returns whether currently logged user is a member of a group
 func IsGroupMember(gid int) (bool, error) {
 	groups, err := os.Getgroups()

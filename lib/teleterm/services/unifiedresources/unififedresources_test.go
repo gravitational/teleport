@@ -81,7 +81,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	samlSP, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+	idpProvider, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 		Name: "testApp",
 	}, types.SAMLIdPServiceProviderSpecV1{
 		ACSURL:   "https://test.example",
@@ -96,7 +96,6 @@ func TestUnifiedResourcesList(t *testing.T) {
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
 		// just an app server like above, but wrapped in AppServerOrSAMLIdPServiceProvider
 		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
 				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
 					AppServer: app,
@@ -104,14 +103,12 @@ func TestUnifiedResourcesList(t *testing.T) {
 			}},
 		},
 		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
 				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-					SAMLIdPServiceProvider: samlSP.(*types.SAMLIdPServiceProviderV1),
+					SAMLIdPServiceProvider: idpProvider.(*types.SAMLIdPServiceProviderV1),
 				},
 			}},
 		},
-		{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP.(*types.SAMLIdPServiceProviderV1)}},
 	}
 	mockedNextKey := "nextKey"
 
@@ -155,8 +152,8 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[4])
 
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName()),
-		Provider: samlSP,
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(idpProvider.GetName()),
+		Provider: idpProvider,
 	}}, response.Resources[5])
 
 	require.Equal(t, mockedNextKey, response.NextKey)

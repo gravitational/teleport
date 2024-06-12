@@ -21,12 +21,10 @@ import { Flex, Text } from 'design';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
+
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { Connections } from './Connections';
-import { ConnectionsContextProvider } from './connectionsContext';
 
 export default {
   title: 'Teleterm/TopBar/Connections',
@@ -44,28 +42,10 @@ const rootClusterUri = '/clusters/foo';
 export function Story() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
-  appContext.clustersService.setState(draft => {
-    const rootCluster1 = makeRootCluster({
-      uri: rootClusterUri,
-      name: 'teleport.example.sh',
-      proxyHost: 'teleport.example.sh:443',
-    });
-    const rootCluster2 = makeRootCluster({
-      uri: '/clusters/bar',
-      name: 'bar.example.com',
-      proxyHost: 'bar.example.com:3080',
-    });
-    draft.clusters.set(rootCluster1.uri, rootCluster1);
-    draft.clusters.set(rootCluster2.uri, rootCluster2);
-  });
 
   return (
     <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <Connections />
     </AppContextProvider>
   );
 }
@@ -100,83 +80,7 @@ export function MultipleClusters() {
 
   return (
     <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
-export function JustVnetWithNoClusters() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-  appContext.connectionTracker.getConnections = () => [];
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
-export function VnetError() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.start = () =>
-    new MockedUnaryCall({}, new Error('something went wrong'));
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
-export function VnetUnexpectedShutdown() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.start = () => {
-    setTimeout(() => {
-      appContext.unexpectedVnetShutdownListener({
-        error: 'lorem ipsum dolor sit amet',
-      });
-    }, 0);
-    return new MockedUnaryCall({});
-  };
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <Connections />
     </AppContextProvider>
   );
 }
@@ -208,11 +112,7 @@ export function WithScroll() {
       maxWidth="600px"
     >
       <AppContextProvider value={appContext}>
-        <ConnectionsContextProvider>
-          <VnetContextProvider>
-            <Connections />
-          </VnetContextProvider>
-        </ConnectionsContextProvider>
+        <Connections />
       </AppContextProvider>
       <Text
         css={`
@@ -225,31 +125,12 @@ export function WithScroll() {
   );
 }
 
-export function WithoutVnet() {
-  const appContext = new MockAppContext({ platform: 'win32' });
-  prepareAppContext(appContext);
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
-export function EmptyWithoutVnet() {
+export function Empty() {
   const appContext = new MockAppContext({ platform: 'win32' });
 
   return (
     <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <Connections />
     </AppContextProvider>
   );
 }
@@ -313,5 +194,5 @@ const useOpenConnections = () => {
     ) as HTMLButtonElement;
 
     button?.click();
-  }, []);
+  });
 };

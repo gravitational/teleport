@@ -31,7 +31,6 @@ import Tabs from './Tabs';
 import ActionBar from './ActionBar';
 import DocumentSsh from './DocumentSsh';
 import DocumentNodes from './DocumentNodes';
-import DocumentKubeExec from './DocumentKubeExec';
 import DocumentBlank from './DocumentBlank';
 import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
@@ -142,8 +141,6 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
         return <DocumentSsh doc={doc} visible={visible} />;
       case 'nodes':
         return <DocumentNodes doc={doc} visible={visible} />;
-      case 'kubeExec':
-        return <DocumentKubeExec doc={doc} visible={visible} />;
       default:
         return <DocumentBlank doc={doc} visible={visible} />;
     }

@@ -25,11 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-var _ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
 
 // KubeCluster represents a kubernetes cluster.
 type KubeCluster interface {
@@ -159,6 +156,16 @@ func (k *KubernetesClusterV3) GetSubKind() string {
 // SetSubKind sets the app resource subkind.
 func (k *KubernetesClusterV3) SetSubKind(sk string) {
 	k.SubKind = sk
+}
+
+// GetResourceID returns the app resource ID.
+func (k *KubernetesClusterV3) GetResourceID() int64 {
+	return k.Metadata.ID
+}
+
+// SetResourceID sets the resource ID.
+func (k *KubernetesClusterV3) SetResourceID(id int64) {
+	k.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -397,14 +404,6 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IsEqual determines if two user resources are equivalent to one another.
-func (k *KubernetesClusterV3) IsEqual(i KubeCluster) bool {
-	if other, ok := i.(*KubernetesClusterV3); ok {
-		return deriveTeleportEqualKubernetesClusterV3(k, other)
-	}
-	return false
-}
-
 func (k KubeAzure) CheckAndSetDefaults() error {
 	if len(k.ResourceGroup) == 0 {
 		return trace.BadParameter("invalid Azure ResourceGroup")
@@ -617,6 +616,16 @@ func (k *KubernetesResourceV1) Expiry() time.Time {
 // SetExpiry sets object expiry.
 func (k *KubernetesResourceV1) SetExpiry(expire time.Time) {
 	k.Metadata.SetExpiry(expire)
+}
+
+// GetResourceID returns resource ID.
+func (k *KubernetesResourceV1) GetResourceID() int64 {
+	return k.Metadata.ID
+}
+
+// SetResourceID sets resource ID.
+func (k *KubernetesResourceV1) SetResourceID(id int64) {
+	k.Metadata.ID = id
 }
 
 // GetRevision returns the revision

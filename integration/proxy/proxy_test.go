@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -668,7 +667,6 @@ func TestKubePROXYProtocol(t *testing.T) {
 func TestKubeIPPinning(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
-	modules.SetInsecureTestMode(true)
 
 	const (
 		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
@@ -894,7 +892,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Since this a non-tunnel local proxy, we should check certs are needed
 			// for postgres.
 			// (this is how a local proxy would actually be configured for postgres).
-			CheckCertNeeded: true,
+			CheckCertsNeeded: true,
 		})
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
@@ -940,7 +938,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				// Since this a non-tunnel local proxy, we should check certs are needed
 				// for postgres.
 				// (this is how a local proxy would actually be configured for postgres).
-				CheckCertNeeded: true,
+				CheckCertsNeeded: true,
 			})
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -1147,7 +1145,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 				ALPNConnUpgradeRequired: true,
 				InsecureSkipVerify:      true,
-				Cert:                    clientTLSConfig.Certificates[0],
+				Certs:                   clientTLSConfig.Certificates,
 			})
 
 			client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -1201,7 +1199,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// advance the fake clock and verify that the local proxy thinks its cert expired.
 		fakeClock.Advance(time.Hour * 48)
-		err = lp.CheckDBCert(routeToDatabase)
+		err = lp.CheckDBCerts(routeToDatabase)
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
@@ -1228,7 +1226,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
-	ctx := context.Background()
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
@@ -1241,14 +1238,14 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("root cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSessionCookies(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSessionCookies(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
@@ -1267,7 +1264,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 			ALPNConnUpgradeRequired: true,
 			InsecureSkipVerify:      true,
-			Cert:                    clientCerts[0],
+			Certs:                   clientCerts,
 		})
 
 		// Send the request to local proxy.
@@ -1280,19 +1277,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
-		user, _ := pack.CreateUser(t)
-		tc := pack.MakeTeleportClient(t, user.GetName())
-
-		// test without per session MFA.
-		testTeletermAppGateway(t, pack, tc)
-
-		t.Run("per session MFA", func(t *testing.T) {
-			// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
-			requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
-			requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
-			tc.WebauthnLogin = setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
-			testTeletermAppGateway(t, pack, tc)
-		})
+		testTeletermAppGateway(t, pack)
 	})
 }
 
@@ -1322,16 +1307,12 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-
-	clusterClient, err := client.ConnectToCluster(ctx)
+	proxyClient, err := client.ConnectToProxy(context.Background())
 	require.NoError(t, err)
-	defer clusterClient.Close()
 
 	// Dial root auth service.
-	rootAuthClient, err := clusterClient.ConnectToCluster(ctx, "root.example.com")
+	rootAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "root.example.com", "")
 	require.NoError(t, err)
-	defer rootAuthClient.Close()
-
 	pr, err := rootAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "root.example.com", pr.ClusterName)
@@ -1339,10 +1320,8 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dial leaf auth service.
-	leafAuthClient, err := clusterClient.ConnectToCluster(ctx, "leaf.example.com")
+	leafAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "leaf.example.com", "")
 	require.NoError(t, err)
-	defer leafAuthClient.Close()
-
 	pr, err = leafAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "leaf.example.com", pr.ClusterName)

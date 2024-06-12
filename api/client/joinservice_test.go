@@ -116,14 +116,9 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 		cancel()
 	}()
 
-	// grpc.NewClient attempts to DNS resolve addr, whereas grpc.Dial doesn't.
-	c, err := grpc.Dial(
-		"bufconn",
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return lis.DialContext(ctx)
-		}),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	c, err := grpc.Dial("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+		return lis.DialContext(ctx)
+	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	joinClient := NewJoinServiceClient(proto.NewJoinServiceClient(c))

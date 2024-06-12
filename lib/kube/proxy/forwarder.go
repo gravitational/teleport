@@ -37,7 +37,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -52,10 +51,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
-	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
@@ -961,7 +958,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
 		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
-		// whose role satisfy the desired Kubernetes Resource.
+		// whose role satisfy the the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
 		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
@@ -2035,83 +2032,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
-func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
-
-	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upgradeRoundTripper := NewWebsocketRoundTripperWithDialer(roundTripperConfig{
-		ctx:                   req.Context(),
-		log:                   f.log,
-		sess:                  sess,
-		dialWithContext:       sess.DialWithContext(),
-		tlsConfig:             tlsConfig,
-		originalHeaders:       req.Header,
-		useIdentityForwarding: useImpersonation,
-		proxier:               sess.getProxier(),
-	})
-	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.kubeAPICreds != nil {
-		var err error
-		rt, err = sess.kubeAPICreds.wrapTransport(rt)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	rt = tracehttp.NewTransport(rt)
-
-	cfg := &rest.Config{
-		// WrapTransport will replace default roundTripper created for the WebsocketExecutor
-		// and on successfully established connection we will set upgrader's websocket connection.
-		WrapTransport: func(baseRt http.RoundTripper) http.RoundTripper {
-			if wrt, ok := baseRt.(*kwebsocket.RoundTripper); ok {
-				upgradeRoundTripper.onConnected = func(wsConn *gwebsocket.Conn) {
-					wrt.Conn = wsConn
-				}
-			}
-
-			return rt
-		},
-	}
-
-	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
-}
-
-func isRelevantWebsocketError(err error) bool {
-	return err != nil && !strings.Contains(err.Error(), "next reader: EOF")
-}
-
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	isWSSupported := false
-	if sess.noAuditEvents {
-		// We're forwarding it to another kube_service, check if it supports new protocol.
-		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
-	} else {
-		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
-		f.rwMutexDetails.RLock()
-		if details, ok := f.clusterDetails[sess.kubeClusterName]; ok {
-			details.rwMu.RLock()
-			isWSSupported = kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion)
-			details.rwMu.RUnlock()
-		}
-		f.rwMutexDetails.RUnlock()
-	}
-
-	if isWSSupported {
-		wsExec, err := f.getWebsocketExecutor(sess, req)
-		return wsExec, trace.Wrap(err)
-	}
-
-	spdyExec, err := f.getSPDYExecutor(sess, req)
-	return spdyExec, trace.Wrap(err)
-}
-
-func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	f.log.Debugf("Creating SPDY remote executor for request %s %s", req.Method, req.RequestURI)
-
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2366,6 +2287,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	connCtx, cancel := context.WithCancelCause(ctx)
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
@@ -2521,7 +2443,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 	}
 
 	switch {
-	case resource.namespace != "" && resource.resourceName != "":
+	case resource.namespace != "":
 		// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 		return fmt.Sprintf(
 			"%[1]s %[2]q is forbidden: User %[3]q cannot %[4]s resource %[1]q in API group %[5]q in the namespace %[6]q\n"+
@@ -2535,32 +2457,6 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			resource.namespace,     // 6
 			teleportType,           // 7
 			kubernetesResourcesKey, // 8
-		)
-	case resource.namespace != "":
-		// <resource> is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
-		return fmt.Sprintf(
-			"%[1]s is forbidden: User %[2]q cannot %[3]s resource %[1]q in API group %[4]q in the namespace %[5]q\n"+
-				"Ask your Teleport admin to ensure that your Teleport role includes access to the %[6]s in %[7]q field.\n"+
-				"Check by running: kubectl auth can-i %[3]s %[1]s --namespace %[5]s ",
-			kind,                   // 1
-			user,                   // 2
-			verb,                   // 3
-			apiGroup,               // 4
-			resource.namespace,     // 5
-			teleportType,           // 6
-			kubernetesResourcesKey, // 7
-		)
-	case resource.resourceName == "":
-		return fmt.Sprintf(
-			"%[1]s is forbidden: User %[2]q cannot %[3]s resource %[1]q in API group %[4]q at the cluster scope\n"+
-				"Ask your Teleport admin to ensure that your Teleport role includes access to the %[5]s in %[6]q field.\n"+
-				"Check by running: kubectl auth can-i %[3]s %[1]s",
-			kind,                   // 1
-			user,                   // 2
-			verb,                   // 3
-			apiGroup,               // 4
-			teleportType,           // 5
-			kubernetesResourcesKey, // 6
 		)
 	default:
 		return fmt.Sprintf(

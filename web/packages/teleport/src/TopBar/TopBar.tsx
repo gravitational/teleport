@@ -20,9 +20,18 @@ import React, { useEffect, useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
+
 import { matchPath, useHistory } from 'react-router';
+
 import { Theme } from 'design/theme/themes/types';
-import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
+
+import {
+  ArrowLeft,
+  ChatCircleSparkle,
+  Download,
+  Server,
+  SlidersVertical,
+} from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -34,11 +43,11 @@ import cfg from 'teleport/config';
 import { TeleportFeature } from 'teleport/types';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
-import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { Notifications } from 'teleport/Notifications';
-
+import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
+import logoLight from './logoLight.svg';
+import logoDark from './logoDark.svg';
 
 import type * as history from 'history';
 
@@ -61,7 +70,7 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function TopBar({ CustomLogo }: TopBarProps) {
+export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const history = useHistory();
@@ -72,6 +81,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   );
   const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
+
   const [previousManagementRoute, setPreviousManagementRoute] = useState('');
 
   const handleLocationChange = useCallback(
@@ -123,76 +133,74 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       {!feature?.hideNavigation && (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
-          {!feature?.logoOnlyTopbar && (
-            <Flex
-              height="100%"
-              css={`
-                margin-left: auto;
-                @media screen and (min-width: ${p =>
-                    p.theme.breakpoints.medium}px) {
-                  margin-left: 0;
-                  margin-right: auto;
-                }
-              `}
-            >
-              {cfg.isDashboard ? (
-                <MainNavItem
-                  name="Downloads"
-                  to={cfg.routes.downloadCenter}
-                  isSelected={downloadTabSelected}
-                  size={iconSize}
-                  Icon={Download}
-                />
-              ) : (
-                <MainNavItem
-                  name="Resources"
-                  to={cfg.getUnifiedResourcesRoute(clusterId)}
-                  isSelected={resourceTabSelected}
-                  size={iconSize}
-                  Icon={Server}
-                />
-              )}
+          <Flex
+            height="100%"
+            css={`
+              margin-left: auto;
+              @media screen and (min-width: ${p =>
+                  p.theme.breakpoints.medium}px) {
+                margin-left: 0;
+                margin-right: auto;
+              }
+            `}
+          >
+            {cfg.isDashboard ? (
               <MainNavItem
-                name="Access Management"
-                to={
-                  previousManagementRoute ||
-                  getFirstRouteForCategory(
-                    features,
-                    NavigationCategory.Management
-                  )
-                }
+                name="Downloads"
+                to={cfg.routes.downloadCenter}
+                isSelected={downloadTabSelected}
                 size={iconSize}
-                isSelected={managementTabSelected}
-                Icon={SlidersVertical}
+                Icon={Download}
               />
+            ) : (
+              <MainNavItem
+                name="Resources"
+                to={cfg.getUnifiedResourcesRoute(clusterId)}
+                isSelected={resourceTabSelected}
+                size={iconSize}
+                Icon={Server}
+              />
+            )}
+            <MainNavItem
+              name="Access Management"
+              to={
+                previousManagementRoute ||
+                getFirstRouteForCategory(
+                  features,
+                  NavigationCategory.Management
+                )
+              }
+              size={iconSize}
+              isSelected={managementTabSelected}
+              Icon={SlidersVertical}
+            />
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-                const link = navigationItem.getLink(clusterId);
-                const currentPath = history.location.pathname;
-                const selected =
-                  navigationItem.isSelected?.(clusterId, currentPath) ||
-                  history.location.pathname.includes(link);
-                return (
-                  <NavigationButton
-                    key={topMenuItem.title}
-                    to={topMenuItem.getLink(clusterId)}
-                    selected={selected}
-                    title={topMenuItem.title}
-                    css={`
-                      &:hover {
-                        color: red;
-                      }
-                    `}
-                  >
-                    <topMenuItem.icon
-                      color={selected ? 'text.main' : 'text.muted'}
-                      size={iconSize}
-                    />
-                  </NavigationButton>
-                );
-              })}
-            </Flex>
-          )}
+            {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              const link = navigationItem.getLink(clusterId);
+              const currentPath = history.location.pathname;
+              const selected =
+                navigationItem.isSelected?.(clusterId, currentPath) ||
+                history.location.pathname.includes(link);
+              return (
+                <NavigationButton
+                  key={topMenuItem.title}
+                  to={topMenuItem.getLink(clusterId)}
+                  selected={selected}
+                  title={topMenuItem.title}
+                  css={`
+                    &:hover {
+                      color: red;
+                    }
+                  `}
+                >
+                  <topMenuItem.icon
+                    color={selected ? 'text.main' : 'text.muted'}
+                    size={iconSize}
+                  />
+                </NavigationButton>
+              );
+            })}
+          </Flex>
         </>
       )}
       {feature?.hideNavigation && (
@@ -200,15 +208,31 @@ export function TopBar({ CustomLogo }: TopBarProps) {
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
       )}
-      {!feature?.logoOnlyTopbar && (
-        <Flex height="100%" alignItems="center">
-          <Notifications iconSize={iconSize} />
-          <UserMenuNav
-            username={ctx.storeUser.state.username}
-            iconSize={iconSize}
-          />
-        </Flex>
-      )}
+      <Flex height="100%" alignItems="center">
+        {assistProps?.assistEnabled && (
+          <HoverTooltip
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            tipContent="Teleport Assist"
+            css={`
+              height: 100%;
+            `}
+          >
+            <ButtonIconContainer
+              onClick={() =>
+                assistProps?.setShowAssist(!assistProps?.showAssist)
+              }
+            >
+              <ChatCircleSparkle
+                color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
+                size={iconSize}
+              />
+            </ButtonIconContainer>
+          </HoverTooltip>
+        )}
+        <Notifications iconSize={iconSize} />
+        <UserMenuNav username={ctx.storeUser.state.username} />
+      </Flex>
     </TopBarContainer>
   );
 }
@@ -236,7 +260,6 @@ export const TopBarContainer = styled(TopNav)`
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
   const theme = useTheme();
-  const src = logos[cfg.edition][theme.type];
 
   return (
     <HoverTooltip
@@ -272,7 +295,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
         ) : (
           <Image
             data-testid="teleport-logo"
-            src={src}
+            src={theme.type === 'dark' ? logoDark : logoLight}
             alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
@@ -407,7 +430,14 @@ export type NavigationItem = {
   Icon: JSX.Element;
 };
 
+export type AssistProps = {
+  showAssist: boolean;
+  setShowAssist: (show: boolean) => void;
+  assistEnabled: boolean;
+};
+
 export type TopBarProps = {
   CustomLogo?: () => React.ReactElement;
   showPoweredByLogo?: boolean;
+  assistProps?: AssistProps;
 };

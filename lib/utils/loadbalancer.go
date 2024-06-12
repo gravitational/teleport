@@ -20,7 +20,6 @@ package utils
 
 import (
 	"context"
-	"errors"
 	"io"
 	"math/rand"
 	"net"
@@ -304,7 +303,7 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-messagesC:
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err != nil && err != io.EOF {
 				logger.Warningf("connection problem: %v %T", trace.DebugReport(err), err)
 				lastErr = err
 			}

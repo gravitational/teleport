@@ -28,10 +28,14 @@ import { ClusterUri } from 'teleterm/ui/uri';
 import { useClusters } from './useClusters';
 import { ClusterSelector } from './ClusterSelector/ClusterSelector';
 import { ClustersFilterableList } from './ClustersFilterableList/ClustersFilterableList';
+import ConfirmClusterChangeDialog from './ConfirmClusterChangeDialog';
 
 export function Clusters() {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
+  const [confirmChangeTo, setConfirmChangeTo] = useState<ClusterUri | null>(
+    null
+  );
   const clusters = useClusters();
 
   const togglePopover = useCallback(() => {
@@ -49,7 +53,17 @@ export function Clusters() {
 
   function selectItem(clusterUri: ClusterUri): void {
     setIsPopoverOpened(false);
-    clusters.selectItem(clusterUri);
+    if (clusters.hasPendingAccessRequest) {
+      setConfirmChangeTo(clusterUri);
+    } else {
+      clusters.selectItem(clusterUri);
+    }
+  }
+
+  function onConfirmChange(): void {
+    clusters.selectItem(confirmChangeTo);
+    setConfirmChangeTo(null);
+    clusters.clearPendingAccessRequest();
   }
 
   if (!clusters.hasLeaves) {
@@ -80,6 +94,11 @@ export function Clusters() {
           </KeyboardArrowsNavigation>
         </Container>
       </Popover>
+      <ConfirmClusterChangeDialog
+        onClose={() => setConfirmChangeTo(null)}
+        onConfirm={onConfirmChange}
+        confirmChangeTo={confirmChangeTo}
+      />
     </>
   );
 }

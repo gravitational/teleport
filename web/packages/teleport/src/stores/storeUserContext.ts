@@ -216,6 +216,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.integrations;
   }
 
+  getAssistantAccess() {
+    return this.state.acl.assist;
+  }
+
   getAllowedSearchAsRoles() {
     return this.state.allowedSearchAsRoles;
   }

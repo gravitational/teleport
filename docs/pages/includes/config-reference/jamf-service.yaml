@@ -13,31 +13,17 @@ jamf_service:
 
   # API endpoint for the Jamf Pro API.
   # Required.
-  api_endpoint: (=jamf.api_endpoint=)
+  api_endpoint: https://yourtenant.jamfcloud.com
 
   # Username for the Jamf Pro API.
-  # Prefer using client_id and client_secret_file.
-  # If both username+password and client_id+client_secret are set the service
-  # will use the latter.
+  # Required.
   username: teleport
 
   # Path to a file containing the password for the Jamf Pro API.
   # It is recommended to set the permissions for the file as restrictively as
   # possible.
-  # Prefer using client_id and client_secret_file.
-  # If both username+password and client_id+client_secret are set the service
-  # will use the latter.
+  # Required.
   password_file: /var/lib/teleport/jamf_password.txt
-
-  # Client ID for the Jamf Pro API.
-  # See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  client_id: (=jamf.client_id=)
-
-  # Path to a file containing the client secret for the Jamf Pro API.
-  # It is recommended to set the permissions for the file as restrictively as
-  # possible.
-  # See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  client_secret_file: /var/lib/teleport/jamf_client_secret.txt
 
   # Delay for initial syncs.
   # Set to zero for syncs to start after a short random delay (a couple minutes

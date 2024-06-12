@@ -63,7 +63,7 @@ func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOp
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, s))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, s))
 	}
 
 	return nil, trace.BadParameter("unrecognized connection diagnostic version %T", s)
@@ -94,6 +94,10 @@ func UnmarshalConnectionDiagnostic(data []byte, opts ...MarshalOption) (types.Co
 
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if cfg.ID != 0 {
+			s.SetResourceID(cfg.ID)
 		}
 
 		if cfg.Revision != "" {

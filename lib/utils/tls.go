@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,7 +37,7 @@ func TLSConfig(cipherSuites []uint16) *tls.Config {
 
 // SetupTLSConfig sets up cipher suites in existing TLS config
 func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
-	// If ciphers suites were passed in, use them. Otherwise use the
+	// If ciphers suites were passed in, use them. Otherwise use the the
 	// Go defaults.
 	if len(cipherSuites) > 0 {
 		config.CipherSuites = cipherSuites
@@ -45,6 +46,26 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
 	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
+}
+
+// CreateTLSConfiguration sets up default TLS configuration
+func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*tls.Config, error) {
+	config := TLSConfig(cipherSuites)
+
+	if _, err := os.Stat(certFile); err != nil {
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
+	}
+
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config.Certificates = []tls.Certificate{cert}
+
+	return config, nil
 }
 
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings

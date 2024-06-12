@@ -19,11 +19,17 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,6 +95,87 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
+}
+
+// DELETE IN 17.0 along with blocks of code that uses it.
+// Kept for legacy app access.
+func (h *Handler) withCustomCORS(handle routerFunc) routerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+
+		// There can be two types of POST app launcher request.
+		//  1): legacy app access
+		//  2): new app access
+		// Legacy app access will send a POST request with an empty body.
+		if r.Method == http.MethodPost && r.Body != http.NoBody {
+			body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var req fragmentRequest
+			if err := json.Unmarshal(body, &req); err != nil {
+				h.log.Warn("Failed to decode JSON from request body")
+				return trace.AccessDenied("access denied")
+			}
+			// Replace the body with a new reader, allows re-reading the body.
+			// (the handler `completeAppAuthExchange` will also read the body)
+			r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+			if req.CookieValue != "" && req.StateValue != "" && req.SubjectCookieValue != "" {
+				return h.completeAppAuthExchange(w, r, p)
+			}
+
+			h.log.Warn("Missing fields from parsed JSON request body")
+			h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+				sessionID: req.CookieValue,
+				err:       "missing required fields in JSON request body",
+			})
+			return trace.AccessDenied("access denied")
+		}
+
+		// Allow minimal CORS from only the proxy origin
+		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
+		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
+		// This is for the web UI to post a request to the application to get the proper app session
+		// cookie set on the right application subdomain.
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
+
+		// Validate that the origin for the request matches any of the public proxy addresses.
+		// This is instead of protecting via CORS headers, as that only supports a single domain.
+		originValue := r.Header.Get("Origin")
+		origin, err := url.Parse(originValue)
+		if err != nil {
+			return trace.BadParameter("malformed Origin header: %v", err)
+		}
+
+		var match bool
+		originPort := origin.Port()
+		if originPort == "" {
+			originPort = "443"
+		}
+
+		for _, addr := range h.c.ProxyPublicAddrs {
+			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
+				match = true
+				break
+			}
+		}
+
+		if !match {
+			return trace.AccessDenied("port or hostname did not match")
+		}
+
+		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
+		// We do this dynamically as this header can only contain one value
+		w.Header().Set("Access-Control-Allow-Origin", originValue)
+		if handle != nil {
+			return handle(w, r, p)
+		}
+
+		return nil
+	}
 }
 
 // makeRouterHandler creates a httprouter.Handle.

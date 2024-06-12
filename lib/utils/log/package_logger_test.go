@@ -36,7 +36,7 @@ func TestPackageLogger(t *testing.T) {
 	logger2 := NewPackageLogger(teleport.ComponentKey, "test2").WithGroup("a").With("1", "foo").WithGroup("b").With("2", "bar")
 
 	w := &safeWriter{}
-	slog.SetDefault(slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{Level: TraceLevel, ConfiguredFields: []string{LevelField, ComponentField}})))
+	slog.SetDefault(slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{Level: TraceLevel, ConfiguredFields: []string{levelField, componentField}})))
 
 	logger.DebugContext(ctx, "test 123")
 

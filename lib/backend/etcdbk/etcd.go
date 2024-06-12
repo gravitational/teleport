@@ -678,6 +678,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 		items = append(items, backend.Item{
 			Key:      b.trimPrefix(kv.Key),
 			Value:    value,
+			ID:       kv.ModRevision,
 			Revision: toBackendRevision(kv.ModRevision),
 		})
 	}
@@ -894,6 +895,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 	return &backend.Item{
 		Key:      key,
 		Value:    value,
+		ID:       kv.ModRevision,
 		Revision: toBackendRevision(kv.ModRevision),
 	}, nil
 }
@@ -982,6 +984,7 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 		return trace.Wrap(err)
 	}
 	*opts = []clientv3.OpOption{clientv3.WithLease(leaseID)}
+	lease.ID = int64(leaseID)
 	lease.Key = item.Key
 	lease.Revision = item.Revision
 	return nil
@@ -1011,6 +1014,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 		Type: fromType(e.Type),
 		Item: backend.Item{
 			Key:      b.trimPrefix(e.Kv.Key),
+			ID:       e.Kv.ModRevision,
 			Revision: toBackendRevision(e.Kv.ModRevision),
 		},
 	}

@@ -147,7 +147,7 @@ type AuthorizerAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -1445,6 +1445,19 @@ func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb
 	}
 
 	return trace.NewAggregate(errs...)
+}
+
+// AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminAction
+func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
+	return authCtx.AuthorizeAdminAction()
+}
+
+// AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
+// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminActionAllowReusedMFA
+func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
+	return authCtx.AuthorizeAdminActionAllowReusedMFA()
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.

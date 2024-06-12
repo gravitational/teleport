@@ -338,7 +338,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 
 	connWrapper, err := m.detect(conn)
 	if err != nil {
-		if !errors.Is(trace.Unwrap(err), io.EOF) {
+		if trace.Unwrap(err) != io.EOF {
 			m.logLimiter.Log(m.Entry.WithFields(log.Fields{
 				"src_addr": conn.RemoteAddr(),
 				"dst_addr": conn.LocalAddr(),

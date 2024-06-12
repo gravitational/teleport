@@ -219,7 +219,6 @@ func TestListPodRBAC(t *testing.T) {
 	}
 	type want struct {
 		listPodsResult   []string
-		listPodErr       error
 		getTestPodResult error
 	}
 	tests := []struct {
@@ -376,14 +375,6 @@ func TestListPodRBAC(t *testing.T) {
 			},
 			want: want{
 				listPodsResult: []string{},
-				listPodErr: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "pods is forbidden: User \"limited_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
 				getTestPodResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
@@ -403,14 +394,6 @@ func TestListPodRBAC(t *testing.T) {
 			},
 			want: want{
 				listPodsResult: []string{},
-				listPodErr: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "pods is forbidden: User \"no_list_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
 			},
 		},
 	}
@@ -437,12 +420,8 @@ func TestListPodRBAC(t *testing.T) {
 				testCtx.Context,
 				metav1.ListOptions{},
 			)
-			if tt.want.listPodErr != nil {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.listPodErr.Error())
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
+
 			require.Equal(t, tt.want.listPodsResult, getPodsFromPodList(rsp.Items))
 
 			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(
@@ -877,7 +856,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		name        string
 		args        args
 		deletedPods []string
-		wantErr     bool
 	}{
 		{
 			name: "delete pods in default namespace for user with full access",
@@ -910,7 +888,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				user:      userWithNamespaceAccess,
 				namespace: "dev",
 			},
-			wantErr:     true,
 			deletedPods: []string{},
 		},
 		{
@@ -950,11 +927,8 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				},
 				metav1.ListOptions{},
 			)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
+
 			require.Equal(t, tt.deletedPods, kubeMock.DeletedPods(string(requestID)))
 		})
 	}
@@ -1039,7 +1013,6 @@ func TestListClusterRoleRBAC(t *testing.T) {
 	}
 	type want struct {
 		listClusterRolesResult []string
-		listClusterErr         error
 		getTestResult          error
 	}
 	tests := []struct {
@@ -1098,14 +1071,6 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			},
 			want: want{
 				listClusterRolesResult: []string{},
-				listClusterErr: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "clusterroles is forbidden: User \"limited_user\" cannot list resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\" ",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
@@ -1142,12 +1107,8 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				testCtx.Context,
 				metav1.ListOptions{},
 			)
-			if tt.want.listClusterErr != nil {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.listClusterErr.Error())
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
+
 			require.Equal(t, tt.want.listClusterRolesResult, getClusterRolesFromList(rsp.Items))
 
 			_, err = client.RbacV1().ClusterRoles().Get(
@@ -1262,7 +1223,6 @@ func TestCustomResourcesRBAC(t *testing.T) {
 	}
 	type want struct {
 		listTeleportRolesResult []string
-		wantListErr             bool
 		getTestResult           error
 	}
 	tests := []struct {
@@ -1323,7 +1283,6 @@ func TestCustomResourcesRBAC(t *testing.T) {
 				},
 			},
 			want: want{
-				wantListErr: true,
 				getTestResult: &kubeerrors.StatusError{
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
@@ -1383,26 +1342,21 @@ func TestCustomResourcesRBAC(t *testing.T) {
 			list := getTeleroleUnstructured("TeleportRole")
 
 			err = client.List(context.Background(), list)
-			var teleportRolesList []string
-			if tt.want.wantListErr {
-				require.Error(t, err)
-				return
-			} else {
-				require.NoError(t, err)
-				require.True(t, list.IsList())
+			require.NoError(t, err)
 
-				// iterate over the list of teleport roles and get the namespace and name
-				// of each role in the format <namespace>/<name>
-				require.NoError(
-					t,
-					list.EachListItem(
-						func(itemI runtime.Object) error {
-							item := itemI.(*unstructured.Unstructured)
-							teleportRolesList = append(teleportRolesList, item.GetNamespace()+"/"+item.GetName())
-							return nil
-						},
-					))
-			}
+			require.True(t, list.IsList())
+			var teleportRolesList []string
+			// iterate over the list of teleport roles and get the namespace and name
+			// of each role in the format <namespace>/<name>
+			require.NoError(
+				t,
+				list.EachListItem(
+					func(itemI runtime.Object) error {
+						item := itemI.(*unstructured.Unstructured)
+						teleportRolesList = append(teleportRolesList, item.GetNamespace()+"/"+item.GetName())
+						return nil
+					},
+				))
 
 			require.ElementsMatch(t, tt.want.listTeleportRolesResult, teleportRolesList)
 

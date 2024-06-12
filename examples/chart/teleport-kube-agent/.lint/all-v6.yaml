@@ -1,6 +1,6 @@
 authToken: auth-token
 proxyAddr: proxy.example.com:3080
-roles: kube,app,db,jamf
+roles: kube,app,db
 kubeClusterName: test-kube-cluster-name
 labels:
   cluster: testing
@@ -15,9 +15,6 @@ databases:
     protocol: "postgres"
     labels:
       database: staging
-jamfApiEndpoint: "testjamf.jamfcloud.com/api"
-jamfClientId: teleport-jamf-client-id
-jamfClientSecret: secret-jamf-client-secret
 annotations:
   config:
     kubernetes.io/config: "test-annotation"

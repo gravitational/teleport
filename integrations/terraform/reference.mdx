@@ -695,7 +695,8 @@ Metadata is resource metadata
 Spec is a ClusterNetworkingConfig specification
 
 |               Name               |   Type   | Required |                                                                                               Description                                                                                               |
-|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| |
+|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| assist_command_execution_workers | number   |          | AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel                                                                       |
 | case_insensitive_routing         | bool     |          | CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.                                                                                                                        |
 | client_idle_timeout              | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
 | idle_timeout_message             | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
@@ -1091,7 +1092,7 @@ resource "teleport_github_connector" "github" {
        example = "yes"
      }
   }
-
+  
   spec = {
     client_id = "client"
     client_secret = var.github_secret
@@ -1228,7 +1229,7 @@ Example:
 
 ```
 # Teleport OIDC connector
-#
+# 
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/oidc/
 
@@ -1420,12 +1421,12 @@ Spec is a provisioning token V2 spec
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|    Name     |       Type       | Required |                                                              Description                                                              |
-|-------------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------|
-| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                     |
-| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".        |
-| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                               |
-| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
+|    Name     |       Type       | Required |                                                                Description                                                                |
+|-------------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                         |
+| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".            |
+| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                   |
+| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
 
 #### spec.azure
 
@@ -1518,24 +1519,24 @@ GitLab allows the configuration of options specific to the "gitlab" join method.
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|         Name          |  Type  | Required |                                                                                                                                                    Description                                                                                                                                                     |
-|-----------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ci_config_ref_uri     | string |          | CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.                                                                                                                                                          |
-| ci_config_sha         | string |          | CIConfigSHA is the git commit SHA for the ci_config_ref_uri.                                                                                                                                                                                                                                                       |
-| deployment_tier       | string |          | DeploymentTier is the deployment tier of the environment the job specifies                                                                                                                                                                                                                                         |
-| environment           | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                                                                                                                                                             |
-| environment_protected | bool   |          |                                                                                                                                                                                                                                                                                                                    |
-| namespace_path        | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                            |
-| pipeline_source       | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                                                                                                                                                       |
-| project_path          | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                               |
-| project_visibility    | string |          | ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.                                                                                                                                                                                             |
-| ref                   | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                 |
-| ref_protected         | bool   |          |                                                                                                                                                                                                                                                                                                                    |
-| ref_type              | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                                                                                                                                                       |
-| sub                   | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character. |
-| user_email            | string |          | UserEmail is the email of the user executing the job                                                                                                                                                                                                                                                               |
-| user_id               | string |          | UserID is the ID of the user executing the job                                                                                                                                                                                                                                                                     |
-| user_login            | string |          | UserLogin is the username of the user executing the job                                                                                                                                                                                                                                                            |
+|         Name          |  Type  | Required |                                                                                                                                                        Description                                                                                                                                                         |
+|-----------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ci_config_ref_uri     | string |          | CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.                                                                                                                                                                  |
+| ci_config_sha         | string |          | CIConfigSHA is the git commit SHA for the ci_config_ref_uri.                                                                                                                                                                                                                                                               |
+| deployment_tier       | string |          | DeploymentTier is the deployment tier of the environment the job specifies                                                                                                                                                                                                                                                 |
+| environment           | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                                                                                                                                                                     |
+| environment_protected | bool   |          |                                                                                                                                                                                                                                                                                                                            |
+| namespace_path        | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                                    |
+| pipeline_source       | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                                                                                                                                                               |
+| project_path          | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                       |
+| project_visibility    | string |          | ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.                                                                                                                                                                                                     |
+| ref                   | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                         |
+| ref_protected         | bool   |          |                                                                                                                                                                                                                                                                                                                            |
+| ref_type              | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                                                                                                                                                               |
+| sub                   | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character. |
+| user_email            | string |          | UserEmail is the email of the user executing the job                                                                                                                                                                                                                                                                       |
+| user_id               | string |          | UserID is the ID of the user executing the job                                                                                                                                                                                                                                                                             |
+| user_login            | string |          | UserLogin is the username of the user executing the job                                                                                                                                                                                                                                                                    |
 
 #### spec.kubernetes
 
@@ -1613,7 +1614,7 @@ resource "teleport_provision_token" "example" {
     description = "Example token"
 
     labels = {
-      example = "yes"
+      example = "yes" 
       "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
     }
   }
@@ -2106,10 +2107,10 @@ resource "teleport_role" "example" {
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example  = "yes"
+      example  = "yes"      
     }
   }
-
+  
   spec = {
     options = {
       forward_agent           = false
@@ -2225,12 +2226,12 @@ Example:
 
 ```
 # Teleport SAML connector
-#
+# 
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/okta/
 
 resource "teleport_saml_connector" "example" {
-  # This block will tell Terraform to never update private key from our side if a keys are managed
+  # This block will tell Terraform to never update private key from our side if a keys are managed 
   # from an outside of Terraform.
 
   # lifecycle {

@@ -23,7 +23,6 @@ import {
   Box,
   ButtonIcon,
   ButtonPrimary,
-  ButtonSecondary,
   Flex,
   Image,
   Indicator,
@@ -34,11 +33,12 @@ import {
   ArrowBack,
   ChevronDown,
   ChevronRight,
+  Trash,
   Warning,
-  Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
+
 import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
@@ -61,10 +61,68 @@ import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
-export function RequestCheckoutWithSlider<
-  T extends PendingListItem = PendingListItem,
->({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
+export function RequestCheckout({
+  toggleResource,
+  onClose,
+  transitionState,
+  reset,
+  data,
+  createAttempt,
+  appsGrantedByUserGroup = [],
+  userGroupFetchAttempt,
+  fetchResourceRequestRolesAttempt,
+  resourceRequestRoles,
+  createRequest,
+  clearAttempt,
+  reviewers,
+  selectedReviewers,
+  setSelectedReviewers,
+  SuccessComponent,
+  requireReason,
+  numRequestedResources,
+  isResourceRequest,
+  selectedResourceRequestRoles,
+  setSelectedResourceRequestRoles,
+  fetchStatus,
+  maxDuration,
+  setMaxDuration,
+  requestTTL,
+  setRequestTTL,
+  dryRunResponse,
+}: RequestCheckoutProps) {
+  // Specifies the start date/time a requestor requested for.
+  const [start, setStart] = useState<Date>();
+  const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
+
+  const isInvalidRoleSelection =
+    resourceRequestRoles.length > 0 &&
+    isResourceRequest &&
+    selectedResourceRequestRoles.length < 1;
+  const submitBtnDisabled =
+    data.length === 0 ||
+    createAttempt.status === 'processing' ||
+    isInvalidRoleSelection ||
+    fetchResourceRequestRolesAttempt.status === 'failed' ||
+    fetchResourceRequestRolesAttempt.status === 'processing';
+
+  function updateReason(reason: string) {
+    setReason(reason);
+  }
+
+  function handleOnSubmit(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    createRequest({
+      reason,
+      suggestedReviewers: selectedReviewers.map(r => r.value),
+      maxDuration: maxDuration ? new Date(maxDuration.value) : null,
+      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
+      start: start,
+    });
+  }
 
   // Listeners are attached to enable overflow on the parent container after
   // transitioning ends (entered) or starts (exits). Enables vertical scrolling
@@ -113,111 +171,21 @@ export function RequestCheckoutWithSlider<
     >
       <Dimmer className={transitionState} />
       <SidePanel state={transitionState} className={transitionState}>
-        <RequestCheckout {...props} />
-      </SidePanel>
-    </div>
-  );
-}
+        {fetchResourceRequestRolesAttempt.status === 'failed' && (
+          <Alert
+            kind="danger"
+            children={fetchResourceRequestRolesAttempt.statusText}
+          />
+        )}
+        {fetchStatus === 'loading' && (
+          <Box mt={5} textAlign="center">
+            <Indicator />
+          </Box>
+        )}
 
-export function RequestCheckout<T extends PendingListItem>({
-  toggleResource,
-  onClose,
-  reset,
-  appsGrantedByUserGroup = [],
-  userGroupFetchAttempt,
-  clearAttempt,
-  reviewers,
-  setSelectedReviewers,
-  SuccessComponent,
-  requireReason,
-  numRequestedResources,
-  setSelectedResourceRequestRoles,
-  fetchStatus,
-  setMaxDuration,
-  setRequestTTL,
-  dryRunResponse,
-  data,
-  showClusterNameColumn,
-  createAttempt,
-  fetchResourceRequestRolesAttempt,
-  createRequest,
-  selectedReviewers,
-  maxDuration,
-  requestTTL,
-  resourceRequestRoles,
-  isResourceRequest,
-  selectedResourceRequestRoles,
-  Header,
-}: RequestCheckoutProps<T>) {
-  // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Date>();
-  const [reason, setReason] = useState('');
-  function updateReason(reason: string) {
-    setReason(reason);
-  }
-
-  function handleOnSubmit(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-
-    createRequest({
-      reason,
-      suggestedReviewers: selectedReviewers.map(r => r.value),
-      maxDuration: maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: start,
-    });
-  }
-
-  const isInvalidRoleSelection =
-    resourceRequestRoles.length > 0 &&
-    isResourceRequest &&
-    selectedResourceRequestRoles.length < 1;
-
-  const submitBtnDisabled =
-    data.length === 0 ||
-    createAttempt.status === 'processing' ||
-    isInvalidRoleSelection ||
-    fetchResourceRequestRolesAttempt.status === 'failed' ||
-    fetchResourceRequestRolesAttempt.status === 'processing';
-
-  const DefaultHeader = () => {
-    return (
-      <Flex mb={3} alignItems="center">
-        <ArrowBack
-          size="large"
-          mr={3}
-          onClick={onClose}
-          style={{ cursor: 'pointer' }}
-        />
-        <Box>
-          <Text typography="h4" color="text.main" bold>
-            {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
-        </Box>
-      </Flex>
-    );
-  };
-
-  return (
-    <>
-      {fetchResourceRequestRolesAttempt.status === 'failed' && (
-        <Alert
-          kind="danger"
-          children={fetchResourceRequestRolesAttempt.statusText}
-        />
-      )}
-      {fetchStatus === 'loading' && (
-        <Box mt={5} textAlign="center">
-          <Indicator />
-        </Box>
-      )}
-
-      {fetchStatus === 'loaded' && (
-        <div>
-          {createAttempt.status === 'success' ? (
-            <>
+        {fetchStatus === 'loaded' && (
+          <div>
+            {createAttempt.status === 'success' ? (
               <Box>
                 <Box mt={2} mb={7} textAlign="center">
                   <Text typography="h4" color="text.main" bold>
@@ -232,166 +200,161 @@ export function RequestCheckout<T extends PendingListItem>({
                   <Image src={shieldCheck} width="250px" height="179px" />
                 </Flex>
               </Box>
+            ) : (
+              <Flex mb={3} alignItems="center">
+                <ArrowBack
+                  size="large"
+                  mr={3}
+                  onClick={onClose}
+                  style={{ cursor: 'pointer' }}
+                />
+                <Box>
+                  <Text typography="h4" color="text.main" bold>
+                    {data.length} {pluralize(data.length, 'Resource')} Selected
+                  </Text>
+                </Box>
+              </Flex>
+            )}
+            {createAttempt.status === 'success' ? (
               <SuccessComponent onClose={onClose} reset={reset} />
-            </>
-          ) : (
-            <>
-              {Header?.() || DefaultHeader()}
-              {createAttempt.status === 'failed' && (
-                <Alert kind="danger" children={createAttempt.statusText} />
-              )}
-              <StyledTable
-                data={data}
-                columns={[
-                  {
-                    key: 'clusterName',
-                    headerText: 'Cluster Name',
-                    isNonRender: !showClusterNameColumn,
-                  },
-                  {
-                    key: 'kind',
-                    headerText: 'Type',
-                    render: item => (
-                      <Cell>{getPrettyResourceKind(item.kind)}</Cell>
-                    ),
-                  },
-                  {
-                    key: 'name',
-                    headerText: 'Name',
-                  },
-                  {
-                    altKey: 'delete-btn',
-                    render: resource => (
-                      <Cell align="right">
-                        <Cross
-                          size="small"
-                          borderRadius={2}
-                          p={2}
-                          onClick={() => {
-                            clearAttempt();
-                            toggleResource(resource);
-                          }}
-                          disabled={createAttempt.status === 'processing'}
-                          css={`
-                            cursor: pointer;
-
-                            background-color: ${({ theme }) =>
-                              theme.colors.buttons.trashButton.default};
-                            border-radius: 2px;
-
-                            :hover {
-                              background-color: ${({ theme }) =>
-                                theme.colors.buttons.trashButton.hover};
-                            }
-                          `}
-                        />
-                      </Cell>
-                    ),
-                  },
-                ]}
-                emptyText="No resources are selected"
-              />
-              {userGroupFetchAttempt?.status === 'processing' && (
-                <Flex mt={4} alignItems="center" justifyContent="center">
-                  <Indicator size="small" />
-                </Flex>
-              )}
-              {userGroupFetchAttempt?.status === 'failed' && (
-                <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
-              )}
-              {userGroupFetchAttempt?.status === 'success' &&
-                appsGrantedByUserGroup.length > 0 && (
-                  <AppsGrantedAccess apps={appsGrantedByUserGroup} />
+            ) : (
+              <>
+                {createAttempt.status === 'failed' && (
+                  <Alert kind="danger" children={createAttempt.statusText} />
                 )}
-              {isResourceRequest && (
-                <ResourceRequestRoles
-                  roles={resourceRequestRoles}
-                  selectedRoles={selectedResourceRequestRoles}
-                  setSelectedRoles={setSelectedResourceRequestRoles}
-                  fetchAttempt={fetchResourceRequestRolesAttempt}
+                <StyledTable
+                  data={data}
+                  columns={[
+                    {
+                      key: 'kind',
+                      headerText: 'Resource Kind',
+                    },
+                    {
+                      key: 'name',
+                      headerText: 'Resource Name',
+                    },
+                    {
+                      altKey: 'delete-btn',
+                      render: resource => (
+                        <Cell align="right">
+                          <Trash
+                            size="small"
+                            borderRadius={2}
+                            p={2}
+                            onClick={() => {
+                              clearAttempt();
+                              toggleResource(
+                                resource.kind,
+                                resource.id,
+                                resource.name
+                              );
+                            }}
+                            disabled={createAttempt.status === 'processing'}
+                            css={`
+                              cursor: pointer;
+
+                              background-color: ${({ theme }) =>
+                                theme.colors.buttons.trashButton.default};
+                              border-radius: 2px;
+
+                              :hover {
+                                background-color: ${({ theme }) =>
+                                  theme.colors.buttons.trashButton.hover};
+                              }
+                            `}
+                          />
+                        </Cell>
+                      ),
+                    },
+                  ]}
+                  emptyText="No resources are selected"
                 />
-              )}
-              <Box mt={6} mb={1}>
-                <SelectReviewers
-                  reviewers={reviewers}
-                  selectedReviewers={selectedReviewers}
-                  setSelectedReviewers={setSelectedReviewers}
-                />
-              </Box>
-              <Validation>
-                {({ validator }) => (
-                  <Flex mt={6} flexDirection="column" gap={1}>
-                    {dryRunResponse && (
-                      <Box mb={1}>
-                        <AssumeStartTime
-                          start={start}
-                          onStartChange={setStart}
-                          accessRequest={dryRunResponse}
-                        />
-                        <AccessDurationRequest
-                          assumeStartTime={start}
-                          maxDuration={maxDuration}
-                          setMaxDuration={setMaxDuration}
-                          accessRequest={dryRunResponse}
-                        />
-                      </Box>
-                    )}
-                    <TextBox
-                      reason={reason}
-                      updateReason={updateReason}
-                      requireReason={requireReason}
-                    />
-                    {dryRunResponse && maxDuration && (
-                      <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration?.value}
-                        maxDuration={maxDuration}
-                        setRequestTTL={setRequestTTL}
-                        requestTTL={requestTTL}
-                        dryRunResponse={dryRunResponse}
-                      />
-                    )}
-                    <Flex
-                      py={4}
-                      gap={2}
-                      css={`
-                        position: sticky;
-                        bottom: 0;
-                        background: ${({ theme }) =>
-                          theme.colors.levels.sunken};
-                        border-top: 1px solid
-                          ${props => props.theme.colors.spotBackground[1]};
-                      `}
-                    >
-                      <ButtonPrimary
-                        width="100%"
-                        size="large"
-                        textTransform="none"
-                        onClick={() => handleOnSubmit(validator)}
-                        disabled={submitBtnDisabled}
-                      >
-                        Submit Request
-                      </ButtonPrimary>
-                      <ButtonSecondary
-                        width="100%"
-                        textTransform="none"
-                        size="large"
-                        onClick={() => {
-                          reset();
-                          onClose();
-                        }}
-                        disabled={submitBtnDisabled}
-                      >
-                        Cancel
-                      </ButtonSecondary>
-                    </Flex>
+                {userGroupFetchAttempt?.status === 'processing' && (
+                  <Flex mt={4} alignItems="center" justifyContent="center">
+                    <Indicator size="small" />
                   </Flex>
                 )}
-              </Validation>
-            </>
-          )}
-        </div>
-      )}
-    </>
+                {userGroupFetchAttempt?.status === 'failed' && (
+                  <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
+                )}
+                {userGroupFetchAttempt?.status === 'success' &&
+                  appsGrantedByUserGroup.length > 0 && (
+                    <AppsGrantedAccess apps={appsGrantedByUserGroup} />
+                  )}
+                {isResourceRequest && (
+                  <ResourceRequestRoles
+                    roles={resourceRequestRoles}
+                    selectedRoles={selectedResourceRequestRoles}
+                    setSelectedRoles={setSelectedResourceRequestRoles}
+                    fetchAttempt={fetchResourceRequestRolesAttempt}
+                  />
+                )}
+                <Box mt={6} mb={1}>
+                  <SelectReviewers
+                    reviewers={reviewers}
+                    selectedReviewers={selectedReviewers}
+                    setSelectedReviewers={setSelectedReviewers}
+                  />
+                </Box>
+                <Validation>
+                  {({ validator }) => (
+                    <Flex mt={6} flexDirection="column" gap={1}>
+                      {dryRunResponse && (
+                        <Box mb={1}>
+                          <AssumeStartTime
+                            start={start}
+                            onStartChange={setStart}
+                            accessRequest={dryRunResponse}
+                          />
+                          <AccessDurationRequest
+                            assumeStartTime={start}
+                            maxDuration={maxDuration}
+                            setMaxDuration={setMaxDuration}
+                            accessRequest={dryRunResponse}
+                          />
+                        </Box>
+                      )}
+                      <TextBox
+                        reason={reason}
+                        updateReason={updateReason}
+                        requireReason={requireReason}
+                      />
+                      {dryRunResponse && maxDuration && (
+                        <AdditionalOptions
+                          selectedMaxDurationTimestamp={maxDuration?.value}
+                          maxDuration={maxDuration}
+                          setRequestTTL={setRequestTTL}
+                          requestTTL={requestTTL}
+                          dryRunResponse={dryRunResponse}
+                        />
+                      )}
+                      <Box
+                        py={4}
+                        css={`
+                          position: sticky;
+                          bottom: 0;
+                          background: ${({ theme }) =>
+                            theme.colors.levels.sunken};
+                        `}
+                      >
+                        <ButtonPrimary
+                          width="100%"
+                          size="large"
+                          onClick={() => handleOnSubmit(validator)}
+                          disabled={submitBtnDisabled}
+                        >
+                          Submit Request
+                        </ButtonPrimary>
+                      </Box>
+                    </Flex>
+                  )}
+                </Validation>
+              </>
+            )}
+          </div>
+        )}
+      </SidePanel>
+    </div>
   );
 }
 
@@ -467,10 +430,6 @@ function ResourceRequestRoles({
       return setSelectedRoles([...selectedRoles, roleName]);
     }
     setSelectedRoles(selectedRoles.filter(role => role !== roleName));
-  }
-  // only show the role selector if there is more than one role that can be selected
-  if (roles.length < 2) {
-    return;
   }
 
   return (
@@ -627,30 +586,6 @@ function TextBox({
   );
 }
 
-function getPrettyResourceKind(kind: ResourceKind): string {
-  switch (kind) {
-    case 'role':
-      return 'Role';
-    case 'app':
-      return 'Application';
-    case 'node':
-      return 'Server';
-    case 'resource':
-      return 'Resource';
-    case 'db':
-      return 'Database';
-    case 'kube_cluster':
-      return 'Kubernetes';
-    case 'user_group':
-      return 'User Group';
-    case 'windows_desktop':
-      return 'Desktop';
-    default:
-      kind satisfies never;
-      return kind;
-  }
-}
-
 const requireText = (value: string, requireReason: boolean) => () => {
   if (requireReason && (!value || value.trim().length === 0)) {
     return {
@@ -715,52 +650,45 @@ const StyledTable = styled(Table)`
   overflow: hidden;
 ` as typeof Table;
 
-export type RequestCheckoutWithSliderProps<
-  T extends PendingListItem = PendingListItem,
-> = {
+export type RequestCheckoutProps = {
+  onClose(): void;
+  toggleResource: (
+    kind: ResourceKind,
+    resourceId: string,
+    resourceName?: string
+  ) => void;
+  appsGrantedByUserGroup?: string[];
+  userGroupFetchAttempt?: Attempt;
+  reset: () => void;
+  SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
   transitionState: TransitionStatus;
-} & RequestCheckoutProps<T>;
-
-export interface PendingListItem {
-  kind: ResourceKind;
-  /** Name of the resource, for presentation purposes only. */
-  name: string;
-  /** Identifier of the resource. Should be sent in requests. */
-  id: string;
-  clusterName?: string;
-}
-
-export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
-  {
-    onClose(): void;
-    toggleResource: (resource: T) => void;
-    appsGrantedByUserGroup?: string[];
-    userGroupFetchAttempt?: Attempt;
-    reset: () => void;
-    SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
-    isResourceRequest: boolean;
-    requireReason: boolean;
-    selectedReviewers: ReviewerOption[];
-    data: T[];
-    showClusterNameColumn?: boolean;
-    setRequestTTL: (value: Option<number>) => void;
-    createRequest: (req: CreateRequest) => void;
-    fetchStatus: 'loading' | 'loaded';
-    fetchResourceRequestRolesAttempt: Attempt;
-    requestTTL: Option<number>;
-    resourceRequestRoles: string[];
-    reviewers: string[];
-    setSelectedReviewers: (value: ReviewerOption[]) => void;
-    setMaxDuration: (value: Option<number>) => void;
-    clearAttempt: () => void;
-    createAttempt: Attempt;
-    setSelectedResourceRequestRoles: (value: string[]) => void;
-    numRequestedResources: number;
-    selectedResourceRequestRoles: string[];
-    dryRunResponse: AccessRequest;
-    maxDuration: Option<number>;
-    Header?: () => JSX.Element;
-  };
+  isResourceRequest: boolean;
+  requireReason: boolean;
+  selectedReviewers: ReviewerOption[];
+  data: {
+    kind: ResourceKind;
+    /** Name of the resource, for presentation purposes only. */
+    name: string;
+    /** Identifier of the resource. Should be sent in requests. */
+    id: string;
+  }[];
+  setRequestTTL: (value: Option<number>) => void;
+  createRequest: (req: CreateRequest) => void;
+  fetchStatus: 'loading' | 'loaded';
+  fetchResourceRequestRolesAttempt: Attempt;
+  requestTTL: Option<number>;
+  resourceRequestRoles: string[];
+  reviewers: string[];
+  setSelectedReviewers: (value: ReviewerOption[]) => void;
+  setMaxDuration: (value: Option<number>) => void;
+  clearAttempt: () => void;
+  createAttempt: Attempt;
+  setSelectedResourceRequestRoles: (value: string[]) => void;
+  numRequestedResources: number;
+  selectedResourceRequestRoles: string[];
+  dryRunResponse: AccessRequest;
+  maxDuration: Option<number>;
+};
 
 type SuccessComponentParams = {
   reset: () => void;

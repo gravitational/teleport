@@ -168,10 +168,6 @@ func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
 }
 
-func (p *Pack) RootAuthServer() *auth.Server {
-	return p.rootCluster.Process.GetAuthServer()
-}
-
 func (p *Pack) LeafAppName() string {
 	return p.leafAppName
 }
@@ -182,10 +178,6 @@ func (p *Pack) LeafAppClusterName() string {
 
 func (p *Pack) LeafAppPublicAddr() string {
 	return p.leafAppPublicAddr
-}
-
-func (p *Pack) LeafAuthServer() *auth.Server {
-	return p.leafCluster.Process.GetAuthServer()
 }
 
 // initUser will create a user within the root cluster.
@@ -273,7 +265,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
-func (p *Pack) initTeleportClient(t *testing.T) {
+func (p *Pack) initTeleportClient(t *testing.T, opts AppTestOptions) {
 	p.tc = p.MakeTeleportClient(t, p.username)
 }
 
@@ -310,19 +302,16 @@ func (p *Pack) GenerateAndSetupUserCreds(t *testing.T, tc *client.TeleportClient
 	require.NoError(t, err)
 }
 
-// CreateAppSessionCookies creates an application session with the root cluster through the web
-// API and returns the app session cookies. The application that the user connects to may be
-// running in a leaf cluster.
-func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
+// CreateAppSession creates an application session with the root cluster. The
+// application that the user connects to may be running in a leaf cluster.
+func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
 	casReq, err := json.Marshal(web.CreateAppSessionRequest{
-		ResolveAppParams: web.ResolveAppParams{
-			FQDNHint:    publicAddr,
-			PublicAddr:  publicAddr,
-			ClusterName: clusterName,
-		},
+		FQDNHint:    publicAddr,
+		PublicAddr:  publicAddr,
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
@@ -349,30 +338,14 @@ func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName str
 // cluster and returns the client cert that can be used for an application
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
-	session := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
-	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
-	return config.Certificates
-}
-
-func (p *Pack) CreateAppSession(t *testing.T, username, clusterName, appPublicAddr string) types.WebSession {
-	ctx := context.Background()
-	userState, err := p.rootCluster.Process.GetAuthServer().GetUserOrLoginState(ctx, username)
-	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUserState(userState)
-
-	ws, err := p.rootCluster.Process.GetAuthServer().CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
-		NewWebSessionRequest: auth.NewWebSessionRequest{
-			User:       username,
-			Roles:      accessInfo.Roles,
-			Traits:     accessInfo.Traits,
-			SessionTTL: time.Hour,
-		},
-		PublicAddr:  appPublicAddr,
-		ClusterName: clusterName,
+	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.username,
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
 	})
 	require.NoError(t, err)
-
-	return ws
+	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
+	return config.Certificates
 }
 
 // LockUser will lock the configured user for this pack.
@@ -460,7 +433,7 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),
-		Cert:               tlsConfig.Certificates[0],
+		Certs:              tlsConfig.Certificates,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { proxy.Close() })

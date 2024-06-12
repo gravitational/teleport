@@ -45,6 +45,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
@@ -96,7 +97,26 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 }
 
 // ListUsers returns a page of users.
-func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+func (s *IdentityService) ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error) {
+	resp, err := s.ListUsersExt(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   pageToken,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
+}
+
+// ListUsersExt is equivalent to ListUsers except that it supports additional parameters.
+func (s *IdentityService) ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	rangeStart := backend.Key(webPrefix, usersPrefix, req.PageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
 	pageSize := req.PageSize
@@ -255,7 +275,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 			continue
 		}
 		u, err := services.UnmarshalUser(
-			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -359,6 +379,7 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
@@ -371,6 +392,7 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 		}
 	}
 	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -389,6 +411,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Backend.ConditionalUpdate(ctx, item)
@@ -401,6 +424,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		}
 	}
 	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
 	return user, nil
 }
 
@@ -453,6 +477,7 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -563,7 +588,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 	}
 
 	u, err := services.UnmarshalUser(
-		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -895,7 +920,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 	if err != nil {
 		return trace.Wrap(err, "marshal webauthn local auth")
 	}
-	userJSON, err := json.Marshal(&webauthnUser{
+	userJSON, err := json.Marshal(&wanpb.User{
 		TeleportUser: user,
 	})
 	if err != nil {
@@ -952,17 +977,11 @@ func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	user := &webauthnUser{}
+	user := &wanpb.User{}
 	if err := json.Unmarshal(item.Value, user); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return user.TeleportUser, nil
-}
-
-// webauthnUser represents a WebAuthn user stored under [webauthnUserKey].
-// Looked up during passwordless logins.
-type webauthnUser struct {
-	TeleportUser string `json:"teleport_user"`
 }
 
 func webauthnLocalAuthKey(user string) []byte {
@@ -1255,6 +1274,7 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1275,6 +1295,7 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1294,6 +1315,7 @@ func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1436,6 +1458,7 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1640,6 +1663,7 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
 		Revision: rev,
 	}
 	lease, err := s.Put(ctx, item)
@@ -1663,6 +1687,7 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
 		Revision: connector.GetRevision(),
 	}
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -1686,6 +1711,7 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
 	}
 	lease, err := s.Create(ctx, item)
 	if err != nil {
@@ -1888,25 +1914,27 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 }
 
 const (
-	webPrefix                 = "web"
-	usersPrefix               = "users"
-	sessionsPrefix            = "sessions"
-	attemptsPrefix            = "attempts"
-	pwdPrefix                 = "pwd"
-	connectorsPrefix          = "connectors"
-	oidcPrefix                = "oidc"
-	samlPrefix                = "saml"
-	githubPrefix              = "github"
-	requestsPrefix            = "requests"
-	requestsTracePrefix       = "requestsTrace"
-	usedTOTPPrefix            = "used_totp"
-	usedTOTPTTL               = 30 * time.Second
-	mfaDevicePrefix           = "mfa"
-	webauthnPrefix            = "webauthn"
-	webauthnGlobalSessionData = "sessionData"
-	webauthnLocalAuthPrefix   = "webauthnlocalauth"
-	webauthnSessionData       = "webauthnsessiondata"
-	recoveryCodesPrefix       = "recoverycodes"
-	attestationsPrefix        = "key_attestations"
-	userPreferencesPrefix     = "user_preferences"
+	webPrefix                   = "web"
+	usersPrefix                 = "users"
+	sessionsPrefix              = "sessions"
+	attemptsPrefix              = "attempts"
+	pwdPrefix                   = "pwd"
+	connectorsPrefix            = "connectors"
+	oidcPrefix                  = "oidc"
+	samlPrefix                  = "saml"
+	githubPrefix                = "github"
+	requestsPrefix              = "requests"
+	requestsTracePrefix         = "requestsTrace"
+	usedTOTPPrefix              = "used_totp"
+	usedTOTPTTL                 = 30 * time.Second
+	mfaDevicePrefix             = "mfa"
+	webauthnPrefix              = "webauthn"
+	webauthnGlobalSessionData   = "sessionData"
+	webauthnLocalAuthPrefix     = "webauthnlocalauth"
+	webauthnSessionData         = "webauthnsessiondata"
+	recoveryCodesPrefix         = "recoverycodes"
+	attestationsPrefix          = "key_attestations"
+	assistantMessagePrefix      = "assistant_messages"
+	assistantConversationPrefix = "assistant_conversations"
+	userPreferencesPrefix       = "user_preferences"
 )

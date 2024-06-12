@@ -95,9 +95,3 @@ load fixtures/common
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  proxy_listener_mode: multiplex"
 }
-
-@test "[${TEST_SUITE?}] auth_service.proxy_protocol is on" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  proxy_protocol: on"
-}

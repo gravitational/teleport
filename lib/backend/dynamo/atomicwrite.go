@@ -105,11 +105,20 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.ConditionCheck = &dynamodb.ConditionCheck{
+			// morally this should be a dynamodb.ConditionCheck transaction
+			// item, but condition checks use the dynamodb:ConditionCheckItem
+			// permission, which wasn't documented in v15 and earlier; an update
+			// operation in a TransactWrite costs the same in terms of write
+			// capacity as a condition check, so we update the potentially
+			// non-existent item by removing a top-level field that we know
+			// doesn't exist anyway
+			txnItem.Update = &dynamodb.Update{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Key:                       av,
 				TableName:                 tableName,
+
+				UpdateExpression: aws.String("REMOVE NotAField"),
 			}
 
 		case backend.KindPut:
@@ -119,6 +128,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				FullPath:  fullPath,
 				Value:     ca.Action.Item.Value,
 				Timestamp: time.Now().UTC().Unix(),
+				ID:        time.Now().UTC().UnixNano(),
 				Revision:  revision,
 			}
 			if !ca.Action.Item.Expires.IsZero() {

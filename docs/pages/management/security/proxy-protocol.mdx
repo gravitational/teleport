@@ -24,7 +24,7 @@ PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n
 ## Security
 
 Misconfiguration of the PROXY protocol behavior can lead to security problems. Since the PROXY protocol lacks built-in authentication, 
-a malicious attacker could send falsified custom PROXY protocol headers to spoof their IP address. To prevent this, you must 
+a malicious attacker could send falsified custom PROXY protocol headers to spoof the their IP address. To prevent this, you must 
 explicitly configure PROXY protocol settings according to your network setup - if you don't run Teleport behind a L4 load balancer, that
 send PROXY headers, you **must** disable PROXY protocol support on Teleport.
 

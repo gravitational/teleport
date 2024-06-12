@@ -38,7 +38,7 @@ import { Label } from "./label_pb";
  */
 export interface App {
     /**
-     * uri uniquely identifies an app within Teleport Connect.
+     * uri is the cluster resource URI.
      *
      * @generated from protobuf field: string uri = 1;
      */
@@ -70,20 +70,9 @@ export interface App {
     awsConsole: boolean;
     /**
      * public_addr is the public address the application is accessible at.
-     *
-     * If the app resource has its public_addr field set, this field returns the value of public_addr
-     * from the app resource.
-     *
-     * If the app resource does not have public_addr field set, this field returns the name of the app
-     * under the proxy hostname of the cluster to which the app belongs, e.g.,
-     * dumper.root-cluster.com, example-app.leaf-cluster.org.
-     *
-     * In both cases public_addr does not include a port number. An app resource cannot include a port
-     * number in its public_addr, as the backend will (wrongly) reject such resource with an error
-     * saying "public_addr "example.com:1337" can not contain a port, applications will be available
-     * on the same port as the web proxy". This is obviously not the case for custom public addresses.
-     * Ultimately, it means that public_addr alone is not enough to access the app, unless either the
-     * cluster or the custom domain use the default port of 443.
+     * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+     * Optionally, it can be overridden (by the 'public_addr' field in the app config)
+     * with an address available on the internet.
      *
      * Always empty for SAML applications.
      *
@@ -112,14 +101,13 @@ export interface App {
      */
     labels: Label[];
     /**
-     * fqdn is the hostname under which the app is accessible within the root cluster. It is used by
-     * the Web UI to route the requests from the /web/launch URL to the correct app. fqdn by itself
-     * does not include the port number, so fqdn alone cannot be used to launch an app, hence why it's
-     * incorporated into the /web/launch URL.
+     * fqdn is the hostname under which the app is accessible within the root cluster. It doesn't
+     * include the port number. It is used by the Web UI to route the requests to /web/launch to the
+     * correct app.
      *
-     * If the app belongs to a root cluster, fqdn is equal to public_addr or [name].[root cluster
-     * proxy hostname] if public_addr is not present.
-     * If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
+     * If the app belongs to a root cluster, fqdn is equal to public_addr or <name>.<root cluster
+     * proxy hostname> if public_addr is not present.
+     * If the app belongs to a leaf cluster, fqdn is equal to <name>.<root cluster proxy hostname>.
      *
      * fqdn is not present for SAML applications.
      *

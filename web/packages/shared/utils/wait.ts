@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** Resolves after a given duration. */
+/** Resolves after a given duration */
 export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
   if (abortSignal?.aborted) {
     return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
@@ -34,20 +34,5 @@ export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
 
     const timeout = setTimeout(done, ms);
     abortSignal?.addEventListener('abort', abort, { once: true });
-  });
-}
-
-/** Blocks until the signal is aborted. */
-export function waitForever(abortSignal: AbortSignal): Promise<never> {
-  if (abortSignal.aborted) {
-    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
-  }
-
-  return new Promise((_, reject) => {
-    const abort = () => {
-      reject(new DOMException('Wait was aborted.', 'AbortError'));
-    };
-
-    abortSignal.addEventListener('abort', abort, { once: true });
   });
 }

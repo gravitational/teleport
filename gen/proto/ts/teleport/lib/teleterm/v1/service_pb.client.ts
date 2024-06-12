@@ -24,8 +24,6 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
-import type { AuthenticateWebDeviceResponse } from "./service_pb";
-import type { AuthenticateWebDeviceRequest } from "./service_pb";
 import type { UpdateUserPreferencesResponse } from "./service_pb";
 import type { UpdateUserPreferencesRequest } from "./service_pb";
 import type { GetUserPreferencesResponse } from "./service_pb";
@@ -387,16 +385,6 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: UpdateUserPreferences(teleport.lib.teleterm.v1.UpdateUserPreferencesRequest) returns (teleport.lib.teleterm.v1.UpdateUserPreferencesResponse);
      */
     updateUserPreferences(input: UpdateUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>;
-    /**
-     * AuthenticateWebDevice blesses a web session with device trust by performing
-     * the on-behalf-of device authentication ceremony.
-     *
-     * See
-     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
-     *
-     * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
-     */
-    authenticateWebDevice(input: AuthenticateWebDeviceRequest, options?: RpcOptions): UnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -808,18 +796,5 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     updateUserPreferences(input: UpdateUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse> {
         const method = this.methods[39], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>("unary", this._transport, method, opt, input);
-    }
-    /**
-     * AuthenticateWebDevice blesses a web session with device trust by performing
-     * the on-behalf-of device authentication ceremony.
-     *
-     * See
-     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
-     *
-     * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
-     */
-    authenticateWebDevice(input: AuthenticateWebDeviceRequest, options?: RpcOptions): UnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse> {
-        const method = this.methods[40], opt = this._transport.mergeOptions(options);
-        return stackIntercept<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>("unary", this._transport, method, opt, input);
     }
 }

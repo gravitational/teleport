@@ -106,7 +106,7 @@ func (g *TermManager) writeToClients(p []byte) {
 	for key, w := range g.writers {
 		_, err := w.Write(p)
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
+			if err != io.EOF {
 				log.Warnf("Failed to write to remote terminal: %v", err)
 			}
 			toDelete = append(

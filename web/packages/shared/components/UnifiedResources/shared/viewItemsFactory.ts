@@ -61,7 +61,6 @@ export function makeUnifiedResourceViewItemNode(
       resourceType: nodeSubKind,
       addr: addressIfNotTunnel,
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -83,7 +82,6 @@ export function makeUnifiedResourceViewItemDatabase(
       primaryDesc: resource.type,
       secondaryDesc: resource.description,
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -103,7 +101,6 @@ export function makeUnifiedResourceViewItemKube(
     listViewProps: {
       resourceType: 'Kubernetes',
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -126,7 +123,6 @@ export function makeUnifiedResourceViewItemApp(
       description: resource.samlApp ? '' : resource.description,
       addr: resource.addrWithProtocol,
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -148,7 +144,6 @@ export function makeUnifiedResourceViewItemDesktop(
       resourceType: 'Windows',
       addr: resource.addr,
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -166,7 +161,6 @@ export function makeUnifiedResourceViewItemUserGroup(
     listViewProps: {
       resourceType: 'User Group',
     },
-    requiresRequest: resource.requiresRequest,
   };
 }
 

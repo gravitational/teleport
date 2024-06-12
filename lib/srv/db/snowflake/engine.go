@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -562,6 +563,11 @@ func (e *Engine) getSnowflakeToken(ctx context.Context, sessionToken string) (st
 	snowflakeToken := e.tokens.getToken(sessionToken)
 	if snowflakeToken != "" {
 		return snowflakeToken, nil
+	}
+
+	// Fetch the token from the auth server if not found in the local cache.
+	if err := authclient.WaitForSnowflakeSession(ctx, sessionToken, e.sessionCtx.Identity.Username, e.AuthClient); err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	snowflakeSession, err := e.AuthClient.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: sessionToken})

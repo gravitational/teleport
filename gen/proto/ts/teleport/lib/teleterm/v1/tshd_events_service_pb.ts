@@ -31,9 +31,9 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+// Relogin
+
 /**
- * Request for Relogin.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.ReloginRequest
  */
 export interface ReloginRequest {
@@ -50,12 +50,6 @@ export interface ReloginRequest {
          * @generated from protobuf field: teleport.lib.teleterm.v1.GatewayCertExpired gateway_cert_expired = 2;
          */
         gatewayCertExpired: GatewayCertExpired;
-    } | {
-        oneofKind: "vnetCertExpired";
-        /**
-         * @generated from protobuf field: teleport.lib.teleterm.v1.VnetCertExpired vnet_cert_expired = 3;
-         */
-        vnetCertExpired: VnetCertExpired;
     } | {
         oneofKind: undefined;
     };
@@ -81,36 +75,13 @@ export interface GatewayCertExpired {
     targetUri: string;
 }
 /**
- * VnetCertExpired describes which app the user was trying to reach with an expired cert.
- *
- * As this message originates from within a local proxy used by VNet, the proxy is not able to say
- * under which address the user was trying to reach the app. Best it can do is point at the cluster
- * to which the app belongs and the name of the app.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.VnetCertExpired
- */
-export interface VnetCertExpired {
-    /**
-     * target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
-     *
-     * @generated from protobuf field: string target_uri = 1;
-     */
-    targetUri: string;
-}
-/**
- * Response for Relogin.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.ReloginResponse
  */
 export interface ReloginResponse {
 }
+// SendNotification
+
 /**
- * SendNotificationRequest includes details behind a notification.
- *
- * Rather than including arbitrary text strings, SendNotificationRequest should contain minimal
- * details. The Electron app can then consume and format them as needed, without having to change
- * what is sent over the wire.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendNotificationRequest
  */
 export interface SendNotificationRequest {
@@ -123,12 +94,6 @@ export interface SendNotificationRequest {
          * @generated from protobuf field: teleport.lib.teleterm.v1.CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
          */
         cannotProxyGatewayConnection: CannotProxyGatewayConnection;
-    } | {
-        oneofKind: "cannotProxyVnetConnection";
-        /**
-         * @generated from protobuf field: teleport.lib.teleterm.v1.CannotProxyVnetConnection cannot_proxy_vnet_connection = 2;
-         */
-        cannotProxyVnetConnection: CannotProxyVnetConnection;
     } | {
         oneofKind: undefined;
     };
@@ -156,31 +121,13 @@ export interface CannotProxyGatewayConnection {
     error: string;
 }
 /**
- * CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
- * At the moment this is used solely when refreshing an expired cert.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
- */
-export interface CannotProxyVnetConnection {
-    /**
-     * @generated from protobuf field: string target_uri = 1;
-     */
-    targetUri: string;
-    /**
-     * @generated from protobuf field: string error = 2;
-     */
-    error: string;
-}
-/**
- * Response for SendNotification.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendNotificationResponse
  */
 export interface SendNotificationResponse {
 }
+// SendPendingHeadlessAuthentication
+
 /**
- * Request for SendPendingHeadlessAuthentication.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
  */
 export interface SendPendingHeadlessAuthenticationRequest {
@@ -198,15 +145,13 @@ export interface SendPendingHeadlessAuthenticationRequest {
     headlessAuthenticationClientIp: string;
 }
 /**
- * Response for SendPendingHeadlessAuthentication.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
  */
 export interface SendPendingHeadlessAuthenticationResponse {
 }
+// PromptMFA
+
 /**
- * Request for PromptMFA.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.PromptMFARequest
  */
 export interface PromptMFARequest {
@@ -228,8 +173,6 @@ export interface PromptMFARequest {
     clusterUri: string;
 }
 /**
- * Response for PromptMFA.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.PromptMFAResponse
  */
 export interface PromptMFAResponse {
@@ -238,64 +181,12 @@ export interface PromptMFAResponse {
      */
     totpCode: string;
 }
-/**
- * Request for GetUsageReportingSettings.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
- */
-export interface GetUsageReportingSettingsRequest {
-}
-/**
- * Response for GetUsageReportingSettings.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
- */
-export interface GetUsageReportingSettingsResponse {
-    /**
-     * @generated from protobuf field: teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings = 1;
-     */
-    usageReportingSettings?: UsageReportingSettings;
-}
-/**
- * UsageReportingSettings contains information about usage reporting as understood by the Electron
- * app.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.UsageReportingSettings
- */
-export interface UsageReportingSettings {
-    /**
-     * @generated from protobuf field: bool enabled = 1;
-     */
-    enabled: boolean;
-}
-/**
- * Request for ReportUnexpectedVnetShutdown.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
- */
-export interface ReportUnexpectedVnetShutdownRequest {
-    /**
-     * error is the error message with which VNet was shut down. Technically it can be empty, so
-     * consumers should account for that.
-     *
-     * @generated from protobuf field: string error = 1;
-     */
-    error: string;
-}
-/**
- * Response for ReportUnexpectedVnetShutdown.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
- */
-export interface ReportUnexpectedVnetShutdownResponse {
-}
 // @generated message type with reflection information, may provide speed optimized methods
 class ReloginRequest$Type extends MessageType<ReloginRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.ReloginRequest", [
             { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "gateway_cert_expired", kind: "message", oneof: "reason", T: () => GatewayCertExpired },
-            { no: 3, name: "vnet_cert_expired", kind: "message", oneof: "reason", T: () => VnetCertExpired }
+            { no: 2, name: "gateway_cert_expired", kind: "message", oneof: "reason", T: () => GatewayCertExpired }
         ]);
     }
     create(value?: PartialMessage<ReloginRequest>): ReloginRequest {
@@ -320,12 +211,6 @@ class ReloginRequest$Type extends MessageType<ReloginRequest> {
                         gatewayCertExpired: GatewayCertExpired.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).gatewayCertExpired)
                     };
                     break;
-                case /* teleport.lib.teleterm.v1.VnetCertExpired vnet_cert_expired */ 3:
-                    message.reason = {
-                        oneofKind: "vnetCertExpired",
-                        vnetCertExpired: VnetCertExpired.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).vnetCertExpired)
-                    };
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -344,9 +229,6 @@ class ReloginRequest$Type extends MessageType<ReloginRequest> {
         /* teleport.lib.teleterm.v1.GatewayCertExpired gateway_cert_expired = 2; */
         if (message.reason.oneofKind === "gatewayCertExpired")
             GatewayCertExpired.internalBinaryWrite(message.reason.gatewayCertExpired, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.VnetCertExpired vnet_cert_expired = 3; */
-        if (message.reason.oneofKind === "vnetCertExpired")
-            VnetCertExpired.internalBinaryWrite(message.reason.vnetCertExpired, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -413,53 +295,6 @@ class GatewayCertExpired$Type extends MessageType<GatewayCertExpired> {
  */
 export const GatewayCertExpired = new GatewayCertExpired$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.VnetCertExpired", [
-            { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<VnetCertExpired>): VnetCertExpired {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.targetUri = "";
-        if (value !== undefined)
-            reflectionMergePartial<VnetCertExpired>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: VnetCertExpired): VnetCertExpired {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string target_uri */ 1:
-                    message.targetUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: VnetCertExpired, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string target_uri = 1; */
-        if (message.targetUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.VnetCertExpired
- */
-export const VnetCertExpired = new VnetCertExpired$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class ReloginResponse$Type extends MessageType<ReloginResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ReloginResponse", []);
@@ -488,8 +323,7 @@ export const ReloginResponse = new ReloginResponse$Type();
 class SendNotificationRequest$Type extends MessageType<SendNotificationRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.SendNotificationRequest", [
-            { no: 1, name: "cannot_proxy_gateway_connection", kind: "message", oneof: "subject", T: () => CannotProxyGatewayConnection },
-            { no: 2, name: "cannot_proxy_vnet_connection", kind: "message", oneof: "subject", T: () => CannotProxyVnetConnection }
+            { no: 1, name: "cannot_proxy_gateway_connection", kind: "message", oneof: "subject", T: () => CannotProxyGatewayConnection }
         ]);
     }
     create(value?: PartialMessage<SendNotificationRequest>): SendNotificationRequest {
@@ -510,12 +344,6 @@ class SendNotificationRequest$Type extends MessageType<SendNotificationRequest> 
                         cannotProxyGatewayConnection: CannotProxyGatewayConnection.internalBinaryRead(reader, reader.uint32(), options, (message.subject as any).cannotProxyGatewayConnection)
                     };
                     break;
-                case /* teleport.lib.teleterm.v1.CannotProxyVnetConnection cannot_proxy_vnet_connection */ 2:
-                    message.subject = {
-                        oneofKind: "cannotProxyVnetConnection",
-                        cannotProxyVnetConnection: CannotProxyVnetConnection.internalBinaryRead(reader, reader.uint32(), options, (message.subject as any).cannotProxyVnetConnection)
-                    };
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -531,9 +359,6 @@ class SendNotificationRequest$Type extends MessageType<SendNotificationRequest> 
         /* teleport.lib.teleterm.v1.CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1; */
         if (message.subject.oneofKind === "cannotProxyGatewayConnection")
             CannotProxyGatewayConnection.internalBinaryWrite(message.subject.cannotProxyGatewayConnection, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.CannotProxyVnetConnection cannot_proxy_vnet_connection = 2; */
-        if (message.subject.oneofKind === "cannotProxyVnetConnection")
-            CannotProxyVnetConnection.internalBinaryWrite(message.subject.cannotProxyVnetConnection, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -607,61 +432,6 @@ class CannotProxyGatewayConnection$Type extends MessageType<CannotProxyGatewayCo
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CannotProxyGatewayConnection
  */
 export const CannotProxyGatewayConnection = new CannotProxyGatewayConnection$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnection> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
-            { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.targetUri = "";
-        message.error = "";
-        if (value !== undefined)
-            reflectionMergePartial<CannotProxyVnetConnection>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CannotProxyVnetConnection): CannotProxyVnetConnection {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string target_uri */ 1:
-                    message.targetUri = reader.string();
-                    break;
-                case /* string error */ 2:
-                    message.error = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: CannotProxyVnetConnection, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string target_uri = 1; */
-        if (message.targetUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* string error = 2; */
-        if (message.error !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.error);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
- */
-export const CannotProxyVnetConnection = new CannotProxyVnetConnection$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SendNotificationResponse$Type extends MessageType<SendNotificationResponse> {
     constructor() {
@@ -893,196 +663,6 @@ class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFAResponse
  */
 export const PromptMFAResponse = new PromptMFAResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetUsageReportingSettingsRequest$Type extends MessageType<GetUsageReportingSettingsRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest", []);
-    }
-    create(value?: PartialMessage<GetUsageReportingSettingsRequest>): GetUsageReportingSettingsRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<GetUsageReportingSettingsRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUsageReportingSettingsRequest): GetUsageReportingSettingsRequest {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: GetUsageReportingSettingsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
- */
-export const GetUsageReportingSettingsRequest = new GetUsageReportingSettingsRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetUsageReportingSettingsResponse$Type extends MessageType<GetUsageReportingSettingsResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse", [
-            { no: 1, name: "usage_reporting_settings", kind: "message", T: () => UsageReportingSettings }
-        ]);
-    }
-    create(value?: PartialMessage<GetUsageReportingSettingsResponse>): GetUsageReportingSettingsResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<GetUsageReportingSettingsResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUsageReportingSettingsResponse): GetUsageReportingSettingsResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings */ 1:
-                    message.usageReportingSettings = UsageReportingSettings.internalBinaryRead(reader, reader.uint32(), options, message.usageReportingSettings);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetUsageReportingSettingsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.lib.teleterm.v1.UsageReportingSettings usage_reporting_settings = 1; */
-        if (message.usageReportingSettings)
-            UsageReportingSettings.internalBinaryWrite(message.usageReportingSettings, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
- */
-export const GetUsageReportingSettingsResponse = new GetUsageReportingSettingsResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UsageReportingSettings$Type extends MessageType<UsageReportingSettings> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.UsageReportingSettings", [
-            { no: 1, name: "enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<UsageReportingSettings>): UsageReportingSettings {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.enabled = false;
-        if (value !== undefined)
-            reflectionMergePartial<UsageReportingSettings>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UsageReportingSettings): UsageReportingSettings {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* bool enabled */ 1:
-                    message.enabled = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UsageReportingSettings, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* bool enabled = 1; */
-        if (message.enabled !== false)
-            writer.tag(1, WireType.Varint).bool(message.enabled);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UsageReportingSettings
- */
-export const UsageReportingSettings = new UsageReportingSettings$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ReportUnexpectedVnetShutdownRequest$Type extends MessageType<ReportUnexpectedVnetShutdownRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest", [
-            { no: 1, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ReportUnexpectedVnetShutdownRequest>): ReportUnexpectedVnetShutdownRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.error = "";
-        if (value !== undefined)
-            reflectionMergePartial<ReportUnexpectedVnetShutdownRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportUnexpectedVnetShutdownRequest): ReportUnexpectedVnetShutdownRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string error */ 1:
-                    message.error = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ReportUnexpectedVnetShutdownRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string error = 1; */
-        if (message.error !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.error);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
- */
-export const ReportUnexpectedVnetShutdownRequest = new ReportUnexpectedVnetShutdownRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ReportUnexpectedVnetShutdownResponse$Type extends MessageType<ReportUnexpectedVnetShutdownResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse", []);
-    }
-    create(value?: PartialMessage<ReportUnexpectedVnetShutdownResponse>): ReportUnexpectedVnetShutdownResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<ReportUnexpectedVnetShutdownResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportUnexpectedVnetShutdownResponse): ReportUnexpectedVnetShutdownResponse {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: ReportUnexpectedVnetShutdownResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
- */
-export const ReportUnexpectedVnetShutdownResponse = new ReportUnexpectedVnetShutdownResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TshdEventsService
  */
@@ -1090,7 +670,5 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "Relogin", options: {}, I: ReloginRequest, O: ReloginResponse },
     { name: "SendNotification", options: {}, I: SendNotificationRequest, O: SendNotificationResponse },
     { name: "SendPendingHeadlessAuthentication", options: {}, I: SendPendingHeadlessAuthenticationRequest, O: SendPendingHeadlessAuthenticationResponse },
-    { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse },
-    { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse },
-    { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse }
+    { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse }
 ]);

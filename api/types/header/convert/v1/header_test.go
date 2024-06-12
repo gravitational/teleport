@@ -37,6 +37,7 @@ func TestResourceHeaderRoundtrip(t *testing.T) {
 			Description: "description",
 			Labels:      map[string]string{"label": "value"},
 			Expires:     time.Now(),
+			ID:          12345,
 		},
 	}
 
@@ -51,6 +52,7 @@ func TestMetadataRoundtrip(t *testing.T) {
 		Description: "description",
 		Labels:      map[string]string{"label": "value"},
 		Expires:     time.Now(),
+		ID:          12345,
 	}
 
 	converted := FromMetadataProto(ToMetadataProto(metadata))

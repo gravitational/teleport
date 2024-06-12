@@ -18,12 +18,9 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
-import "teleport/crownjewel/v1/crownjewel.proto";
-import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
-import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -152,18 +149,10 @@ message Event {
     teleport.secreports.v1.ReportState ReportState = 52;
     // AccessListReview is an access list review resource.
     teleport.accesslist.v1.Review AccessListReview = 53;
-    // AccessMonitoringRule is an access monitoring rule resource.
-    teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
     // KubernetesWaitingContainer is a Kubernetes ephemeral container
     // waiting to be created.
     teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
-    // UserNotification is a user notification resource.
-    teleport.notifications.v1.Notification UserNotification = 56;
-    // GlobalNotification is a global notification resource.
-    teleport.notifications.v1.GlobalNotification GlobalNotification = 57;
-    // CrownJewel is a Crown Jewel resource.
-    teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
-    // DatabaseObject is a database object resource.
-    teleport.dbobject.v1.DatabaseObject DatabaseObject = 59;
+    // AccessMonitoringRule is an access monitoring rule resource.
+    teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
   }
 }

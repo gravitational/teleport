@@ -27,8 +27,6 @@ import { StyledApp } from './components/App';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
 import { ThemeProvider } from './ThemeProvider';
-import { VnetContextProvider } from './Vnet/vnetContext';
-import { ConnectionsContextProvider } from './TopBar/Connections/connectionsContext';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
@@ -36,13 +34,9 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
       <StyledApp>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <ConnectionsContextProvider>
-              <VnetContextProvider>
-                <ThemeProvider>
-                  <AppInitializer />
-                </ThemeProvider>
-              </VnetContextProvider>
-            </ConnectionsContextProvider>
+            <ThemeProvider>
+              <AppInitializer />
+            </ThemeProvider>
           </AppContextProvider>
         </DndProvider>
       </StyledApp>

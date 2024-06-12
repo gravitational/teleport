@@ -46,22 +46,21 @@ import Box from 'design/Box';
  * margins and ending up with more space than the original.
  *
  */
-export function StepSlider<Flows>(props: Props<Flows>) {
+export function StepSlider<T>(props: Props<T>) {
   const {
     flows,
     currFlow,
     onSwitchFlow,
     newFlow,
-    defaultStepIndex = 0,
     tDuration = 500,
-    // extraProps are the props required by our step components defined in our flows.
-    ...extraProps
+    // stepProps are the props required by our step components defined in our flows.
+    ...stepProps
   } = props;
 
   const [hasTransitionEnded, setHasTransitionEnded] = useState<boolean>(false);
 
   // step defines the current step we are in the current flow.
-  const [step, setStep] = useState(defaultStepIndex);
+  const [step, setStep] = useState(0);
   // animationDirectionPrefix defines the prefix of the class name that contains
   // the animations to apply when transitioning.
   const [animationDirectionPrefix, setAnimationDirectionPrefix] = useState<
@@ -90,7 +89,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
   // preMountState is used to hold the latest pre mount data.
   // useState's could not be used b/c they became stale for
   // our func 'setHeightOnPreMount'.
-  const preMountState = useRef<{ step: number; flow: keyof Flows }>({} as any);
+  const preMountState = useRef<{ step: number; flow: keyof T }>({} as any);
 
   // Triggered as the first step to changing the current flow.
   // It preps data required for pre mounting and sets the
@@ -135,10 +134,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     }
   };
 
-  function generateCurrentStep(
-    View: React.ComponentType<StepComponentProps & Record<string, any>>,
-    requirePreMount = false
-  ) {
+  function generateCurrentStep(View: StepComponent, requirePreMount = false) {
     // refCallbackFn is called with the DOM element ("View") that
     // has been mounted. This way we can get the true height of
     // the "View" container with the margins.
@@ -167,7 +163,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
         hasTransitionEnded={hasTransitionEnded}
         stepIndex={step}
         flowLength={flows[currFlow].length}
-        {...extraProps}
+        {...stepProps}
       />
     );
   }
@@ -295,75 +291,53 @@ const Wrap = styled.div(
  `
 );
 
-interface AnyFlows<ExtraProps> {
-  [key: string]: React.ComponentType<StepComponentProps & ExtraProps>[];
-}
+type ComponentProps = StepComponentProps & {
+  [remainingProps: string]: any;
+};
 
-type Props<Flows> =
-  Flows extends AnyFlows<infer ExtraProps>
-    ? {
-        /** flows contains the different flows and its accompanying steps. */
-        flows: Flows;
-        /**
-         * currFlow refers to the current set of steps.
-         * E.g. we have a flow named "passwordless", flow "passwordless"
-         * will refer to all the steps related to "passwordless".
-         */
-        currFlow: keyof Flows;
-        /**
-         * tDuration is the length of time a transition
-         * animation should take to complete.
-         */
-        tDuration?: number;
-        /**
-         * newFlow is step 1 of 2 of changing the current flow to a new flow.
-         * When supplied, it sets the premount data and the next animation class
-         * which will kick of the next step `onSwitchFlow` that does the actual
-         * switching to the new flow.
-         * Optional if there is only one flow.
-         */
-        newFlow?: NewFlow<keyof Flows>;
-        /**
-         * onSwitchFlow is the final step that switches the current flow to the new flow.
-         * E.g, toggling between "passwordless" or "local" login flow.
-         * Optional if there is only one flow.
-         */
-        onSwitchFlow?(flow: keyof Flows): void;
-        /**
-         * defaultStepIndex is the step that will be shown on the first render, similar to
-         * defaultValue passed to the input tag.
-         *
-         * Since this value is used only for the initial render, it won't be persisted when
-         * switching flows – this will result in the current step index being reset to 0.
-         */
-        defaultStepIndex?: number;
-      } & ExtraProps // Extra props that are passed to each step component. Each step of each flow needs to accept the same set of extra props.
-    : never;
+type StepComponent = (props: ComponentProps) => JSX.Element;
+
+type Props<T> = {
+  // flows contains the different flows and its accompanying steps.
+  flows: Record<keyof T, StepComponent[]>;
+  // currFlow refers to the current set of steps.
+  // E.g. we have a flow named "passwordless", flow "passwordless"
+  // will refer to all the steps related to "passwordless".
+  currFlow: keyof T;
+  // tDuration is the length of time a transition
+  // animation should take to complete.
+  tDuration?: number;
+  // newFlow is step 1 of 2 of changing the current flow to a new flow.
+  // When supplied, it sets the premount data and the next animation class
+  // which will kick of the next step `onSwitchFlow` that does the actual
+  // switching to the new flow.
+  // Optional if there is only one flow.
+  newFlow?: NewFlow<keyof T>;
+  // onSwitchFlow is the final step that switches the current flow to the new flow.
+  // E.g, toggling between "passwordless" or "local" login flow.
+  // Optional if there is only one flow.
+  onSwitchFlow?(flow: keyof T): void;
+  // remainingProps are the rest of the props that needs to be passed
+  // down to the flows StepComponent's.
+  [remainingProps: string]: any;
+};
 
 export type StepComponentProps = {
-  /**
-   * refCallback is a func that is called after component mounts.
-   * Required to calculate dimensions of the component for height animations.
-   */
+  // refCallback is a func that is called after component mounts.
+  // Required to calculate dimensions of the component for height animations.
   refCallback(node: HTMLElement): void;
-  /**
-   * next goes to the next step in the flow.
-   */
+  // next goes to the next step in the flow.
   next(): void;
-  /**
-   * prev goes back a step in the flow.
-   */
+  // prev goes back a step in the flow.
   prev(): void;
   hasTransitionEnded: boolean;
   stepIndex: number;
   flowLength: number;
 };
 
-/**
- * NewFlow defines fields for a new flow.
- * The applyNextAnimation flag when true applies the next-slide-* transition,
- * otherwise prev-slide-* transitions are applied.
- */
+// NewFlow defines fields for a new flow.
+// The applyNextAnimation flag when true applies the next-slide-* transition,
+// otherwise prev-slide-* transitions are applied.
 export type NewFlow<T> = {
   flow: T;
   applyNextAnimation?: boolean;

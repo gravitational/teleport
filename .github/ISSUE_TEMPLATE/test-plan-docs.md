@@ -80,9 +80,17 @@ to select "Version 12.0" in the documentation version switcher.
 
 ### Getting started
 
-- [ ] [Teleport Community Edition](../../docs/pages/index.mdx)
-- [ ] [Teleport Enterprise (Cloud)](../../docs/pages/choose-an-edition/teleport-cloud/get-started.mdx).
-- [ ] [Teleport Enterprise (Self-Hosted) with
+- [ ] [Community Edition](../../docs/pages/index.mdx)
+- [ ] [Teleport Team](../../docs/pages/choose-an-edition/teleport-team.mdx)
+  (this also serves as the getting started guide for Teleport Enterprise Cloud).
+- [ ] [Teleport Enterprise with
   Helm](../../docs/pages/deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx)
-- [ ] [Teleport Enterprise (Self-Hosted) with
+- [ ] [Teleport Enterprise with
   Terraform](../../docs/pages/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform.mdx)
+
+### New feature docs
+
+- [ ] Review the roadmap for the major version we are releasing and verify that
+  you can complete all how-to guides for new features successfully. Consult the
+  [Upcoming Releases Page](../../docs/pages/upcoming-releases.mdx) for a list of
+  features in the next major release.

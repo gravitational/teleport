@@ -45,6 +45,9 @@ func UnmarshalInstaller(data []byte, opts ...MarshalOption) (types.Installer, er
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		installer.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		installer.SetRevision(cfg.Revision)
 	}
@@ -66,7 +69,7 @@ func MarshalInstaller(installer types.Installer, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, installer))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, installer))
 	default:
 		return nil, trace.BadParameter("unrecognized installer version %T", installer)
 	}

@@ -33,7 +33,6 @@ export interface Node {
   subKind: NodeSubKind;
   sshLogins: string[];
   awsMetadata?: AwsMetadata;
-  requiresRequest?: boolean;
 }
 
 export interface BashCommand {

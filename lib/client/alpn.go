@@ -97,7 +97,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		Protocols:          []alpn.Protocol{cfg.Protocol},
 		Listener:           cfg.Listener,
 		ParentContext:      ctx,
-		Cert:               tlsCert,
+		Certs:              []tls.Certificate{*tlsCert},
 	}, alpnproxy.WithALPNConnUpgradeTest(ctx, getClusterCACertPool(cfg.AuthClient)))
 	if err != nil {
 		return trace.Wrap(err)
@@ -113,15 +113,15 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	return nil
 }
 
-func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
+func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
 	key, err := GenerateRSAKey()
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	currentUser, err := client.GetCurrentUser(ctx)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -133,15 +133,15 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
 	if err != nil {
-		return tls.Certificate{}, trace.BadParameter("failed to parse private key: %v", err)
+		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
 
-	return tlsCert, nil
+	return &tlsCert, nil
 }
 
 func getClusterCACertPool(authClient ALPNAuthClient) alpnproxy.GetClusterCACertPoolFunc {

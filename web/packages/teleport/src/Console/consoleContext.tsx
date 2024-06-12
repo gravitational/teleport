@@ -23,11 +23,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, {
-  UrlKubeExecParams,
-  UrlResourcesParams,
-  UrlSshParams,
-} from 'teleport/config';
+import cfg, { UrlSshParams } from 'teleport/config';
 import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
@@ -41,13 +37,7 @@ import ClustersService from 'teleport/services/clusters';
 import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
 
-import {
-  StoreParties,
-  StoreDocs,
-  DocumentSsh,
-  DocumentKubeExec,
-  Document,
-} from './stores';
+import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
 const logger = Logger.create('teleport/console');
 
@@ -99,10 +89,6 @@ export default class ConsoleContext {
     this.storeDocs.update(id, partial);
   }
 
-  updateKubeExecDocument(id: number, partial: Partial<DocumentKubeExec>) {
-    this.storeDocs.update(id, partial);
-  }
-
   addNodeDocument(clusterId = cfg.proxyCluster) {
     return this.storeDocs.add({
       clusterId,
@@ -110,27 +96,6 @@ export default class ConsoleContext {
       kind: 'nodes',
       url: cfg.getConsoleNodesRoute(clusterId),
       created: new Date(),
-    });
-  }
-
-  addKubeExecDocument(params: UrlKubeExecParams) {
-    const url = this.getKubeExecDocumentUrl(params);
-
-    return this.storeDocs.add({
-      kind: 'kubeExec',
-      status: 'disconnected',
-      clusterId: params.clusterId,
-      title: params.kubeId,
-      url,
-      created: new Date(),
-      mode: null,
-
-      kubeCluster: params.kubeId,
-      kubeNamespace: '',
-      pod: '',
-      container: '',
-      isInteractive: true,
-      command: '',
     });
   }
 
@@ -173,10 +138,6 @@ export default class ConsoleContext {
       : cfg.getSshConnectRoute(sshParams);
   }
 
-  getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
-    return cfg.getKubeExecConnectRoute(kubeExecParams);
-  }
-
   refreshParties() {
     return tracer.startActiveSpan('refreshParties', span => {
       // Finds unique clusterIds from all active ssh sessions
@@ -212,14 +173,6 @@ export default class ConsoleContext {
     });
   }
 
-  fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params);
-  }
-
-  fetchClusters() {
-    return this.clustersService.fetchClusters();
-  }
-
   logout() {
     webSession.logout();
   }
@@ -233,31 +186,20 @@ export default class ConsoleContext {
     const ctx = context.active();
 
     propagator.inject(ctx, carrier, defaultTextMapSetter);
-    const baseUrl =
-      session.kind === 'k8s' ? cfg.api.ttyKubeExecWsAddr : cfg.api.ttyWsAddr;
 
-    let ttyParams = {};
-    switch (session.kind) {
-      case 'ssh':
-        ttyParams = {
-          login,
-          sid,
-          server_id: serverId,
-          mode,
-        };
-        break;
-      case 'k8s':
-        break;
-    }
-
-    const ttyUrl = baseUrl
+    const ttyUrl = cfg.api.ttyWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':traceparent', carrier['traceparent']);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
-      ttyParams,
+      ttyParams: {
+        login,
+        sid,
+        server_id: serverId,
+        mode,
+      },
     });
 
     return new Tty(addressResolver);

@@ -22,13 +22,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-var _ compare.IsEqual[*AccessListMember] = (*AccessListMember)(nil)
 
 // AccessListMember is an access list member resource.
 type AccessListMember struct {

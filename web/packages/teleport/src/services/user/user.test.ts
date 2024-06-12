@@ -236,6 +236,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      assist: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       samlIdpServiceProvider: {
         list: false,
         read: false,

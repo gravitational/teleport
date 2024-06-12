@@ -343,7 +343,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 		sort.Sort(d)
 		require.Equal(t, len(d), len(databases))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):

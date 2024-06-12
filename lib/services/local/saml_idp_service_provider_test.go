@@ -114,7 +114,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of service providers
@@ -133,14 +133,14 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific service provider.
 	sp, err := service.GetSAMLIdPServiceProvider(ctx, sp2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(sp2, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a service provider that doesn't exist.
@@ -159,7 +159,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(sp1, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update a service provider to an existing entity ID.
@@ -177,7 +177,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a service provider that doesn't exist.

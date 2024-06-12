@@ -58,16 +58,6 @@ message Cluster {
   // ProxyVersion is the cluster proxy's service version.
   // Only present when detailed information is queried from the proxy server.
   string proxy_version = 10;
-  // show_resources tells if the cluster can show requestable resources on the resources page.
-  // Controlled by the cluster config.
-  ShowResources show_resources = 11;
-}
-
-// ShowResources tells if the cluster can show requestable resources on the resources page.
-enum ShowResources {
-  SHOW_RESOURCES_UNSPECIFIED = 0;
-  SHOW_RESOURCES_REQUESTABLE = 1;
-  SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
 }
 
 // LoggedInUser describes a logged-in user

@@ -20,7 +20,7 @@ import React from 'react';
 import { LoginFailed as CardFailed } from 'design/CardError';
 
 import { Route, Switch } from 'teleport/components/Router';
-import { LogoHero } from 'teleport/components/LogoHero';
+import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
 export function LoginFailed() {

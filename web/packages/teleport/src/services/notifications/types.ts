@@ -24,51 +24,24 @@ export type FetchNotificationsResponse = {
    */
   notifications: Notification[];
   /**
-   * nextKey is the next page keys for both lists (user-specific notifications & global notifications)
-   * separated by a comma, ie. "<user-specific notifications nextKey>,<global notifications nextKey>".
-   * If either one of these nextKeys is "end", it means we have reached the end of that list.
+   * userNotificationsNextKey is the nextKey for the user-specific notifications list.
    */
-  nextKey: string;
+  userNotificationsNextKey: string;
+  /**
+   * globalNotificationsNextKey is the nextKey for the global notifications list.
+   */
+  globalNotificationsNextKey: string;
   /**
    * userLastSeenNotification is  the timestamp of the last notification the  user has seen.
    */
   userLastSeenNotification: Date;
 };
 
-/**
- * UpsertLastSeenNotificationRequest is the request to upsert the timestamp of the latest notification that
- * the user has seen.
- */
-export type UpsertLastSeenNotificationRequest = {
-  /**
-   * time is the timestamp of the last seen notification.
-   */
-  time: Date;
-};
-
-/**
- * UpsertNotificationStateRequest is the request made when a user updates a notification's state by marking it
- * as "clicked" or "dismissed".
- */
-export type UpsertNotificationStateRequest = {
-  /**
-   * notificationId is the id of the notification.
-   */
-  notificationId: string;
-  /**
-   * notificationState is the state to upsert, either "CLICKED" or "DISMISSED".
-   */
-  notificationState: NotificationState;
-};
-
 export type Notification = {
   /** id is the uuid of this notification */
   id: string;
-  /* subKind is a string which represents which type of notification this is, ie. "access-request-approved"*/
-  subKind:
-    | NotificationSubKind
-    | LocalNotificationKind
-    | LocalNotificationGroupedKind;
+  /* subKind is a string which represents which type of notification this is, ie. "access-request-approved" */
+  subKind: NotificationSubKind;
   /** createdDate is when the notification was created. */
   createdDate: Date;
   /** clicked is whether this notification has been clicked on by this user. */
@@ -77,14 +50,9 @@ export type Notification = {
   labels: Label[];
   /** title is the title of this notification. This can be overwritten in notificationContentFactory if needed. */
   title: string;
-  /** localNotification is whether this is a notification stored in a frontend store as opposed to a "real" notification
-   * from the notifications system. The reason for this is that some notification types (such as access lists) are not supported
-   * by the backend notifications system, and are instead generated entirely on the frontend.
-   */
-  localNotification?: boolean;
 };
 
-/** NotificationSubKind is the subkind of notifications, these should be kept in sync with the values in api/types/constants.go */
+/** NotificationSubKind is the subkind of notifications, these should be kept in sync with TBD (TODO: rudream - add backend counterpart location here) */
 export enum NotificationSubKind {
   DefaultInformational = 'default-informational',
   DefaultWarning = 'default-warning',
@@ -93,34 +61,6 @@ export enum NotificationSubKind {
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
-  AccessRequestPromoted = 'access-request-promoted',
-}
-
-/** LocalNotificationKind is the kind of local notifications which are generated on the frontend and not stored in the backend. These do not need to be kept in sync with the backend. */
-export enum LocalNotificationKind {
-  /** AccessList is a notification for an access list reminder. */
-  AccessList = 'access-list',
-}
-
-/** LocalNotificationGroupedKind is the kind of groupings of local notifications. These do not need to be kept in sync with the backend. */
-export enum LocalNotificationGroupedKind {
-  /** AccessListGrouping is a notification which combines the notifications for multiple access list reminders into one to reduce clutter. */
-  AccessListGrouping = 'access-list-grouping',
-}
-
-/**
- * NotificationState the state of a notification for a user. This can represent either "clicked" or "dismissed".
- *
- * This should be kept in sync with teleport.notifications.v1.NotificationState.
- */
-export enum NotificationState {
-  UNSPECIFIED = 0,
-  /**
-   * NOTIFICATION_STATE_CLICKED marks this notification as having been clicked on by the user.
-   */
-  CLICKED = 1,
-  /**
-   * NOTIFICATION_STATE_DISMISSED marks this notification as having been dismissed by the user.
-   */
-  DISMISSED = 2,
+  /** AccessRequestNowAssumable is the notification for when an approved access request that was scheduled for a later date is now assumable. */
+  AccessRequestNowAssumable = 'access-request-now-assumable',
 }

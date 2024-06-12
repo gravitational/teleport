@@ -21,6 +21,7 @@ package e2e
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/jackc/pgx/v4"
@@ -72,9 +74,9 @@ func makeDBTestCluster(t *testing.T, accessRole, discoveryRole, discoveryMatcher
 // the engines together into subtests: postgres, mysql, etc.
 func testRDS(t *testing.T) {
 	t.Parallel()
-	// Give everything some time to finish. Realistically it takes ~10-20
+	// give everything 2 minutes to finish. Realistically it takes ~10-20
 	// seconds, but let's be generous to maybe avoid flakey failures.
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)
 
 	// use random names so we can test auto provisioning these users with these
@@ -85,8 +87,8 @@ func testRDS(t *testing.T) {
 	autoRole1 := "auto_role1_" + randASCII(t, 6)
 	autoRole2 := "auto_role2_" + randASCII(t, 6)
 
-	accessRole := mustGetEnv(t, rdsAccessRoleARNEnv)
-	discoveryRole := mustGetEnv(t, rdsDiscoveryRoleARNEnv)
+	accessRole := mustGetEnv(t, rdsAccessRoleEnv)
+	discoveryRole := mustGetEnv(t, rdsDiscoveryRoleEnv)
 	opts := []testOptionsFunc{
 		withUserRole(t, autoUserKeep, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
 		withUserRole(t, autoUserDrop, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
@@ -130,20 +132,13 @@ func testRDS(t *testing.T) {
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
 
 		t.Cleanup(func() {
-			// users/roles can only be dropped after we drop the schema+table.
-			// So, rather than juggling the order of drops, just attempt to drop
-			// everything as part of test cleanup, regardless of what the test
-			// actually created successfully.
-			for _, stmt := range []string{
-				fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema),
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole1),
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole2),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
-			} {
-				_, err := conn.Exec(ctx, stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
-			}
+			// best effort cleanup everything created for the tests,
+			// including the auto drop user in case Teleport fails to do so.
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP ROLE %q", autoRole1))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP ROLE %q", autoRole2))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP USER %q", autoUserKeep))
+			_, _ = conn.Exec(ctx, fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
 
 		var pgxConnMu sync.Mutex
@@ -216,7 +211,7 @@ func testRDS(t *testing.T) {
 		adminUser := mustGetDBAdmin(t, db)
 
 		conn := connectAsRDSMySQLAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
-		provisionRDSMySQLAutoUsersAdmin(t, conn, adminUser.Name)
+		provisionRDSMySQLAutoUsersAdmin(t, ctx, conn, adminUser.Name)
 
 		// create a couple test tables to test role assignment with.
 		testTable1 := "teleport.test_" + randASCII(t, 4)
@@ -243,17 +238,12 @@ func testRDS(t *testing.T) {
 		t.Cleanup(func() {
 			// best effort cleanup all the users created for the tests,
 			// including the auto drop user in case Teleport fails to do so.
-			for _, stmt := range []string{
-				fmt.Sprintf("DROP TABLE %s", testTable1),
-				fmt.Sprintf("DROP TABLE %s", testTable2),
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole1),
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole2),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
-			} {
-				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
-			}
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable1))
+			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable2))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole1))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", autoRole2))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
 		})
 
 		for name, test := range map[string]struct {
@@ -325,7 +315,7 @@ func testRDS(t *testing.T) {
 		// connect as the RDS database admin user - not to be confused
 		// with Teleport's "db admin user".
 		conn := connectAsRDSMySQLAdmin(t, ctx, db.GetAWS().RDS.InstanceID)
-		provisionMariaDBAdminUser(t, conn, adminUser.Name)
+		provisionMariaDBAdminUser(t, ctx, conn, adminUser.Name)
 
 		// create a couple test tables to test role assignment with.
 		testTable1 := "teleport.test_" + randASCII(t, 4)
@@ -368,19 +358,15 @@ func testRDS(t *testing.T) {
 		autoRolesQuery := fmt.Sprintf("SELECT 1 FROM %s JOIN %s", testTable1, testTable2)
 
 		t.Cleanup(func() {
-			// best effort cleanup all the users created for the tests,
-			// including the auto drop user in case Teleport fails to do so.
-			for _, stmt := range []string{
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", "tp-role-"+autoUserKeep),
-				fmt.Sprintf("DROP ROLE IF EXISTS %q", "tp-role-"+autoUserDrop),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
-				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
-				fmt.Sprintf("DELETE FROM teleport.user_attributes WHERE USER=%q", autoUserKeep),
-				fmt.Sprintf("DELETE FROM teleport.user_attributes WHERE USER=%q", autoUserDrop),
-			} {
-				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
-			}
+			// best effort cleanup all the users created by the tests.
+			// don't cleanup the admin or test runs will interfere with
+			// each other.
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP ROLE %q", "tp-role-"+autoUserDrop))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserKeep))
+			_, _ = conn.Execute(fmt.Sprintf("DROP USER %q", autoUserDrop))
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserKeep)
+			_, _ = conn.Execute("DELETE FROM teleport.user_attributes WHERE USER=?", autoUserDrop)
 		})
 
 		for name, test := range map[string]struct {
@@ -440,11 +426,34 @@ func testRDS(t *testing.T) {
 	})
 }
 
+// rdsAdminInfo contains common info needed to connect as an RDS admin user via
+// password auth.
+type rdsAdminInfo struct {
+	address,
+	username,
+	password string
+	port int
+}
+
 func connectAsRDSPostgresAdmin(t *testing.T, ctx context.Context, instanceID string) *pgx.Conn {
 	t.Helper()
 	info := getRDSAdminInfo(t, ctx, instanceID)
-	const dbName = "postgres"
-	return connectPostgres(t, ctx, info, dbName)
+	pgCfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s:%d/?sslmode=verify-full", info.address, info.port))
+	require.NoError(t, err)
+	pgCfg.User = info.username
+	pgCfg.Password = info.password
+	pgCfg.Database = "postgres"
+	pgCfg.TLSConfig = &tls.Config{
+		ServerName: info.address,
+		RootCAs:    awsCertPool.Clone(),
+	}
+
+	conn, err := pgx.ConnectConfig(ctx, pgCfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close(ctx)
+	})
+	return conn
 }
 
 // mySQLConn wraps a go-mysql conn to provide a client that's thread safe.
@@ -479,7 +488,7 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 	return &mySQLConn{conn: conn}
 }
 
-func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) dbUserLogin {
+func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) rdsAdminInfo {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
@@ -498,12 +507,46 @@ func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) dbUse
 	require.NotNil(t, dbInstance.MasterUserSecret.SecretArn)
 	require.NotEmpty(t, *dbInstance.MasterUsername)
 	require.NotEmpty(t, *dbInstance.MasterUserSecret.SecretArn)
-	return dbUserLogin{
-		username: *dbInstance.MasterUsername,
-		password: getMasterUserPassword(t, ctx, *dbInstance.MasterUserSecret.SecretArn),
+	return rdsAdminInfo{
 		address:  *dbInstance.Endpoint.Address,
 		port:     int(*dbInstance.Endpoint.Port),
+		username: *dbInstance.MasterUsername,
+		password: getRDSMasterUserPassword(t, ctx, *dbInstance.MasterUserSecret.SecretArn),
 	}
+}
+
+func getRDSMasterUserPassword(t *testing.T, ctx context.Context, secretID string) string {
+	t.Helper()
+	secretVal := getSecretValue(t, ctx, secretID)
+	type rdsMasterSecret struct {
+		User string `json:"username"`
+		Pass string `json:"password"`
+	}
+	var secret rdsMasterSecret
+	if err := json.Unmarshal([]byte(*secretVal.SecretString), &secret); err != nil {
+		// being paranoid. I don't want to leak the secret string in test error
+		// logs.
+		require.FailNow(t, "error unmarshaling secret string")
+	}
+	if len(secret.Pass) == 0 {
+		require.FailNow(t, "empty master user secret string")
+	}
+	return secret.Pass
+}
+
+func getSecretValue(t *testing.T, ctx context.Context, secretID string) *secretsmanager.GetSecretValueOutput {
+	t.Helper()
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
+	)
+	require.NoError(t, err)
+
+	secretsClt := secretsmanager.NewFromConfig(cfg)
+	secretVal, err := secretsClt.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: &secretID,
+	})
+	require.NoError(t, err)
+	return secretVal
 }
 
 // provisionRDSPostgresAutoUsersAdmin provisions an admin user suitable for auto-user
@@ -519,11 +562,8 @@ func provisionRDSPostgresAutoUsersAdmin(t *testing.T, ctx context.Context, conn 
 	// is not necessary.
 	// Don't cleanup the db admin after, because test runs would interfere
 	// with each other.
-	_, err := conn.Exec(ctx, fmt.Sprintf("CREATE USER %q WITH login createrole", adminUser))
-	if err != nil {
-		require.ErrorContains(t, err, "already exists")
-	}
-	_, err = conn.Exec(ctx, fmt.Sprintf("GRANT rds_iam TO %q WITH ADMIN OPTION", adminUser))
+	_, _ = conn.Exec(ctx, fmt.Sprintf("CREATE USER %q WITH login createrole", adminUser))
+	_, err := conn.Exec(ctx, fmt.Sprintf("GRANT rds_iam TO %q WITH ADMIN OPTION", adminUser))
 	if err != nil {
 		require.ErrorContains(t, err, "already a member")
 	}
@@ -531,7 +571,7 @@ func provisionRDSPostgresAutoUsersAdmin(t *testing.T, ctx context.Context, conn 
 
 // provisionRDSMySQLAutoUsersAdmin provisions an admin user suitable for auto-user
 // provisioning.
-func provisionRDSMySQLAutoUsersAdmin(t *testing.T, conn *mySQLConn, adminUser string) {
+func provisionRDSMySQLAutoUsersAdmin(t *testing.T, ctx context.Context, conn *mySQLConn, adminUser string) {
 	t.Helper()
 	// provision the IAM user to test with.
 	// ignore errors from user creation. If the user doesn't exist
@@ -557,7 +597,7 @@ func provisionRDSMySQLAutoUsersAdmin(t *testing.T, conn *mySQLConn, adminUser st
 
 // provisionMariaDBAdminUser provisions an admin user suitable for auto-user
 // provisioning.
-func provisionMariaDBAdminUser(t *testing.T, conn *mySQLConn, adminUser string) {
+func provisionMariaDBAdminUser(t *testing.T, ctx context.Context, conn *mySQLConn, adminUser string) {
 	t.Helper()
 	// provision the IAM user to test with.
 	// ignore errors from user creation. If the user doesn't exist
@@ -592,70 +632,54 @@ func randASCII(t *testing.T, length int) string {
 }
 
 const (
-	// autoUserWaitDur controls how long a test will wait for auto user
-	// deactivation or drop.
-	// The duration is generous - better to be slow sometimes than flakey.
-	autoUserWaitDur  = time.Minute
-	autoUserWaitStep = 10 * time.Second
+	autoUserWaitDur  = 20 * time.Second
+	autoUserWaitStep = 2 * time.Second
 )
 
 func waitForPostgresAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// `Query` documents that it is always safe to attempt to read from the
-		// returned rows even if an error is returned.
-		// It also documents that the same error will be in rows.Err() and
-		// rows.Err() will also contain any error from executing the query after
-		// closing rows. Hence, we do not check the error until after reading
-		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname=$1", user)
-		gotRow := rows.Next()
+		rows, err := conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname=$1", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.True(c, rows.Next(), "user %q should not have been dropped after disconnecting", user) {
+			rows.Close()
+			return
+		}
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.True(c, gotRow, "user %q should not have been dropped after disconnecting", user) {
-			return
-		}
 
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname = $1 AND rolcanlogin = false", user)
-		gotRow = rows.Next()
+		rows, err = conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname = $1 AND rolcanlogin = false", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.True(c, rows.Next(), "user %q should not be able to login after deactivating", user) {
+			rows.Close()
+			return
+		}
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.True(c, gotRow, "user %q should not be able to login after deactivating", user) {
-			return
-		}
 
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM pg_roles AS a WHERE pg_has_role($1, a.oid, 'member') AND a.rolname NOT IN ($1, 'teleport-auto-user')", user)
-		gotRow = rows.Next()
+		rows, err = conn.Query(ctx, "SELECT 1 FROM pg_roles AS a WHERE pg_has_role($1, a.oid, 'member') AND a.rolname NOT IN ($1, 'teleport-auto-user')", user)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.False(c, rows.Next(), "user %q should have lost all additional roles after deactivating", user) {
+			rows.Close()
+			return
+		}
 		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.False(c, gotRow, "user %q should have lost all additional roles after deactivating", user) {
-			return
-		}
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
 func waitForPostgresAutoUserDrop(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// `Query` documents that it is always safe to attempt to read from the
-		// returned rows even if an error is returned.
-		// It also documents that the same error will be in rows.Err() and
-		// rows.Err() will also contain any error from executing the query after
-		// closing rows. Hence, we do not check the error until after reading
-		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname=$1", user)
-		gotRow := rows.Next()
-		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
+		rows, err := conn.Query(ctx, "SELECT 1 FROM pg_roles WHERE rolname=$1", user)
+		if !assert.NoError(c, err) {
 			return
 		}
-		assert.False(c, gotRow, "user %q should have been dropped automatically after disconnecting", user)
+		assert.False(c, rows.Next(), "user %q should have been dropped automatically after disconnecting", user)
+		rows.Close()
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
 }
 

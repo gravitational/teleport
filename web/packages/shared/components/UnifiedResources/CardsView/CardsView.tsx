@@ -54,7 +54,6 @@ export function CardsView({
           cardViewProps={item.cardViewProps}
           labels={item.labels}
           pinned={pinnedResources.includes(key)}
-          requiresRequest={item.requiresRequest}
           pinningSupport={pinningSupport}
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}

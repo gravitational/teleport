@@ -90,6 +90,7 @@ type Server struct {
 	hostname  string
 
 	srv         *sshutils.Server
+	shell       string
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
 	reg         *srv.SessionRegistry
@@ -205,6 +206,9 @@ type Server struct {
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
+	// nodeWatcher is the server's node watcher.
+	nodeWatcher *services.NodeWatcher
+
 	// createHostUser configures whether a host should allow host user
 	// creation
 	createHostUser bool
@@ -236,6 +240,8 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
+	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
+	caGetter CertAuthorityGetter
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
@@ -452,6 +458,15 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	}
 }
 
+// SetShell sets default shell that will be executed for interactive
+// sessions
+func SetShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.shell = shell
+		return nil
+	}
+}
+
 // SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
@@ -639,6 +654,14 @@ func SetLockWatcher(lockWatcher *services.LockWatcher) ServerOption {
 	}
 }
 
+// SetNodeWatcher sets the server's node watcher.
+func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
+	return func(s *Server) error {
+		s.nodeWatcher = nodeWatcher
+		return nil
+	}
+}
+
 // SetX11ForwardingConfig sets the server's X11 forwarding configuration
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
@@ -693,6 +716,14 @@ func SetSessionController(controller *srv.SessionController) ServerOption {
 func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	return func(s *Server) error {
 		s.proxySigner = proxySigner
+		return nil
+	}
+}
+
+// SetCAGetter sets the cert authority getter
+func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
+	return func(s *Server) error {
+		s.caGetter = caGetter
 		return nil
 	}
 }
@@ -1382,13 +1413,6 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 			}
 		}
-	case teleport.SessionIDQueryRequest:
-		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
-		if err := r.Reply(true, nil); err != nil {
-			s.Logger.WithError(err).Warnf("Failed to reply to session ID query request")
-		}
-		return
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {

@@ -764,16 +764,15 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					require.ErrorContains(t, err, "is not satisfied")
 				},
 			}, {
-				name: "NOK scope not specified",
+				// Old clients do not yet provide a scope, so we only enforce scope
+				// opportunistically during login finish.
+				// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
+				name: "OK scope not specified",
 				challengeExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 				},
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
-					require.ErrorContains(t, err, "is not satisfied")
 				},
 			}, {
 				name: "OK scope not required",

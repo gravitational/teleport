@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 
 import {
   connectToServer,
   connectToDatabase,
   connectToKube,
-  connectToAppWithVnet,
+  connectToApp,
   captureAppLaunchInBrowser,
-  setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -48,7 +46,6 @@ import {
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -110,15 +107,9 @@ export function ConnectKubeActionButton(props: {
 
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
-  const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
 
-  function connectWithVnet(): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app);
-  }
-
-  function setUpGateway(): void {
-    setUpAppGateway(appContext, props.app, { origin: 'resource_table' });
+  function connect(): void {
+    connectToApp(appContext, props.app, { origin: 'resource_table' });
   }
 
   const rootCluster = appContext.clustersService.findCluster(
@@ -130,12 +121,10 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
 
   return (
     <AppButton
-      connectWithVnet={connectWithVnet}
-      setUpGateway={setUpGateway}
+      connect={connect}
       app={props.app}
       cluster={cluster}
       rootCluster={rootCluster}
-      isVnetSupported={isVnetSupported}
       onLaunchUrl={() => {
         captureAppLaunchInBrowser(appContext, props.app, {
           origin: 'resource_table',
@@ -220,10 +209,8 @@ function AppButton(props: {
   app: App;
   cluster: Cluster;
   rootCluster: Cluster;
-  connectWithVnet(): void;
-  setUpGateway(): void;
+  connect(): void;
   onLaunchUrl(): void;
-  isVnetSupported: boolean;
 }) {
   if (props.app.awsConsole) {
     return (
@@ -277,59 +264,14 @@ function AppButton(props: {
         target="_blank"
         title="Launch the app in the browser"
       >
-        <MenuItem onClick={props.setUpGateway}>Set up connection</MenuItem>
+        <MenuItem onClick={props.connect}>Set up connection</MenuItem>
       </ButtonWithMenu>
     );
   }
 
-  // TCP app with VNet.
-  if (props.isVnetSupported) {
-    return (
-      <ButtonWithMenu
-        text="Connect"
-        textTransform="none"
-        size="small"
-        onClick={props.connectWithVnet}
-      >
-        <MenuItem onClick={props.setUpGateway}>Connect to local port</MenuItem>
-      </ButtonWithMenu>
-    );
-  }
-
-  // TCP app without VNet.
   return (
-    <ButtonBorder
-      size="small"
-      onClick={props.setUpGateway}
-      textTransform="none"
-    >
+    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
       Connect
-    </ButtonBorder>
-  );
-}
-
-export function AccessRequestButton(props: {
-  isResourceAdded: boolean;
-  requestStarted: boolean;
-  onClick(): void;
-}) {
-  return props.isResourceAdded ? (
-    <ButtonPrimary
-      textTransform="none"
-      width="124px"
-      size="small"
-      onClick={props.onClick}
-    >
-      Remove
-    </ButtonPrimary>
-  ) : (
-    <ButtonBorder
-      textTransform="none"
-      width="124px"
-      size="small"
-      onClick={props.onClick}
-    >
-      {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
   );
 }

@@ -23,13 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/common"
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
-)
-
-var (
-	_ compare.IsEqual[*ResourceHeader] = (*ResourceHeader)(nil)
-	_ compare.IsEqual[*Metadata]       = (*Metadata)(nil)
 )
 
 func ResourceHeaderFromMetadata(metadata Metadata) ResourceHeader {
@@ -58,6 +52,16 @@ func (h *ResourceHeader) GetVersion() string {
 // SetVersion sets the resource version.
 func (h *ResourceHeader) SetVersion(version string) {
 	h.Version = version
+}
+
+// GetResourceID returns the resource ID.
+func (h *ResourceHeader) GetResourceID() int64 {
+	return h.Metadata.GetID()
+}
+
+// SetResourceID sets the resource ID.
+func (h *ResourceHeader) SetResourceID(id int64) {
+	h.Metadata.SetID(id)
 }
 
 // GetRevision returns the revision.
@@ -158,11 +162,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
-// IsEqual determines if two resource headers are equivalent to one another.
-func (h *ResourceHeader) IsEqual(i *ResourceHeader) bool {
-	return deriveTeleportEqualResourceHeader(h, i)
-}
-
 // Metadata is resource metadata
 type Metadata struct {
 	// Name is an object name
@@ -173,10 +172,25 @@ type Metadata struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	// Expires is a global expiry time header can be set on any resource in the system.
 	Expires time.Time `json:"expires" yaml:"expires"`
+	// ID is a record ID
+	// Deprecated: Use revision instead.
+	ID int64 `json:"id,omitempty" yaml:"id,omitempty"`
 	// Revision is an opaque identifier which tracks the versions of a resource
 	// over time. Clients should ignore and not alter its value but must return
 	// the revision in any updates of a resource.
 	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
+}
+
+// GetID returns the resource ID.
+// Deprecated: Use GetRevision instead
+func (m *Metadata) GetID() int64 {
+	return m.ID
+}
+
+// SetID sets the resource ID.
+// Deprecated: Use SetRevision instead
+func (m *Metadata) SetID(id int64) {
+	m.ID = id
 }
 
 // GetRevision returns the revision
@@ -272,9 +286,4 @@ func (m *Metadata) GetLabel(key string) (string, bool) {
 // GetAllLabels returns all labels from the resource.
 func (m *Metadata) GetAllLabels() map[string]string {
 	return m.Labels
-}
-
-// IsEqual determines if two metadata resources are equivalent to one another.
-func (m *Metadata) IsEqual(i *Metadata) bool {
-	return deriveTeleportEqualMetadata(m, i)
 }

@@ -197,6 +197,7 @@ The following table represents a best guess guide to migration of existing image
 | teleport-buildbox-arm-fips |
 | teleport-buildbox-fips |
 | teleport-ent-dev |
+| teleport-lab |
 | teleport-operator |
 
 ### **Repositories to not migrate**
@@ -221,7 +222,6 @@ The following table represents a best guess guide to migration of existing image
 | stolonctl |
 | stolon-etcd |
 | stolon-pgbouncer |
-| teleport-lab |
 | ubuntu-grande |
 | ubuntu-tall |
 | ubuntu-venti |

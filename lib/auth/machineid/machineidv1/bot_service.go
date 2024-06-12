@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -67,7 +66,7 @@ type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// ListUsers lists users
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -206,14 +205,13 @@ func (bs *BotService) ListBots(
 	// TODO(noah): Rewrite this to be less janky/better performing.
 	// - Concurrency for fetching roles
 	bots := []*pb.Bot{}
-	rsp, err := bs.cache.ListUsers(ctx, &userspb.ListUsersRequest{
-		PageSize:  req.PageSize,
-		PageToken: req.PageToken,
-	})
+	users, token, err := bs.cache.ListUsers(
+		ctx, int(req.PageSize), req.PageToken, false,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "listing users")
 	}
-	for _, u := range rsp.Users {
+	for _, u := range users {
 		botName, isBot := u.GetLabel(types.BotLabel)
 		if !isBot {
 			continue
@@ -239,8 +237,35 @@ func (bs *BotService) ListBots(
 
 	return &pb.ListBotsResponse{
 		Bots:          bots,
-		NextPageToken: rsp.NextPageToken,
+		NextPageToken: token,
 	}, nil
+}
+
+// createBotAuthz allows the legacy rbac noun/verbs to continue being used until
+// v16.0.0.
+func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error) {
+	authCtx, err := bs.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	originalErr := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate)
+	if originalErr != nil {
+		// TODO(noah): DELETE IN 16.0.0
+		for _, kind := range []string{types.KindUser, types.KindRole, types.KindToken} {
+			if err := authCtx.CheckAccessToKind(kind, types.VerbCreate); err != nil {
+				return nil, originalErr
+			}
+		}
+		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authCtx, nil
 }
 
 // CreateBot creates a new bot. It will throw an error if the bot already
@@ -248,11 +273,8 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := bs.authorizer.Authorize(ctx)
+	authCtx, err := bs.createBotAuthz(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -528,6 +550,32 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
+// deleteBotAuthz allows the legacy rbac noun/verbs to continue being used until
+// v16.0.0.
+func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
+	authCtx, err := bs.authorizer.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	originalErr := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete)
+	if originalErr != nil {
+		// TODO(noah): DELETE IN 16.0.0
+		for _, kind := range []string{types.KindUser, types.KindRole, types.KindToken} {
+			if err := authCtx.CheckAccessToKind(kind, types.VerbDelete); err != nil {
+				return originalErr
+			}
+		}
+		bs.logger.Warn("DeleteBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -538,16 +586,7 @@ func (bs *BotService) DeleteBot(
 	// seem to be any automatic deletion of locks in teleport today (other
 	// than expiration). Consistency around security controls seems important
 	// but we can revisit this if desired.
-	authCtx, err := bs.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := bs.deleteBotAuthz(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -555,7 +594,7 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
-	err = trace.NewAggregate(
+	err := trace.NewAggregate(
 		trace.Wrap(bs.deleteBotUser(ctx, req.BotName), "deleting bot user"),
 		trace.Wrap(bs.deleteBotRole(ctx, req.BotName), "deleting bot role"),
 	)

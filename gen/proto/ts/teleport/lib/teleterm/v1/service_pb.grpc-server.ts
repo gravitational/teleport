@@ -21,8 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { AuthenticateWebDeviceResponse } from "./service_pb";
-import { AuthenticateWebDeviceRequest } from "./service_pb";
 import { UpdateUserPreferencesResponse } from "./service_pb";
 import { UpdateUserPreferencesRequest } from "./service_pb";
 import { GetUserPreferencesResponse } from "./service_pb";
@@ -380,16 +378,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: UpdateUserPreferences(teleport.lib.teleterm.v1.UpdateUserPreferencesRequest) returns (teleport.lib.teleterm.v1.UpdateUserPreferencesResponse);
      */
     updateUserPreferences: grpc.handleUnaryCall<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>;
-    /**
-     * AuthenticateWebDevice blesses a web session with device trust by performing
-     * the on-behalf-of device authentication ceremony.
-     *
-     * See
-     * https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
-     *
-     * @generated from protobuf rpc: AuthenticateWebDevice(teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest) returns (teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse);
-     */
-    authenticateWebDevice: grpc.handleUnaryCall<AuthenticateWebDeviceRequest, AuthenticateWebDeviceResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -802,15 +790,5 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => UpdateUserPreferencesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(UpdateUserPreferencesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(UpdateUserPreferencesRequest.toBinary(value))
-    },
-    authenticateWebDevice: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice",
-        originalName: "AuthenticateWebDevice",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => AuthenticateWebDeviceResponse.fromBinary(bytes),
-        requestDeserialize: bytes => AuthenticateWebDeviceRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(AuthenticateWebDeviceResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(AuthenticateWebDeviceRequest.toBinary(value))
     }
 };

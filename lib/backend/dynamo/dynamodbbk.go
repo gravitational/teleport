@@ -21,7 +21,6 @@ package dynamo
 import (
 	"bytes"
 	"context"
-	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -168,6 +167,7 @@ type record struct {
 	Value     []byte
 	Timestamp int64
 	Expires   *int64 `json:"Expires,omitempty"`
+	ID        int64
 	Revision  string
 }
 
@@ -427,6 +427,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		values[i] = backend.Item{
 			Key:      trimPrefix(r.FullPath),
 			Value:    r.Value,
+			ID:       r.ID,
 			Revision: r.Revision,
 		}
 		if r.Expires != nil {
@@ -529,6 +530,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	item := &backend.Item{
 		Key:      trimPrefix(r.FullPath),
 		Value:    r.Value,
+		ID:       r.ID,
 		Revision: r.Revision,
 	}
 	if r.Expires != nil {
@@ -561,6 +563,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		FullPath:  prependPrefix(replaceWith.Key),
 		Value:     replaceWith.Value,
 		Timestamp: time.Now().UTC().Unix(),
+		ID:        time.Now().UTC().UnixNano(),
 		Revision:  replaceWith.Revision,
 	}
 	if !replaceWith.Expires.IsZero() {
@@ -935,6 +938,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
+		ID:        time.Now().UTC().UnixNano(),
 		Revision:  backend.CreateRevision(),
 	}
 	if !item.Expires.IsZero() {
@@ -1052,8 +1056,8 @@ func convertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var aerr awserr.Error
-	if !errors.As(err, &aerr) {
+	aerr, ok := err.(awserr.Error)
+	if !ok {
 		return err
 	}
 	switch aerr.Code() {

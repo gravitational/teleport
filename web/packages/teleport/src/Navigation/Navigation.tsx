@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { matchPath, useLocation, useHistory } from 'react-router';
-import { Box, Text, Flex } from 'design';
-import { Info } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import {
@@ -125,104 +123,6 @@ export function Navigation() {
   return (
     <NavigationContainer>
       <CategoriesContainer>{categories}</CategoriesContainer>
-      {cfg.edition === 'oss' && <AGPLFooter />}
-      {cfg.edition === 'community' && <CommunityFooter />}
     </NavigationContainer>
   );
 }
-function AGPLFooter() {
-  return (
-    <LicenseFooter
-      title="AGPL Edition"
-      subText="Unofficial Version"
-      infoContent={
-        <>
-          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
-          {/* can find the official release on{' '} */}
-          This is an independently compiled AGPL-3.0 version of Teleport.
-          <br />
-          Visit{' '}
-          <Text
-            as="a"
-            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-            target="_blank"
-          >
-            the Downloads page
-          </Text>{' '}
-          for the official release.
-        </>
-      }
-    />
-  );
-}
-
-function CommunityFooter() {
-  return (
-    <LicenseFooter
-      title="Community Edition"
-      subText="Limited Features"
-      infoContent={
-        <>
-          <Text
-            as="a"
-            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-            target="_blank"
-          >
-            Upgrade to Teleport Enterprise
-          </Text>{' '}
-          for SSO, just-in-time access requests, Access Graph, and much more!
-        </>
-      }
-    />
-  );
-}
-
-function LicenseFooter({
-  title,
-  subText,
-  infoContent,
-}: {
-  title: string;
-  subText: string;
-  infoContent: JSX.Element;
-}) {
-  const [opened, setOpened] = useState(false);
-  return (
-    <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
-      <Flex alignItems="center" gap={2}>
-        <Text>{title}</Text>
-        <FooterContent onMouseEnter={() => setOpened(true)}>
-          <Info size={16} />
-          {opened && <TooltipContent>{infoContent}</TooltipContent>}
-        </FooterContent>
-      </Flex>
-      <SubText>{subText}</SubText>
-    </StyledFooterBox>
-  );
-}
-
-const StyledFooterBox = styled(Box)`
-  line-height: 20px;
-  border-top: ${props => props.theme.borders[1]}
-    ${props => props.theme.colors.spotBackground[0]};
-`;
-
-const SubText = styled(Text)`
-  color: ${props => props.theme.colors.text.disabled};
-  font-size: ${props => props.theme.fontSizes[1]}px;
-`;
-
-const TooltipContent = styled(Box)`
-  width: max-content;
-  position: absolute;
-  bottom: 0;
-  left: 24px;
-  padding: 12px 16px 12px 16px;
-  box-shadow: ${p => p.theme.boxShadow[1]};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  z-index: 20;
-`;
-
-const FooterContent = styled(Flex)`
-  position: relative;
-`;

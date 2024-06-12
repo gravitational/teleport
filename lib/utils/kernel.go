@@ -101,5 +101,5 @@ func HasBTF() error {
 		return fmt.Errorf("%v was not found. Make sure the kernel was compiled with BTF support (CONFIG_DEBUG_INFO_BTF)", btfFile)
 	}
 
-	return fmt.Errorf("failed to open %v: %w", btfFile, err)
+	return fmt.Errorf("failed to open %v: %v", btfFile, err)
 }

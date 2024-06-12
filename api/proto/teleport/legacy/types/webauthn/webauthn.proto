@@ -38,6 +38,17 @@ option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 // -----------------------------------------------------------------------------
+// WebAuthn messages used by server storage.
+// -----------------------------------------------------------------------------
+
+// User represents a WebAuthn user.
+// Used mainly to correlated a WebAuthn user handle with a Teleport user.
+message User {
+  // Teleport user ID.
+  string teleport_user = 1;
+}
+
+// -----------------------------------------------------------------------------
 // Assertion (aka login).
 // -----------------------------------------------------------------------------
 

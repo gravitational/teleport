@@ -71,7 +71,6 @@ const props: ResourceListProps = {
   agents: [],
   selectedResource: 'app',
   customSort: { dir: 'ASC', fieldName: '', onSort: () => null },
-  requestStarted: false,
   onLabelClick: () => null,
   addedResources: getEmptyResourceState(),
   addOrRemoveResource: () => null,

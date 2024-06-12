@@ -118,9 +118,9 @@ ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib-devel.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.14.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '1a9d335c8f0e821f9eff27482fdda96e59a4f577' ] && \
+    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
     scl enable ${DEVTOOLSET} "\
       CFLAGS=-pthread cmake3 \
           -DBUILD_EXAMPLES=OFF \
@@ -278,7 +278,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.3 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.14.0 \
+    /usr/local/lib64/libfido2.so.1.13.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.3 \
     /usr/local/lib64/libudev.a \
@@ -286,7 +286,7 @@ COPY --from=libfido2 \
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.14.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
 # Update ld.

@@ -88,6 +88,8 @@ type UserACL struct {
 	DeviceTrust ResourceAccess `json:"deviceTrust"`
 	// Locks defines access to locking resources.
 	Locks ResourceAccess `json:"lock"`
+	// Assist defines access to assist feature.
+	Assist ResourceAccess `json:"assist"`
 	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
 	SAMLIdpServiceProvider ResourceAccess `json:"samlIdpServiceProvider"`
 	// AccessList defines access to access list management.
@@ -106,8 +108,6 @@ type UserACL struct {
 	Bots ResourceAccess `json:"bots"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
-	// CrownJewel defines access to manage CrownJewel resources.
-	CrownJewel ResourceAccess `json:"crownJewel"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -160,6 +160,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		activeSessionAccess.Read = true
 	}
 
+	var assistAccess ResourceAccess
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
+
 	// The billing dashboards are available in cloud clusters or for
 	// self-hosted dashboards for usage-based subscriptions.
 	var billingAccess ResourceAccess
@@ -191,7 +196,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
-	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -230,6 +234,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
+		Assist:                  assistAccess,
 		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
@@ -238,6 +243,5 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
 		AccessMonitoringRule:    accessMonitoringRules,
-		CrownJewel:              crownJewelAccess,
 	}
 }

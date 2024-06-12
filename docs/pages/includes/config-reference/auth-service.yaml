@@ -163,8 +163,9 @@ auth_service:
         # Defaults to false.
         require_session_mfa: false
 
-        # second_factor can be 'on', 'otp' or 'webauthn'.
+        # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
+        # - 'optional' allows otp and webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
         second_factor: otp
 

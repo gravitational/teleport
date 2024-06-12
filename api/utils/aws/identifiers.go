@@ -157,7 +157,7 @@ var (
 	//
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
-	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob|-isoe)?-\w+-\d+$`)
+	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob)?-\w+-\d+$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString

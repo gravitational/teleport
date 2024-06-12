@@ -55,7 +55,7 @@ func MarshalPluginStaticCredentials(pluginStaticCredentials types.PluginStaticCr
 			return nil, trace.Wrap(err)
 		}
 
-		data, err := protojson.Marshal(protoadapt.MessageV2Of(maybeResetProtoRevision(cfg.PreserveRevision, pluginStaticCredentials)))
+		data, err := protojson.Marshal(protoadapt.MessageV2Of(maybeResetProtoResourceID(cfg.PreserveResourceID, pluginStaticCredentials)))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -86,6 +86,9 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 		}
 		if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			pluginStaticCredentials.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			pluginStaticCredentials.SetRevision(cfg.Revision)

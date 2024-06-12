@@ -20,13 +20,13 @@ package desktop
 
 import (
 	"io"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,7 +34,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -64,12 +63,15 @@ var testDesktop = &types.WindowsDesktopV3{
 }
 
 func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAuditor) {
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+
 	startTime := time.Now()
 
 	s := &WindowsService{
 		clusterName: "test-cluster",
 		cfg: WindowsServiceConfig{
-			Logger:  slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			Log:     log,
 			Emitter: libevents.NewDiscardEmitter(),
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",

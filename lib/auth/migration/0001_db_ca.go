@@ -119,6 +119,13 @@ func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
 	return trace.Wrap(trustSvc.DeleteAllCertAuthorities(types.DatabaseCA))
 }
 
+// MigrateDBClientAuthority performs a migration which creates the db_client CA
+// as a copy of the existing db CA for backwards compatibility.
+func MigrateDBClientAuthority(ctx context.Context, trustSvc services.Trust, cluster string) error {
+	err := migrateDBAuthority(ctx, trustSvc, cluster, types.DatabaseCA, types.DatabaseClientCA)
+	return trace.Wrap(err)
+}
+
 // migrateDBAuthority performs a migration which creates a new CA from an
 // existing CA.
 // The new CA is created as a copy of the existing CA for backwards

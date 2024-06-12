@@ -84,6 +84,16 @@ func (n *Namespace) SetSubKind(sk string) {
 	n.SubKind = sk
 }
 
+// GetResourceID returns resource ID
+func (n *Namespace) GetResourceID() int64 {
+	return n.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (n *Namespace) SetResourceID(id int64) {
+	n.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (n *Namespace) GetRevision() string {
 	return n.Metadata.GetRevision()

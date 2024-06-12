@@ -498,9 +498,70 @@ func (c *HTTPClient) DeleteAllTunnelConnections() error {
 	return trace.Wrap(err)
 }
 
-type upsertServerRawReq struct {
-	Server json.RawMessage `json:"server"`
-	TTL    time.Duration   `json:"ttl"`
+// GetRemoteClusters returns a list of remote clusters
+func (c *HTTPClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.RemoteCluster, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalRemoteCluster(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (c *HTTPClient) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name")
+	}
+	out, err := c.Get(context.TODO(), c.Endpoint("remoteclusters", clusterName), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalRemoteCluster(out.Bytes())
+}
+
+// DeleteRemoteCluster deletes remote cluster by name
+func (c *HTTPClient) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
+	return trace.Wrap(err)
+}
+
+// DeleteAllRemoteClusters deletes all remote clusters
+func (c *HTTPClient) DeleteAllRemoteClusters() error {
+	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters"))
+	return trace.Wrap(err)
+}
+
+type createRemoteClusterRawReq struct {
+	// RemoteCluster is marshaled remote cluster resource
+	RemoteCluster json.RawMessage `json:"remote_cluster"`
+}
+
+// CreateRemoteCluster creates remote cluster resource
+func (c *HTTPClient) CreateRemoteCluster(rc types.RemoteCluster) error {
+	data, err := services.MarshalRemoteCluster(rc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &createRemoteClusterRawReq{
+		RemoteCluster: data,
+	}
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("remoteclusters"), args)
+	return trace.Wrap(err)
 }
 
 // UpsertAuthServer is used by auth servers to report their presence
@@ -536,6 +597,11 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 		re[i] = server
 	}
 	return re, nil
+}
+
+type upsertServerRawReq struct {
+	Server json.RawMessage `json:"server"`
+	TTL    time.Duration   `json:"ttl"`
 }
 
 // UpsertProxy is used by proxies to report their presence

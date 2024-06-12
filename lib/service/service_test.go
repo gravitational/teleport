@@ -72,7 +72,6 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 

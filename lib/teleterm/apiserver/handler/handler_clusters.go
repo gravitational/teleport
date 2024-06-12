@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -127,16 +126,6 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	}
 	apiCluster.LoggedInUser.UserType = userType
 	apiCluster.ProxyVersion = cluster.ProxyVersion
-
-	switch cluster.ShowResources {
-	case constants.ShowResourcesaccessibleOnly:
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_ACCESSIBLE_ONLY
-	case constants.ShowResourcesRequestable:
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
-	default:
-		// If the UI config for ShowResources is not set, the default is `requestable`.
-		apiCluster.ShowResources = api.ShowResources_SHOW_RESOURCES_REQUESTABLE
-	}
 
 	return apiCluster, nil
 }

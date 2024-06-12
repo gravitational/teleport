@@ -17,9 +17,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
-import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
+import { ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
@@ -65,8 +64,6 @@ export function ClusterDropdown({
   const [options, setOptions] = React.useState<Option[]>(
     createOptions(initialClusters)
   );
-  const showInput = options.length > 5 ? true : false;
-  const [clusterFilter, setClusterFilter] = useState('');
   const history = useHistory();
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -134,17 +131,6 @@ export function ClusterDropdown({
     return null;
   }
 
-  const onClusterFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setClusterFilter(e.target.value);
-  };
-
-  let filteredOptions = options;
-  if (clusterFilter) {
-    filteredOptions = options.filter(cluster =>
-      cluster.label.toLowerCase().includes(clusterFilter.toLowerCase())
-    );
-  }
-
   return (
     <Flex textAlign="center" alignItems="center">
       <HoverTooltip tipContent={'Select cluster'}>
@@ -157,16 +143,12 @@ export function ClusterDropdown({
           size="small"
           onClick={handleOpen}
         >
-          Cluster: {selectedOption.label}
+          {selectedOption.label}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonSecondary>
       </HoverTooltip>
       <Menu
-        popoverCss={() => `
-          margin-top: ${showInput ? '40px' : '4px'}; 
-          max-height: 265px; 
-          overflow: hidden; 
-        `}
+        popoverCss={() => `margin-top: 36px;`}
         transformOrigin={{
           vertical: 'top',
           horizontal: 'left',
@@ -179,74 +161,20 @@ export function ClusterDropdown({
         open={Boolean(anchorEl)}
         onClose={handleClose}
       >
-        {showInput ? (
-          <Box
-            css={`
-              padding: ${p => p.theme.space[2]}px;
-            `}
+        {options.map(cluster => (
+          <MenuItem
+            px={2}
+            key={cluster.value}
+            onClick={() => onChangeOption(cluster.value)}
           >
-            <ClusterFilter
-              type="text"
-              autoFocus
-              value={clusterFilter}
-              autoComplete="off"
-              onChange={onClusterFilterChange}
-              placeholder={'Search clusters…'}
-            />
-          </Box>
-        ) : (
-          // without this empty box, the entire positioning is way out of whack
-          // TODO (avatus): find out why during menu/popover rework
-          <Box />
-        )}
-        <Box
-          css={`
-            max-height: 220px;
-            overflow: auto;
-          `}
-        >
-          {filteredOptions.map(cluster => (
-            <MenuItem
-              px={2}
-              key={cluster.value}
-              onClick={() => onChangeOption(cluster.value)}
-            >
-              <Text
-                ml={2}
-                fontWeight={cluster.value === clusterId ? 500 : 300}
-                fontSize={2}
-              >
-                {cluster.label}
-              </Text>
-            </MenuItem>
-          ))}
-        </Box>
+            <Text ml={2} fontWeight={300} fontSize={2}>
+              {cluster.label}
+            </Text>
+          </MenuItem>
+        ))}
       </Menu>
     </Flex>
   );
 }
 
 type Option = { value: string; label: string };
-
-const ClusterFilter = styled.input(
-  ({ theme }) => `
-  background-color: ${theme.colors.spotBackground[0]};
-  padding-left: ${theme.space[3]}px;
-  width: 100%;
-  border-radius: 29px;
-  box-sizing: border-box;
-  color: ${theme.colors.text.main};
-  height: 32px;
-  font-size: ${theme.fontSizes[1]}px;
-  outline: none;
-  border: none;
-  &:focus {
-    border: none;
-  }
-
-  ::placeholder {
-    color: ${theme.colors.text.muted};
-    opacity: 1;
-  }
-`
-);

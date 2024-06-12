@@ -23,9 +23,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -132,20 +130,19 @@ func (c *templateSSHHostCert) render(
 
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	res, err := bot.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.MarshalSSHPublicKey(),
-		HostId:      "",
-		NodeName:    "",
-		Principals:  c.principals,
-		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(bot.Config().CertificateTTL),
-	},
+	key.Cert, err = bot.GenerateHostCert(
+		ctx,
+		key.MarshalSSHPublicKey(),
+		"",
+		"",
+		c.principals,
+		clusterName,
+		types.RoleNode,
+		bot.Config().CertificateTTL,
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = res.SshCertificate
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultSSHHostCertPrefix,

@@ -1,0 +1,2 @@
+# forcefully make bash the default shell 
+defshell -bash

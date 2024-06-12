@@ -98,7 +98,6 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
-	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestOpenSearchEngine()
@@ -1342,7 +1341,7 @@ func TestRedisTransaction(t *testing.T) {
 		txf := func(tx *goredis.Tx) error {
 			// Get current value or zero.
 			n, err := tx.Get(ctx, key).Int()
-			if err != nil && !errors.Is(err, goredis.Nil) {
+			if err != nil && err != goredis.Nil {
 				return err
 			}
 
@@ -1363,7 +1362,7 @@ func TestRedisTransaction(t *testing.T) {
 				// Success.
 				return nil
 			}
-			if errors.Is(err, goredis.TxFailedErr) {
+			if err == goredis.TxFailedErr {
 				// Optimistic lock lost. Retry.
 				continue
 			}
@@ -1977,7 +1976,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      ctx,
-		Cert:               tlsCert,
+		Certs:              []tls.Certificate{tlsCert},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -43,12 +43,15 @@ type MarshalConfig struct {
 	// Version specifies a particular version we should marshal resources with
 	Version string
 
+	// ID is a record ID to assign
+	ID int64
+
 	// Revision of the resource to assign.
 	Revision string
 
-	// PreserveRevision preserves revision in resource
+	// PreserveResourceID preserves resource IDs in resource
 	// specs when marshaling
-	PreserveRevision bool
+	PreserveResourceID bool
 
 	// Expires is an optional expiry time
 	Expires time.Time
@@ -83,6 +86,14 @@ func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
 	return append(opts, add...)
 }
 
+// WithResourceID assigns ID to the resource
+func WithResourceID(id int64) MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.ID = id
+		return nil
+	}
+}
+
 // WithRevision assigns Revision to the resource
 func WithRevision(rev string) MarshalOption {
 	return func(c *MarshalConfig) error {
@@ -112,11 +123,11 @@ func WithVersion(v string) MarshalOption {
 	}
 }
 
-// PreserveRevision preserves revision when
+// PreserveResourceID preserves resource ID when
 // marshaling value
-func PreserveRevision() MarshalOption {
+func PreserveResourceID() MarshalOption {
 	return func(c *MarshalConfig) error {
-		c.PreserveRevision = true
+		c.PreserveResourceID = true
 		return nil
 	}
 }
@@ -229,10 +240,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessMonitoringRule, nil
 	case types.KindDatabaseObject, "database_object":
 		return types.KindDatabaseObject, nil
-	case types.KindCrownJewel, "crown_jewels":
-		return types.KindCrownJewel, nil
-	case types.KindVnetConfig:
-		return types.KindVnetConfig, nil
 	case types.KindAccessRequest, types.KindAccessRequest + "s", "accessrequest", "accessrequests":
 		return types.KindAccessRequest, nil
 	case types.KindPlugin, types.KindPlugin + "s":
@@ -753,20 +760,22 @@ func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart
 
 type resetProtoResource interface {
 	protoadapt.MessageV1
+	SetResourceID(int64)
 	SetRevision(string)
 }
 
-// maybeResetProtoRevision returns a clone of [r] with the identifiers reset to default values if
-// preserveRevision is true, otherwise this is a nop, and the original value is returned unaltered.
+// maybeResetProtoResourceID returns a clone of [r] with the identifiers reset to default values if
+// preserveResourceID is true, otherwise this is a nop, and the original value is returned unaltered.
 //
-// Prefer maybeResetProtoRevisionv2 for newer RFD153-style resources, only one or the other should compile
+// Prefer maybeResetProtoResourceIDv2 for newer RFD153-style resources, only one or the other should compile
 // for any given type.
-func maybeResetProtoRevision[T resetProtoResource](preserveRevision bool, r T) T {
-	if preserveRevision {
+func maybeResetProtoResourceID[T resetProtoResource](preserveResourceID bool, r T) T {
+	if preserveResourceID {
 		return r
 	}
 
 	cp := apiutils.CloneProtoMsg(r)
+	cp.SetResourceID(0)
 	cp.SetRevision("")
 	return cp
 }
@@ -784,17 +793,19 @@ type ProtoResourcePtr[T any] interface {
 	ProtoResource
 }
 
-// maybeResetProtoRevisionv2 returns a clone of [r] with the identifiers reset to default values if
-// preserveRevision is true, otherwise this is a nop, and the original value is returned unaltered.
+// maybeResetProtoResourceIDv2 returns a clone of [r] with the identifiers reset to default values if
+// preserveResourceID is true, otherwise this is a nop, and the original value is returned unaltered.
 //
-// This is like maybeResetProtoRevision but made for newer RFD153-style resources which implement a
+// This is like maybeResourceProtoResourceID but made for newer RFD153-style resources which implement a
 // different interface, only one or the other should compile for any given type.
-func maybeResetProtoRevisionv2[T ProtoResource](preserveRevision bool, r T) T {
-	if preserveRevision {
+func maybeResetProtoResourceIDv2[T ProtoResource](preserveResourceID bool, r T) T {
+	if preserveResourceID {
 		return r
 	}
 
 	cp := proto.Clone(r).(T)
+	//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+	cp.GetMetadata().Id = 0
 	cp.GetMetadata().Revision = ""
 	return cp
 }
@@ -805,7 +816,7 @@ func MarshalProtoResource[T ProtoResource](resource T, opts ...MarshalOption) ([
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource = maybeResetProtoRevisionv2(cfg.PreserveRevision, resource)
+	resource = maybeResetProtoResourceIDv2(cfg.PreserveResourceID, resource)
 	data, err := protojson.Marshal(resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -830,6 +841,10 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+		resource.GetMetadata().Id = cfg.ID
+	}
 	if cfg.Revision != "" {
 		resource.GetMetadata().Revision = cfg.Revision
 	}
@@ -848,7 +863,7 @@ func FastMarshalProtoResourceDeprecated[T ProtoResource](resource T, opts ...Mar
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource = maybeResetProtoRevisionv2(cfg.PreserveRevision, resource)
+	resource = maybeResetProtoResourceIDv2(cfg.PreserveResourceID, resource)
 	data, err := utils.FastMarshal(resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -875,6 +890,10 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 	err = utils.FastUnmarshal(data, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+		resource.GetMetadata().Id = cfg.ID
 	}
 	if cfg.Revision != "" {
 		resource.GetMetadata().Revision = cfg.Revision

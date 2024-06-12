@@ -1189,6 +1189,6 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }

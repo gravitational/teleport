@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/btree"
@@ -62,7 +63,7 @@ type Config struct {
 	// BufferSize sets up event buffer size
 	BufferSize int
 	// Mirror mode is used when the memory backend is used for caching. In mirror
-	// mode, revisions for Put requests are re-used (instead of
+	// mode, record IDs for Put requests are re-used (instead of
 	// generating fresh ones) and expiration is turned off.
 	Mirror bool
 }
@@ -116,6 +117,10 @@ func New(cfg Config) (*Memory, error) {
 
 // Memory is a memory B-Tree based backend
 type Memory struct {
+	// nextID is a next record ID
+	// intentionally placed first to ensure 64-bit alignment
+	nextID int64
+
 	*sync.Mutex
 	*log.Entry
 	Config
@@ -205,6 +210,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 		return nil, trace.NotFound("key %q is not found", string(i.Key))
 	}
 	if !m.Mirror {
+		i.ID = m.generateID()
 		i.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
@@ -228,6 +234,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	defer m.Unlock()
 	m.removeExpired()
 	if !m.Mirror {
+		i.ID = m.generateID()
 		i.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
@@ -329,6 +336,8 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	item := i.Item
 	item.Expires = expires
 	if !m.Mirror {
+		// ID is updated on keep alive for consistency with other backends
+		item.ID = m.generateID()
 		item.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
@@ -420,6 +429,7 @@ func (m *Memory) ConditionalUpdate(ctx context.Context, i backend.Item) (*backen
 	}
 
 	if !m.Mirror {
+		i.ID = m.generateID()
 		i.Revision = backend.CreateRevision()
 	}
 	event := backend.Event{
@@ -439,6 +449,10 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
 	return m.buf.NewWatcher(ctx, watch)
+}
+
+func (m *Memory) generateID() int64 {
+	return atomic.AddInt64(&m.nextID, 1)
 }
 
 func (m *Memory) getRange(ctx context.Context, startKey, endKey []byte, limit int) backend.GetResult {

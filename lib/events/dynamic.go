@@ -245,14 +245,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceDelete{}
 	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
-	case DeviceCreateEvent,
-		DeviceDeleteEvent,
-		DeviceUpdateEvent,
-		DeviceEnrollEvent,
-		DeviceAuthenticateEvent,
-		DeviceEnrollTokenCreateEvent,
-		DeviceWebTokenCreateEvent,
-		DeviceAuthenticateConfirmEvent:
+	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
+		DeviceEnrollEvent, DeviceAuthenticateEvent,
+		DeviceEnrollTokenCreateEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
@@ -336,12 +331,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
-	case OktaUserSyncEvent:
-		e = &events.OktaUserSync{}
 	case OktaAccessListSyncEvent:
 		e = &events.OktaAccessListSync{}
-	case AccessGraphAccessPathChangedEvent:
-		e = &events.AccessPathChanged{}
 	case AccessListCreateEvent:
 		e = &events.AccessListCreate{}
 	case AccessListUpdateEvent:

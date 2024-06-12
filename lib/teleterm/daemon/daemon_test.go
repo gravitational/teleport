@@ -20,7 +20,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -64,18 +62,6 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	ca := gatewaytest.MustGenCACert(m.t)
-	identity := tlsca.Identity{
-		Username: "user",
-		Groups:   []string{"test-group"},
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: params.TargetURI.GetDbName(),
-			Protocol:    defaults.ProtocolPostgres,
-			Username:    params.TargetUser,
-		},
-		KubernetesCluster: params.TargetURI.GetKubeName(),
-	}
-
 	config := gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
@@ -87,7 +73,31 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		TCPPortAllocator:      m.tcpPortAllocator,
 		KubeconfigsDir:        m.t.TempDir(),
-		Cert:                  gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity),
+	}
+
+	identity := tlsca.Identity{
+		Username: "user",
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: params.TargetURI.GetDbName(),
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    params.TargetUser,
+		},
+		KubernetesCluster: params.TargetURI.GetKubeName(),
+	}
+
+	ca := gatewaytest.MustGenCACert(m.t)
+
+	if params.TargetURI.IsDB() {
+		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
+
+		config.CertPath = keyPairPaths.CertPath
+		config.KeyPath = keyPairPaths.KeyPath
+	}
+
+	if params.TargetURI.IsKube() {
+		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
+		config.Cert = cert
 	}
 
 	gateway, err := gateway.New(config)
@@ -261,8 +271,8 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
-					return fakeClientCache{}, nil
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
 				},
 			})
 			require.NoError(t, err)
@@ -442,8 +452,8 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
-					return fakeClientCache{}, nil
+				CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+					return fakeClientCache{}
 				},
 			})
 			require.NoError(t, err)
@@ -463,7 +473,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				return tt.fnErrs[fnCallCount-1]
 			}
 
-			err = daemon.RetryWithRelogin(ctx, &api.ReloginRequest{}, fn)
+			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
@@ -495,8 +505,8 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
-			return fakeClientCache{}, nil
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
 		},
 	})
 	require.NoError(t, err)
@@ -610,7 +620,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if !errors.Is(err, grpc.ErrServerStopped) {
+		if err != grpc.ErrServerStopped {
 			assert.NoError(t, err)
 		}
 	})
@@ -646,8 +656,8 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
-			return fakeClientCache{}, nil
+		CreateClientCacheFunc: func(resolver ResolveClusterFunc) ClientCache {
+			return fakeClientCache{}
 		},
 	})
 	require.NoError(t, err)
@@ -733,6 +743,6 @@ type fakeClientCache struct {
 	ClientCache
 }
 
-func (f fakeClientCache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
-	return &client.ClusterClient{}, nil
+func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	return &client.ProxyClient{}, nil
 }

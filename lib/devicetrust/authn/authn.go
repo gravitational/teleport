@@ -60,11 +60,7 @@ func NewCeremony() *Ceremony {
 //
 // The outcome of the authentication ceremony is a pair of user certificates
 // augmented with device extensions.
-func (c *Ceremony) Run(
-	ctx context.Context,
-	devicesClient devicepb.DeviceTrustServiceClient,
-	certs *devicepb.UserCertificates,
-) (*devicepb.UserCertificates, error) {
+func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 	switch {
 	case devicesClient == nil:
 		return nil, trace.BadParameter("devicesClient required")
@@ -72,63 +68,6 @@ func (c *Ceremony) Run(
 		return nil, trace.BadParameter("certs required")
 	}
 
-	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
-		UserCertificates: &devicepb.UserCertificates{
-			// Forward only the SSH certificate, the TLS identity is part of the
-			// connection.
-			SshAuthorizedKey: certs.SshAuthorizedKey,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newCerts := resp.GetUserCertificates()
-	if newCerts == nil {
-		return nil, trace.BadParameter("unexpected payload from server, expected UserCertificates: %T", resp.Payload)
-	}
-
-	return newCerts, nil
-}
-
-// RunWeb performs on-behalf-of device authentication. It exchanges a webToken
-// issued for the Web UI for a device authentication attempt.
-//
-// On success a [devicepb.DeviceConfirmationToken] is issued. To complete
-// authentication the browser that originated the attempt must forward the token
-// to the /webapi/device/webconfirm endpoint.
-func (c *Ceremony) RunWeb(
-	ctx context.Context,
-	devicesClient devicepb.DeviceTrustServiceClient,
-	webToken *devicepb.DeviceWebToken,
-) (*devicepb.DeviceConfirmationToken, error) {
-	switch {
-	case devicesClient == nil:
-		return nil, trace.BadParameter("devicesClient required")
-	case webToken == nil:
-		return nil, trace.BadParameter("webToken required")
-	}
-
-	resp, err := c.run(ctx, devicesClient, &devicepb.AuthenticateDeviceInit{
-		DeviceWebToken: webToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	confirmToken := resp.GetConfirmationToken()
-	if confirmToken == nil {
-		return nil, trace.BadParameter("unexpected payload from server, expected ConfirmationToken: %T", resp.Payload)
-	}
-
-	return confirmToken, trace.Wrap(err)
-}
-
-func (c *Ceremony) run(
-	ctx context.Context,
-	devicesClient devicepb.DeviceTrustServiceClient,
-	init *devicepb.AuthenticateDeviceInit,
-) (*devicepb.AuthenticateDeviceResponse, error) {
 	// Fetch device data early, this automatically excludes unsupported platforms
 	// and unenrolled devices.
 	cred, err := c.GetDeviceCredential()
@@ -147,11 +86,17 @@ func (c *Ceremony) run(
 	defer stream.CloseSend()
 
 	// 1. Init.
-	init.CredentialId = cred.Id
-	init.DeviceData = cd
 	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: init,
+			Init: &devicepb.AuthenticateDeviceInit{
+				UserCertificates: &devicepb.UserCertificates{
+					// Forward only the SSH certificate, the TLS identity is part of the
+					// connection.
+					SshAuthorizedKey: certs.SshAuthorizedKey,
+				},
+				CredentialId: cred.Id,
+				DeviceData:   cd,
+			},
 		},
 	}); err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
@@ -179,9 +124,17 @@ func (c *Ceremony) run(
 		return nil, trace.Wrap(err)
 	}
 
-	// 3. Success (either UserCertificates or DeviceConfirmationToken).
 	resp, err = stream.Recv()
-	return resp, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 3. User certificates.
+	newCerts := resp.GetUserCertificates()
+	if newCerts == nil {
+		return nil, trace.BadParameter("unexpected payload from server, expected UserCertificates: %T", resp.Payload)
+	}
+	return newCerts, nil
 }
 
 func (c *Ceremony) authenticateDeviceMacOS(

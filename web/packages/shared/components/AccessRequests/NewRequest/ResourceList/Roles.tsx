@@ -21,12 +21,7 @@ import React from 'react';
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Roles(props: ListProps & { roles: string[] }) {
-  const {
-    roles = [],
-    addedResources,
-    addOrRemoveResource,
-    requestStarted,
-  } = props;
+  const { roles = [], addedResources, addOrRemoveResource } = props;
 
   return (
     <StyledTable
@@ -42,10 +37,8 @@ export function Roles(props: ListProps & { roles: string[] }) {
         {
           altKey: 'action-btn',
           render: ({ role }) =>
-            renderActionCell(
-              Boolean(addedResources.role[role]),
-              requestStarted,
-              () => addOrRemoveResource('role', role)
+            renderActionCell(Boolean(addedResources.role[role]), () =>
+              addOrRemoveResource('role', role)
             ),
         },
       ]}

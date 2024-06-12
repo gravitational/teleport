@@ -23,9 +23,7 @@ package modules
 import (
 	"context"
 	"crypto"
-	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -83,6 +81,8 @@ type Features struct {
 	AutomaticUpgrades bool
 	// IsUsageBasedBilling enables some usage-based billing features
 	IsUsageBasedBilling bool
+	// Assist enables Assistant feature
+	Assist bool
 	// DeviceTrust holds its namesake feature settings.
 	DeviceTrust DeviceTrustFeature
 	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
@@ -189,6 +189,7 @@ func (f Features) ToProto() *proto.Features {
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
+		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
 		CustomTheme:             f.CustomTheme,
 		AccessGraph:             f.AccessGraph,
@@ -289,12 +290,8 @@ type Modules interface {
 	Features() Features
 	// SetFeatures set features queried from Cloud
 	SetFeatures(Features)
-	// BuildType returns build type (OSS, Community or Enterprise)
+	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
-	// IsEnterpriseBuild returns if the binary was built with enterprise modules
-	IsEnterpriseBuild() bool
-	// IsOSSBuild returns if the binary was built without enterprise modules
-	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -316,10 +313,6 @@ const (
 	BuildOSS = "oss"
 	// BuildEnterprise specifies enterprise build type
 	BuildEnterprise = "ent"
-	// BuildCommunity identifies builds of Teleport Community Edition,
-	// which are distributed on goteleport.com/download under our
-	// Teleport Community license agreement.
-	BuildCommunity = "community"
 )
 
 // SetModules sets the modules interface
@@ -336,29 +329,19 @@ func GetModules() Modules {
 	return modules
 }
 
-var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
-
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
-	if GetModules().Features().Cloud ||
-		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
-
-		switch r := res.(type) {
-		case types.AuthPreference:
-			switch r.GetSecondFactor() {
-			case constants.SecondFactorOff, constants.SecondFactorOptional:
-				return trace.Wrap(ErrCannotDisableSecondFactor)
-			}
-		}
-	}
-
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
 	switch r := res.(type) {
+	case types.AuthPreference:
+		switch r.GetSecondFactor() {
+		case constants.SecondFactorOff, constants.SecondFactorOptional:
+			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
+		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:
@@ -376,21 +359,9 @@ type defaultModules struct {
 	loadDynamicValues sync.Once
 }
 
-var teleportBuildType = BuildOSS
-
-// BuildType returns build type (OSS, Community or Enterprise)
+// BuildType returns build type (OSS or Enterprise)
 func (p *defaultModules) BuildType() string {
-	return teleportBuildType
-}
-
-// IsEnterpriseBuild returns false for [defaultModules].
-func (p *defaultModules) IsEnterpriseBuild() bool {
-	return false
-}
-
-// IsOSSBuild returns true for [defaultModules].
-func (p *defaultModules) IsOSSBuild() bool {
-	return true
+	return BuildOSS
 }
 
 // PrintVersion prints the Teleport version.
@@ -410,6 +381,7 @@ func (p *defaultModules) Features() Features {
 		App:                true,
 		Desktop:            true,
 		AutomaticUpgrades:  p.automaticUpgrades,
+		Assist:             true,
 		JoinActiveSessions: true,
 		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}
@@ -464,27 +436,3 @@ var (
 	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )
-
-var (
-	// flagLock protects access to accessing insecure test mode below
-	flagLock sync.Mutex
-
-	// insecureTestAllow is used to allow disabling second factor auth
-	// in test environments. Not user configurable.
-	insecureTestAllowNoSecondFactor bool
-)
-
-// SetInsecureTestMode is used to set insecure test mode on, to allow
-// second factor to be disabled
-func SetInsecureTestMode(m bool) {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	insecureTestAllowNoSecondFactor = m
-}
-
-// IsInsecureTestMode retrieves the current insecure test mode value
-func IsInsecureTestMode() bool {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	return insecureTestAllowNoSecondFactor
-}

@@ -193,10 +193,10 @@ notifications is the configuration for notifying users.
 
 recurrence is the recurrence definition
 
-|     Name     |  Type  | Required |                             Description                             |
-|--------------|--------|----------|---------------------------------------------------------------------|
-| day_of_month | number |          | day_of_month is the day of month that reviews will be scheduled on. |
-| frequency    | number | *        | frequency is the frequency of reviews.                              |
+|     Name     |  Type  | Required |                                                                Description                                                                |
+|--------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| day_of_month | number |          | day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.                                |
+| frequency    | number | *        | frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12. |
 
 #### spec.grants
 
@@ -443,25 +443,26 @@ Metadata is resource metadata
 
 Spec is an AuthPreference specification
 
-|          Name           |   Type   | Required |                                                              Description                                                               |
-|-------------------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
-| allow_headless          | bool     |          |                                                                                                                                        |
-| allow_local_auth        | bool     |          |                                                                                                                                        |
-| allow_passwordless      | bool     |          |                                                                                                                                        |
-| connector_name          | string   |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.     |
-| default_session_ttl     | duration |          | DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.                                              |
-| device_trust            | object   |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                       |
-| disconnect_expired_cert | bool     |          |                                                                                                                                        |
-| idp                     | object   |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                       |
-| locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                  |
-| message_of_the_day      | string   |          |                                                                                                                                        |
-| okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                        |
-| piv_slot                | string   |          | PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".  |
-| require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch |
-| second_factor           | string   |          | SecondFactor is the type of second factor.                                                                                             |
-| type                    | string   |          | Type is the type of authentication.                                                                                                    |
-| u2f                     | object   |          | U2F are the settings for the U2F device.                                                                                               |
-| webauthn                | object   |          | Webauthn are the settings for server-side Web Authentication support.                                                                  |
+|          Name           |   Type   | Required |                                                                                                         Description                                                                                                          |
+|-------------------------|----------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow_headless          | bool     |          |                                                                                                                                                                                                                              |
+| allow_local_auth        | bool     |          |                                                                                                                                                                                                                              |
+| allow_passwordless      | bool     |          |                                                                                                                                                                                                                              |
+| connector_name          | string   |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.                                                                                           |
+| default_session_ttl     | duration |          | DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.                                                                                                                                    |
+| device_trust            | object   |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                                                                                                             |
+| disconnect_expired_cert | bool     |          |                                                                                                                                                                                                                              |
+| hardware_key            | object   |          | HardwareKey are the settings for hardware key support.                                                                                                                                                                       |
+| idp                     | object   |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                                                                                                             |
+| locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                                                                                                        |
+| message_of_the_day      | string   |          |                                                                                                                                                                                                                              |
+| okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                                                                                                              |
+| piv_slot                | string   |          | Deprecated, replaced by HardwareKey settings.                                                                                                                                                |
+| require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". |
+| second_factor           | string   |          | SecondFactor is the type of second factor.                                                                                                                                                                                   |
+| type                    | string   |          | Type is the type of authentication.                                                                                                                                                                                          |
+| u2f                     | object   |          | U2F are the settings for the U2F device.                                                                                                                                                                                     |
+| webauthn                | object   |          | Webauthn are the settings for server-side Web Authentication support.                                                                                                                                                        |
 
 #### spec.device_trust
 
@@ -472,6 +473,24 @@ DeviceTrust holds settings related to trusted device verification. Requires Tele
 | auto_enroll        | bool             |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".                                                                                                                      |
 | ekcert_allowed_cas | array of strings |          | Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.                                                                                                                                             |
 | mode               | string           |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise. |
+
+#### spec.hardware_key
+
+HardwareKey are the settings for hardware key support.
+
+|           Name           |  Type  | Required |                                                              Description                                                              |
+|--------------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------|
+| piv_slot                 | string |          | PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e". |
+| serial_number_validation | object |          | SerialNumberValidation holds settings for hardware key serial number validation. By default, serial number validation is disabled.    |
+
+##### spec.hardware_key.serial_number_validation
+
+SerialNumberValidation holds settings for hardware key serial number validation. By default, serial number validation is disabled.
+
+|           Name           |  Type  | Required |                                                                                                                                            Description                                                                                                                                             |
+|--------------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| enabled                  | bool   |          | Enabled indicates whether hardware key serial number validation is enabled.                                                                                                                                                                                                                        |
+| serial_number_trait_name | string |          | SerialNumberTraitName is an optional custom user trait name for hardware key serial numbers to replace the default: "hardware_key_serial_numbers".  Note: Values for this user trait should be a comma-separated list of serial numbers, or a list of comm-separated lists. e.g ["123", "345,678"] |
 
 #### spec.idp
 
@@ -676,15 +695,16 @@ Metadata is resource metadata
 Spec is a ClusterNetworkingConfig specification
 
 |               Name               |   Type   | Required |                                                                                               Description                                                                                               |
-|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| |
+|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| assist_command_execution_workers | number   |          | AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel                                                                       |
 | case_insensitive_routing         | bool     |          | CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.                                                                                                                        |
 | client_idle_timeout              | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
 | idle_timeout_message             | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
 | keep_alive_count_max             | number   |          | KeepAliveCountMax is the number of keep-alive messages that can be missed before the server disconnects the connection to the client.                                                                   |
 | keep_alive_interval              | duration |          | KeepAliveInterval is the interval at which the server sends keep-alive messages to the client.                                                                                                          |
-| proxy_listener_mode              | number   |          | ProxyListenerMode is proxy listener mode used by Teleport Proxies.                                                                                                                                      |
+| proxy_listener_mode              | number   |          | ProxyListenerMode is proxy listener mode used by Teleport Proxies. 0 is "separate"; 1 is "multiplex".                                                                                                   |
 | proxy_ping_interval              | duration |          | ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected. |
-| routing_strategy                 | number   |          | RoutingStrategy determines the strategy used to route to nodes.                                                                                                                                         |
+| routing_strategy                 | number   |          | RoutingStrategy determines the strategy used to route to nodes. 0 is "unambiguous_match"; 1 is "most_recent".                                                                                           |
 | session_control_timeout          | duration |          | SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.   |
 | tunnel_strategy                  | object   |          | TunnelStrategyV1 determines the tunnel strategy used in the cluster.                                                                                                                                    |
 | web_idle_timeout                 | duration |          | WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.                                                                                                                        |
@@ -970,7 +990,7 @@ TLS is the TLS configuration used when establishing connection to target databas
 |    Name     |  Type  | Required |                                                            Description                                                             |
 |-------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------|
 | ca_cert     | string |          | CACert is an optional user provided CA certificate used for verifying database TLS connection.                                     |
-| mode        | number |          | Mode is a TLS connection mode. See DatabaseTLSMode for details.                                                                    |
+| mode        | number |          | Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".                                              |
 | server_name | string |          | ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation. |
 
 Example:
@@ -1072,7 +1092,7 @@ resource "teleport_github_connector" "github" {
        example = "yes"
      }
   }
-
+  
   spec = {
     client_id = "client"
     client_secret = var.github_secret
@@ -1209,7 +1229,7 @@ Example:
 
 ```
 # Teleport OIDC connector
-#
+# 
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/oidc/
 
@@ -1405,7 +1425,7 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 | aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                         |
 | aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".            |
 | aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                   |
-| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
+| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
 
 #### spec.azure
 
@@ -1574,7 +1594,7 @@ resource "teleport_provision_token" "example" {
     description = "Example token"
 
     labels = {
-      example = "yes"
+      example = "yes" 
       "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
     }
   }
@@ -1636,44 +1656,55 @@ Spec is a role specification
 
 Allow is the set of conditions evaluated to grant access.
 
-|               Name                |         Type         | Required |                                                           Description                                                           |
-|-----------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| app_labels                        | map of string arrays |          |                                                                                                                                 |
-| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                |
-| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
-| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
-| cluster_labels                    | map of string arrays |          |                                                                                                                                 |
-| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                        |
-| db_labels                         | map of string arrays |          |                                                                                                                                 |
-| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                      |
-| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
-| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                         |
-| db_service_labels                 | map of string arrays |          |                                                                                                                                 |
-| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                       |
-| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
-| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
-| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
-| group_labels                      | map of string arrays |          |                                                                                                                                 |
-| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                       |
-| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
-| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
-| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
-| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
-| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
-| kubernetes_labels                 | map of string arrays |          |                                                                                                                                 |
-| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                          |
-| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
-| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
-| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
-| node_labels                       | map of string arrays |          |                                                                                                                                 |
-| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                          |
-| request                           | object               |          |                                                                                                                                 |
-| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
-| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
-| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
-| windows_desktop_labels            | map of string arrays |          |                                                                                                                                 |
-| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                         |
-| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
+|               Name                |         Type         | Required |                                                                  Description                                                                  |
+|-----------------------------------|----------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| app_labels                        | map of string arrays |          |                                                                                                                                               |
+| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                              |
+| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                                        |
+| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                                 |
+| cluster_labels                    | map of string arrays |          |                                                                                                                                               |
+| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                                      |
+| db_labels                         | map of string arrays |          |                                                                                                                                               |
+| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                                    |
+| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                                 |
+| db_permissions                    | object               |          | DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning. |
+| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                                       |
+| db_service_labels                 | map of string arrays |          |                                                                                                                                               |
+| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                                     |
+| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                                |
+| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                                    |
+| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                                          |
+| group_labels                      | map of string arrays |          |                                                                                                                                               |
+| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                                     |
+| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                               |
+| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                                            |
+| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.               |
+| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                                        |
+| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                                     |
+| kubernetes_labels                 | map of string arrays |          |                                                                                                                                               |
+| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                                        |
+| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                                   |
+| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                                      |
+| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                                       |
+| node_labels                       | map of string arrays |          |                                                                                                                                               |
+| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                                        |
+| request                           | object               |          |                                                                                                                                               |
+| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                                  |
+| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                              |
+| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                                   |
+| spiffe                            | object               |          | SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.                                                          |
+| windows_desktop_labels            | map of string arrays |          |                                                                                                                                               |
+| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                                       |
+| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                                    |
+
+##### spec.allow.db_permissions
+
+DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.
+
+|    Name     |         Type         | Required |                                                   Description                                                    |
+|-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------|
+| match       | map of string arrays |          |                                                                                                                  |
+| permissions | array of strings     |          | Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ... |
 
 ##### spec.allow.impersonate
 
@@ -1787,48 +1818,69 @@ Rules is a list of rules and their access levels. Rules are a high level constru
 | verbs     | array of strings |          | Verbs is a list of verbs                                        |
 | where     | string           |          | Where specifies optional advanced matcher                       |
 
+##### spec.allow.spiffe
+
+SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.
+
+|   Name   |       Type       | Required |                                                                                                                                                                                                       Description                                                                                                                                                                                                        |
+|----------|------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| dns_sans | array of strings |          | DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com     |
+| ip_sans  | array of strings |          | IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42                                             |
+| path     | string           |          | Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar |
+
 #### spec.deny
 
 Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
 
-|               Name                |         Type         | Required |                                                           Description                                                           |
-|-----------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| app_labels                        | map of string arrays |          |                                                                                                                                 |
-| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                |
-| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                          |
-| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                   |
-| cluster_labels                    | map of string arrays |          |                                                                                                                                 |
-| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                        |
-| db_labels                         | map of string arrays |          |                                                                                                                                 |
-| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                      |
-| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
-| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                         |
-| db_service_labels                 | map of string arrays |          |                                                                                                                                 |
-| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                       |
-| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                  |
-| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                      |
-| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
-| group_labels                      | map of string arrays |          |                                                                                                                                 |
-| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                       |
-| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
-| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
-| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. |
-| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                          |
-| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                       |
-| kubernetes_labels                 | map of string arrays |          |                                                                                                                                 |
-| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                          |
-| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                     |
-| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                        |
-| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                         |
-| node_labels                       | map of string arrays |          |                                                                                                                                 |
-| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                          |
-| request                           | object               |          |                                                                                                                                 |
-| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                    |
-| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                |
-| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                     |
-| windows_desktop_labels            | map of string arrays |          |                                                                                                                                 |
-| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                         |
-| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
+|               Name                |         Type         | Required |                                                                  Description                                                                  |
+|-----------------------------------|----------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| app_labels                        | map of string arrays |          |                                                                                                                                               |
+| app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                              |
+| aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                                        |
+| azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                                 |
+| cluster_labels                    | map of string arrays |          |                                                                                                                                               |
+| cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                                      |
+| db_labels                         | map of string arrays |          |                                                                                                                                               |
+| db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                                    |
+| db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                                 |
+| db_permissions                    | object               |          | DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning. |
+| db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                                       |
+| db_service_labels                 | map of string arrays |          |                                                                                                                                               |
+| db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                                     |
+| db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                                |
+| desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                                    |
+| gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                                          |
+| group_labels                      | map of string arrays |          |                                                                                                                                               |
+| group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                                     |
+| host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                               |
+| host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                                            |
+| impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.               |
+| join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                                        |
+| kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                                     |
+| kubernetes_labels                 | map of string arrays |          |                                                                                                                                               |
+| kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                                        |
+| kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                                   |
+| kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                                      |
+| logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                                       |
+| node_labels                       | map of string arrays |          |                                                                                                                                               |
+| node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                                        |
+| request                           | object               |          |                                                                                                                                               |
+| require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                                  |
+| review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                              |
+| rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                                   |
+| spiffe                            | object               |          | SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.                                                          |
+| windows_desktop_labels            | map of string arrays |          |                                                                                                                                               |
+| windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                                       |
+| windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                                    |
+
+##### spec.deny.db_permissions
+
+DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.
+
+|    Name     |         Type         | Required |                                                   Description                                                    |
+|-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------|
+| match       | map of string arrays |          |                                                                                                                  |
+| permissions | array of strings     |          | Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ... |
 
 ##### spec.deny.impersonate
 
@@ -1942,51 +1994,61 @@ Rules is a list of rules and their access levels. Rules are a high level constru
 | verbs     | array of strings |          | Verbs is a list of verbs                                        |
 | where     | string           |          | Where specifies optional advanced matcher                       |
 
+##### spec.deny.spiffe
+
+SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.
+
+|   Name   |       Type       | Required |                                                                                                                                                                                                       Description                                                                                                                                                                                                        |
+|----------|------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| dns_sans | array of strings |          | DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com     |
+| ip_sans  | array of strings |          | IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42                                             |
+| path     | string           |          | Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar |
+
 #### spec.options
 
 Options is for OpenSSH options like agent forwarding.
 
-|            Name            |       Type       | Required |                                                                                Description                                                                                 |
-|----------------------------|------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| cert_extensions            | object           |          | CertExtensions specifies the key/values                                                                                                                                    |
-| cert_format                | string           |          | CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.                                                        |
-| client_idle_timeout        | duration         |          | ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.                            |
-| create_db_user             | bool             |          |                                                                                                                                                                            |
-| create_db_user_mode        | number           |          | CreateDatabaseUserMode allows users to be automatically created on a database when not set to off.                                                                         |
-| create_desktop_user        | bool             |          |                                                                                                                                                                            |
-| create_host_user           | bool             |          |                                                                                                                                                                            |
-| create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off                                                                                  |
-| desktop_clipboard          | bool             |          |                                                                                                                                                                            |
-| desktop_directory_sharing  | bool             |          |                                                                                                                                                                            |
-| device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport. |
-| disconnect_expired_cert    | bool             |          | DisconnectExpiredCert sets disconnect clients on expired certificates.                                                                                                     |
-| enhanced_recording         | array of strings |          | BPF defines what events to record for the BPF-based session recorder.                                                                                                      |
-| forward_agent              | bool             |          | ForwardAgent is SSH agent forwarding.                                                                                                                                      |
-| idp                        | object           |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                                                           |
-| lock                       | string           |          | Lock specifies the locking mode (strict|best_effort) to be applied with the role.                                                                                          |
-| max_connections            | number           |          | MaxConnections defines the maximum number of concurrent connections a user may hold.                                                                                       |
-| max_kubernetes_connections | number           |          | MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.                                                                     |
-| max_session_ttl            | duration         |          | MaxSessionTTL defines how long a SSH session can last for.                                                                                                                 |
-| max_sessions               | number           |          | MaxSessions defines the maximum number of concurrent sessions per connection.                                                                                              |
-| permit_x11_forwarding      | bool             |          | PermitX11Forwarding authorizes use of X11 forwarding.                                                                                                                      |
-| pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                 |
-| port_forwarding            | bool             |          |                                                                                                                                                                            |
-| record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                     |
-| request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                    |
-| request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to request.                                                                                         |
-| require_session_mfa        | number           |          | RequireMFAType is the type of MFA requirement enforced for this role: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch                                        |
-| ssh_file_copy              | bool             |          |                                                                                                                                                                            |
+|            Name            |       Type       | Required |                                                                                                        Description                                                                                                        |
+|----------------------------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| cert_extensions            | object           |          | CertExtensions specifies the key/values                                                                                                                                                                                   |
+| cert_format                | string           |          | CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.                                                                                                       |
+| client_idle_timeout        | duration         |          | ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.                                                                           |
+| create_db_user             | bool             |          |                                                                                                                                                                                                                           |
+| create_db_user_mode        | number           |          | CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".                                                  |
+| create_desktop_user        | bool             |          |                                                                                                                                                                                                                           |
+| create_host_user           | bool             |          |                                                                                                                                                                                                                           |
+| create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop".                    |
+| desktop_clipboard          | bool             |          |                                                                                                                                                                                                                           |
+| desktop_directory_sharing  | bool             |          |                                                                                                                                                                                                                           |
+| device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.                                                |
+| disconnect_expired_cert    | bool             |          | DisconnectExpiredCert sets disconnect clients on expired certificates.                                                                                                                                                    |
+| enhanced_recording         | array of strings |          | BPF defines what events to record for the BPF-based session recorder.                                                                                                                                                     |
+| forward_agent              | bool             |          | ForwardAgent is SSH agent forwarding.                                                                                                                                                                                     |
+| idp                        | object           |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                                                                                                          |
+| lock                       | string           |          | Lock specifies the locking mode (strict|best_effort) to be applied with the role.                                                                                                                                         |
+| max_connections            | number           |          | MaxConnections defines the maximum number of concurrent connections a user may hold.                                                                                                                                      |
+| max_kubernetes_connections | number           |          | MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.                                                                                                                    |
+| max_session_ttl            | duration         |          | MaxSessionTTL defines how long a SSH session can last for.                                                                                                                                                                |
+| max_sessions               | number           |          | MaxSessions defines the maximum number of concurrent sessions per connection.                                                                                                                                             |
+| permit_x11_forwarding      | bool             |          | PermitX11Forwarding authorizes use of X11 forwarding.                                                                                                                                                                     |
+| pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                                                                |
+| port_forwarding            | bool             |          |                                                                                                                                                                                                                           |
+| record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                                                                    |
+| request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                                                                   |
+| request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to request.                                                                                                                                        |
+| require_session_mfa        | number           |          | RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". |
+| ssh_file_copy              | bool             |          |                                                                                                                                                                                                                           |
 
 ##### spec.options.cert_extensions
 
 CertExtensions specifies the key/values
 
-| Name  |  Type  | Required |                                       Description                                        |
-|-------|--------|----------|------------------------------------------------------------------------------------------|
-| mode  | number |          | Mode is the type of extension to be used -- currently critical-option is not supported   |
-| name  | string |          | Name specifies the key to be used in the cert extension.                                 |
-| type  | number |          | Type represents the certificate type being extended, only ssh is supported at this time. |
-| value | string |          | Value specifies the value to be used in the cert extension.                              |
+| Name  |  Type  | Required |                                                Description                                                |
+|-------|--------|----------|-----------------------------------------------------------------------------------------------------------|
+| mode  | number |          | Mode is the type of extension to be used -- currently critical-option is not supported. 0 is "extension". |
+| name  | string |          | Name specifies the key to be used in the cert extension.                                                  |
+| type  | number |          | Type represents the certificate type being extended, only ssh is supported at this time. 0 is "ssh".      |
+| value | string |          | Value specifies the value to be used in the cert extension.                                               |
 
 ##### spec.options.idp
 
@@ -2025,10 +2087,10 @@ resource "teleport_role" "example" {
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example  = "yes"
+      example  = "yes"      
     }
   }
-
+  
   spec = {
     options = {
       forward_agent           = false
@@ -2144,12 +2206,12 @@ Example:
 
 ```
 # Teleport SAML connector
-#
+# 
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/okta/
 
 resource "teleport_saml_connector" "example" {
-  # This block will tell Terraform to never update private key from our side if a keys are managed
+  # This block will tell Terraform to never update private key from our side if a keys are managed 
   # from an outside of Terraform.
 
   # lifecycle {

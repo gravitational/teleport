@@ -146,6 +146,8 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule1.GetMetadata().GetName())
 	require.NoError(t, err)
+	//nolint:staticcheck // SA1019. Deprecated, but still needed.
+	importRule.Metadata.Id = importRule1.Metadata.Id
 	require.True(t, proto.Equal(importRule1, importRule))
 
 	// Delete an import rule

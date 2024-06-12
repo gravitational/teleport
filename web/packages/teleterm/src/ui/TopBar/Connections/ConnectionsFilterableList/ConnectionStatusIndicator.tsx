@@ -16,61 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled, { css } from 'styled-components';
+import React from 'react';
+import styled from 'styled-components';
 import { Box } from 'design';
 
-type Status = 'on' | 'off' | 'error';
-
-export const ConnectionStatusIndicator = (props: {
-  status: Status;
-  [key: string]: any;
-}) => {
-  const { status, ...styles } = props;
-
-  return <StyledStatus {...styles} $status={status} />;
+export const ConnectionStatusIndicator: React.FC<Props> = props => {
+  const { connected, ...styles } = props;
+  return <StyledStatus $connected={connected} {...styles} />;
 };
 
-const StyledStatus = styled(Box)`
-  position: relative;
+const StyledStatus = styled<Props>(Box)`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  ${(props: { $status: Status; [key: string]: any }) => {
-    const { $status, theme } = props;
-
-    switch ($status) {
-      case 'on': {
-        return { backgroundColor: theme.colors.success.main };
-      }
-      case 'off': {
-        return { border: `1px solid ${theme.colors.grey[300]}` };
-      }
-      case 'error': {
-        // Using text instead of an icon because any icon used here would be smaller than the
-        // rounded divs used to represent on and off states.
-        //
-        // A red circle was not used to avoid differentiating states only by color.
-        //
-        // The spacing has been painstakingly adjusted so that the cross is rendered pretty much at
-        // the same spot as a rounded div would have been.
-        //
-        // To verify that the position of the cross is correct, move the &:after pseudoselector
-        // outside of this switch to StyledStatus.
-        return css`
-          color: ${theme.colors.error.main};
-          &:after {
-            content: '𐄂';
-            position: absolute;
-            top: -3px;
-            left: -1px;
-            line-height: 8px;
-            font-size: 19px;
-          }
-        `;
-      }
-      default: {
-        $status satisfies never;
-      }
-    }
+  ${props => {
+    const { $connected, theme } = props;
+    const backgroundColor = $connected
+      ? theme.colors.success.main
+      : theme.colors.grey[300];
+    return {
+      backgroundColor,
+    };
   }}
 `;
+
+type Props = {
+  connected: boolean;
+  [key: string]: any;
+};

@@ -17,7 +17,6 @@ syntax = "proto3";
 package teleport.samlidp.v1;
 
 import "google/protobuf/timestamp.proto";
-import "teleport/legacy/client/proto/authservice.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -40,8 +39,6 @@ message ProcessSAMLIdPRequestRequest {
   bytes assertion = 6;
   // service_provider_sso_descriptor is the raw bytes of the service provider's SSO descriptor.
   bytes service_provider_sso_descriptor = 7;
-  // mfa_response is an mfa challenge response used to verify the user.
-  proto.MFAAuthenticateResponse mfa_response = 8;
 }
 
 // ProcessSAMLIdPRequestResponse is a response to processing the SAML IdP auth request.

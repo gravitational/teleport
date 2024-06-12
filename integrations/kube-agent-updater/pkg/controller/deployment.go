@@ -67,9 +67,8 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	// Get the current and past version
 	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)
 	if err != nil {
-		var badParameterError *trace.BadParameterError
-		switch {
-		case errors.As(trace.Unwrap(err), &badParameterError):
+		switch trace.Unwrap(err).(type) {
+		case *trace.BadParameterError:
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
 			log.Error(err, "Unexpected error, not updating.")

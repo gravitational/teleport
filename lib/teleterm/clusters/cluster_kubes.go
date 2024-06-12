@@ -101,9 +101,9 @@ type GetKubesResponse struct {
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
-func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.ClusterClient, kubeCluster string) (tls.Certificate, error) {
+func (c *Cluster) reissueKubeCert(ctx context.Context, proxyClient *client.ProxyClient, kubeCluster string) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
@@ -111,7 +111,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(
+	key, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
 			RouteToCluster:    c.clusterClient.SiteName,
 			KubernetesCluster: kubeCluster,
@@ -128,9 +128,13 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 	// via the RBAC rules, but we also need to make sure that the user has
 	// access to the cluster with at least one kubernetes_user or kubernetes_group
 	// defined.
+	rootClusterName, err := proxyClient.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
 		key,
-		clusterClient.RootClusterName(),
+		rootClusterName,
 		c.Name,
 		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

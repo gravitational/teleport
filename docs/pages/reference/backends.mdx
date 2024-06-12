@@ -270,16 +270,9 @@ To configure Teleport to use PostgreSQL:
 - Deploy several Auth Service instances connected to the PostgreSQL storage backend.
 - Deploy several Proxy Service nodes.
 - Make sure that the Proxy Service instances and all Teleport agent services that
-  connect directly to the Auth Service have the `auth_server` configuration
+  connect directly to the the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
-
-<Admonition
-  type="warning"
-  title="PgBouncer"
->
-Teleport must connect directly to the Postgres server. `pgbouncer` is incompatible with the Teleport PostgreSQL storage backend.
-</Admonition>
 
 ```yaml
 teleport:
@@ -1491,7 +1484,7 @@ To configure Teleport to use CockroachDB as a storage backend:
 - Deploy several Auth Service instances connected to the CockroachDB storage backend.
 - Deploy several Proxy Service instances.
 - Make sure that the Proxy Service instances and all Teleport agent services that
-  connect directly to to the Auth Service have the `auth_server` configuration
+  connect directly to the the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
 

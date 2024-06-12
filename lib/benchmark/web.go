@@ -208,7 +208,7 @@ func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *w
 	u := url.URL{
 		Host:   tc.WebProxyAddr,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", tc.SiteName),
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", tc.SiteName),
 		RawQuery: url.Values{
 			"params":                        []string{string(data)},
 			roundtrip.AccessTokenQueryParam: []string{webSession.getToken()},

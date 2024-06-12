@@ -60,17 +60,6 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 	if a.AuthConfig.Dir == "" {
 		a.AuthConfig.Dir = a.dir
 	}
-
-	// If there's no auth preference spec, we turn 2FA on as it is mandatory since v16.
-	if a.AuthConfig.AuthPreferenceSpec == nil {
-		a.AuthConfig.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOn,
-			Webauthn: &types.Webauthn{
-				RPID: "localhost",
-			},
-		}
-	}
-
 	authServer, err := libauth.NewTestAuthServer(a.AuthConfig)
 	require.NoError(t, err)
 

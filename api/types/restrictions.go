@@ -98,6 +98,14 @@ func (r *NetworkRestrictionsV4) SetName(n string) {
 	r.Metadata.SetName(n)
 }
 
+func (r *NetworkRestrictionsV4) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+func (r *NetworkRestrictionsV4) SetResourceID(id int64) {
+	r.Metadata.SetID(id)
+}
+
 // GetRevision returns the revision
 func (r *NetworkRestrictionsV4) GetRevision() string {
 	return r.Metadata.GetRevision()

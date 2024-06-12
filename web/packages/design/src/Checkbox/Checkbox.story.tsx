@@ -18,126 +18,27 @@
 
 import React from 'react';
 
-import styled from 'styled-components';
+import { Box } from 'design';
 
-import { Flex } from '..';
-
-import { StyledCheckbox } from './Checkbox';
+import { CheckboxWrapper, CheckboxInput } from './Checkbox';
 
 export default {
   title: 'Design/Checkbox',
 };
 
 export const Checkbox = () => (
-  <Flex
-    alignItems="start"
-    flexDirection="column"
-    gap={3}
-    bg="levels.surface"
-    p={5}
-  >
-    <Table border={1}>
-      <tr>
-        <th colSpan={2} />
-        <th>Large</th>
-        <th>Small</th>
-      </tr>
-      <tr>
-        <th rowSpan={4}>Enabled</th>
-        <th>Default</th>
-        <td>
-          <StyledCheckbox type="checkbox" />
-          <StyledCheckbox checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" />
-          <StyledCheckbox size="small" checked />
-        </td>
-      </tr>
-      <tr className="teleport-checkbox__force-hover">
-        <th>Hover</th>
-        <td>
-          <StyledCheckbox type="checkbox" />
-          <StyledCheckbox checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" />
-          <StyledCheckbox size="small" checked />
-        </td>
-      </tr>
-      <tr className="teleport-checkbox__force-active">
-        <th>Active</th>
-        <td>
-          <StyledCheckbox type="checkbox" />
-          <StyledCheckbox checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" />
-          <StyledCheckbox size="small" checked />
-        </td>
-      </tr>
-      <tr className="teleport-checkbox__force-focus-visible">
-        <th>Focus</th>
-        <td>
-          <StyledCheckbox type="checkbox" />
-          <StyledCheckbox checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" />
-          <StyledCheckbox size="small" checked />
-        </td>
-      </tr>
-      <tr>
-        <th rowSpan={4}>Disabled</th>
-        <th>Default</th>
-        <td>
-          <StyledCheckbox disabled />
-          <StyledCheckbox disabled checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" disabled />
-          <StyledCheckbox size="small" disabled checked />
-        </td>
-      </tr>
-      <tr className="teleport-checkbox__force-hover">
-        <th>Hover</th>
-        <td>
-          <StyledCheckbox disabled />
-          <StyledCheckbox disabled checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" disabled />
-          <StyledCheckbox size="small" disabled checked />
-        </td>
-      </tr>
-      <tr className="teleport-checkbox__force-active">
-        <th>Active</th>
-        <td>
-          <StyledCheckbox disabled />
-          <StyledCheckbox disabled checked />
-        </td>
-        <td>
-          <StyledCheckbox size="small" disabled />
-          <StyledCheckbox size="small" disabled checked />
-        </td>
-      </tr>
-    </Table>
-    <label>
-      <StyledCheckbox size="small" defaultChecked={false} /> Uncontrolled
-      checkbox, unchecked
-    </label>
-    <label>
-      <StyledCheckbox size="small" defaultChecked={true} /> Uncontrolled
-      checkbox, checked
-    </label>
-  </Flex>
+  <Box>
+    <CheckboxWrapper key={1}>
+      <CheckboxInput type="checkbox" name="input1" id={'input1'} />
+      Input 1
+    </CheckboxWrapper>
+    <CheckboxWrapper key={2}>
+      <CheckboxInput type="checkbox" name="input2" id={'input2'} />
+      Input 2
+    </CheckboxWrapper>
+    <CheckboxWrapper key={3}>
+      <CheckboxInput type="checkbox" name="input3" id={'input3'} />
+      Input 3
+    </CheckboxWrapper>
+  </Box>
 );
-
-const Table = styled.table`
-  border-collapse: collapse;
-  th,
-  td {
-    border: ${p => p.theme.borders[1]};
-    padding: 10px;
-  }
-`;

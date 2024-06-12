@@ -729,7 +729,7 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "join-token", token)
-	require.Equal(t, types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{
+	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
@@ -3493,22 +3493,6 @@ jamf_service:
 			},
 		},
 		{
-			name: "using API credentials",
-			yaml: fmt.Sprintf(`jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  client_id: llama-UUID
-  client_secret_file: %v`, passwordFile),
-			want: servicecfg.JamfConfig{
-				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
-					ClientSecret: password,
-				},
-			},
-		},
-		{
 			name: "all fields",
 			yaml: minimalYAML + `  name: jamf2
   sync_delay: 1m
@@ -3549,6 +3533,15 @@ jamf_service:
 			wantErr: "listen_addr",
 		},
 		{
+			name: "password_file empty",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file required",
+		},
+		{
 			name: "password_file invalid",
 			yaml: `
 jamf_service:
@@ -3557,16 +3550,6 @@ jamf_service:
   username: llama
   password_file: /path/to/file/that/doesnt/exist.txt`,
 			wantErr: "password_file",
-		},
-		{
-			name: "client_secret_file invalid",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  client_id: llama-UUID
-  client_secret_file: /path/to/file/that/doesnt/exist.txt`,
-			wantErr: "client_secret_file",
 		},
 		{
 			name: "spec is validated",
@@ -3590,7 +3573,7 @@ jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password",
+			wantErr: "password_file",
 		},
 	}
 	for _, test := range tests {
@@ -4120,6 +4103,65 @@ func TestApplyOktaConfig(t *testing.T) {
 			if err == nil {
 				require.Equal(t, expectedOkta, cfg.Okta)
 			}
+		})
+	}
+}
+
+func TestAssistKey(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		desc        string
+		input       string
+		expectKey   string
+		expectError bool
+	}{
+		{
+			desc: "api token is set",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/test-api-key
+`,
+			expectKey: "123-abc-zzz",
+		},
+		{
+			desc: "api token file does not exist",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/non-existent-file
+`,
+			expectError: true,
+		},
+		{
+			desc: "missing api token doesn't error",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+`,
+			expectKey: "",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
 		})
 	}
 }

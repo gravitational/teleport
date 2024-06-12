@@ -63,6 +63,15 @@ func NormalizeLocation(input string) string {
 	return strings.ToLower(replacer.Replace(input))
 }
 
+// GetLocationDisplayName returns the display name of the location.
+func GetLocationDisplayName(location string) string {
+	if displayName, found := locationsToDisplayNames[location]; found {
+		return displayName
+	}
+	// Return the original input if not found.
+	return location
+}
+
 var (
 	// displayNamesToLocations maps a location's "Display Name" to its simple
 	// "Name".

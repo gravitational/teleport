@@ -1,5 +1,5 @@
 ---
-title: Jamf Pro Integration
+title: Jamf Pro Integration 
 description: Sync your Jamf Pro inventory into Teleport
 ---
 
@@ -29,44 +29,31 @@ and behavior.
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-## Step 1/4. Create Jamf API credentials
+## Step 1/4. Create a Jamf user
 
-<Admonition type="notice" title="v16.0.0 or lower">
-  Teleport versions v16.0.0 or lower don't support Jamf API credentials. Follow
-  the instructions under [Using Jamf user and password authentication](
-  #optional-using-jamf-user-and-password-authentication) instead.
-</Admonition>
+Create a readonly Jamf user for inventory sync.
 
-Follow the instructions at [Jamf API Roles and Clients](
-https://learn.jamf.com/en-US/bundle/jamf-pro-documentation-current/page/API_Roles_and_Clients.html)
-to create a role and an API client. We recommend creating a role and API client
-specific for Teleport.
+1. Access `https://yourtenant.jamfcloud.com/accounts.html`, replacing
+   `yourtenant` with your Jamf Pro account.
 
-Make sure that your Jamf role has the "Read Computers" privilege.
+1. Create a new Standard Account with the following settings:
 
-You can test your client credentials using the following Jamf query:
+   - Username: teleport (change as desired)
+   - Access Level: Full Access
+   - Privilege Set: Custom
+   - Access Status: Enabled
+   - Password: (a strong password of your choice)
+   - Privileges:
+     - Advanced Computer Searches: Read
+     - Computers: Read
 
-```code
-$ URL='<Var name="(=jamf.api_endpoint=)" description="Jamf API URL"/>'
-$ CLIENT_ID='<Var name="(=jamf.client_id=)" description="Jamf API client ID" />'
-$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" description="Jamf API client secret" />'
+   Take note of the user and password created here for the next step.
 
-## Acquire access token from Jamf.
-$ TOKEN_RESP="$(curl -X POST "$URL/api/oauth/token" \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-urlencode 'grant_type=client_credentials' \
-  --data-urlencode "client_id=$CLIENT_ID" \
-  --data-urlencode "client_secret=$CLIENT_SECRET" -s)"
-$ echo "$TOKEN_RESP"
-$ ACCESS_TOKEN="$(echo "$TOKEN_RESP" | jq -r .access_token)"
+   User account setup: ![Jamf user setup](
+   ../../../img/access-controls/device-trust/jamf-setup-1.png)
 
-## Test access token privileges.
-$ curl -H "Authorization: Bearer $ACCESS_TOKEN" "$URL/api/v1/computers-inventory?page-size=1"
-```
-
-The query above should print an inventory entry from Jamf. If you get permission
-errors (401 or 403), double check your client credentials, role privileges and
-try to recreate your API client.
+   Privileges setup: ![Jamf privileges setup](
+   ../../../img/access-controls/device-trust/jamf-setup-2.png)
 
 ## Step 2/4. Configure Jamf service
 
@@ -99,9 +86,9 @@ teleport:
 jamf_service:
   enabled: true
   name: jamf
-  api_endpoint: (=jamf.api_endpoint=) #CHANGEME
-  client_id:    (=jamf.client_id=) #CHANGEME
-  client_secret_file: /var/lib/teleport/jamf_client_secret.txt
+  api_endpoint: https://yourtenant.jamfcloud.com # CHANGEME
+  username: teleport                             # CHANGEME
+  password_file: /var/lib/teleport/jamf_password.txt
 
 auth_service:
   enabled: false
@@ -117,17 +104,16 @@ Change the following settings, as appropriate:
 
 - teleport.proxy_server
 - jamf_service.api_endpoint
-- jamf_service.client_id
+- jamf_service.username
 
-Finally, write your Jamf client secret to the
-`/var/lib/teleport/jamf_client_secret` file:
+Finally, write your Jamf password to the `/var/lib/teleport/jamf_password` file:
 
 ```code
-$ sudo nano /var/lib/teleport/jamf_client_secret # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_password # or use your favorite editor
 
-# Only the OS user that runs `teleport` should have access to the secret file.
-$ sudo chmod 400 /var/lib/teleport/jamf_client_secret
-$ sudo chown teleport /var/lib/teleport/jamf_client_secret
+# Only the OS user that runs `teleport` should have access to the password file.
+$ sudo chmod 400 /var/lib/teleport/jamf_password
+$ sudo chown teleport /var/lib/teleport/jamf_password
 ```
 
 ## Step 3/4. Create a join token
@@ -190,7 +176,7 @@ When using the minimal configuration, described in the steps above, Jamf service
 utilizes a default sync schedule. It is possible to customize sync intervals, as
 well as the set of devices synced from Jamf, by applying RSQL filters provided
 by the [Jamf Pro API](
-https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
+https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory). 
 Jamf recommends a full sync no more than once every 24 hours.
 
 The default "inventory" configuration is roughly equivalent to the one below:
@@ -291,8 +277,8 @@ jamf_service:
   enabled: true
 + name: jamf1
 + api_endpoint: https://tenant1.jamfcloud.com
-+ client_id: tenant1-id
-+ client_secret_file: /var/lib/teleport/jamf1_client_secret.txt
++ username: tenant1
++ password_file: /var/lib/teleport/jamf1_password.txt
 
 auth_service:
   enabled: false
@@ -315,8 +301,8 @@ jamf_service:
   enabled: true
 + name: jamf2
 + api_endpoint: https://tenant2.jamfcloud.com
-+ client_id: tenant2-id
-+ client_secret_file: /var/lib/teleport/jamf2_client_secret.txt
++ username: tenant2
++ password_file: /var/lib/teleport/jamf2_password.txt
 
 auth_service:
   enabled: false
@@ -327,38 +313,6 @@ proxy_service:
 ssh_service:
   enabled: false
 ```
-
-## Optional: Using Jamf user and password authentication
-
-<Admonition type="notice" title="v16.1.0+">
-  Teleport versions v16.1.0 and higher support [Jamf API credentials](
-  #step-14-create-jamf-api-credentials). Prefer using API credentials instead
-  of username and password authentication.
-</Admonition>
-
-Create a readonly Jamf user for inventory sync.
-
-1. Access `(=jamf.api_endpoint=)/accounts.html`, replacing
-   `yourtenant` with your Jamf Pro account.
-
-1. Create a new Standard Account with the following settings:
-
-   - Username: teleport (change as desired)
-   - Access Level: Full Access
-   - Privilege Set: Custom
-   - Access Status: Enabled
-   - Password: (a strong password of your choice)
-   - Privileges:
-     - Advanced Computer Searches: Read
-     - Computers: Read
-
-   Take note of the user and password.
-
-   User account setup: ![Jamf user setup](
-   ../../../img/access-controls/device-trust/jamf-setup-1.png)
-
-   Privileges setup: ![Jamf privileges setup](
-   ../../../img/access-controls/device-trust/jamf-setup-2.png)
 
 ## Next steps
 

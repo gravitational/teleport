@@ -27,7 +27,6 @@ export function UserGroups(props: ListProps & { userGroups: UserGroup[] }) {
     userGroups = [],
     addedResources,
     customSort,
-    requestStarted,
     onLabelClick,
     addOrRemoveResource,
   } = props;
@@ -59,7 +58,6 @@ export function UserGroups(props: ListProps & { userGroups: UserGroup[] }) {
           render: agent =>
             renderActionCell(
               Boolean(addedResources.user_group[agent.name]),
-              requestStarted,
               () =>
                 addOrRemoveResource(
                   'user_group',

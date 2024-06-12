@@ -41,11 +41,9 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestListKubernetesResources(t *testing.T) {
-	modules.SetInsecureTestMode(true)
 	var (
 		usernameWithFullAccess = "full_user"
 		usernameNoAccess       = "limited_user"

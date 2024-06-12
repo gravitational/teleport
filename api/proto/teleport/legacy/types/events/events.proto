@@ -2479,9 +2479,6 @@ message SAMLConnectorCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // Connector is the new SAML connector
-  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorUpdate fires when SAML connector is updated.
@@ -2506,9 +2503,6 @@ message SAMLConnectorUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // Connector is the updated SAML connector
-  types.SAMLConnectorV2 Connector = 4 [(gogoproto.jsontag) = "connector"];
 }
 
 // SAMLConnectorDelete fires when SAML connector is deleted.
@@ -3785,8 +3779,6 @@ message BotJoin {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
-  // UserName is the name of the user associated with the bot which has joined.
-  string UserName = 7 [(gogoproto.jsontag) = "user_name,omitempty"];
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 8 [
     (gogoproto.nullable) = false,
@@ -3889,9 +3881,6 @@ enum DeviceOrigin {
 
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
-  reserved 7; // string web_session_id
-  reserved "web_session_id";
-
   // ID of the device.
   string device_id = 1 [(gogoproto.jsontag) = "device_id"];
   // OS of the device.
@@ -3902,13 +3891,6 @@ message DeviceMetadata {
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
   // Device origin.
   DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
-  // True if web authentication, aka on-behalf-of device authentication, was
-  // performed.
-  // Only present in "device.authenticate" type events.
-  bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
-  // Device web authentication attempt ID.
-  // Present in events related to device web authentication.
-  string web_authentication_id = 8 [(gogoproto.jsontag) = "web_authentication_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -4117,13 +4099,11 @@ message OneOf {
     events.OktaAccessListSync OktaAccessListSync = 148;
     events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
     events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
-    events.OktaUserSync OktaUserSync = 151;
     events.AuthPreferenceUpdate AuthPreferenceUpdate = 152;
     events.SessionRecordingConfigUpdate SessionRecordingConfigUpdate = 153;
     events.ClusterNetworkingConfigUpdate ClusterNetworkingConfigUpdate = 154;
     events.DatabaseUserCreate DatabaseUserCreate = 155;
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
-    events.AccessPathChanged AccessPathChanged = 157;
     events.SpannerRPC SpannerRPC = 158;
   }
 }
@@ -6054,48 +6034,6 @@ message OktaAccessListSync {
   int32 numAccessListMembers = 9;
 }
 
-// OktaUserSync records an Okta user sync event.
-message OktaUserSync {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Status contains common command or operation status fields.
-  Status Status = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // OrgUrl is the URL of the Okta organization being synced to
-  string org_url = 3;
-
-  // AppId is the optional ID of an Okta Application that Teleport is using as
-  // its gateway into Okta. The list of potential Teleport users are drawn from
-  // the list of Okta users assigned to this app - either directly or via a group
-  // assignement. If not set, the Okta sync service is drawing its user list from
-  // the whole organization.
-  string app_id = 4;
-
-  // NumUsersCreated is the number of Teleport users created in this
-  // synchronization pass.
-  int32 num_users_created = 5 [(gogoproto.jsontag) = "num_users_created"];
-
-  // NumUsersDeleted is the number of Teleport users deleted in this
-  // synchronization pass.
-  int32 num_users_deleted = 6 [(gogoproto.jsontag) = "num_users_deleted"];
-
-  // NumUserModified is the number of Teleport users modified in this
-  // synchronization pass.
-  int32 num_users_modified = 7 [(gogoproto.jsontag) = "num_users_modified"];
-
-  // NumUsersTotal is the total number of Teleport users managed by the Okta
-  // integration at the end of the synchronzaton pass.
-  int32 num_users_total = 8 [(gogoproto.jsontag) = "num_users_total"];
-}
-
 // SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
 message SPIFFESVIDIssued {
   // Metadata is a common event metadata
@@ -6224,28 +6162,6 @@ message SessionRecordingConfigUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-}
-
-// AccessPathChanged is emitted when access graph detects a change in a access path.
-message AccessPathChanged {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ChangeID is the id of the change.
-  string ChangeID = 2 [(gogoproto.jsontag) = "change_id"];
-
-  // AffectedResourceID is the name of the affected resource.
-  string AffectedResourceName = 3 [(gogoproto.jsontag) = "affected_resource_name"];
-
-  // AffectedResourceSource is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
-  string AffectedResourceSource = 4 [(gogoproto.jsontag) = "affected_resource_source"];
-
-  // AffectedResourceType is the type of the affected resource, ex: user, role, etc.
-  string AffectedResourceType = 5 [(gogoproto.jsontag) = "affected_resource_type"];
 }
 
 // SpannerRPC is an event emitted when a Spanner client calls a Spanner RPC.

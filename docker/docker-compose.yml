@@ -1,0 +1,143 @@
+version: '2'
+services:
+  #
+  # one is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one:
+    image: teleport:latest
+    container_name: one
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one.yaml
+    mem_limit: 300m
+    memswap_limit: 0
+    ports:
+      - "3080:3080"
+      - "3023:3023"
+      - "3025:3025"
+    env_file: env.file
+    volumes:
+      - ./data/one:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+      - certs:/mnt/shared/certs
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.1
+        aliases:
+          - one-lb
+
+  #
+  # one-node is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-node:
+    image: teleport:latest
+    container_name: one-node
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-node.yaml
+    env_file: env.file
+    mem_limit: 300m
+    volumes:
+      - ./data/one-node:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.20
+
+  #
+  # one-sshd is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-sshd:
+    image: teleport:latest
+    container_name: one-sshd
+    command: /usr/bin/start-sshd.sh
+    env_file: env.file
+    mem_limit: 300m
+    volumes:
+      - ./sshd/pam.d/ssh:/etc/pam.d/ssh
+      - ./sshd/etc/ssh/sshd_config:/etc/ssh/sshd_config
+      - certs:/mnt/shared/certs
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.21
+
+  #
+  # one-proxy is a second xproxy of the first cluster
+  #
+  one-proxy:
+    image: teleport:latest
+    container_name: one-proxy
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/one-proxy.yaml
+    mem_limit: 300m
+    ports:
+      - "4080:3080"
+      - "4023:3023"
+    env_file: env.file
+    volumes:
+      - ./data/one-proxy:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.10
+        aliases:
+          - one-lb
+
+  #
+  # two-auth is a auth server of the second cluster
+  #
+  two-auth:
+    mem_limit: 300m
+    image: teleport:latest
+    container_name: two-auth
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-auth.yaml --insecure
+    env_file: env.file
+    volumes:
+      - ./data/two/auth:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.2
+
+  #
+  # two-proxy is a proxy service for the second cluster
+  #
+  two-proxy:
+    mem_limit: 300m
+    image: teleport:latest
+    container_name: two-proxy
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-proxy.yaml
+    env_file: env.file
+    ports:
+      - "5080:5080"
+      - "5023:5023"
+    volumes:
+      - ./data/two/proxy:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.3
+
+  #
+  # two-node is a node service for the second cluster
+  #
+  two-node:
+    mem_limit: 300m
+    image: teleport:latest
+    container_name: two-node
+    command: ${CONTAINERHOME}/build/teleport start -d -c ${CONTAINERHOME}/docker/two-node.yaml
+    env_file: env.file
+    volumes:
+      - ./data/two/node:/var/lib/teleport
+      - ../:/root/go/src/github.com/gravitational/teleport
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.4
+
+networks:
+  teleport:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.10.1.0/16
+        ip_range: 172.10.1.0/24
+        gateway: 172.10.1.254
+
+volumes:
+  certs:

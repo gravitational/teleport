@@ -786,7 +786,7 @@ func onConfigDump(flags dumpFlags) error {
 		return nil
 	}
 
-	if modules.GetModules().IsEnterpriseBuild() {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
 		flags.LicensePath = filepath.Join(flags.DataDir, "license.pem")
 	}
 
@@ -847,7 +847,7 @@ func onConfigDump(flags dumpFlags) error {
 		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
 		fmt.Fprintf(flags.stdout, "\nA Teleport configuration file has been created at %q.\n", configPath)
-		if modules.GetModules().IsEnterpriseBuild() {
+		if modules.GetModules().BuildType() != modules.BuildOSS {
 			fmt.Fprintf(flags.stdout, "Add your Teleport license file to %q.\n", flags.LicensePath)
 		}
 		fmt.Fprintf(flags.stdout, "To start Teleport with this configuration file, run:\n\n")

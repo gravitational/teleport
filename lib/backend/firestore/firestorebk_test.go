@@ -179,6 +179,7 @@ func TestReadLegacyRecord(t *testing.T) {
 		Key:     []byte("legacy-record"),
 		Value:   []byte("foo"),
 		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
+		ID:      uut.clock.Now().UTC().UnixNano(),
 	}
 
 	// Write using legacy record format, emulating data written by an older
@@ -189,6 +190,7 @@ func TestReadLegacyRecord(t *testing.T) {
 		Value:     string(item.Value),
 		Expires:   item.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
+		ID:        item.ID,
 	}
 	_, err := uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(item.Key)).Set(ctx, rl)
 	require.NoError(t, err)
@@ -198,6 +200,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, item.Key, got.Key)
 	require.Equal(t, item.Value, got.Value)
+	require.Equal(t, item.ID, got.ID)
 	require.Equal(t, item.Expires, got.Expires)
 
 	// Read the data back using a range query too.
@@ -208,6 +211,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	got = &gotRange.Items[0]
 	require.Equal(t, item.Key, got.Key)
 	require.Equal(t, item.Value, got.Value)
+	require.Equal(t, item.ID, got.ID)
 	require.Equal(t, item.Expires, got.Expires)
 }
 

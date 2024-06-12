@@ -481,7 +481,7 @@ The main TLS private key will now be held in
 All TLS x509 cert files will be renamed from `<name>-x509.pem` to
 `<name>-cert.pem` so that any software trying to use the old `<name>-x509.pem`
 along with the outdated private key location will fail to load both files,
-instead of successfully opening the files but failing with some confusing error
+instead of succesfully opening the files but failing with some confusing error
 when the private key does not match the certificate.
 
 RPCs such as `GenerateUserCerts` will also need to change to support passing

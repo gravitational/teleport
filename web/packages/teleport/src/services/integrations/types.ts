@@ -260,7 +260,7 @@ export type AwsOidcListDatabasesRequest = {
 export type AwsRdsDatabase = {
   // engine of the database. eg. aurora-mysql
   engine: RdsEngine;
-  // name is the Database's name.
+  // name is the the Database's name.
   name: string;
   // uri contains the endpoint with port for connecting to this Database.
   uri: string;

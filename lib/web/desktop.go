@@ -35,6 +35,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -198,7 +199,7 @@ func (h *Handler) createDesktopConnection(
 		clientSrcAddr: clientSrcAddr,
 		clientDstAddr: clientDstAddr,
 	}
-	serviceConn, _, err := c.connectToWindowsService(clusterName, validServiceIDs)
+	serviceConn, version, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -236,7 +237,7 @@ func (h *Handler) createDesktopConnection(
 
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
-		proxyWebsocketConn(ws, serviceConnTLS), log)
+		proxyWebsocketConn(ws, serviceConnTLS, version), log)
 
 	return nil
 }
@@ -528,12 +529,19 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (conn net.C
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) error {
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
 		wds.Close()
 	}
+
+	v, err := semver.NewVersion(wdsVersion)
+	if err != nil {
+		return trace.BadParameter("invalid windows desktop service version  %q: %v", wdsVersion, err)
+	}
+
+	isPre15 := v.Major < 15
 
 	errs := make(chan error, 2)
 
@@ -614,8 +622,14 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
+			// don't pass the sync keys message along to old agents
+			// (they don't support it)
+			b := buf.Bytes()
+			if isPre15 && len(b) > 0 && tdp.MessageType(b[0]) == tdp.TypeSyncKeys {
+				continue
+			}
 
-			if _, err := wds.Write(buf.Bytes()); err != nil {
+			if _, err := wds.Write(b); err != nil {
 				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
 				return
 			}
@@ -642,16 +656,14 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 		err := errs[0] // pop first error
 		errs = errs[1:]
 
-		var aggregateErr trace.Aggregate
-		var closeErr *websocket.CloseError
-		switch {
-		case errors.As(err, &aggregateErr):
-			errs = append(errs, aggregateErr.Errors()...)
-		case errors.As(err, &closeErr):
-			switch closeErr.Code {
+		switch err := err.(type) {
+		case trace.Aggregate:
+			errs = append(errs, err.Errors()...)
+		case *websocket.CloseError:
+			switch err.Code {
 			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
 				websocket.CloseGoingAway: // when the user closes the tab
-				log.Debugf("Web socket closed by client with code: %v", closeErr.Code)
+				log.Debugf("Web socket closed by client with code: %v", err.Code)
 				return
 			}
 			return
@@ -686,8 +698,6 @@ func createCertificateBlob(certData []byte) []byte {
 	return buf.Bytes()
 }
 
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	tokenStr := p.ByName("token")
 	if tokenStr == "" {
@@ -757,8 +767,6 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	return nil, trace.Wrap(err)
 }
 
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)
@@ -766,8 +774,6 @@ func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r 
 	return nil, trace.Wrap(err)
 }
 
-// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-// TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	w.WriteHeader(http.StatusOK)

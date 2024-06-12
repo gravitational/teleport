@@ -91,11 +91,8 @@ export const paths = {
   serverLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
-  kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
-  dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
-  appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -190,45 +187,6 @@ export const routing = {
       ) as LeafClusterServerUri;
     } else {
       return generatePath(paths.server, params as any) as RootClusterServerUri;
-    }
-  },
-
-  getAppUri(params: Params) {
-    if (params.leafClusterId) {
-      // paths.appLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
-      return generatePath(paths.appLeaf, params as any) as LeafClusterAppUri;
-    } else {
-      return generatePath(paths.app, params as any) as RootClusterAppUri;
-    }
-  },
-
-  getDbUri(params: Params) {
-    if (params.leafClusterId) {
-      // paths.dbLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
-      return generatePath(
-        paths.dbLeaf,
-        params as any
-      ) as LeafClusterDatabaseUri;
-    } else {
-      return generatePath(paths.db, params as any) as RootClusterDatabaseUri;
-    }
-  },
-
-  getKubeUri(params: Params) {
-    if (params.leafClusterId) {
-      // paths.kubeLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
-      return generatePath(paths.kubeLeaf, params as any) as LeafClusterKubeUri;
-    } else {
-      return generatePath(paths.kube, params as any) as RootClusterKubeUri;
     }
   },
 

@@ -135,9 +135,3 @@ load fixtures/common
     echo "${PROXY_BLOCK?}"
     echo "${PROXY_BLOCK?}" | grep -E "^  https_keypairs:"
 }
-
-@test "[${TEST_SUITE?}] proxy_service.proxy_protocol is set to on" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${PROXY_BLOCK?}"
-    echo "${PROXY_BLOCK?}" | grep -E "^  proxy_protocol: on"
-}

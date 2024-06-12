@@ -166,6 +166,9 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	if err = ValidateTrustedCluster(&trustedCluster, allowEmptyRoleMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		trustedCluster.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		trustedCluster.SetRevision(cfg.Revision)
 	}
@@ -192,7 +195,7 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 
 	switch trustedCluster := trustedCluster.(type) {
 	case *types.TrustedClusterV2:
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, trustedCluster))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, trustedCluster))
 	default:
 		return nil, trace.BadParameter("unrecognized trusted cluster version %T", trustedCluster)
 	}

@@ -39,11 +39,9 @@ import {
   STARTING_TRANSITION_DELAY,
   INCREMENT_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
-import { DeviceTrustIcon } from 'teleport/TopBar/DeviceTrustIcon';
 
 interface UserMenuNavProps {
   username: string;
-  iconSize: number;
 }
 
 const Container = styled.div`
@@ -71,6 +69,7 @@ const Username = styled(Text)`
   color: ${props => props.theme.colors.text.main};
   font-size: 14px;
   font-weight: 400;
+  padding-right: 40px;
   display: none;
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
     display: inline-flex;
@@ -100,7 +99,6 @@ const StyledAvatar = styled.div`
 
 const Arrow = styled.div`
   line-height: 0;
-  padding-left: 32px;
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
@@ -113,7 +111,7 @@ const Arrow = styled.div`
   }
 `;
 
-export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
+export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -165,7 +163,6 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>
-        <DeviceTrustIcon iconSize={iconSize} />
 
         <Arrow open={open}>
           <ChevronDown size="medium" />

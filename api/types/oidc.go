@@ -177,6 +177,16 @@ func (o *OIDCConnectorV3) GetKind() string {
 	return o.Kind
 }
 
+// GetResourceID returns resource ID
+func (o *OIDCConnectorV3) GetResourceID() int64 {
+	return o.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (o *OIDCConnectorV3) SetResourceID(id int64) {
+	o.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (o *OIDCConnectorV3) GetRevision() string {
 	return o.Metadata.GetRevision()

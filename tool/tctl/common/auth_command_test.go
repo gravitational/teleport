@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/fixtures"
@@ -397,16 +396,12 @@ type mockClient struct {
 	appSession     types.WebSession
 	networkConfig  types.ClusterNetworkingConfig
 	crl            []byte
+
+	unsupportedCATypes []types.CertAuthType
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
-}
-
-func (c *mockClient) Ping(ctx context.Context) (proto.PingResponse, error) {
-	return proto.PingResponse{
-		ServerVersion: api.Version,
-	}, nil
 }
 
 func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -422,6 +417,11 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 }
 
 func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	for _, unsupported := range c.unsupportedCATypes {
+		if unsupported == id.Type {
+			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
+		}
+	}
 	for _, v := range c.cas {
 		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
 			return v, nil
@@ -431,6 +431,11 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 }
 
 func (c *mockClient) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
+	for _, unsupported := range c.unsupportedCATypes {
+		if unsupported == caType {
+			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
+		}
+	}
 	return c.cas, nil
 }
 
@@ -438,7 +443,7 @@ func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
 
-func (c *mockClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
 
@@ -458,7 +463,7 @@ func (c *mockClient) GetApplicationServers(context.Context, string) ([]types.App
 	return c.appServices, nil
 }
 
-func (c *mockClient) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
+func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
 	return c.appSession, nil
 }
 
@@ -816,6 +821,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 
 			expectedRouteToApp := proto.RouteToApp{
 				Name:        tc.appName,
+				SessionID:   sessionID,
 				PublicAddr:  publicAddr,
 				ClusterName: clusterNameStr,
 			}
@@ -1037,6 +1043,21 @@ func TestGenerateAndSignKeys(t *testing.T) {
 			},
 		},
 		{
+			name:      "snowflake format db client ca not supported upstream",
+			inFormat:  identityfile.FormatSnowflake,
+			inOutDir:  t.TempDir(),
+			inOutFile: "ca",
+			authClient: &mockClient{
+				clusterName: clusterName,
+				dbCerts: &proto.DatabaseCertResponse{
+					Cert:    certBytes,
+					CACerts: [][]byte{caBytes},
+				},
+				cas:                []types.CertAuthority{dbCARoot, dbCALeaf},
+				unsupportedCATypes: []types.CertAuthType{types.DatabaseClientCA},
+			},
+		},
+		{
 			name:      "db format",
 			inFormat:  identityfile.FormatDatabase,
 			inOutDir:  t.TempDir(),
@@ -1085,4 +1106,63 @@ func TestGenerateCRLForCA(t *testing.T) {
 		authClient := &mockClient{crl: []byte{}}
 		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
 	})
+}
+
+func TestGetDatabaseClientCA(t *testing.T) {
+	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "example.com"}, nil, time.Minute)
+	require.NoError(t, err)
+
+	dbClientCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseClientCA,
+		ClusterName: "example.com",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
+		},
+	})
+	require.NoError(t, err)
+
+	dbServerCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseCA,
+		ClusterName: "example.com",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{Cert: cert}},
+		},
+	})
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(
+		types.ClusterNameSpecV2{
+			ClusterName: "example.com",
+		})
+	require.NoError(t, err)
+	tests := []struct {
+		desc       string
+		authClient *mockClient
+		wantCA     types.CertAuthority
+	}{
+		{
+			desc: "db client ca exists",
+			authClient: &mockClient{
+				clusterName: clusterName,
+				cas:         []types.CertAuthority{dbClientCA, dbServerCA},
+			},
+			wantCA: dbClientCA,
+		},
+		{
+			desc: "db client ca not supported",
+			authClient: &mockClient{
+				clusterName:        clusterName,
+				unsupportedCATypes: []types.CertAuthType{types.DatabaseClientCA},
+				cas:                []types.CertAuthority{dbServerCA},
+			},
+			wantCA: dbServerCA,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ca, err := getDatabaseClientCA(context.Background(), test.authClient)
+			require.NoError(t, err)
+			require.Equal(t, test.wantCA, ca)
+		})
+	}
 }

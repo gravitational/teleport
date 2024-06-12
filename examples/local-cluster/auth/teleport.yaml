@@ -1,0 +1,12 @@
+teleport:
+  nodename: graviton-auth
+  data_dir: .data
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:5000
+  tokens:
+     - "proxy,node:hello"
+ssh_service:
+  enabled: "no"
+proxy_service:
+  enabled: "no"

@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -253,29 +253,30 @@ func Test_setResourceName(t *testing.T) {
 func TestProtoResourceRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	resource := &vnet.VnetConfig{
+	resource := &kubewaitingcontainerpb.KubernetesWaitingContainer{
 		Metadata: &headerv1.Metadata{
-			Name: "vnet_config",
+			Name: "test-container",
 		},
-		Spec: &vnet.VnetConfigSpec{
-			Ipv4CidrRange: "100.64.0.0/10",
+		Spec: &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+			Username: "tester",
+			Cluster:  "test-cluster",
 		},
 	}
 
 	for _, tc := range []struct {
 		desc          string
-		marshalFunc   func(*vnet.VnetConfig, ...MarshalOption) ([]byte, error)
-		unmarshalFunc func([]byte, ...MarshalOption) (*vnet.VnetConfig, error)
+		marshalFunc   func(*kubewaitingcontainerpb.KubernetesWaitingContainer, ...MarshalOption) ([]byte, error)
+		unmarshalFunc func([]byte, ...MarshalOption) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
 	}{
 		{
 			desc:          "deprecated",
-			marshalFunc:   FastMarshalProtoResourceDeprecated[*vnet.VnetConfig],
-			unmarshalFunc: FastUnmarshalProtoResourceDeprecated[*vnet.VnetConfig],
+			marshalFunc:   FastMarshalProtoResourceDeprecated[*kubewaitingcontainerpb.KubernetesWaitingContainer],
+			unmarshalFunc: FastUnmarshalProtoResourceDeprecated[*kubewaitingcontainerpb.KubernetesWaitingContainer],
 		},
 		{
 			desc:          "new",
-			marshalFunc:   MarshalProtoResource[*vnet.VnetConfig],
-			unmarshalFunc: UnmarshalProtoResource[*vnet.VnetConfig],
+			marshalFunc:   MarshalProtoResource[*kubewaitingcontainerpb.KubernetesWaitingContainer],
+			unmarshalFunc: UnmarshalProtoResource[*kubewaitingcontainerpb.KubernetesWaitingContainer],
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -288,11 +289,14 @@ func TestProtoResourceRoundtrip(t *testing.T) {
 
 			revision := "123"
 			expires := time.Now()
+			resourceID := int64(1234)
 			unmarshalled, err = tc.unmarshalFunc(marshaled,
-				WithRevision(revision), WithExpires(expires))
+				WithRevision(revision), WithExpires(expires), WithResourceID(resourceID))
 			require.NoError(t, err)
 			require.Equal(t, revision, unmarshalled.GetMetadata().GetRevision())
 			require.WithinDuration(t, expires, unmarshalled.GetMetadata().GetExpires().AsTime(), time.Millisecond)
+			//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+			require.Equal(t, resourceID, unmarshalled.GetMetadata().GetId())
 		})
 	}
 }

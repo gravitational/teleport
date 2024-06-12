@@ -122,6 +122,16 @@ func (c *TrustedClusterV2) SetSubKind(s string) {
 	c.SubKind = s
 }
 
+// GetResourceID returns resource ID
+func (c *TrustedClusterV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (c *TrustedClusterV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (c *TrustedClusterV2) GetRevision() string {
 	return c.Metadata.GetRevision()

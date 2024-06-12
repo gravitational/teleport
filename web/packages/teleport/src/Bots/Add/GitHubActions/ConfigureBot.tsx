@@ -33,10 +33,10 @@ import { getBot } from 'teleport/services/bot';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { LabelsInput } from 'teleport/components/LabelsInput';
-
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { FlowButtons } from '../Shared/FlowButtons';
+
+import { LabelsInput } from '../Shared/LabelsInput';
 
 import { useGitHubFlow } from './useGitHubFlow';
 
@@ -152,12 +152,6 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
                 disableBtns={isLoading}
-                inputWidth={350}
-                areLabelsRequired={true}
-                labelKey={{
-                  fieldName: 'Label for Resources the User Can Access',
-                  placeholder: 'label key',
-                }}
               />
             </Box>
             <FormItem>

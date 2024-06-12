@@ -90,15 +90,6 @@ func (s *NotificationsService) ListUserNotifications(ctx context.Context, pageSi
 	return resp, nextKey, trace.Wrap(err)
 }
 
-// DeleteAllUserNotifications deletes all user-specific notifications for all users. This should only be used by the cache.
-func (s *NotificationsService) DeleteAllUserNotifications(ctx context.Context) error {
-	if err := s.userNotificationService.DeleteAllResources(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // ListGlobalNotifications returns a paginated list of global notifications.
 func (s *NotificationsService) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
 	if pageSize < 1 {
@@ -113,34 +104,25 @@ func (s *NotificationsService) ListGlobalNotifications(ctx context.Context, page
 	return resp, nextKey, trace.Wrap(err)
 }
 
-// DeleteAllGlobalNotifications deletes all global notifications. This should only be used by the cache.
-func (s *NotificationsService) DeleteAllGlobalNotifications(ctx context.Context) error {
-	if err := s.globalNotificationService.DeleteAllResources(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // CreateUserNotification creates a user-specific notification.
-func (s *NotificationsService) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+func (s *NotificationsService) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	if err := services.ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if notification.Spec.Username == "" {
-		return nil, trace.BadParameter("a username must be specified")
 	}
 
 	notification.Kind = types.KindNotification
 	notification.Version = types.V1
 
+	notification.Spec.Username = username
 	// Generate uuidv7 ID.
 	uuid, err := uuid.NewV7()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	notification.Metadata.Name = uuid.String()
+	notification.Spec.Id = uuid.String()
+
+	// We set this to the UUID because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
+	notification.Metadata.Name = notification.Spec.Id
 
 	if err := CheckAndSetExpiry(notification, s.clock); err != nil {
 		return nil, trace.Wrap(err)
@@ -148,30 +130,10 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, notif
 
 	notification.Spec.Created = timestamppb.New(s.clock.Now())
 
-	notification.Metadata.Labels[types.NotificationScope] = "user"
-
 	// Append username prefix.
-	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
+	serviceWithPrefix := s.userNotificationService.WithPrefix(username)
 
 	created, err := serviceWithPrefix.CreateResource(ctx, notification)
-	return created, trace.Wrap(err)
-}
-
-// UpsertUserNotification upserts a user notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
-func (s *NotificationsService) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	if err := services.ValidateNotification(notification); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Precautionary check in case of accidental misuse.
-	if notification.Metadata.Name == "" {
-		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateUserNotification?")
-	}
-
-	// Append username prefix.
-	serviceWithPrefix := s.userNotificationService.WithPrefix(notification.Spec.Username)
-
-	created, err := serviceWithPrefix.UpsertResource(ctx, notification)
 	return created, trace.Wrap(err)
 }
 
@@ -229,8 +191,10 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	globalNotification.Metadata = &headerv1.Metadata{Name: uuid.String()}
-	globalNotification.Spec.Notification.Metadata.Name = uuid.String()
+	globalNotification.Spec.Notification.Spec.Id = uuid.String()
+
+	// We set this to the UUID because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
+	globalNotification.Metadata = &headerv1.Metadata{Name: globalNotification.Spec.Notification.Spec.Id}
 
 	if err := CheckAndSetExpiry(globalNotification.Spec.Notification, s.clock); err != nil {
 		return nil, trace.Wrap(err)
@@ -238,24 +202,7 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 
 	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(s.clock.Now())
 
-	globalNotification.Spec.Notification.Metadata.Labels[types.NotificationScope] = "global"
-
 	created, err := s.globalNotificationService.CreateResource(ctx, globalNotification)
-	return created, trace.Wrap(err)
-}
-
-// UpsertGlobalNotification upserts a global notification resource that has already had its contents validated and its defaults such as the generated UUID, created date, and expiry date set.
-func (s *NotificationsService) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	if err := services.ValidateGlobalNotification(globalNotification); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Precautionary check in case of accidental misuse.
-	if globalNotification.Spec.Notification.Metadata.Name == "" {
-		return nil, trace.BadParameter("notification id is missing. Did you mean to use CreateGlobalNotification?")
-	}
-
-	created, err := s.globalNotificationService.UpsertResource(ctx, globalNotification)
 	return created, trace.Wrap(err)
 }
 
@@ -273,21 +220,8 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 
 	// Verify that the notification this state is for exists.
 	notifServiceWithPrefix := s.userNotificationService.WithPrefix(username)
-	_, err := notifServiceWithPrefix.GetResource(ctx, state.Spec.NotificationId)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		// If we didn't find a user-specific notification with this ID, try finding a global notification.
-		_, err := s.globalNotificationService.GetResource(ctx, state.Spec.NotificationId)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-
-			return nil, trace.NotFound("notification '%s' does not exist", state.Spec.NotificationId)
-		}
+	if _, err := notifServiceWithPrefix.GetResource(ctx, state.Spec.NotificationId); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	state.Kind = types.KindUserNotificationState

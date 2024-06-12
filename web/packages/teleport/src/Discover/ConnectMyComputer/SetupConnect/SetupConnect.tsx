@@ -23,7 +23,7 @@ import { ButtonSecondary } from 'design/Button';
 import { getPlatform } from 'design/platform';
 import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
-import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
 import {
   DownloadConnect,
@@ -67,8 +67,7 @@ export function SetupConnect(
   const connectMyComputerDeepLink = makeDeepLinkWithSafeInput({
     proxyHost: cluster.publicURL,
     username,
-    path: '/connect_my_computer',
-    searchParams: {},
+    path: Path.ConnectMyComputer,
   });
   const [showHint, setShowHint] = useState(false);
 

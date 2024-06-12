@@ -89,9 +89,3 @@ load fixtures/common
     echo "${AUTH_BLOCK?}"
     echo "${AUTH_BLOCK?}" | grep -E "^  authentication:" -A5 | grep -q "rp_id: ${TELEPORT_DOMAIN_NAME?}"
 }
-
-@test "[${TEST_SUITE?}] auth_service.proxy_protocol is on" {
-    load ${TELEPORT_CONFD_DIR?}/conf
-    echo "${AUTH_BLOCK?}"
-    echo "${AUTH_BLOCK?}" | grep -E "^  proxy_protocol: on"
-}

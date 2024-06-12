@@ -27,9 +27,6 @@ auth_service:
   authentication:
     type: "{{ required "authentication.type is required in chart values" (coalesce .Values.authenticationType $authentication.type) }}"
     local_auth: {{ $authentication.localAuth }}
-{{- if $authentication.passwordless }}
-    passwordless: {{ $authentication.passwordless }}
-{{- end }}
 {{- if $authentication.connectorName }}
     connector_name: "{{ $authentication.connectorName }}"
 {{- end }}

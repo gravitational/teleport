@@ -77,6 +77,7 @@ export function TestConnection() {
 
   const dbUser = getInputValue(customDbUser || selectedDbUser.value, 'user');
   let tshDbCmd = `tsh db connect ${db.name} --db-user=${dbUser}`;
+
   if (customDbName || selectedDbName) {
     const dbName = getInputValue(customDbName || selectedDbName.value, 'name');
     tshDbCmd += ` --db-name=${dbName}`;

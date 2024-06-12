@@ -1032,14 +1032,14 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 			}
 
 			// Assert update response.
-			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
+			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
 			}
 
 			// Assert stored.
 			stored, err := identity.GetUser(ctx, test.user, test.withSecrets)
 			require.NoError(t, err, "GetUser failed")
-			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
+			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
 			}
 		})
@@ -1061,12 +1061,12 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.NoError(t, err, "creating otp device failed")
 
 	// Validate that no users returns an empty page.
-	rsp, err := identity.ListUsers(ctx, &userspb.ListUsersRequest{})
+	rsp, err := identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
 		WithSecrets: true,
 	})
 	assert.NoError(t, err, "no error returned when no users exist")
@@ -1081,12 +1081,12 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.NoError(t, err, "creating user %s failed", user)
 	expectedUsers := []*types.UserV2{user.(*types.UserV2)}
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
@@ -1133,7 +1133,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		PageSize: 2,
 	}
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsersExt(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
 		for _, user := range rsp.Users {
@@ -1158,7 +1158,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
 	// Validate that listing all users at once returns all expected users with secrets.
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
 		PageSize:    200,
 		WithSecrets: true,
 	})
@@ -1182,7 +1182,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		WithSecrets: true,
 	}
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsersExt(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
 		retrieved = append(retrieved, rsp.Users...)
@@ -1211,7 +1211,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	clock.Advance(time.Hour)
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+	rsp, err = identity.ListUsersExt(ctx, &userspb.ListUsersRequest{
 		WithSecrets: true,
 	})
 	assert.NoError(t, err, "got an error while listing over an expired user")

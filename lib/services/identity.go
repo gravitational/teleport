@@ -64,7 +64,9 @@ type UsersService interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	// ListUsersExt is equivalent to ListUsers except that it supports additional parameters.
+	ListUsersExt(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
 }

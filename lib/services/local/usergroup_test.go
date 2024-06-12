@@ -74,7 +74,7 @@ func TestUserGroupCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of user groups.
@@ -93,14 +93,14 @@ func TestUserGroupCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific user group.
 	sp, err := service.GetUserGroup(ctx, g2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(g2, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a user group that doesn't exist.
@@ -118,7 +118,7 @@ func TestUserGroupCRUD(t *testing.T) {
 	sp, err = service.GetUserGroup(ctx, g1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(g1, sp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a user group.
@@ -128,7 +128,7 @@ func TestUserGroupCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.UserGroup{g2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a user group that doesn't exist.

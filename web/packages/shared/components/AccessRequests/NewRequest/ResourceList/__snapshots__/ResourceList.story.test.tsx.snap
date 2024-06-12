@@ -30,8 +30,7 @@ exports[`render Apps 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 123px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -285,7 +284,7 @@ exports[`render Apps 1`] = `
             <button
               class="c8"
               kind="border"
-              width="123px"
+              width="134px"
             >
               + Add to request
             </button>
@@ -327,8 +326,7 @@ exports[`render Databases 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -602,9 +600,9 @@ exports[`render Databases 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -644,8 +642,7 @@ exports[`render Desktops 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -871,9 +868,9 @@ exports[`render Desktops 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -913,8 +910,7 @@ exports[`render Kubes 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -1132,9 +1128,9 @@ exports[`render Kubes 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -1174,8 +1170,7 @@ exports[`render Nodes 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -1401,9 +1396,9 @@ exports[`render Nodes 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -1454,8 +1449,7 @@ exports[`render Roles 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c19:hover,
@@ -1897,9 +1891,9 @@ exports[`render Roles 1`] = `
             <button
               class="c19"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -1913,9 +1907,9 @@ exports[`render Roles 1`] = `
             <button
               class="c19"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -1955,8 +1949,7 @@ exports[`render UserGroups 1`] = `
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  width: 137px;
-  text-transform: none;
+  width: 134px;
 }
 
 .c8:hover,
@@ -2202,9 +2195,9 @@ exports[`render UserGroups 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>
@@ -2233,9 +2226,9 @@ exports[`render UserGroups 1`] = `
             <button
               class="c8"
               kind="border"
-              width="137px"
+              width="134px"
             >
-              + Request Access
+              + Add to request
             </button>
           </td>
         </tr>

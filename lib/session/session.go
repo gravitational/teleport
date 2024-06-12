@@ -54,22 +54,17 @@ func (s *ID) Check() error {
 
 // ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
-	parsed, err := uuid.Parse(id)
+	_, err := uuid.Parse(id)
 	if err != nil {
 		return nil, trace.BadParameter("%v is not a valid UUID", id)
 	}
-	// use the parsed UUID to build the ID instead of the string that
-	// was passed in. id is user controlled and uuid.Parse accepts
-	// several UUID formats that are not supported correctly across
-	// Teleport. (uuid.UUID).String always uses the same format that
-	// is supported by Teleport everywhere, so use that.
-	uid := ID(parsed.String())
+	uid := ID(id)
 	return &uid, nil
 }
 
 // NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
-	return ID(uuid.NewString())
+	return ID(uuid.New().String())
 }
 
 // Session is a session of any kind (SSH, Kubernetes, Desktop, etc)

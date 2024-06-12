@@ -23,9 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -47,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -158,6 +158,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// Assist is a service that implements the Teleport Assist functionality.
+	Assist services.Assistant
+
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
 
@@ -207,14 +210,14 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
-	// CrownJewels is a service that manages CrownJewels.
-	CrownJewels services.CrownJewels
-
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
+
+	// Embeddings is a service that manages Embeddings
+	Embeddings services.Embeddings
 
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
@@ -268,6 +271,12 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// EmbeddingRetriever is a retriever for embeddings.
+	EmbeddingRetriever *ai.SimpleRetriever
+
+	// EmbeddingClient is a client that allows generating embeddings.
+	EmbeddingClient embedding.Embedder
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
@@ -489,6 +498,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err := migration.Apply(ctx, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
+	span.AddEvent("migrating db_client_authority")
+	err = migrateDBClientAuthority(ctx, asrv.Services, cfg.ClusterName.GetClusterName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("completed migration db_client_authority")
 
 	// generate certificate authorities if they don't exist
 	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
@@ -696,20 +711,6 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-var secondFactorUpgradeInstructions = `
-Teleport requires second factor authentication for local users.
-The auth_service configuration should be updated to enable it.
-
-auth_service:
-  authentication:
-    second_factor: on
-    webauthn:
-      rp_id: example.com
-
-For more information:
-- https://goteleport.com/docs/access-controls/guides/webauthn/
-`
-
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
@@ -724,15 +725,6 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				err := modules.ValidateResource(storedAuthPref)
-				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-					return trace.Wrap(err, secondFactorUpgradeInstructions)
-				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
 			return nil
 		}
 
@@ -750,9 +742,6 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
 		if trace.IsCompareFailed(err) {
 			continue
-		}
-		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)
@@ -1214,7 +1203,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		// remote cluster already exists
-		_, err = asrv.Services.GetRemoteCluster(ctx, certAuthority.GetName())
+		_, err = asrv.Services.GetRemoteCluster(certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -1235,7 +1224,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		_, err = asrv.CreateRemoteCluster(ctx, remoteCluster)
+		err = asrv.CreateRemoteCluster(remoteCluster)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
@@ -1306,4 +1295,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		}
 	}
 	return nil
+}
+
+// migrateDBClientAuthority copies Database CA as Database Client CA.
+// Does nothing if the Database Client CA already exists.
+//
+// TODO(gavin): DELETE IN 16.0.0
+func migrateDBClientAuthority(ctx context.Context, trustSvc services.Trust, cluster string) error {
+	migrationStart(ctx, "db_client_authority")
+	defer migrationEnd(ctx, "db_client_authority")
+	err := migration.MigrateDBClientAuthority(ctx, trustSvc, cluster)
+	return trace.Wrap(err)
 }

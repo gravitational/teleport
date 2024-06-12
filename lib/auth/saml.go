@@ -37,7 +37,7 @@ import (
 // TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 // we can't currently propagate wrapped errors across the gRPC boundary,
 // and we want tctl to display a clean user-facing message in this case
-var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only available in Teleport Enterprise"}
+var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in Teleport Enterprise")
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
@@ -58,16 +58,10 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	upserted, err := a.Services.UpsertSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	upsertedConnector, ok := upserted.WithoutSecrets().(*types.SAMLConnectorV2)
-	if !ok {
-		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
-	}
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -77,7 +71,6 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
-		Connector: upsertedConnector,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
@@ -93,16 +86,10 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	updated, err := a.Services.UpdateSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	updatedConnector, ok := updated.WithoutSecrets().(*types.SAMLConnectorV2)
-	if !ok {
-		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
-	}
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorUpdatedEvent,
@@ -112,7 +99,6 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
-		Connector: updatedConnector,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML connector update event.")
 	}
@@ -128,16 +114,10 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	created, err := a.Services.CreateSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newConnector, ok := created.WithoutSecrets().(*types.SAMLConnectorV2)
-	if !ok {
-		return nil, trace.BadParameter("unknown SAMLConnector type, expected *types.SAMLConnectorV2 got %T", connector)
-	}
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.SAMLConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
@@ -147,7 +127,6 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
-		Connector: newConnector,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}

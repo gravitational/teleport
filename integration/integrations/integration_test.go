@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,15 +32,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
-
-func TestMain(m *testing.M) {
-	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
-}
 
 // TestIntegrationCRUD starts a Teleport cluster and using its Proxy Web server,
 // tests the CRUD operations over the Integration resource.

@@ -31,7 +31,6 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
-import { getBackgroundColor } from '../shared/getBackgroundColor';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -61,7 +60,6 @@ export function ResourceCard({
   pinned,
   pinResource,
   selectResource,
-  requiresRequest,
   selected,
 }: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
@@ -169,7 +167,6 @@ export function ResourceCard({
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
-          requiresRequest={requiresRequest}
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
@@ -204,9 +201,6 @@ export function ResourceCard({
             width="45px"
             height="45px"
             ml={2}
-            css={`
-              opacity: ${requiresRequest ? '0.5' : '1'};
-            `}
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
@@ -344,6 +338,16 @@ const CardInnerContainer = styled(Flex)`
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
+
+const getBackgroundColor = props => {
+  if (props.selected) {
+    return props.theme.colors.interactive.tonal.primary[2];
+  }
+  if (props.pinned) {
+    return props.theme.colors.interactive.tonal.primary[0];
+  }
+  return 'transparent';
+};
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;

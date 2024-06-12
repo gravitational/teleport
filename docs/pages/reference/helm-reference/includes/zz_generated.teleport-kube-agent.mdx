@@ -14,7 +14,6 @@ when running the `teleport-kube-agent` chart.
 | Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
 | Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
 | Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
-| Teleport Jamf service        | `jamf`            | [`jamfApiEndpoint`](#jamfapiendpoint), [`jamfClientId`](#jamfclientid) |
 
 For example:
 ```yaml
@@ -453,85 +452,6 @@ kubernetesDiscovery:
   namespaces: [ "seattle", "oakland" ]
   labels:
     env: testing
-```
-
-## `jamfApiEndpoint`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`jamfApiEndpoint` sets the Jamf Pro API endpoint used for Jamf service.
-Example: "https://yourtenant.jamfcloud.com/api".
-
-This setting is required if the chart `roles` contains `jamf`.
-
-## `jamfClientId`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`jamfClientId` sets the Jamf Pro API Client ID used for Jamf service.
-
-This setting is required if the chart `roles` contains `jamf`.
-
-## `jamfClientSecret`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`jamfClientSecret` sets the Jamf Pro API client secret used for Jamf service.
-
-This setting is required if the chart `roles` contains `jamf` and `jamfCredentialsSecret.create` is set to `true`.
-If you provide your own Kubernetes Secret, this setting can remain unset.
-
-## `jamfCredentialsSecret`
-
-`jamfCredentialsSecret` manages the Kubernetes Secret containing the Jamf API credentials (either Jamf client secret or password).
-
-### `jamfCredentialsSecret.create`
-
-| Type | Default |
-|------|---------|
-| `bool` | `true` |
-
-`jamfCredentialsSecret.create` controls whether the chart creates the
-Kubernetes `Secret` containing the Jamf Pro API Client Secret.
-If false, you must create a Kubernetes Secret with the configured name in
-the Helm release namespace.
-
-### `jamfCredentialsSecret.name`
-
-| Type | Default |
-|------|---------|
-| `string` | `"teleport-jamf-api-credentials"` |
-
-`jamfCredentialsSecret.name` is the name of the Kubernetes Secret
-containing the Jamf Pro API Client Secret used by the chart.
-
-If `jamfCredentialsSecret.create` is `false`, the chart will not attempt to create the secret itself.
-Instead, it will read the value from an existing Kubernetes Secret. `jamfCredentialsSecret.name`
-configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
-Jamf Pro API Client Secret stored in your Teleport chart values.
-
-To create your own Kubernetes Secret containing Jamf Pro API Client Secret, run the command:
-
-```code
-$ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=credential=<replace-with-actual-secret>
-```
-
-<Admonition type="note">
-  The key used for the Jamf Pro API Client Secret inside the secret must be `credential`, as in the command above.
-</Admonition>
-
-For example:
-
-```yaml
-jamfCredentialsSecret:
-  create: false
-  name: my-jamf-secret
 ```
 
 ## `teleportVersionOverride`
@@ -1710,14 +1630,12 @@ for more details.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807,"seccompProfile":{"type":"RuntimeDefault"}}` |
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["all"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807}` |
 
 `initSecurityContext` sets the init container security context for any
 pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 for more details.
-
-The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
 To unset the security context, set it to `null` or `~`.
 
@@ -1725,13 +1643,11 @@ To unset the security context, set it to `null` or `~`.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807,"seccompProfile":{"type":"RuntimeDefault"}}` |
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["all"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807}` |
 
 `securityContext` sets the container security context for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 for more details.
-
-The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
 To unset the security context, set it to `null` or `~`.
 

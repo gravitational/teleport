@@ -303,16 +303,18 @@ func TLSCertLeaf(cert tls.Certificate) (*x509.Certificate, error) {
 	return x509cert, trace.Wrap(err)
 }
 
-// InitCertLeaf initializes the Leaf field for each cert in a slice of certs,
+// InitCertLeaves initializes the Leaf field for each cert in a slice of certs,
 // to reduce per-handshake processing.
 // Typically, servers should avoid doing this since it will
 // consume more memory.
-func InitCertLeaf(cert *tls.Certificate) error {
-	leaf, err := TLSCertLeaf(*cert)
-	if err != nil {
-		return trace.Wrap(err)
+func InitCertLeaves(certs []tls.Certificate) error {
+	for i := range certs {
+		leaf, err := TLSCertLeaf(certs[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certs[i].Leaf = leaf
 	}
-	cert.Leaf = leaf
 	return nil
 }
 

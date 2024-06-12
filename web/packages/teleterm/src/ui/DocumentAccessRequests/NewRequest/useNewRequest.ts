@@ -23,11 +23,6 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
-import {
-  ShowResources,
-  Cluster,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   makeDatabase,
@@ -41,9 +36,9 @@ import {
   GetResourcesParams,
   App as tshdApp,
 } from 'teleterm/services/tshd/types';
+import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
-import { toResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 
 import type {
   ResourceLabel,
@@ -58,12 +53,14 @@ const pageSize = 10;
 
 type AgentFilter = WeakAgentFilter & { sort: SortType };
 
-export default function useNewRequest(rootCluster: Cluster) {
+export default function useNewRequest() {
   const ctx = useAppContext();
   const { accessRequestsService, localClusterUri: clusterUri } =
     useWorkspaceContext();
 
   const loggedInUser = useWorkspaceLoggedInUser();
+
+  const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
@@ -71,19 +68,16 @@ export default function useNewRequest(rootCluster: Cluster) {
     ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
   const requestableRoles = loggedInUser?.requestableRoles || [];
-  const [selectedResource, setSelectedResource] = useState<ResourceKind>(
-    // If the user can request resources from unified view,
-    // we hide servers/dbs/apps/kubes tabs in the new request view
-    // and select th 'role' tab.
-    // Otherwise, we show all tabs and select 'node' as default.
-    rootCluster.showResources === ShowResources.REQUESTABLE ? 'role' : 'node'
-  );
+  const [selectedResource, setSelectedResource] =
+    useState<ResourceKind>('node');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
     sort: getDefaultSort(selectedResource),
   });
   const addedResources = accessRequestsService.getPendingAccessRequest();
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
+
+  const [toResource, setToResource] = useState<string | null>(null);
 
   const retry = <T>(action: () => Promise<T>) =>
     retryWithRelogin(ctx, clusterUri, action);
@@ -201,24 +195,18 @@ export default function useNewRequest(rootCluster: Cluster) {
     });
   }
 
+  function handleConfirmChangeResource(kind: ResourceKind) {
+    accessRequestsService.clearPendingAccessRequest();
+    updateResourceKind(kind);
+    setToResource(null);
+  }
+
   function addOrRemoveResource(
     kind: ResourceKind,
     resourceId: string,
     resourceName?: string
   ) {
-    if (kind === 'role') {
-      accessRequestsService.addOrRemoveRole(resourceId);
-      return;
-    }
-
-    accessRequestsService.addOrRemoveResource(
-      toResourceRequest({
-        kind,
-        resourceId,
-        resourceName,
-        clusterUri,
-      })
-    );
+    accessRequestsService.addOrRemoveResource(kind, resourceId, resourceName);
   }
 
   async function fetchNext() {
@@ -294,9 +282,13 @@ export default function useNewRequest(rootCluster: Cluster) {
     agentFilter,
     updateSort,
     attempt,
+    isLeafCluster,
     fetchStatus,
     updateQuery,
     updateSearch,
+    toResource,
+    handleConfirmChangeResource,
+    setToResource,
     onAgentLabelClick,
     selectedResource,
     updateResourceKind,
@@ -315,7 +307,6 @@ export default function useNewRequest(rootCluster: Cluster) {
     nextPage: page.keys[page.index + 1] ? fetchNext : null,
     prevPage: page.index > 0 ? fetchPrev : null,
     requestableRoles,
-    addedItemsCount: accessRequestsService.getAddedItemsCount(),
   };
 }
 
@@ -345,8 +336,6 @@ function getDefaultSort(kind: ResourceKind): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 
-export type ResourceKind =
-  | Extract<ResourceIdKind, 'node' | 'app' | 'db' | 'kube_cluster'>
-  | 'role';
+export type ResourceKind = ResourceIdKind | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;

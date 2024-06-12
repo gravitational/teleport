@@ -120,13 +120,13 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	importRule, err := service.CreateOktaImportRule(ctx, importRule1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule1, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	importRule, err = service.CreateOktaImportRule(ctx, importRule2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule2, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch all import rules.
@@ -134,7 +134,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule1, importRule2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of import rules
@@ -151,14 +151,14 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 
 	require.Len(t, paginatedOut, 2)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule1, importRule2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific import rule.
 	importRule, err = service.GetOktaImportRule(ctx, importRule2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule2, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an import rule that doesn't exist.
@@ -176,7 +176,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	importRule, err = service.GetOktaImportRule(ctx, importRule1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule1, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an import rule
@@ -186,7 +186,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an import rule that doesn't exist.
@@ -332,13 +332,13 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err := service.CreateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	assignment, err = service.CreateOktaAssignment(ctx, assignment2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment2, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch all assignments.
@@ -346,7 +346,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment1, assignment2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of assignments
@@ -365,14 +365,14 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment1, assignment2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific assignment.
 	assignment, err = service.GetOktaAssignment(ctx, assignment2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment2, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an assignment that doesn't exist.
@@ -394,7 +394,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fail to update the status for an assignment due to a bad transition.
@@ -412,7 +412,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an assignment
@@ -422,7 +422,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an assignment that doesn't exist.

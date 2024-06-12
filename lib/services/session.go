@@ -52,6 +52,9 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (types.WebSession,
 		if err := ws.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			ws.SetResourceID(cfg.ID)
+		}
 		if cfg.Revision != "" {
 			ws.SetRevision(cfg.Revision)
 		}
@@ -77,7 +80,7 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 		if version := webSession.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
 		}
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, webSession))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, webSession))
 	default:
 		return nil, trace.BadParameter("unrecognized web session version %T", webSession)
 	}
@@ -96,7 +99,7 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, webToken))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, webToken))
 	default:
 		return nil, trace.BadParameter("unrecognized web token version %T", webToken)
 	}
@@ -121,6 +124,9 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (types.WebToken, err
 		}
 		if err := token.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if config.ID != 0 {
+			token.SetResourceID(config.ID)
 		}
 		if config.Revision != "" {
 			token.SetRevision(config.Revision)

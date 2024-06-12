@@ -19,7 +19,6 @@
 package common
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -30,11 +29,11 @@ import (
 
 // SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.
 func SetTeleportAPIErrorHeader(rw http.ResponseWriter, err error) {
-	var debugErr trace.DebugReporter
-	if !errors.As(err, &debugErr) {
-		debugErr = &trace.TraceErr{Err: err}
+	obj, ok := err.(trace.DebugReporter)
+	if !ok {
+		obj = &trace.TraceErr{Err: err}
 	}
-	rw.Header().Set(TeleportAPIErrorHeader, debugErr.DebugReport())
+	rw.Header().Set(TeleportAPIErrorHeader, obj.DebugReport())
 }
 
 const (

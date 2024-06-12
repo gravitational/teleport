@@ -93,18 +93,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 						OnMissing:         "DELETE",
 					},
 				},
-				ClientId:     "llama-UUID", // "duplicate" creds are fine
-				ClientSecret: "supersecretsecret!!1!",
 			},
-		},
-		{
-			name: "using API credentials",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientId = "llama-UUID"
-				spec.ClientSecret = "supersecretsecret!11!"
-			}),
 		},
 		{
 			name:    "nil spec",
@@ -138,24 +127,6 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				spec.Password = ""
 			}),
 			wantErr: "password",
-		},
-		{
-			name: "client_id empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientSecret = "supersecretsecret!!1!"
-			}),
-			wantErr: "clientID",
-		},
-		{
-			name: "client_secret empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientId = "llama-UUID"
-			}),
-			wantErr: "clientSecret",
 		},
 		{
 			name: "inventory nil entry",

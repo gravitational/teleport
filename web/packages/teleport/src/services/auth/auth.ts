@@ -110,6 +110,15 @@ const auth = {
       .then(makeMfaAuthenticateChallenge);
   },
 
+  // changePasswordBegin retrieves users mfa challenges for their
+  // registered devices after verifying given password from an
+  // authenticated user.
+  mfaChangePasswordBegin(oldPass: string) {
+    return api
+      .post(cfg.api.mfaChangePasswordBegin, { pass: oldPass })
+      .then(makeMfaAuthenticateChallenge);
+  },
+
   login(userId: string, password: string, otpCode: string) {
     const data = {
       user: userId,
@@ -220,6 +229,26 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
+  changePasswordWithWebauthn(oldPass: string, newPass: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => api.post(cfg.api.mfaChangePasswordBegin, { pass: oldPass }))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          old_password: base64EncodeUnicode(oldPass),
+          new_password: base64EncodeUnicode(newPass),
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.put(cfg.api.changeUserPasswordPath, request);
+      });
+  },
+
   headlessSSOGet(transactionId: string) {
     return auth
       .checkWebauthnSupport()
@@ -258,24 +287,22 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async fetchWebAuthnChallenge(
-    req: CreateAuthenticateChallengeRequest,
-    abortSignal?: AbortSignal
-  ) {
+  async fetchWebAuthnChallenge({
+    scope,
+    allowReuse,
+    isMfaRequiredRequest,
+    userVerificationRequirement,
+  }: CreateAuthenticateChallengeRequest) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(
-            cfg.api.mfaAuthnChallengePath,
-            {
-              is_mfa_required_req: req.isMfaRequiredRequest,
-              challenge_scope: req.scope,
-              challenge_allow_reuse: req.allowReuse,
-              user_verification_requirement: req.userVerificationRequirement,
-            },
-            abortSignal
-          )
+          .post(cfg.api.mfaAuthnChallengePath, {
+            is_mfa_required_req: isMfaRequiredRequest,
+            challenge_scope: scope,
+            challenge_allow_reuse: allowReuse,
+            user_verification_requirement: userVerificationRequirement,
+          })
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -303,18 +330,14 @@ const auth = {
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest,
-    abortSignal?: AbortSignal
+    isMfaRequiredRequest?: IsMfaRequiredRequest
   ) {
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
     if (isMfaRequiredRequest) {
       try {
-        const isMFARequired = await checkMfaRequired(
-          isMfaRequiredRequest,
-          abortSignal
-        );
+        const isMFARequired = await checkMfaRequired(isMfaRequiredRequest);
         if (!isMFARequired.required) {
           return;
         }
@@ -334,10 +357,7 @@ const auth = {
     }
 
     return auth
-      .fetchWebAuthnChallenge(
-        { scope, allowReuse, isMfaRequiredRequest },
-        abortSignal
-      )
+      .fetchWebAuthnChallenge({ scope, allowReuse, isMfaRequiredRequest })
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
@@ -359,10 +379,9 @@ const auth = {
 };
 
 function checkMfaRequired(
-  params: IsMfaRequiredRequest,
-  abortSignal?
+  params: IsMfaRequiredRequest
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(), params);
 }
 
 function base64EncodeUnicode(str: string) {
@@ -381,7 +400,6 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
-  | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
@@ -422,17 +440,6 @@ export type IsMfaRequiredWindowsDesktop = {
 export type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
-    cluster_name: string;
-  };
-};
-
-export type IsMfaRequiredApp = {
-  app: {
-    // fqdn indicates (tentatively) the fully qualified domain name of the application.
-    fqdn: string;
-    // public_addr is the public address of the application.
-    public_addr: string;
-    // cluster_name is the cluster within which this application is running.
     cluster_name: string;
   };
 };

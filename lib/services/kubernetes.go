@@ -68,7 +68,7 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, server))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unsupported kube server resource %T", server)
 	}
@@ -95,6 +95,9 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)
@@ -124,7 +127,7 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, cluster))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, cluster))
 	default:
 		return nil, trace.BadParameter("unsupported kube cluster resource %T", cluster)
 	}
@@ -151,6 +154,9 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)

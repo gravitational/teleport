@@ -103,8 +103,8 @@ func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler
 
 	handler := SlogTextHandler{
 		cfg:           cfg,
-		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
-		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
+		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField),
+		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField),
 		out:           w,
 		mu:            &sync.Mutex{},
 	}
@@ -165,7 +165,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 		}
 
 		if needsQuoting(value) {
-			if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == CallerField || a.Key == slog.MessageKey {
+			if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
 				if len(buf) > 0 {
 					buf = fmt.Append(buf, " ")
 				}
@@ -179,7 +179,7 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
-		if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == CallerField || a.Key == slog.MessageKey {
+		if a.Key == teleport.ComponentKey || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
 			if len(buf) > 0 {
 				buf = fmt.Append(buf, " ")
 			}
@@ -278,7 +278,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	// fields location in the output message are static.
 	for _, field := range s.cfg.ConfiguredFields {
 		switch field {
-		case LevelField:
+		case levelField:
 			var color int
 			var level string
 			switch r.Level {
@@ -315,7 +315,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			} else {
 				*buf = fmt.Appendf(*buf, " \u001B[%dm%s\u001B[0m", color, level)
 			}
-		case ComponentField:
+		case componentField:
 			// If a component is provided with the attributes, it should be used instead of
 			// the component set on the handler. Note that if there are multiple components
 			// specified in the arguments, the one with the lowest index is used and the others are ignored.
@@ -481,9 +481,9 @@ type SlogJSONHandler struct {
 
 // NewSlogJSONHandler creates a SlogJSONHandler that outputs to w.
 func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler {
-	withCaller := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField)
-	withComponent := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, ComponentField)
-	withTimestamp := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField)
+	withCaller := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField)
+	withComponent := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, componentField)
+	withTimestamp := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField)
 
 	return &SlogJSONHandler{
 		JSONHandler: slog.NewJSONHandler(w, &slog.HandlerOptions{
@@ -496,7 +496,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						return slog.Attr{}
 					}
 
-					a.Key = ComponentField
+					a.Key = componentField
 				case slog.LevelKey:
 					var level string
 					switch lvl := a.Value.Any().(slog.Level); lvl {
@@ -527,7 +527,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						return a
 					}
 
-					a.Key = TimestampField
+					a.Key = timestampField
 					a.Value = slog.StringValue(t.Format(time.RFC3339))
 				case slog.MessageKey:
 					a.Key = messageField
@@ -537,7 +537,7 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					}
 
 					file, line := getCaller(a)
-					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
+					a = slog.String(callerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
 				// Convert [slog.KindAny] values that are backed by an [error] or [fmt.Stringer]

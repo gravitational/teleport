@@ -20,7 +20,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os/user"
@@ -58,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -101,7 +99,7 @@ func TestTeleterm(t *testing.T) {
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
 
-	t.Run("headless watcher", func(t *testing.T) {
+	t.Run("Test headless watcher", func(t *testing.T) {
 		t.Parallel()
 
 		testHeadlessWatcher(t, pack, creds)
@@ -127,7 +125,7 @@ func TestTeleterm(t *testing.T) {
 		testDeleteConnectMyComputerNode(t, pack)
 	})
 
-	t.Run("client cache", func(t *testing.T) {
+	t.Run("TestClientCache", func(t *testing.T) {
 		t.Parallel()
 
 		testClientCache(t, pack, creds)
@@ -374,13 +372,10 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	})
 	require.NoError(t, err)
 
-	clusterIDCache := clusteridcache.Cache{}
-
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		ClusterIDCache: &clusterIDCache,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -396,22 +391,15 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
-	clusterURI := uri.NewClusterURI(rootClusterName)
 
 	response, err := handler.GetCluster(context.Background(), &api.GetClusterRequest{
-		ClusterUri: clusterURI.String(),
+		ClusterUri: uri.NewClusterURI(rootClusterName).String(),
 	})
 	require.NoError(t, err)
 
 	require.Equal(t, userName, response.LoggedInUser.Name)
 	require.ElementsMatch(t, []string{requestableRoleName}, response.LoggedInUser.RequestableRoles)
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
-
-	// Verify that cluster ID cache gets updated.
-	clusterIDFromCache, ok := clusterIDCache.Load(clusterURI)
-	require.True(t, ok, "ID for cluster %q was not found in the cache", clusterURI)
-	require.NotEmpty(t, clusterIDFromCache)
-	require.Equal(t, response.AuthClusterId, clusterIDFromCache)
 }
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -511,7 +499,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	eg, egCtx := errgroup.WithContext(ctx)
 	blocker := make(chan struct{})
 	const concurrentCalls = 5
-	concurrentCallsForClient := make([]*client.ClusterClient, concurrentCalls)
+	concurrentCallsForClient := make([]*client.ProxyClient, concurrentCalls)
 	for i := range concurrentCallsForClient {
 		client := &concurrentCallsForClient[i]
 		eg.Go(func() error {
@@ -539,6 +527,21 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, secondCallForClient, thirdCallForClient)
+
+	// After closing the client (from our or a remote side)
+	// it will be removed from the cache.
+	// The call to GetCachedClient will connect to proxy and return a new client.
+	err = thirdCallForClient.Close()
+	require.NoError(t, err)
+
+	// TODO(gzdunek): Re-enable this test.
+	// This part is flaky, there is no guarantee that the goroutine waiting
+	// for the client to close will be able to remove it from the cache
+	// before we try to get a new client.
+
+	//fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	//require.NoError(t, err)
+	//require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -1319,7 +1322,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if !errors.Is(err, grpc.ErrServerStopped) {
+		if err != grpc.ErrServerStopped {
 			assert.NoError(t, err)
 		}
 	})

@@ -16,8 +16,6 @@
 
 import { formatDuration, intervalToDuration } from 'date-fns';
 
-import { ResourceMap } from '../NewRequest';
-
 export function getFormattedDurationTxt({
   start,
   end,
@@ -28,15 +26,4 @@ export function getFormattedDurationTxt({
   return formatDuration(intervalToDuration({ start, end }), {
     format: ['weeks', 'days', 'hours', 'minutes'],
   });
-}
-
-export function getNumAddedResources(addedResources: ResourceMap) {
-  return (
-    Object.keys(addedResources.node).length +
-    Object.keys(addedResources.db).length +
-    Object.keys(addedResources.app).length +
-    Object.keys(addedResources.kube_cluster).length +
-    Object.keys(addedResources.user_group).length +
-    Object.keys(addedResources.windows_desktop).length
-  );
 }

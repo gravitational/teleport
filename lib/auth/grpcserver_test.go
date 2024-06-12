@@ -26,6 +26,7 @@ import (
 	"encoding/base32"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -51,12 +52,13 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -634,9 +636,6 @@ func testAddMFADevice(ctx context.Context, t *testing.T, authClient *authclient.
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
-		},
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
 	authnSolved := opts.authHandler(t, authChal)
@@ -677,9 +676,6 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
-		},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -759,7 +755,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			userClient, err := testServer.NewClient(u)
 			require.NoError(t, err, "NewClient failed")
 
-			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+			session, err := userClient.CreateAppSession(ctx, types.CreateAppSessionRequest{
 				Username:    user.GetName(),
 				PublicAddr:  app.GetPublicAddr(),
 				ClusterName: testServer.ClusterName(),
@@ -854,9 +850,6 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
-		TestFeatures: modules.Features{
-			App: true,
-		},
 	})
 
 	testServer := newTestTLSServer(t)
@@ -957,6 +950,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		Usage:          proto.UserCertsRequest_App,
 		RouteToApp: proto.RouteToApp{
 			Name:        "hello",
+			SessionID:   "mysessionid",
 			PublicAddr:  "hello.cluster.dev",
 			ClusterName: clusterName,
 		},
@@ -990,9 +984,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		authnChal, err := client.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
-			},
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 			},
 		})
 		if err != nil {
@@ -1050,12 +1041,16 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			assertErr:          assertSuccess,
 		},
 		{
-			name:              "mode=required ignores App Access requests",
+			// Tracked here because, if this changes, then the scenario should be the
+			// same as the one above.
+			name:              "GenerateUserSingleUseCerts does not allow App usage",
 			clusterDeviceMode: constants.DeviceTrustModeRequired,
 			client:            clientWithoutDevice,
 			req:               appReq,
 			skipLoginCerts:    true,
-			assertErr:         assertSuccess,
+			assertErr: func(t *testing.T, err error) {
+				assert.ErrorContains(t, err, "app access", "GenerateUserSingleUseCerts expected to fail for usage=App")
+			},
 		},
 		{
 			name:              "mode=required ignores Desktop Access requests",
@@ -1285,26 +1280,11 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	require.NoError(t, srv.Auth().CreateWindowsDesktop(ctx, desktop))
 
-	app, err := types.NewAppV3(
-		types.Metadata{
-			Name: "app-a",
-		},
-		types.AppSpecV3{
-			URI: "localhost",
-		},
-	)
-	require.NoError(t, err)
-	appServer, err := types.NewAppServerV3FromApp(app, "app-a", "app-a")
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-
 	leaf, err := types.NewRemoteCluster("leaf")
 	require.NoError(t, err)
 
 	// create remote cluster
-	_, err = srv.Auth().CreateRemoteCluster(ctx, leaf)
-	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateRemoteCluster(leaf))
 
 	// Create a fake user.
 	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
@@ -1350,9 +1330,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc      string
-		newClient func() (*authclient.Client, error) // optional, makes a new client for the test.
-		opts      generateUserSingleUseCertsTestOpts
+		desc          string
+		newClient     func() (*authclient.Client, error) // optional, makes a new client for the test.
+		opts          generateUserSingleUseCertsTestOpts
+		skipUnaryTest bool // skip testing against GenerateUSerCerts
 	}{
 		{
 			desc: "ssh using webauthn",
@@ -1372,8 +1353,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					sshCertBytes := c.SSH
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					sshCertBytes := c.GetSSH()
 					require.NotEmpty(t, sshCertBytes)
 
 					cert, err := sshutils.ParseCertificate(sshCertBytes)
@@ -1404,8 +1385,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.SSH
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetSSH()
 					require.NotEmpty(t, crt)
 
 					cert, err := sshutils.ParseCertificate(crt)
@@ -1435,8 +1416,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1473,8 +1454,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1488,45 +1469,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, "db-a", identity.RouteToDatabase.ServiceName)
-				},
-			},
-		},
-		{
-			desc: "app",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-a",
-					},
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
-				authnHandler: registered.webAuthHandler,
-				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
-					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1551,8 +1493,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1588,8 +1530,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1603,47 +1545,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
-				},
-			},
-		},
-		{
-			desc: "app with ttl limit disabled",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry should *not* be adjusted to single user cert TTL,
-					// since ttl limiting is disabled when requester is a local proxy.
-					// It *should* be adjusted to the user cert ttl though.
-					Expires: clock.Now().Add(1000 * time.Hour),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-a",
-					},
-					RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
-				authnHandler: registered.webAuthHandler,
-				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, userCertExpires, cert.NotAfter)
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
-					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1667,8 +1568,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1750,9 +1651,9 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					// SSH certificate.
-					sshRaw := c.SSH
+					sshRaw := c.GetSSH()
 					require.NotEmpty(t, sshRaw, "Got empty single-use SSH certificate")
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
@@ -1798,9 +1699,9 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				verifyErr: require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
 					// TLS certificate.
-					tlsRaw := c.TLS
+					tlsRaw := c.GetTLS()
 					require.NotEmpty(t, tlsRaw, "Got empty single-use TLS certificate")
 
 					block, _ := pem.Decode(tlsRaw)
@@ -1816,6 +1717,30 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					}
 				},
 			},
+		},
+		{
+			desc: "fail - mfa not required when RBAC prevents access",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_SSH,
+					NodeName:  "node-a",
+					SSHLogin:  "llama", // not an allowed login which prevents access
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, required)
+				},
+				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					// Return no challenge response.
+					return &proto.MFAAuthenticateResponse{}
+				},
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorIs(t, err, io.EOF, i...)
+				},
+			},
+			skipUnaryTest: true,
 		},
 		{
 			desc: "mfa unspecified when no SSHLogin provided",
@@ -1857,8 +1782,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1896,8 +1821,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1911,46 +1836,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, "db-b", identity.RouteToDatabase.ServiceName)
-				},
-			},
-		},
-		{
-			desc: "app in leaf cluster",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-b",
-					},
-					RouteToCluster: "leaf",
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
-				},
-				authnHandler: registered.webAuthHandler,
-				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					crt := c.TLS
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
-					require.Equal(t, "app-b", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
-					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
 		},
@@ -1973,8 +1858,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					sshCertBytes := c.SSH
+				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					sshCertBytes := c.GetSSH()
 					require.NotEmpty(t, sshCertBytes)
 
 					cert, err := sshutils.ParseCertificate(sshCertBytes)
@@ -1984,6 +1869,20 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
+				},
+			},
+		},
+		{
+			desc: "fail - app access not supported",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:     proto.UserCertsRequest_App,
+				},
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "app access")
 				},
 			},
 		},
@@ -1997,7 +1896,16 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				require.NoError(t, err, "newClient failed")
 			}
 
-			testGenerateUserSingleUseCerts(ctx, t, testClient, tt.opts)
+			t.Run("stream", func(t *testing.T) {
+				testGenerateUserSingleUseCertsStream(ctx, t, testClient, tt.opts)
+			})
+			if tt.skipUnaryTest {
+				return
+			}
+
+			t.Run("unary", func(t *testing.T) {
+				testGenerateUserSingleUseCertsUnary(ctx, t, testClient, tt.opts)
+			})
 		})
 	}
 }
@@ -2007,16 +1915,69 @@ type generateUserSingleUseCertsTestOpts struct {
 	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaRequiredHandler func(*testing.T, proto.MFARequired)
 	verifyErr          require.ErrorAssertionFunc
-	verifyCert         func(*testing.T, *proto.Certs)
+	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
-func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
+	runStream := func() (*proto.SingleUseUserCert, error) {
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
+		stream, err := cl.GenerateUserSingleUseCerts(ctx)
+		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
+
+		// Init.
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
+		if err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_Init{
+				Init: opts.initReq,
+			},
+		}); err != nil {
+			return nil, err
+		}
+
+		// Challenge response.
+		authChallenge, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+		authnChal := authChallenge.GetMFAChallenge()
+		opts.mfaRequiredHandler(t, authnChal.MFARequired)
+		authnSolved := opts.authnHandler(t, authnChal)
+
+		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
+		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
+				MFAResponse: authnSolved,
+			},
+		}); {
+		case err != nil && authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO:
+			require.ErrorIs(t, err, io.EOF, "Want the server to close the stream when MFA is not required")
+		case err != nil:
+			return nil, err
+		}
+
+		// Certs.
+		certs, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+
+		assert.NoError(t, stream.CloseSend(), "CloseSend")
+		return certs.GetCert(), err
+	}
+
+	certs, err := runStream()
+	opts.verifyErr(t, err)
+	if err != nil {
+		return
+	}
+
+	opts.verifyCert(t, certs)
+}
+
+func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *authclient.Client, opts generateUserSingleUseCertsTestOpts) {
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
-		},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
@@ -2033,7 +1994,18 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authc
 		return
 	}
 
-	opts.verifyCert(t, certs)
+	singleUseCert := &proto.SingleUseUserCert{}
+	switch {
+	case len(certs.SSH) > 0:
+		singleUseCert.Cert = &proto.SingleUseUserCert_SSH{
+			SSH: certs.SSH,
+		}
+	case len(certs.TLS) > 0:
+		singleUseCert.Cert = &proto.SingleUseUserCert_TLS{
+			TLS: certs.TLS,
+		}
+	}
+	opts.verifyCert(t, singleUseCert)
 }
 
 var requireMFATypes = []types.RequireMFAType{
@@ -2322,127 +2294,6 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 			assert.Equal(t, tc.want, resp.MFARequired, "MFARequired mismatch")
 			assert.Equal(t, MFARequiredToBool(tc.want), resp.Required, "Required mismatch")
 		})
-	}
-}
-
-func TestIsMFARequired_App(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	appA, err := types.NewAppV3(types.Metadata{
-		Name: "app-a",
-		Labels: map[string]string{
-			"env": "dev",
-		},
-	}, types.AppSpecV3{
-		URI:        "app-a",
-		PublicAddr: "appa.example.com",
-	})
-	require.NoError(t, err)
-	appAServer, err := types.NewAppServerV3FromApp(appA, "host", "host-id")
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, appAServer)
-	require.NoError(t, err)
-
-	accessDevApp, err := types.NewRole("access-a", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				"env": []string{"dev"},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertRole(ctx, accessDevApp)
-	require.NoError(t, err)
-
-	accessDevAppMFA, err := types.NewRole("access-a-mfa", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequireMFAType: types.RequireMFAType_SESSION,
-		},
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				"env": []string{"dev"},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertRole(ctx, accessDevAppMFA)
-	require.NoError(t, err)
-
-	accessStagingAppMFA, err := types.NewRole("access-b-mfa", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			RequireMFAType: types.RequireMFAType_SESSION,
-		},
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				"env": []string{"staging"},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertRole(ctx, accessStagingAppMFA)
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		name              string
-		authPrefMFAType   types.RequireMFAType
-		roles             []string
-		expectMFARequired proto.MFARequired
-	}{
-		{
-			name:              "mfa not required",
-			authPrefMFAType:   types.RequireMFAType_OFF,
-			roles:             []string{accessDevApp.GetName()},
-			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-		}, {
-			name:              "mfa required by role",
-			authPrefMFAType:   types.RequireMFAType_OFF,
-			roles:             []string{accessDevAppMFA.GetName()},
-			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-		}, {
-			name:              "mfa required by cap",
-			authPrefMFAType:   types.RequireMFAType_SESSION,
-			roles:             []string{accessDevApp.GetName()},
-			expectMFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-		}, {
-			name:              "mfa not required from unmatched role role",
-			authPrefMFAType:   types.RequireMFAType_OFF,
-			roles:             []string{accessDevApp.GetName(), accessStagingAppMFA.GetName()},
-			expectMFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-		},
-	} {
-		// Update auth pref mfa type
-		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			SecondFactor:   constants.SecondFactorOptional,
-			RequireMFAType: tc.authPrefMFAType,
-			Webauthn: &types.Webauthn{
-				RPID: "teleport",
-			},
-		})
-		require.NoError(t, err)
-		_, err = srv.Auth().UpsertAuthPreference(ctx, authPref)
-		require.NoError(t, err)
-
-		// Create a user with test case roles.
-		user, err := types.NewUser("alice")
-		require.NoError(t, err)
-		user.SetRoles(tc.roles)
-		user, err = srv.Auth().UpsertUser(ctx, user)
-		require.NoError(t, err)
-
-		cl, err := srv.NewClient(TestUser(user.GetName()))
-		require.NoError(t, err)
-
-		resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-			Target: &proto.IsMFARequiredRequest_App{App: &proto.RouteToApp{
-				Name: "app-a",
-			}},
-		})
-		require.NoError(t, err)
-
-		assert.Equal(t, tc.expectMFARequired, resp.MFARequired, "IsMFARequired mismatch")
-		assert.Equal(t, tc.expectMFARequired == proto.MFARequired_MFA_REQUIRED_YES, resp.Required, "Required mismatch")
 	}
 }
 
@@ -2791,7 +2642,7 @@ func TestNodesCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, nodes, 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNodes should not fail if namespace is empty
 			_, err = clt.GetNodes(ctx, "")
@@ -2803,7 +2654,7 @@ func TestNodesCRUD(t *testing.T) {
 			node, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNode should fail if node name isn't provided
 			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
@@ -2902,7 +2753,7 @@ func TestLocksCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
@@ -2911,7 +2762,7 @@ func TestLocksCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
@@ -2919,7 +2770,7 @@ func TestLocksCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match none of the locks.
 			locks, err = clt.GetLocks(ctx, false, roleTarget)
@@ -2932,7 +2783,7 @@ func TestLocksCRUD(t *testing.T) {
 			lock, err := clt.GetLock(ctx, lock1.GetName())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(lock1, lock,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Attempt to get a nonexistent lock.
 			_, err = clt.GetLock(ctx, "lock3")
@@ -3012,7 +2863,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update an app server.
@@ -3022,7 +2873,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an app server.
@@ -3031,7 +2882,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{server2, server3}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete all app servers.
@@ -3082,14 +2933,14 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific app.
 	app, err := clt.GetApp(ctx, app2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app2, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an app that doesn't exist.
@@ -3107,7 +2958,7 @@ func TestAppsCRUD(t *testing.T) {
 	app, err = clt.GetApp(ctx, app1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app1, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an app.
@@ -3116,7 +2967,7 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an app that doesn't exist.
@@ -3163,7 +3014,7 @@ func TestAppServersCRUD(t *testing.T) {
 
 	appServer := resources.Resources[0].(types.AppServer)
 	require.Empty(t, cmp.Diff(appServer, appServer1,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
@@ -3216,7 +3067,7 @@ func TestAppServersCRUD(t *testing.T) {
 	app2.SetOrigin(types.OriginOkta)
 	appServer = resources.Resources[0].(types.AppServer)
 	require.Empty(t, cmp.Diff(appServer, appServer2,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
@@ -3271,14 +3122,14 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific database.
 	db, err := clt.GetDatabase(ctx, db2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(db2, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a database that doesn't exist.
@@ -3296,7 +3147,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	db, err = clt.GetDatabase(ctx, db1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(db1, db,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a database.
@@ -3305,7 +3156,7 @@ func TestDatabasesCRUD(t *testing.T) {
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a database that doesn't exist.
@@ -3387,7 +3238,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update a DatabaseService.
@@ -3409,7 +3260,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a DatabaseService.
@@ -3425,7 +3276,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.DatabaseService{db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a DatabaseService that doesn't exist.
@@ -3488,7 +3339,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	}
 
 	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
-		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	}
 
 	t.Run("ServerInfoGetters", func(t *testing.T) {
@@ -3590,7 +3441,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextKey)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, listResp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Update a service provider.
@@ -3603,7 +3454,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextKey)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp1, sp2}, listResp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete a service provider.
@@ -3613,7 +3464,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextKey)
 	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp2}, listResp,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a service provider that doesn't exist.
@@ -4367,6 +4218,245 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	}
 }
 
+// DELETE IN 16.0
+// TestPing_VersionCheck_AccessMonitoringFlag tests that client versions <=14.2.0
+// sets the IGS flag. Old clients will expect IGS == access monitoring.
+func TestPing_VersionCheck_AccessMonitoringFlag(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				Enabled: true,
+			},
+		},
+	})
+
+	srv := newTestTLSServer(t)
+	srv.Auth().accessMonitoringEnabled = true
+
+	user, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), "user", nil)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Test with latest major version that supports access monitoring field.
+	// Should NOT enable IGS.
+	ctx := context.Background()
+	ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+		metadata.VersionKey: "15.0.0",
+	})
+	ping, err := client.Ping(ctx)
+	require.NoError(t, err)
+	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
+	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
+
+	// Test with minimum major/minor/patch version that supports access monitoring field.
+	// Should NOT enable IGS.
+	ctx2 := context.Background()
+	ctx2 = metadata.AddMetadataToContext(ctx2, map[string]string{
+		metadata.VersionKey: "14.2.1",
+	})
+	ping, err = client.Ping(ctx2)
+	require.NoError(t, err)
+	require.False(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be false")
+	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
+
+	// Test with version that does NOT support access monitoring field.
+	// Should return with IGS enabled to mean access monitoring was enabled
+	// (because that's what older clients expect)
+	ctx3 := context.Background()
+	ctx3 = metadata.AddMetadataToContext(ctx3, map[string]string{
+		metadata.VersionKey: "14.2.0",
+	})
+	ping, err = client.Ping(ctx3)
+	require.NoError(t, err)
+	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
+	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
+
+	// Test with an older version.
+	// Should return with IGS enabled to mean access monitoring was enabled
+	// (because that's what older clients expect)
+	ctx4 := context.Background()
+	ctx4 = metadata.AddMetadataToContext(ctx4, map[string]string{
+		metadata.VersionKey: "13.3.0",
+	})
+	ping, err = client.Ping(ctx4)
+	require.NoError(t, err)
+	require.True(t, ping.ServerFeatures.IdentityGovernance, "expected field IdentityGovernance to be true")
+	require.True(t, ping.ServerFeatures.AccessMonitoring.Enabled, "expected field AccessMonitoring.Enabled to be true")
+}
+
+func TestRoleVersions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, version, spec)
+		meta := role.GetMetadata()
+		role.SetMetadata(meta)
+		require.NoError(t, err)
+		return role
+	}
+
+	role := newRole("test_role_1", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+		},
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+		},
+	})
+
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc             string
+		clientVersions   []string
+		expectError      bool
+		inputRole        types.Role
+		expectedRole     types.Role
+		expectDowngraded bool
+	}{
+		{
+			desc: "up to date",
+			clientVersions: []string{
+				"15.1.2", api.Version, "",
+			},
+			inputRole:    role,
+			expectedRole: role,
+		},
+		{
+			desc: "downgrade host user creation mode only",
+			clientVersions: []string{
+				"14.0.0-alpha.1",
+			},
+			inputRole: role,
+			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Options: types.RoleOptions{
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+				},
+			}),
+			expectDowngraded: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for _, clientVersion := range tc.clientVersions {
+				t.Run(clientVersion, func(t *testing.T) {
+					// setup client metadata
+					ctx := context.Background()
+					if clientVersion == "" {
+						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+					} else {
+						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+							metadata.VersionKey: clientVersion,
+						})
+					}
+
+					checkRole := func(gotRole types.Role) {
+						t.Helper()
+						if tc.expectError {
+							return
+						}
+						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
+							cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Labels")))
+						// The downgraded label value won't match exactly because it
+						// includes the client version, so just check it's not empty
+						// and ignore it in the role diff.
+						if tc.expectDowngraded {
+							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+						}
+					}
+					checkErr := func(err error) {
+						t.Helper()
+						if tc.expectError {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+
+					// Test GetRole
+					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
+					checkErr(err)
+					checkRole(gotRole)
+
+					// Test GetRoles
+					gotRoles, err := client.GetRoles(ctx)
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range gotRoles {
+							if gotRole.GetName() != tc.inputRole.GetName() {
+								continue
+							}
+							checkRole(gotRole)
+							foundTestRole = true
+							break
+						}
+						require.True(t, foundTestRole, "GetRoles result does not include expected role")
+					}
+
+					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					// Test WatchEvents
+					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+					require.NoError(t, err)
+					defer watcher.Close()
+
+					// Swallow the init event
+					e := <-watcher.Events()
+					require.Equal(t, types.OpInit, e.Type)
+
+					// Re-upsert the role so that the watcher sees it, do this
+					// on the auth server directly to avoid the
+					// TeleportDowngradedLabel check in ServerWithRoles
+					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
+					require.NoError(t, err)
+
+					gotRole, err = func() (types.Role, error) {
+						for {
+							select {
+							case <-watcher.Done():
+								return nil, watcher.Error()
+							case e := <-watcher.Events():
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
+									return gotRole, nil
+								}
+							}
+						}
+					}()
+					checkErr(err)
+					checkRole(gotRole)
+
+					if !tc.expectError {
+						// Try to re-upsert the role we got. If it was
+						// downgraded, it should be rejected due to the
+						// TeleportDowngradedLabel
+						_, err = client.UpsertRole(ctx, gotRole)
+						if tc.expectDowngraded {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestUpsertApplicationServerOrigin(t *testing.T) {
 	t.Parallel()
 
@@ -4454,6 +4544,108 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	ctx = authz.ContextWithUser(parentCtx, node.I)
 	_, err = client.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
+}
+
+func TestDropDBClientCAEvents(t *testing.T) {
+	server := newTestTLSServer(t)
+	client, err := server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleDatabase,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	})
+	require.NoError(t, err)
+
+	dbClientCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseClientCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbClientCAs, 1)
+
+	dbCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+
+	tests := []struct {
+		desc          string
+		clientVersion string
+		filter        map[string]string
+		expectDrop    bool
+	}{
+		{
+			desc:          "send db client CA events to supported client",
+			clientVersion: dbClientCACutoffVersion.String(),
+		},
+		{
+			desc:          "drop db client CA events to unsupported client",
+			clientVersion: "14.0.0",
+			expectDrop:    true,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			clientCtx := metadata.AddMetadataToContext(ctx,
+				map[string]string{
+					metadata.VersionKey: test.clientVersion,
+				})
+
+			requestedKind := types.WatchKind{Kind: types.KindCertAuthority, LoadSecrets: false}
+			watcher, err := client.NewWatcher(clientCtx, types.Watch{
+				Name:  "cas",
+				Kinds: []types.WatchKind{requestedKind},
+			})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			// Swallow the init event
+			e := <-watcher.Events()
+			require.Equal(t, types.OpInit, e.Type)
+			status, ok := e.Resource.(types.WatchStatus)
+			require.True(t, ok)
+			require.NotNil(t, status)
+			kinds := status.GetKinds()
+			for _, k := range kinds {
+				if k.Kind == types.KindCertAuthority {
+					require.Equal(t, requestedKind, k)
+				}
+			}
+
+			// update the db client ca so the watcher gets an OpPut event
+			dbClientCAs[0].SetName(fmt.Sprintf("stub_%v", i))
+			err = server.Auth().UpsertCertAuthority(ctx, dbClientCAs[0])
+			require.NoError(t, err)
+
+			// update the db ca so the watcher gets an OpPut event
+			dbCAs[0].SetName(fmt.Sprintf("stub_%v", i))
+			err = server.Auth().UpsertCertAuthority(ctx, dbCAs[0])
+			require.NoError(t, err)
+
+			gotCA, err := func() (types.CertAuthority, error) {
+				for {
+					select {
+					case <-watcher.Done():
+						return nil, watcher.Error()
+					case e := <-watcher.Events():
+						if ca, ok := e.Resource.(types.CertAuthority); ok {
+							return ca, nil
+						}
+					}
+				}
+			}()
+			require.NoError(t, err)
+			if test.expectDrop {
+				// the watcher should only see the second ca event.
+				require.Equal(t, types.DatabaseCA, gotCA.GetType(), "db client CA event was supposed to be dropped")
+				return
+			}
+			// watcher should see the first event if it wasn't dropped.
+			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
 }
 
 func TestGetAccessGraphConfig(t *testing.T) {

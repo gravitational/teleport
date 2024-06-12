@@ -89,7 +89,7 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 		authPreferencesCurrent, err := s.client.GetAuthPreference(ctx)
 		require.NoError(s.T(), err)
 
-		return authPreferencesBefore.GetMetadata().Revision != authPreferencesCurrent.GetMetadata().Revision
+		return authPreferencesBefore.GetMetadata().ID != authPreferencesCurrent.GetMetadata().ID
 	}, 5*time.Second, time.Second)
 
 	resource.Test(s.T(), resource.TestCase{

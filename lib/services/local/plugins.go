@@ -51,6 +51,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
 		Value:   value,
 		Expires: plugin.Expiry(),
+		ID:      plugin.GetResourceID(),
 	}
 	_, err = s.backend.Create(ctx, item)
 	if err != nil {
@@ -118,7 +119,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -168,7 +169,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -228,7 +229,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -250,6 +251,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
+		ID:       plugin.GetResourceID(),
 		Revision: rev,
 	})
 

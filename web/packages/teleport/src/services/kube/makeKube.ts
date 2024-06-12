@@ -19,7 +19,7 @@
 import { Kube } from './types';
 
 export default function makeKube(json): Kube {
-  const { name, requiresRequest } = json;
+  const { name } = json;
   const labels = json.labels || [];
 
   return {
@@ -28,6 +28,5 @@ export default function makeKube(json): Kube {
     labels,
     users: json.kubernetes_users || [],
     groups: json.kubernetes_groups || [],
-    requiresRequest,
   };
 }

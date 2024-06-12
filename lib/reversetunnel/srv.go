@@ -192,6 +192,13 @@ type Config struct {
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
 
+	// DELETE IN: 8.0.0
+	//
+	// NewCachingAccessPointOldProxy is an access point that can be configured
+	// with the old access point policy until all clusters are migrated to 7.0.0
+	// and above.
+	NewCachingAccessPointOldProxy authclient.NewRemoteProxyCachingAccessPoint
+
 	// PeerClient is a client to peer proxy servers.
 	PeerClient *peer.Client
 
@@ -407,7 +414,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAccessPoint.GetRemoteClusters(s.ctx)
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}
@@ -1202,7 +1209,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 
-	accessPoint, err := createRemoteAccessPoint(srv, clt, domainName)
+	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1275,10 +1282,28 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-func createRemoteAccessPoint(srv *server, clt authclient.ClientI, domainName string) (authclient.RemoteProxyAccessPoint, error) {
+// Checks if the cluster that is connecting is a pre-v13 cluster. If it is,
+// we disable the watcher for resources not supported in a v12 leaf cluster:
+// - (to fill when we add new resources)
+//
+// **WARNING**: Ensure that the version below matches the version in which backward incompatible
+// changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
+// never become healthy due to unknown resources.
+func createRemoteAccessPoint(srv *server, clt authclient.ClientI, version, domainName string) (authclient.RemoteProxyAccessPoint, error) {
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessPointFunc := srv.Config.NewCachingAccessPoint
+	if !ok {
+		srv.log.Debugf("cluster %q running %q is connecting, loading old cache policy.", domainName, version)
+		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
+	}
+
 	// Configure access to the cached subset of the Auth Server API of the remote
 	// cluster this remote site provides access to.
-	accessPoint, err := srv.Config.NewCachingAccessPoint(clt, []string{"reverse", domainName})
+	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

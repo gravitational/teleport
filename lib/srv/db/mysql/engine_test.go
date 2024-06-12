@@ -23,7 +23,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -31,13 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestMain(m *testing.M) {
-	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
-}
 
 func TestFetchMySQLVersion(t *testing.T) {
 	t.Parallel()

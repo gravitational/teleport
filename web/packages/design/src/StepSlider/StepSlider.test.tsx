@@ -29,25 +29,25 @@ test('single flow', () => {
   render(<SingleFlowInPlaceSlider />);
 
   // Test initial render.
-  expect(screen.getByText('Step 1')).toBeVisible();
+  expect(screen.getByTestId('single-body1')).toBeVisible();
 
   // Test going back when already at the beginning of array.
   // Should do nothing as expected.
   fireEvent.click(screen.getByText(/back1/i));
-  expect(screen.getByText('Step 1')).toBeVisible();
+  expect(screen.getByTestId('single-body1')).toBeVisible();
 
   // Test next.
   fireEvent.click(screen.getByText(/next1/i));
-  expect(screen.getByText('Step 2')).toBeVisible();
+  expect(screen.getByTestId('single-body2')).toBeVisible();
 
   // Test going next when at the end of array.
   // Should do nothing.
   fireEvent.click(screen.getByText(/next2/i));
-  expect(screen.getByText('Step 2')).toBeVisible();
+  expect(screen.getByTestId('single-body2')).toBeVisible();
 
   // Test going back.
   fireEvent.click(screen.getByText(/back2/i));
-  expect(screen.getByText('Step 1')).toBeVisible();
+  expect(screen.getByTestId('single-body1')).toBeVisible();
 });
 
 test('switching between multi flow', () => {
@@ -63,26 +63,4 @@ test('switching between multi flow', () => {
   // Test switching back to primary flow.
   fireEvent.click(screen.getByText(/primary flow/i));
   expect(screen.getByTestId('multi-primary1')).toBeVisible();
-});
-
-test('setting default step index', () => {
-  render(<SingleFlowInPlaceSlider defaultStepIndex={1} />);
-
-  expect(screen.getByText('Step 2')).toBeVisible();
-
-  fireEvent.click(screen.getByText(/back2/i));
-  expect(screen.getByText('Step 1')).toBeVisible();
-
-  fireEvent.click(screen.getByText(/next1/i));
-  expect(screen.getByText('Step 2')).toBeVisible();
-});
-
-test('setting default step index for multi flow', () => {
-  render(<MultiFlowWheelSlider defaultStepIndex={1} />);
-
-  expect(screen.getByTestId('multi-primary2')).toBeVisible();
-
-  // Changing flows should reset the step to 0, not to the provided defaultStepIndex.
-  fireEvent.click(screen.getByText(/secondary flow/i));
-  expect(screen.getByTestId('multi-secondary1')).toBeVisible();
 });

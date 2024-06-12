@@ -161,11 +161,6 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
 
-	// Disable session recording to prevent writing to disk after the test concludes.
-	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
-	// Speeds up tests considerably.
-	cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
-
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
@@ -378,6 +373,12 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	}, time.Second*10, time.Second)
 }
 
+func WithoutSessionRecording() TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
+	})
+}
+
 type cliModules struct{}
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
@@ -391,16 +392,6 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
-}
-
-// IsEnterpriseBuild returns false for [cliModules].
-func (p *cliModules) IsEnterpriseBuild() bool {
-	return false
-}
-
-// IsOSSBuild returns false for [cliModules].
-func (p *cliModules) IsOSSBuild() bool {
-	return false
 }
 
 // PrintVersion prints the Teleport version.

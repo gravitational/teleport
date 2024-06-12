@@ -21,7 +21,6 @@ package db
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -897,16 +896,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	var errs []error
+	var errors []error
 	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
 		<-ctx.Done()
 
-		if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
-			errs = append(errs, err)
+		if err := ctx.Err(); err != nil && err != context.Canceled {
+			errors = append(errors, err)
 		}
 	}
 
-	return trace.NewAggregate(errs...)
+	return trace.NewAggregate(errors...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -941,7 +940,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
-	err := tlsConn.HandshakeContext(s.closeContext)
+	err := tlsConn.Handshake()
 	if err != nil {
 		log.WithError(err).Error("Failed to perform TLS handshake.")
 		return

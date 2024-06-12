@@ -370,7 +370,7 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
-// sessionStartTime fetches the session start time based on the certificate
+// sessionStartTime fetches the session start time based on the the certificate
 // valid date.
 func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
@@ -730,7 +730,7 @@ See https://goteleport.com/docs/access-controls/device-trust/device-management/#
 // carry identity in the client certificate.
 func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, authz.IdentityGetter, types.Application, error) {
 	tlsConn := tls.Server(conn, c.tlsConfig)
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
+	if err := tlsConn.Handshake(); err != nil {
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 

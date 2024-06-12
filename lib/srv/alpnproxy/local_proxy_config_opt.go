@@ -75,11 +75,11 @@ func WithClusterCAs(ctx context.Context, getClusterCertPool GetClusterCACertPool
 	}
 }
 
-// WithClientCert is a LocalProxyConfigOpt that sets the client certs used to
+// WithClientCerts is a LocalProxyConfigOpt that sets the client certs used to
 // connect to the remote Teleport Proxy.
-func WithClientCert(cert tls.Certificate) LocalProxyConfigOpt {
+func WithClientCerts(certs ...tls.Certificate) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
-		config.Cert = cert
+		config.Certs = certs
 		return nil
 	}
 }
@@ -126,11 +126,11 @@ func WithMiddleware(middleware LocalProxyMiddleware) LocalProxyConfigOpt {
 	}
 }
 
-// WithCheckCertNeeded is a LocalProxyConfigOpt that enables check certs on
+// WithCheckCertsNeeded is a LocalProxyConfigOpt that enables check certs on
 // demand.
-func WithCheckCertNeeded() LocalProxyConfigOpt {
+func WithCheckCertsNeeded() LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
-		config.CheckCertNeeded = true
+		config.CheckCertsNeeded = true
 		return nil
 	}
 }

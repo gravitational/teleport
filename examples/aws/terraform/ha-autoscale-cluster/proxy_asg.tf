@@ -124,7 +124,7 @@ resource "aws_launch_template" "proxy" {
       region                   = data.aws_region.current.name
       cluster_name             = var.cluster_name
       auth_server_addr         = aws_lb.auth.dns_name
-      proxy_server_lb_addr     = var.use_acm ? var.use_tls_routing ? aws_lb.proxy_acm[0].dns_name : aws_lb.proxy[0].dns_name : aws_lb.proxy[0].dns_name
+      proxy_server_lb_addr     = var.use_acm ? aws_lb.proxy_acm[0].dns_name : aws_lb.proxy[0].dns_name
       proxy_server_nlb_alias   = var.route53_domain_acm_nlb_alias
       email                    = var.email
       domain_name              = var.route53_domain

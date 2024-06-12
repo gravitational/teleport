@@ -57,7 +57,7 @@ const (
 
 // Display is an XServer display.
 type Display struct {
-	// HostName is the display's hostname. For tcp display sockets, this will be
+	// HostName is the the display's hostname. For tcp display sockets, this will be
 	// an ip address. For unix display sockets, this will be empty or "unix".
 	HostName string `json:"hostname"`
 	// DisplayNumber is a number representing an x display.

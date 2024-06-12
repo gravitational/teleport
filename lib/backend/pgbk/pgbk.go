@@ -410,6 +410,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 				Key:      key,
 				Value:    value,
 				Expires:  expires.UTC(),
+				ID:       idFromRevision(revision),
 				Revision: revisionToString(revision),
 			}
 			return nil
@@ -463,6 +464,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 					Key:      key,
 					Value:    value,
 					Expires:  expires.UTC(),
+					ID:       idFromRevision(revision),
 					Revision: revisionToString(revision),
 				}, nil
 			})

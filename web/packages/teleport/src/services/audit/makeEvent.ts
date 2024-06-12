@@ -1399,22 +1399,6 @@ export const formatters: Formatters = {
         ? `User [${user}] has updated a device`
         : `User [${user}] has failed to update a device`,
   },
-  [eventCodes.DEVICE_WEB_TOKEN_CREATE]: {
-    type: 'device.webtoken.create',
-    desc: 'Device Web Token Created',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
-        ? `User [${user}] has issued a device web token`
-        : `User [${user}] has failed to issue a device web token`,
-  },
-  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
-    type: 'device.authenticate.confirm',
-    desc: 'Device Web Authentication Confirmed',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
-        ? `User [${user}] has confirmed device web authentication`
-        : `User [${user}] has failed to confirm device web authentication`,
-  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1637,17 +1621,6 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
-  [eventCodes.OKTA_USER_SYNC]: {
-    type: 'okta.user.sync',
-    desc: 'Okta user synchronization completed',
-    format: ({ num_users_created, num_users_modified, num_users_deleted }) =>
-      `[${num_users_created}] users added, [${num_users_modified}] users updated, [${num_users_deleted}] users deleted`,
-  },
-  [eventCodes.OKTA_USER_SYNC_FAILURE]: {
-    type: 'okta.user.sync',
-    desc: 'Okta user synchronization failed',
-    format: () => `Okta user synchronization failed`,
-  },
   [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
     type: 'okta.access_list.sync',
     desc: 'Okta access list synchronization completed',
@@ -1822,16 +1795,6 @@ export const formatters: Formatters = {
     desc: 'Session Recording Configuration Updated',
     format: ({ user }) =>
       `User [${user}] updated the cluster session recording configuration`,
-  },
-  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: {
-    type: 'access_graph.path.changed',
-    desc: 'Access Path Changed',
-    format: ({
-      affected_resource_kind,
-      affected_resource_name,
-      affected_resource_source,
-    }) =>
-      `${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed an access path`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',

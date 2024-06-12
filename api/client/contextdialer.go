@@ -320,7 +320,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 			InsecureSkipVerify: insecure,
 			ServerName:         host,
 		})
-		if err := tlsConn.HandshakeContext(ctx); err != nil {
+		if err := tlsConn.Handshake(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

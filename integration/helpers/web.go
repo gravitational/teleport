@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -174,7 +175,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AuthBearer, w.bearerToken)
+	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -192,16 +193,5 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	header.Add("Cookie", cookie.String())
 
 	ws, resp, err := dialer.Dial(u.String(), header)
-	require.NoError(t, err)
-
-	authReq, err := json.Marshal(struct {
-		Token string `json:"token"`
-	}{Token: w.bearerToken})
-	require.NoError(t, err)
-
-	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
-		return nil, nil, err
-	}
-
-	return ws, resp, nil
+	return ws, resp, trace.Wrap(err)
 }

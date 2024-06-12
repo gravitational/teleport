@@ -55,8 +55,7 @@ func IsFailedToSendCloseNotifyError(err error) bool {
 func IsOKNetworkError(err error) bool {
 	// trace.Aggregate contains at least one error and all the errors are
 	// non-nil
-	var a trace.Aggregate
-	if errors.As(trace.Unwrap(err), &a) {
+	if a, ok := trace.Unwrap(err).(trace.Aggregate); ok {
 		for _, err := range a.Errors() {
 			if !IsOKNetworkError(err) {
 				return false
@@ -71,9 +70,14 @@ func IsOKNetworkError(err error) bool {
 func IsConnectionRefused(err error) bool {
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
-		return errors.Is(errno, syscall.ECONNREFUSED)
+		return errno == syscall.ECONNREFUSED
 	}
 	return false
+}
+
+// IsExpiredCredentialError checks if an error corresponds to expired credentials.
+func IsExpiredCredentialError(err error) bool {
+	return IsHandshakeFailedError(err) || IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
 }
 
 // IsUntrustedCertErr checks if an error is an untrusted cert error.

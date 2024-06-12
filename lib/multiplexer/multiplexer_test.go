@@ -609,7 +609,7 @@ func TestMux(t *testing.T) {
 		}
 		go func() {
 			err := httpServer.Serve(tlsLis.HTTP())
-			if err == nil || errors.Is(err, http.ErrServerClosed) {
+			if err == nil || err == http.ErrServerClosed {
 				errCh <- nil
 				return
 			}

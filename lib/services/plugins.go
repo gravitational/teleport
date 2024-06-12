@@ -56,7 +56,7 @@ func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
 		}
 
 		var buf bytes.Buffer
-		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoRevision(cfg.PreserveRevision, plugin))
+		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoResourceID(cfg.PreserveResourceID, plugin))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -88,6 +88,9 @@ func UnmarshalPlugin(data []byte, opts ...MarshalOption) (types.Plugin, error) {
 		}
 		if err := plugin.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			plugin.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			plugin.SetRevision(cfg.Revision)

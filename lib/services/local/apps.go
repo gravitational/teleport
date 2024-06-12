@@ -48,7 +48,7 @@ func (s *AppService) GetApps(ctx context.Context) ([]types.Application, error) {
 	apps := make([]types.Application, len(result.Items))
 	for i, item := range result.Items {
 		app, err := services.UnmarshalApp(item.Value,
-			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -67,7 +67,7 @@ func (s *AppService) GetApp(ctx context.Context, name string) (types.Application
 		return nil, trace.Wrap(err)
 	}
 	app, err := services.UnmarshalApp(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,6 +87,7 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 		Key:     backend.Key(appPrefix, app.GetName()),
 		Value:   value,
 		Expires: app.Expiry(),
+		ID:      app.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
@@ -113,6 +114,7 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 		Key:      backend.Key(appPrefix, app.GetName()),
 		Value:    value,
 		Expires:  app.Expiry(),
+		ID:       app.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)

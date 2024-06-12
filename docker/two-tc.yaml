@@ -1,0 +1,9 @@
+kind: trusted_cluster
+version: v2
+metadata:
+   name: "one"
+spec:
+   enabled: true
+   token: "bar"
+   tunnel_addr: one-lb:3024
+   web_proxy_addr: one-lb:3080

@@ -57,6 +57,7 @@ func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Con
 		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:   value,
 		Expires: connectionDiagnostic.Expiry(),
+		ID:      connectionDiagnostic.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
 
@@ -77,6 +78,7 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
+		ID:       connectionDiagnostic.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
@@ -112,6 +114,7 @@ func (s *ConnectionDiagnosticService) AppendDiagnosticTrace(ctx context.Context,
 		Key:      backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
 		Value:    value,
 		Expires:  connectionDiagnostic.Expiry(),
+		ID:       connectionDiagnostic.GetResourceID(),
 		Revision: existing.Revision,
 	}
 
@@ -137,7 +140,7 @@ func (s *ConnectionDiagnosticService) GetConnectionDiagnostic(ctx context.Contex
 	}
 
 	connectionDiagnostic, err := services.UnmarshalConnectionDiagnostic(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

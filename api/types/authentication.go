@@ -18,16 +18,15 @@ package types
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -240,6 +239,16 @@ func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
 }
 
+// GetResourceID returns resource ID.
+func (c *AuthPreferenceV2) GetResourceID() int64 {
+	return c.Metadata.ID
+}
+
+// SetResourceID sets resource ID.
+func (c *AuthPreferenceV2) SetResourceID(id int64) {
+	c.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (c *AuthPreferenceV2) GetRevision() string {
 	return c.Metadata.GetRevision()
@@ -310,7 +319,7 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 		}
 		return constants.SecondFactorOTP
 	default:
-		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
+		log.Warnf("Unexpected second_factor setting: %v", sf)
 		return "" // Unsure, say nothing.
 	}
 }
@@ -335,7 +344,7 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	case trace.IsNotFound(err): // OK, expected to happen in some cases.
 		return false
 	case err != nil:
-		slog.WarnContext(context.Background(), "Got unexpected error when reading Webauthn config", "error", err)
+		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
 		return false
 	}
 
@@ -580,11 +589,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if c.Spec.SecondFactor == constants.SecondFactorU2F {
-		const deprecationMessage = `` +
+		log.Warnf(`` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
-		slog.WarnContext(context.Background(), deprecationMessage)
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
@@ -788,7 +796,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		default:
 			return trace.BadParameter("failed to infer webauthn RPID from U2F App ID (%q)", u.AppID)
 		}
-		slog.InfoContext(context.Background(), "WebAuthn: RPID inferred from U2F configuration", "rpid", rpID)
+		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
 		w.RPID = rpID
 	default:
 		return trace.BadParameter("webauthn configuration missing rp_id")
@@ -797,7 +805,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		slog.InfoContext(context.Background(), "WebAuthn: using U2F device attestation CAs as allowed CAs")
+		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
@@ -901,6 +909,8 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
+func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
+func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
 func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
 func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }

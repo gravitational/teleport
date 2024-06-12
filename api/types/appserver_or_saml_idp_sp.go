@@ -25,8 +25,6 @@ import (
 )
 
 // AppServerOrSAMLIdPServiceProvider describes methods shared between an AppServer and a SAMLIdpServiceProvider resource.
-//
-// DEPRECATED: Use AppServer and SAMLIdPServiceProvider types individually.
 type AppServerOrSAMLIdPServiceProvider interface {
 	ResourceWithLabels
 	GetAppServer() *AppServerV3
@@ -224,6 +222,26 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) SetName(name string) {
 		a.GetAppServer().GetApp().SetName(name)
 	}
 	a.GetSAMLIdPServiceProvider().SetName(name)
+}
+
+func (a *AppServerOrSAMLIdPServiceProviderV1) GetResourceID() int64 {
+	if a.IsAppServer() {
+		appServer := a.GetAppServer()
+		return appServer.Metadata.ID
+	} else {
+		sp := a.GetSAMLIdPServiceProvider()
+		return sp.Metadata.ID
+	}
+}
+
+func (a *AppServerOrSAMLIdPServiceProviderV1) SetResourceID(id int64) {
+	if a.IsAppServer() {
+		appServer := a.GetAppServer()
+		appServer.Metadata.ID = id
+	} else {
+		sp := a.GetSAMLIdPServiceProvider()
+		sp.Metadata.ID = id
+	}
 }
 
 // GetRevision returns the revision

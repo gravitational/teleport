@@ -198,7 +198,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 	}
 }
 
-func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy) error {
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
 	m.Lock()
 	defer m.Unlock()
 	m.connCount++
@@ -289,16 +289,16 @@ func TestMiddleware(t *testing.T) {
 
 // mockCertRenewer is a mock middleware for the local proxy that always sets the local proxy certs slice.
 type mockCertRenewer struct {
-	cert tls.Certificate
+	certs []tls.Certificate
 }
 
-func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy) error {
-	lp.SetCert(m.cert)
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
+	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
 	return nil
 }
 
 func (m *mockCertRenewer) OnStart(_ context.Context, lp *LocalProxy) error {
-	lp.SetCert(m.cert)
+	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
 	return nil
 }
 
@@ -314,7 +314,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		Middleware:         &mockCertRenewer{tls.Certificate{}},
+		Middleware:         &mockCertRenewer{certs: []tls.Certificate{}},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -419,8 +419,8 @@ func TestCheckDBCerts(t *testing.T) {
 				}),
 				withClock(tt.clock),
 			)
-			lp.SetCert(tlsCert)
-			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
+			lp.SetCerts([]tls.Certificate{tlsCert})
+			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))
 		})
 	}
 }
@@ -428,7 +428,7 @@ func TestCheckDBCerts(t *testing.T) {
 type mockMiddlewareConnUnauth struct {
 }
 
-func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy) error {
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
 	return trace.AccessDenied("access denied.")
 }
 
@@ -698,20 +698,21 @@ func TestGetCertsForConn(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
 			lp, err := NewLocalProxy(LocalProxyConfig{
-				RemoteProxyAddr: "localhost",
-				Protocols:       append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
-				ParentContext:   context.Background(),
-				CheckCertNeeded: tt.checkCertsNeeded,
-				Cert:            tlsCert,
+				RemoteProxyAddr:  "localhost",
+				Protocols:        append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
+				ParentContext:    context.Background(),
+				CheckCertsNeeded: tt.checkCertsNeeded,
+				Certs:            []tls.Certificate{tlsCert},
 			})
 			require.NoError(t, err)
 			conn := &stubConn{buff: *bytes.NewBuffer(tt.stubConnBytes)}
-			gotCert, _, err := lp.getCertForConn(conn)
+			gotCerts, _, err := lp.getCertsForConn(context.Background(), conn)
 			require.NoError(t, err)
 			if tt.wantCerts {
-				require.Equal(t, tlsCert, gotCert)
+				require.Len(t, gotCerts, 1)
+				require.Equal(t, tlsCert, gotCerts[0])
 			} else {
-				require.Empty(t, gotCert)
+				require.Empty(t, gotCerts)
 			}
 		})
 	}

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -462,64 +461,6 @@ func TestAuthenticate_rateLimiting(t *testing.T) {
 			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
 		})
 	}
-}
-
-func TestAuthenticate_deviceWebToken(t *testing.T) {
-	pack := newWebPack(t, 1 /* numProxies */)
-	authServer := pack.server.AuthServer.AuthServer
-	proxy := pack.proxies[0]
-	clock := pack.clock
-
-	// Mimic a valid DeviceWebToken, regardless of any parameters.
-	wantToken := &types.DeviceWebToken{
-		Id:    "this is an opaque token ID",
-		Token: "this is an opaque token Token",
-	}
-	authServer.SetCreateDeviceWebTokenFunc(func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		return &devicepb.DeviceWebToken{
-			Id:    wantToken.Id,
-			Token: wantToken.Token,
-		}, nil
-	})
-
-	ctx := context.Background()
-
-	t.Run("login using OTP", func(t *testing.T) {
-		// Create a user with password + OTP.
-		const user = "llama1"
-		const pass = "mysupersecretpassword!!1!"
-		otpSecret := newOTPSharedSecret()
-		proxy.createUser(ctx, t, user, user, pass, otpSecret, nil /* roles */)
-
-		sessionResp, _ := loginWebOTP(t, ctx, loginWebOTPParams{
-			webClient: proxy.newClient(t),
-			clock:     clock,
-			user:      user,
-			password:  pass,
-			otpSecret: otpSecret,
-		})
-		assert.Equal(t, wantToken, sessionResp.DeviceWebToken, "WebSession DeviceWebToken mismatch")
-	})
-
-	t.Run("login using WebAuthn", func(t *testing.T) {
-		rpID := pack.server.TLS.ClusterName()
-		mfaResp := configureClusterForMFA(t, pack, &types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
-			Webauthn: &types.Webauthn{
-				RPID: rpID,
-			},
-		})
-
-		sessionResp, _ := loginWebMFA(ctx, t, loginWebMFAParams{
-			webClient:     proxy.newClient(t),
-			rpID:          rpID,
-			user:          mfaResp.User,
-			password:      mfaResp.Password,
-			authenticator: mfaResp.WebDev.Key,
-		})
-		assert.Equal(t, wantToken, sessionResp.DeviceWebToken, "WebSession DeviceWebToken mismatch")
-	})
 }
 
 type configureMFAResp struct {

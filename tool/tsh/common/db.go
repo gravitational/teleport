@@ -39,7 +39,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -72,22 +71,22 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var clusterClient *client.ClusterClient
+	var proxy *client.ProxyClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		proxy, err = tc.ConnectToProxy(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	defer proxy.Close()
 
-	servers, err := apiclient.GetAllResources[types.DatabaseServer](cf.Context, clusterClient.AuthClient, tc.ResourceFilter(types.KindDatabaseServer))
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	accessChecker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -97,9 +96,19 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	databases := types.DatabaseServers(servers).ToDatabases()
 	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
+}
+
+func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
+	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), clusterName, cluster)
+	return accessChecker, trace.Wrap(err)
 }
 
 type databaseListing struct {
@@ -170,7 +179,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
+			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -180,13 +189,13 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return nil
 			}
 
-			accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, cluster.profile.AccessInfo(), cluster.name, cluster.auth)
+			accessChecker, err := accessCheckerForRemoteCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
-			for _, database := range types.DatabaseServers(databases).ToDatabases() {
+			for _, database := range databases {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
@@ -230,7 +239,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), out)
+		fmt.Println(out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -706,7 +715,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCert(cert))
+			opts = append(opts, alpnproxy.WithClientCerts(cert))
 		}
 		return opts, nil
 	}
@@ -719,8 +728,8 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts = append(opts, alpnproxy.WithClientCert(cert))
-		opts = append(opts, alpnproxy.WithCheckCertNeeded())
+		opts = append(opts, alpnproxy.WithClientCerts(cert))
+		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
 	case defaults.ProtocolMySQL:
 		// To set correct MySQL server version DB proxy needs additional protocol.
 		db, err := arg.dbInfo.GetDatabase(arg.cf.Context, arg.tc)
@@ -962,22 +971,21 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	var clusterClient *client.ClusterClient
+	var proxy *client.ProxyClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		proxy, err = tc.ConnectToProxy(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	defer proxy.Close()
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1394,11 +1402,15 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
 // requires MFA.
 func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient, database tlsca.RouteToDatabase) (bool, error) {
-	clusterClient, err := tc.ConnectToCluster(ctx)
+	proxy, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer clusterClient.Close()
+	cluster, err := proxy.ConnectToCluster(ctx, tc.SiteName)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer cluster.Close()
 
 	dbParam := proto.RouteToDatabase{
 		ServiceName: database.ServiceName,
@@ -1406,7 +1418,7 @@ func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient,
 		Username:    database.Username,
 		Database:    database.Database,
 	}
-	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+	mfaResp, err := cluster.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Database{
 			Database: &dbParam,
 		},

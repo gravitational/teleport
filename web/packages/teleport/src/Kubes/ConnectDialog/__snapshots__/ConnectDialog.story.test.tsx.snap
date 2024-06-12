@@ -67,23 +67,6 @@ exports[`kube connect dialogue local 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
 }
 
 .c4 {
@@ -103,7 +86,7 @@ exports[`kube connect dialogue local 1`] = `
   margin-bottom: 24px;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -112,34 +95,22 @@ exports[`kube connect dialogue local 1`] = `
   border-radius: 4px;
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c16 {
+.c15 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c18 {
+.c17 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c19 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
-}
-
-.c20 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c23 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -153,22 +124,17 @@ exports[`kube connect dialogue local 1`] = `
   flex-direction: column;
 }
 
-.c13 {
+.c12 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
+.c14 {
   display: flex;
 }
 
-.c21 {
-  display: flex;
-  justify-content: space-between;
-}
-
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -194,22 +160,22 @@ exports[`kube connect dialogue local 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c24 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -235,16 +201,16 @@ exports[`kube connect dialogue local 1`] = `
   padding: 0px 24px;
 }
 
-.c24:hover,
-.c24:focus {
+.c19:hover,
+.c19:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c24:active {
+.c19:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c24:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -284,27 +250,22 @@ exports[`kube connect dialogue local 1`] = `
           <div
             class="c9"
           >
-            <div
-              class="c10"
-            >
-              Connect in the CLI using tsh and kubectl
-            </div>
             <span
-              class="c11"
+              class="c10"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -314,7 +275,7 @@ exports[`kube connect dialogue local 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -326,22 +287,22 @@ exports[`kube connect dialogue local 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -351,7 +312,7 @@ exports[`kube connect dialogue local 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -363,21 +324,21 @@ exports[`kube connect dialogue local 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -387,7 +348,7 @@ exports[`kube connect dialogue local 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -396,24 +357,24 @@ exports[`kube connect dialogue local 1`] = `
             </div>
           </div>
           <div
-            class="c18"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -423,7 +384,7 @@ exports[`kube connect dialogue local 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -431,31 +392,12 @@ exports[`kube connect dialogue local 1`] = `
               </button>
             </div>
           </div>
-          <div
-            class="c19"
-          >
-            <div
-              class="c20 c21"
-            >
-              <div
-                class="c22"
-              >
-                Or exec into a pod on this Kubernetes cluster in Web UI
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-              >
-                Exec
-              </button>
-            </div>
-          </div>
         </div>
         <div
-          class="c23"
+          class="c18"
         >
           <button
-            class="c24"
+            class="c19"
             kind="secondary"
           >
             Close
@@ -534,23 +476,6 @@ exports[`kube connect dialogue local with requestId 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
 }
 
 .c4 {
@@ -570,7 +495,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
   margin-bottom: 24px;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -579,40 +504,28 @@ exports[`kube connect dialogue local with requestId 1`] = `
   border-radius: 4px;
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c16 {
+.c15 {
   box-sizing: border-box;
   margin-right: 4px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
 }
 
 .c18 {
   box-sizing: border-box;
   margin-bottom: 4px;
-}
-
-.c19 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
   margin-top: 16px;
 }
 
-.c20 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
-}
-
-.c21 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c24 {
+.c19 {
   box-sizing: border-box;
 }
 
@@ -626,22 +539,17 @@ exports[`kube connect dialogue local with requestId 1`] = `
   flex-direction: column;
 }
 
-.c13 {
+.c12 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
+.c14 {
   display: flex;
 }
 
-.c22 {
-  display: flex;
-  justify-content: space-between;
-}
-
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -667,22 +575,22 @@ exports[`kube connect dialogue local with requestId 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c25 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -708,16 +616,16 @@ exports[`kube connect dialogue local with requestId 1`] = `
   padding: 0px 24px;
 }
 
-.c25:hover,
-.c25:focus {
+.c20:hover,
+.c20:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c25:active {
+.c20:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c25:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -757,27 +665,22 @@ exports[`kube connect dialogue local with requestId 1`] = `
           <div
             class="c9"
           >
-            <div
-              class="c10"
-            >
-              Connect in the CLI using tsh and kubectl
-            </div>
             <span
-              class="c11"
+              class="c10"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -787,7 +690,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -799,22 +702,22 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -824,7 +727,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -836,21 +739,21 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -860,7 +763,43 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c17"
+          >
+            <span
+              class="c10"
+            >
+              Step 3
+            </span>
+             - Connect to the Kubernetes cluster
+            <div
+              class="c11 c12"
+              color="light"
+            >
+              <div
+                class="c13 c14"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c15"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  kubectl get pods
+                </div>
+              </div>
+              <button
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -872,57 +811,21 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c18"
           >
             <span
-              class="c11"
-            >
-              Step 3
-            </span>
-             - Connect to the Kubernetes cluster
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  kubectl get pods
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c19"
-          >
-            <span
-              class="c11"
+              class="c10"
             >
               Step 4 (Optional)
             </span>
              - When finished, drop the assumed role
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -932,7 +835,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -940,31 +843,12 @@ exports[`kube connect dialogue local with requestId 1`] = `
               </button>
             </div>
           </div>
-          <div
-            class="c20"
-          >
-            <div
-              class="c21 c22"
-            >
-              <div
-                class="c23"
-              >
-                Or exec into a pod on this Kubernetes cluster in Web UI
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-              >
-                Exec
-              </button>
-            </div>
-          </div>
         </div>
         <div
-          class="c24"
+          class="c19"
         >
           <button
-            class="c25"
+            class="c20"
             kind="secondary"
           >
             Close
@@ -1043,23 +927,6 @@ exports[`kube connect dialogue sso 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
 }
 
 .c4 {
@@ -1079,7 +946,7 @@ exports[`kube connect dialogue sso 1`] = `
   margin-bottom: 24px;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -1088,34 +955,22 @@ exports[`kube connect dialogue sso 1`] = `
   border-radius: 4px;
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c16 {
+.c15 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c18 {
+.c17 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c19 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
-}
-
-.c20 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c23 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -1129,22 +984,17 @@ exports[`kube connect dialogue sso 1`] = `
   flex-direction: column;
 }
 
-.c13 {
+.c12 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
+.c14 {
   display: flex;
 }
 
-.c21 {
-  display: flex;
-  justify-content: space-between;
-}
-
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1170,22 +1020,22 @@ exports[`kube connect dialogue sso 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c24 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1211,16 +1061,16 @@ exports[`kube connect dialogue sso 1`] = `
   padding: 0px 24px;
 }
 
-.c24:hover,
-.c24:focus {
+.c19:hover,
+.c19:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c24:active {
+.c19:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c24:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1260,27 +1110,22 @@ exports[`kube connect dialogue sso 1`] = `
           <div
             class="c9"
           >
-            <div
-              class="c10"
-            >
-              Connect in the CLI using tsh and kubectl
-            </div>
             <span
-              class="c11"
+              class="c10"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -1290,7 +1135,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1302,22 +1147,22 @@ exports[`kube connect dialogue sso 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -1327,7 +1172,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1339,21 +1184,21 @@ exports[`kube connect dialogue sso 1`] = `
             class="c9"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -1363,7 +1208,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1372,24 +1217,24 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c18"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c10"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c11 c12"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c13 c14"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c15"
                   style="user-select: none;"
                 >
                   $
@@ -1399,7 +1244,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c16"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1407,31 +1252,12 @@ exports[`kube connect dialogue sso 1`] = `
               </button>
             </div>
           </div>
-          <div
-            class="c19"
-          >
-            <div
-              class="c20 c21"
-            >
-              <div
-                class="c22"
-              >
-                Or exec into a pod on this Kubernetes cluster in Web UI
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-              >
-                Exec
-              </button>
-            </div>
-          </div>
         </div>
         <div
-          class="c23"
+          class="c18"
         >
           <button
-            class="c24"
+            class="c19"
             kind="secondary"
           >
             Close

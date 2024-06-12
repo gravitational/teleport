@@ -143,7 +143,7 @@ func TestGetDatabaseObject(t *testing.T) {
 			}
 
 			cmpOpts := []cmp.Option{
-				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 				protocmp.Transform(),
 			}
 			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
@@ -229,7 +229,7 @@ func TestListDatabaseObjects(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
@@ -253,7 +253,7 @@ func TestListDatabaseObjects(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))

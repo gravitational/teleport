@@ -319,10 +319,6 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
-	// sessionID holds the session ID that will be used when a new
-	// session is created.
-	sessionID rsession.ID
-
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -632,7 +628,7 @@ func (c *ServerContext) SessionID() rsession.ID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.session == nil {
-		return c.sessionID
+		return ""
 	}
 	return c.session.id
 }
@@ -651,31 +647,19 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	// its ID will be added to the environment
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
-		c.sessionID = rsession.NewID()
-		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 		return nil
 	}
-
 	// make sure whatever session is requested is a valid session
 	id, err := rsession.ParseID(ssid)
 	if err != nil {
-		return trace.BadParameter("invalid session ID")
+		return trace.BadParameter("invalid session id")
 	}
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
-		c.sessionID = *id
 		c.session = sess
 		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// to prevent the user from controlling the session ID, generate
-		// a new one
-		c.sessionID = rsession.NewID()
 		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
@@ -747,20 +731,10 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 }
 
 // setSession sets the context's session
-func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
+func (c *ServerContext) setSession(sess *session) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
-
-	// inform the client of the session ID that is being used in a new
-	// goroutine to reduce latency
-	go func() {
-		c.Logger.Debug("Sending current session ID.")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
-		if err != nil {
-			c.Logger.WithError(err).Debug("Failed to send the current session ID.")
-		}
-	}()
 }
 
 // getSession returns the context's session

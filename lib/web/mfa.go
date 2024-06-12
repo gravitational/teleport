@@ -293,11 +293,6 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
-type isMFARequiredApp struct {
-	// ResolveAppParams contains info used to resolve an application
-	ResolveAppParams
-}
-
 type isMFARequiredAdminAction struct{}
 
 type isMFARequiredRequest struct {
@@ -313,9 +308,6 @@ type isMFARequiredRequest struct {
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
-	// App contains fields required to resolve an application and check if
-	// the target application requires MFA check.
-	App *isMFARequiredApp `json:"app,omitempty"`
 	// AdminAction is the name of the admin action RPC to check if MFA is required.
 	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
@@ -391,22 +383,6 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 				Node: &proto.NodeLogin{
 					Login: r.Node.Login,
 					Node:  r.Node.NodeName,
-				},
-			},
-		}
-	}
-
-	if r.App != nil {
-		resolvedApp, err := h.resolveApp(ctx, scx, r.App.ResolveAppParams)
-		if err != nil {
-			return nil, trace.Wrap(err, "unable to resolve FQDN: %v", r.App.FQDNHint)
-		}
-
-		numRequests++
-		protoReq = &proto.IsMFARequiredRequest{
-			Target: &proto.IsMFARequiredRequest_App{
-				App: &proto.RouteToApp{
-					Name: resolvedApp.App.GetName(),
 				},
 			},
 		}

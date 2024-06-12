@@ -59,8 +59,6 @@ type Server struct {
 	SSHLogins []string `json:"sshLogins"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
-	// RequireRequest indicates if a returned resource is only accessible after an access request
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -104,22 +102,21 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServer creates a server object for the web ui
-func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
+func MakeServer(clusterName string, server types.Server, logins []string) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
 	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
-		Kind:            server.GetKind(),
-		ClusterName:     clusterName,
-		Labels:          uiLabels,
-		Name:            server.GetName(),
-		Hostname:        server.GetHostname(),
-		Addr:            server.GetAddr(),
-		Tunnel:          server.GetUseTunnel(),
-		SubKind:         server.GetSubKind(),
-		RequiresRequest: requiresRequest,
-		SSHLogins:       logins,
+		Kind:        server.GetKind(),
+		ClusterName: clusterName,
+		Labels:      uiLabels,
+		Name:        server.GetName(),
+		Hostname:    server.GetHostname(),
+		Addr:        server.GetAddr(),
+		Tunnel:      server.GetUseTunnel(),
+		SubKind:     server.GetSubKind(),
+		SSHLogins:   logins,
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -159,23 +156,20 @@ type KubeCluster struct {
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
-	// RequireRequest indicates if a returned resource is only accessible after an access request
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // MakeKubeCluster creates a kube cluster object for the web ui
-func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
+func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
 	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
-		Kind:            cluster.GetKind(),
-		Name:            cluster.GetName(),
-		Labels:          uiLabels,
-		KubeUsers:       kubeUsers,
-		RequiresRequest: requiresRequest,
-		KubeGroups:      kubeGroups,
+		Kind:       cluster.GetKind(),
+		Name:       cluster.GetName(),
+		Labels:     uiLabels,
+		KubeUsers:  kubeUsers,
+		KubeGroups: kubeGroups,
 	}
 }
 
@@ -336,8 +330,6 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
-	// RequireRequest indicates if a returned resource is only accessible after an access request
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -355,21 +347,20 @@ const (
 )
 
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:          database.GetKind(),
+		Name:          database.GetName(),
+		Desc:          database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		Labels:        uiLabels,
+		DatabaseUsers: dbUsers,
+		DatabaseNames: dbNames,
+		Hostname:      stripProtocolAndPort(database.GetURI()),
+		URI:           database.GetURI(),
 	}
 
 	if database.IsAWSHosted() {
@@ -390,7 +381,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, dbUsers, dbNames)
 		uiServers = append(uiServers, db)
 	}
 
@@ -440,12 +431,10 @@ type Desktop struct {
 	HostID string `json:"host_id"`
 	// Logins is the list of logins this user can use on this desktop.
 	Logins []string `json:"logins"`
-	// RequireRequest indicates if a returned resource is only accessible after an access request
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -458,14 +447,13 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
 	return Desktop{
-		Kind:            windowsDesktop.GetKind(),
-		OS:              constants.WindowsOS,
-		Name:            windowsDesktop.GetName(),
-		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
-		Labels:          uiLabels,
-		HostID:          windowsDesktop.GetHostID(),
-		Logins:          logins,
-		RequiresRequest: requiresRequest,
+		Kind:   windowsDesktop.GetKind(),
+		OS:     constants.WindowsOS,
+		Name:   windowsDesktop.GetName(),
+		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
+		Labels: uiLabels,
+		HostID: windowsDesktop.GetHostID(),
+		Logins: logins,
 	}
 }
 

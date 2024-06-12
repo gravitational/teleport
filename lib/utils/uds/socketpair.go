@@ -30,7 +30,7 @@ const (
 	// prefer stream sockets, but datagram can be beneficial when passing fds since it lets you ensure that
 	// the bytes you receive alongside the fds exactly match those sent with the fds.
 	SocketTypeDatagram SocketType = syscall.SOCK_DGRAM
-	// SocketTypeStream indicates that the socket type should be a streaming socket. This is a reasonable default
+	// SocketTypeStream indicates the the socket type should be a streaming socket. This is a reasonable default
 	// for most usecases, though datagram may be preferable if fd passing is being used.
 	SocketTypeStream SocketType = syscall.SOCK_STREAM
 )

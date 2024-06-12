@@ -963,7 +963,7 @@ func withoutPINHandler(cb deviceCallbackFunc) pinAwareCallbackFunc {
 }
 
 // nonInteractiveError tags device errors that happen before user interaction.
-// These are usually ignored in the context of selecting devices.
+// These are are usually ignored in the context of selecting devices.
 type nonInteractiveError struct {
 	err error
 }

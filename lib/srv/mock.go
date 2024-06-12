@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -66,16 +65,16 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
-	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
-		ConnectionContext:      connCtx,
+		Entry: logrus.NewEntry(logrus.StandardLogger()),
+		ConnectionContext: &sshutils.ConnectionContext{
+			ServerConn: &ssh.ServerConn{Conn: sshConn},
+		},
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
-		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",

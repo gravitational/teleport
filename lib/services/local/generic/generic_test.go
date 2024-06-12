@@ -86,6 +86,9 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		r.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		r.SetRevision(cfg.Revision)
 	}
@@ -140,7 +143,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a paginated list of resources.
@@ -159,7 +162,7 @@ func TestGenericCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Count all resources.
@@ -171,14 +174,14 @@ func TestGenericCRUD(t *testing.T) {
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(paginatedOut, allResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r2, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Try to fetch a resource that doesn't exist.
@@ -196,7 +199,7 @@ func TestGenericCRUD(t *testing.T) {
 	r, err = service.GetResource(ctx, r1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Update a resource that doesn't exist.
@@ -211,7 +214,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Make sure count is updated.
@@ -226,7 +229,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Upsert a resource (update).
@@ -237,7 +240,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Update and swap a value
@@ -251,7 +254,7 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Try to delete a resource that doesn't exist.
@@ -266,7 +269,7 @@ func TestGenericCRUD(t *testing.T) {
 		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r1, r,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 
 		return nil
@@ -318,14 +321,14 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 	page, next, err := service.ListResourcesReturnNextResource(ctx, 1, "")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 	require.NotNil(t, next)
 
 	page, next, err = service.ListResourcesReturnNextResource(ctx, 1, "another-unique-prefix"+string(backend.Separator)+backend.GetPaginationKey(*next))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 	require.Nil(t, next)
 }

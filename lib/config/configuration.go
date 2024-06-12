@@ -826,7 +826,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		enableColors := utils.IsTerminal(os.Stderr)
+		enableColors := trace.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
 			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
@@ -960,6 +960,19 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
+	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
+		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+		}
+		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+
+		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
+			return trace.BadParameter("command_execution_workers must not be negative")
+		}
+	}
+
 	// Set cluster audit configuration from file configuration.
 	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
@@ -974,18 +987,23 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
+		var assistCommandExecutionWorkers int32
+		if fc.Auth.Assist != nil {
+			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
+		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-			RoutingStrategy:          fc.Auth.RoutingStrategy,
-			TunnelStrategy:           fc.Auth.TunnelStrategy,
-			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
-			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
+			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
+			RoutingStrategy:               fc.Auth.RoutingStrategy,
+			TunnelStrategy:                fc.Auth.TunnelStrategy,
+			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
+			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
+			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1212,11 +1230,16 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
-		switch cfg.Proxy.UI.ShowResources {
-		case constants.ShowResourcesaccessibleOnly,
-			constants.ShowResourcesRequestable:
-		default:
-			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
+	}
+
+	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
+		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.BadParameter("failed to read OpenAI API key file at path %s: %v",
+				keyPath, trace.ConvertSystemError(err))
+		} else {
+			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
 		}
 	}
 

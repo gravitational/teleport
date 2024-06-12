@@ -77,19 +77,15 @@ func (w *writer) Bytes() []byte {
 }
 
 const (
-	noColor = -1
-	red     = 31
-	yellow  = 33
-	blue    = 36
-	gray    = 37
-	// LevelField is the log field that stores the verbosity.
-	LevelField = "level"
-	// ComponentField is the log field that stores the calling component.
-	ComponentField = "component"
-	// CallerField is the log field that stores the calling file and line number.
-	CallerField = "caller"
-	// TimestampField is the field that stores the timestamp the log was emitted.
-	TimestampField = "timestamp"
+	noColor        = -1
+	red            = 31
+	yellow         = 33
+	blue           = 36
+	gray           = 37
+	levelField     = "level"
+	componentField = "component"
+	callerField    = "caller"
+	timestampField = "timestamp"
 	messageField   = "message"
 	// defaultComponentPadding is a default padding for component field
 	defaultComponentPadding = 11
@@ -127,11 +123,11 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 		return nil
 	}
 
-	if slices.Contains(tf.ExtraFields, TimestampField) {
+	if slices.Contains(tf.ExtraFields, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if slices.Contains(tf.ExtraFields, CallerField) {
+	if slices.Contains(tf.ExtraFields, callerField) {
 		tf.callerEnabled = true
 	}
 
@@ -150,7 +146,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 	for _, field := range tf.ExtraFields {
 		switch field {
-		case LevelField:
+		case levelField:
 			var color int
 			var level string
 			switch e.Level {
@@ -182,7 +178,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 
 			w.writeField(padMax(level, defaultLevelPadding), color)
-		case ComponentField:
+		case componentField:
 			padding := defaultComponentPadding
 			if tf.ComponentPadding != 0 {
 				padding = tf.ComponentPadding
@@ -248,22 +244,22 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 	// set caller
 	j.FormatCaller = formatCallerWithPathAndLine
 
-	if slices.Contains(j.ExtraFields, CallerField) {
+	if slices.Contains(j.ExtraFields, callerField) {
 		j.callerEnabled = true
 	}
 
-	if slices.Contains(j.ExtraFields, ComponentField) {
+	if slices.Contains(j.ExtraFields, componentField) {
 		j.componentEnabled = true
 	}
 
 	// rename default fields
 	j.JSONFormatter = logrus.JSONFormatter{
 		FieldMap: logrus.FieldMap{
-			logrus.FieldKeyTime:  TimestampField,
-			logrus.FieldKeyLevel: LevelField,
+			logrus.FieldKeyTime:  timestampField,
+			logrus.FieldKeyLevel: levelField,
 			logrus.FieldKeyMsg:   messageField,
 		},
-		DisableTimestamp: !slices.Contains(j.ExtraFields, TimestampField),
+		DisableTimestamp: !slices.Contains(j.ExtraFields, timestampField),
 	}
 
 	return nil
@@ -273,11 +269,11 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 func (j *JSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if j.callerEnabled {
 		path := j.FormatCaller()
-		e.Data[CallerField] = path
+		e.Data[callerField] = path
 	}
 
 	if j.componentEnabled {
-		e.Data[ComponentField] = e.Data[teleport.ComponentKey]
+		e.Data[componentField] = e.Data[teleport.ComponentKey]
 	}
 
 	delete(e.Data, teleport.ComponentKey)
@@ -457,13 +453,13 @@ func frameToTrace(frame runtime.Frame) trace.Trace {
 	}
 }
 
-var defaultFormatFields = []string{LevelField, ComponentField, CallerField, TimestampField}
+var defaultFormatFields = []string{levelField, componentField, callerField, timestampField}
 
 var knownFormatFields = map[string]struct{}{
-	LevelField:     {},
-	ComponentField: {},
-	CallerField:    {},
-	TimestampField: {},
+	levelField:     {},
+	componentField: {},
+	callerField:    {},
+	timestampField: {},
 }
 
 func ValidateFields(formatInput []string) (result []string, err error) {

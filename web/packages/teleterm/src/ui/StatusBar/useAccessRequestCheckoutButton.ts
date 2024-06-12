@@ -39,16 +39,16 @@ export function useAccessRequestsButton() {
     return workspaceAccessRequest.getCollapsed();
   }
 
-  function getAddedItemsCount() {
+  function getPendingResourceCount() {
     if (!workspaceAccessRequest) {
       return 0;
     }
-    return workspaceAccessRequest.getAddedItemsCount();
+    return workspaceAccessRequest.getAddedResourceCount();
   }
 
   return {
     isCollapsed,
     toggleAccessRequestBar,
-    getAddedItemsCount,
+    getPendingResourceCount,
   };
 }

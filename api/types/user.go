@@ -191,6 +191,16 @@ func (u *UserV2) SetSubKind(s string) {
 	u.SubKind = s
 }
 
+// GetResourceID returns resource ID
+func (u *UserV2) GetResourceID() int64 {
+	return u.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (u *UserV2) SetResourceID(id int64) {
+	u.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (u *UserV2) GetRevision() string {
 	return u.Metadata.GetRevision()

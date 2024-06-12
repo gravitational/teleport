@@ -1,64 +1,4 @@
-adds services listing permission if discovery is enabled:
-  1: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
-    metadata:
-      name: RELEASE-NAME
-    rules:
-    - apiGroups:
-      - ""
-      resources:
-      - users
-      - groups
-      - serviceaccounts
-      verbs:
-      - impersonate
-    - apiGroups:
-      - ""
-      resources:
-      - services
-      verbs:
-      - list
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      verbs:
-      - get
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - selfsubjectaccessreviews
-      verbs:
-      - create
 creates a ClusterRole:
-  1: |
-    apiVersion: rbac.authorization.k8s.io/v1
-    kind: ClusterRole
-    metadata:
-      name: RELEASE-NAME
-    rules:
-    - apiGroups:
-      - ""
-      resources:
-      - users
-      - groups
-      - serviceaccounts
-      verbs:
-      - impersonate
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      verbs:
-      - get
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - selfsubjectaccessreviews
-      verbs:
-      - create
-does not add services listing permission if discovery is disabled:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
@@ -93,6 +33,66 @@ sets ClusterRole labels when specified:
       labels:
         app.kubernetes.io/name: teleport-kube-agent
         resource: clusterrole
+      name: RELEASE-NAME
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
+adds services listing permission if discovery is enabled:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: RELEASE-NAME
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - users
+      - groups
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroups:
+      - ""
+      resources:
+      - services
+      verbs:
+      - list
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+    - apiGroups:
+      - authorization.k8s.io
+      resources:
+      - selfsubjectaccessreviews
+      verbs:
+      - create
+does not add services listing permission if discovery is disabled:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
       name: RELEASE-NAME
     rules:
     - apiGroups:

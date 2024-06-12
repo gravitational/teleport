@@ -375,7 +375,6 @@ func (a *Server) generateCertsBot(
 		BotName:   botName,
 		Method:    string(joinMethod),
 		TokenName: provisionToken.GetSafeName(),
-		UserName:  machineidv1.BotResourceName(botName),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
 		},

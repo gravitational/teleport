@@ -19,8 +19,6 @@
 package reversetunnelclient
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -32,7 +30,7 @@ import (
 // ClusterGetter is an interface that defines GetRemoteCluster method
 type ClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 }
 
 // NewTunnelWithRoles returns new authorizing tunnel
@@ -59,7 +57,6 @@ type TunnelWithRoles struct {
 
 // GetSites returns a list of connected remote sites
 func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
-	ctx := context.TODO()
 	clusters, err := t.tunnel.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +67,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 			out = append(out, cluster)
 			continue
 		}
-		rc, err := t.access.GetRemoteCluster(ctx, cluster.GetName())
+		rc, err := t.access.GetRemoteCluster(cluster.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -91,7 +88,6 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 
 // GetSite returns remote site this node belongs to
 func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
-	ctx := context.TODO()
 	cluster, err := t.tunnel.GetSite(clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
@@ -99,7 +95,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
-	rc, err := t.access.GetRemoteCluster(ctx, clusterName)
+	rc, err := t.access.GetRemoteCluster(clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}

@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/asn1"
-	"os"
 	"testing"
 	"time"
 
@@ -30,13 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestMain(m *testing.M) {
-	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
-}
 
 // TestGenerateCredentials verifies that the smartcard certificates generated
 // by Teleport meet the requirements for Windows logon.

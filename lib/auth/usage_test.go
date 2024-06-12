@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -176,9 +175,6 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 		return nil
 	})
 	p.a.SetAuditLog(al)
-
-	p.a.Notifications, err = local.NewNotificationsService(p.bk, clock)
-	require.NoError(t, err)
 
 	return setupAccessRequestLimist{
 		testpack:     p,

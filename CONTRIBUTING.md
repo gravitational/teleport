@@ -33,4 +33,4 @@ Instructions for contributing changes to the Teleport Helm chart are available
 # Contributing to Docs
 
 See our public resources for docs contributors:
-https://github.com/gravitational/docs
+https://goteleport.com/docs/contributing/documentation/

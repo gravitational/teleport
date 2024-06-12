@@ -109,10 +109,6 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
-  // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
-  // The features that use this are supposed to be "full page" features where navigation
-  // is either blocked, or done explicitly through the page (such as device trust authorize)
-  logoOnlyTopbar?: boolean;
   hideFromNavigation?: boolean;
   // route defines react router Route fields.
   // This field can be left undefined to indicate
@@ -180,6 +176,7 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
+  assist: boolean;
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;

@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/exec"
 	"regexp"
@@ -220,8 +219,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, exe
 		return nil
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := err.(*exec.ExitError); ok {
 		return trace.Wrap(exitErr)
 	}
 

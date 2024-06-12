@@ -19,13 +19,11 @@
 package desktop
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -150,8 +148,8 @@ type WindowsService struct {
 // WindowsServiceConfig contains all necessary configuration values for a
 // WindowsService.
 type WindowsServiceConfig struct {
-	// Logger is the logger for the service.
-	Logger *slog.Logger
+	// Log is the logging sink for the service.
+	Log logrus.FieldLogger
 	// Clock provides current time.
 	Clock   clockwork.Clock
 	DataDir string
@@ -235,6 +233,12 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 }
 
 func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
+	if cfg.Log == nil {
+		cfg.Log = logrus.New().WithField(teleport.ComponentKey, teleport.ComponentWindowsDesktop)
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
 	if cfg.Authorizer == nil {
 		return trace.BadParameter("WindowsServiceConfig is missing Authorizer")
 	}
@@ -267,10 +271,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentWindowsDesktop))
-	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	cfg.ConnectedProxyGetter = cmp.Or(cfg.ConnectedProxyGetter, reversetunnel.NewConnectedProxyGetter())
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
 
 	return nil
 }
@@ -288,9 +291,6 @@ func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-const insecureSkipVerifyWarning = "LDAP configuration specifies both a CA certificate and insecure_skip_verify. " +
-	"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
-
 // NewWindowsService initializes a new WindowsService.
 //
 // To start serving connections, call Serve.
@@ -307,7 +307,8 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
 	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
+		cfg.Log.Warn("LDAP configuration specifies both a CA certificate and insecure_skip_verify." +
+			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
 	clusterName, err := cfg.AccessPoint.GetClusterName()
@@ -324,7 +325,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			return nil, trace.Wrap(err)
 		}
 		dnsAddr := net.JoinHostPort(dnsServer, "53")
-		cfg.Logger.DebugContext(context.Background(), "DNS lookups will be performed against", "addr", dnsAddr)
+		cfg.Log.Debugln("DNS lookups will be performed against", dnsAddr)
 		resolver = &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -360,12 +361,12 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if s.cfg.PKIDomain != "" {
 		caLDAPConfig.Domain = s.cfg.PKIDomain
 	}
-	s.cfg.Logger.InfoContext(ctx, "PKI domain configured", "domain", caLDAPConfig.Domain)
+	s.cfg.Log.Infof("Windows PKI will be performed against %v", s.cfg.PKIDomain)
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
 		LDAPConfig:  caLDAPConfig,
-		Log:         logrus.NewEntry(logrus.StandardLogger()),
+		Log:         s.cfg.Log,
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
@@ -376,7 +377,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		// we don't want to return an error in this case, because failure to start
 		// the service brings down the entire Teleport process
 		if err := s.initializeLDAP(); err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "initializing LDAP client, will retry", "error", err)
+			s.cfg.Log.WithError(err).Error("initializing LDAP client, will retry")
 		}
 	}
 
@@ -400,9 +401,9 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
-		s.cfg.Logger.WarnContext(ctx, "desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
+		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
-		s.cfg.Logger.InfoContext(ctx, "desktop discovery via LDAP is disabled, set 'base_dn' to enable")
+		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
 
 	ok = true
@@ -433,7 +434,9 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		user = user[i+1:]
 	}
 	if s.cfg.SID == "" {
-		s.cfg.Logger.WarnContext(context.Background(), "LDAP configuration is missing service account SID")
+		s.cfg.Log.Warnf(`Your LDAP config is missing the SID of the user you're
+		using to sign in. This is set to become a strict requirement by May 2023,
+		please update your configuration file before then.`)
 	}
 	certDER, keyDER, err := s.generateCredentials(s.closeCtx, generateCredentialsRequest{
 		username:           user,
@@ -486,8 +489,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
-		s.cfg.Logger.WarnContext(context.Background(),
-			"Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
+		s.cfg.Log.Warn("Could not generate certificate for LDAPS. Ensure that the auth server is licensed for desktop access.")
 	}
 	if err != nil {
 		s.mu.Lock()
@@ -499,11 +501,8 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL(
-		"ldaps://"+s.cfg.Addr,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
+	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
+		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
@@ -540,13 +539,13 @@ func (s *WindowsService) initializeLDAP() error {
 //
 // The lock on s.mu MUST be held.
 func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
-	s.cfg.Logger.InfoContext(context.Background(), "scheduled next LDAP cert renewal", "duration", after)
+	s.cfg.Log.Infof("next LDAP cert renewal scheduled in %v", after)
 	if s.ldapCertRenew != nil {
 		s.ldapCertRenew.Reset(after)
 	} else {
 		s.ldapCertRenew = time.AfterFunc(after, func() {
 			if err := s.initializeLDAP(); err != nil {
-				s.cfg.Logger.ErrorContext(context.Background(), "couldn't renew certificate for LDAP auth", "error", err)
+				s.cfg.Log.WithError(err).Error("couldn't renew certificate for LDAP auth")
 			}
 		})
 	}
@@ -570,7 +569,7 @@ func (s *WindowsService) startServiceHeartbeat() error {
 	}
 	go func() {
 		if err := heartbeat.Run(); err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "service heartbeat ended", "error", err)
+			s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
 		}
 	}()
 	return nil
@@ -611,7 +610,7 @@ func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) e
 	}
 	go func() {
 		if err := heartbeat.Run(); err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "static host heartbeat ended", "error", err)
+			s.cfg.Log.WithError(err).Error("Heartbeat ended with error")
 		}
 	}()
 	return nil
@@ -682,7 +681,7 @@ func (s *WindowsService) ldapReady() bool {
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
-	log := s.cfg.Logger
+	log := s.cfg.Log
 
 	tdpConn := tdp.NewConn(proxyConn)
 	defer tdpConn.Close()
@@ -690,7 +689,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
 		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
-			log.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err)
+			log.Errorf("Failed to send TDP error message %v", err)
 		}
 	}
 
@@ -698,7 +697,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// (it would fail anyway, but this presents a better error to the user)
 	if !s.readyForConnections() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
-		log.ErrorContext(context.Background(), msg)
+		log.Error(msg)
 		sendTDPError(msg)
 		return
 	}
@@ -706,13 +705,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
-		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
+		log.WithError(err).Errorf("Could not parse client IP from %q", proxyConn.RemoteAddr().String())
 		sendTDPError("Internal error.")
 		return
 	}
-	log = log.With("client_ip", remoteAddr)
+	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
-		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
+		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
 		sendTDPError("Connection limit exceeded.")
 		return
 	}
@@ -721,46 +720,45 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Authenticate the client.
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
-		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
+		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
 		sendTDPError("Connection authentication failed.")
 		return
 	}
-	log.DebugContext(ctx, "Authenticated Windows desktop connection")
+	log.Debug("Authenticated Windows desktop connection")
 
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
-		log.WarnContext(ctx, "authorization failed for Windows desktop connection", "error", err)
+		log.WithError(err).Warning("authorization failed for Windows desktop connection")
 		sendTDPError("Connection authorization failed.")
 		return
 	}
 
 	// Fetch the target desktop info. Name of the desktop is passed via SNI.
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
-	log = log.With("desktop_name", desktopName)
+	log = log.WithField("desktop-name", desktopName)
 
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
-		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
+		log.WithError(err).Warning("Failed to fetch desktop by name")
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 	if len(desktops) == 0 {
-		log.ErrorContext(ctx, "desktop not found", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
+		log.Errorf("desktop %v/%v not found", s.cfg.Heartbeat.HostUUID, desktopName)
 		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
 	desktop := desktops[0]
 
-	log = log.With("desktop_addr", desktop.GetAddr())
-	log.DebugContext(ctx, "Connecting to Windows desktop")
-	defer log.DebugContext(ctx, "Windows desktop disconnected")
+	log = log.WithField("desktop-addr", desktop.GetAddr())
+	log.Debug("Connecting to Windows desktop")
+	defer log.Debug("Windows desktop disconnected")
 
 	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
-		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
+		log.Errorf("RDP connection failed: %v", err)
 		msg := "RDP connection failed."
-		var um trace.UserMessager
-		if errors.As(err, &um) {
+		if um, ok := err.(trace.UserMessager); ok {
 			msg = um.UserMessage()
 		}
 		sendTDPError(msg)
@@ -768,7 +766,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -795,8 +793,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	if !authCtx.Checker.RecordDesktopSession() {
 		recConfig = types.DefaultSessionRecordingConfig()
 		recConfig.SetMode(types.RecordOff)
-		log.InfoContext(ctx, "desktop session will not be recorded, user's roles disable recording",
-			"session_id", string(sessionID), "user", authCtx.User.GetName())
+		log.Infof("desktop session %v will not be recorded, user %v's roles disable recording", string(sessionID), authCtx.User.GetName())
 	} else {
 		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 		if err != nil {
@@ -832,7 +829,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	defer func() {
 		go func() {
 			if err := recorder.Close(context.Background()); err != nil {
-				log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sessionID.String())
+				log.WithError(err).Errorf("closing stream writer for desktop session %v", sessionID.String())
 			}
 		}()
 	}()
@@ -857,10 +854,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
+
 	width, height := desktop.GetScreenSize()
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
-		Logger: log,
+		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
@@ -899,7 +898,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
-		Entry:                 logrus.NewEntry(logrus.StandardLogger()),
+		Entry:                 log,
 		Emitter:               s.cfg.Emitter,
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
@@ -967,10 +966,10 @@ func (s *WindowsService) makeTDPSendHandler(
 				// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
 				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
 				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
-				s.cfg.Logger.WarnContext(ctx, "refusing to record PNG frame, image too large", "len", len(b))
+				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
 			} else {
 				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
+					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
 				}
 			}
 		case byte(tdp.TypeClipboardData):
@@ -992,7 +991,7 @@ func (s *WindowsService) makeTDPSendHandler(
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
 					if err := tdpConn.Close(); err != nil {
-						s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
 					}
 					s.emit(ctx, errorEvent)
 				}
@@ -1004,7 +1003,7 @@ func (s *WindowsService) makeTDPSendHandler(
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
 					if err := tdpConn.Close(); err != nil {
-						s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
+						s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
 					}
 					s.emit(ctx, errorEvent)
 				}
@@ -1025,7 +1024,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
-				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
+				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")
 			}
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
@@ -1038,10 +1037,10 @@ func (s *WindowsService) makeTDPReceiveHandler(
 			if e.Size() > libevents.MaxProtoMessageSizeBytes {
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
-				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", fmt.Sprintf("%T", m))
+				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
 			} else {
 				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
+					s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
 				}
 			}
 		case tdp.ClipboardData:
@@ -1056,8 +1055,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
 				if err := tdpConn.Close(); err != nil {
-					s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation",
-						"session_id", audit.sessionID, "error", err)
+					s.cfg.Log.WithError(err).Errorf("error when terminating sessionID(%v) for audit cache maximum size violation", audit.sessionID)
 				}
 				s.emit(ctx, errorEvent)
 			}
@@ -1179,7 +1177,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 		})
-		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
+		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username %q with filter %v", username, filter)
 
 		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
@@ -1195,13 +1193,13 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		if len(entries) == 0 {
 			return nil, nil, trace.NotFound("could not find Windows account %q", username)
 		} else if len(entries) > 1 {
-			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
+			s.cfg.Log.Warnf("found multiple entries for username %q, taking the first", username)
 		}
 		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
@@ -1281,7 +1279,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		HostID:   s.cfg.Heartbeat.HostUUID,
 	}
 
-	s.cfg.Logger.DebugContext(ctx, "Creating session tracker", "session_id", sessionID)
+	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1289,14 +1287,14 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	go func() {
 		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
-			s.cfg.Logger.WarnContext(ctx, "Failed to update session tracker expiration", "session_id", sessionID, "error", err)
+			s.cfg.Log.WithError(err).Warnf("Failed to update session tracker expiration for session %v", sessionID)
 		}
 	}()
 
 	go func() {
 		<-ctx.Done()
 		if err := tracker.Close(s.closeCtx); err != nil {
-			s.cfg.Logger.DebugContext(s.closeCtx, "Failed to close session tracker", "session_id", sessionID)
+			s.cfg.Log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionID)
 		}
 	}()
 

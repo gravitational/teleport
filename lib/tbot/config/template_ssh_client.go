@@ -74,11 +74,11 @@ func (c *templateSSHClient) describe() []FileDescription {
 }
 
 func getClusterNames(
-	ctx context.Context, bot provider, connectedClusterName string,
+	bot provider, connectedClusterName string,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
-	leafClusters, err := bot.GetRemoteClusters(ctx)
+	leafClusters, err := bot.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,7 +111,7 @@ func (c *templateSSHClient) render(
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
-	clusterNames, err := getClusterNames(ctx, bot, ping.ClusterName)
+	clusterNames, err := getClusterNames(bot, ping.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -159,24 +159,7 @@ func (c *templateSSHClient) render(
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
 	botConfig := bot.Config()
 
-	if c.getEnv(sshConfigProxyModeEnv) == "legacy" {
-		// Deprecated: this block will be removed in v17. It exists so users can
-		// revert to the old behavior if necessary.
-		// TODO(strideynet) DELETE IN 17.0.0
-		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-			AppName:             openssh.TbotApp,
-			ClusterNames:        clusterNames,
-			KnownHostsPath:      knownHostsPath,
-			IdentityFilePath:    identityFilePath,
-			CertificateFilePath: certificateFilePath,
-			ProxyHost:           proxyHost,
-			ProxyPort:           proxyPort,
-			ExecutablePath:      executablePath,
-			DestinationDir:      absDestPath,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
+	if c.getEnv(sshConfigProxyModeEnv) == "new" {
 		// Test if ALPN upgrade is required, this will only be necessary if we
 		// are using TLS routing.
 		connUpgradeRequired := false
@@ -211,6 +194,22 @@ func (c *templateSSHClient) render(
 			// configurable at a later date if we discover reasons for this to
 			// be disabled.
 			Resume: true,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// Deprecated: this block will be removed in v17.
+		// TODO(strideynet) DELETE IN 17.0.0
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

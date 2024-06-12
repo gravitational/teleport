@@ -2842,7 +2842,7 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV005I',
+    code: 'TV001I',
     device: {
       asset_tag: 'M2CQVQV64R',
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
@@ -2856,7 +2856,64 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: 'this user wont render properly',
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV002I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV003I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV004I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
     },
   },
   {
@@ -2875,7 +2932,45 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: 'this user wont render properly',
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV006I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: false,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV007I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
     },
   },
   {
@@ -3057,70 +3152,6 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV008I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      credential_id: 'c7572891-8426-4e62-874f-c793029d53a6',
-      device_id: 'f84f6b35-6226-4e73-8205-3bcbd7d12970',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device.webtoken.create',
-    success: true,
-    time: '2024-03-05T17:18:43.296Z',
-    uid: 'b1361d51-70fa-4f1b-803c-a252c2877707',
-    user: 'llama',
-    user_kind: 1,
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV006I',
-    device: {
-      device_id: 'f84f6b35-6226-4e73-8205-3bcbd7d12970',
-      web_authentication: true,
-      web_session_id: 'my-session-id-12345',
-    },
-    ei: 0,
-    event: 'device.authenticate',
-    success: true,
-    time: '2024-04-08T19:34:48.1Z',
-    uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: 'llama',
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV009I',
-    device: {
-      device_id: 'f84f6b35-6226-4e73-8205-3bcbd7d12970',
-      web_authentication: true,
-      web_session_id: 'my-session-id-12345',
-    },
-    ei: 0,
-    event: 'device.authenticate.confirm',
-    success: false,
-    time: '2024-04-08T19:35:48.1Z',
-    uid: 'b1361d51-70fa-4f1b-803c-a252c2877707',
-    user: 'llama',
-    user_kind: 1,
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV009I',
-    device: {
-      device_id: 'f84f6b35-6226-4e73-8205-3bcbd7d12970',
-      web_authentication: true,
-      web_session_id: 'my-session-id-12345',
-    },
-    ei: 0,
-    event: 'device.authenticate.confirm',
-    success: true,
-    time: '2024-04-08T19:36:48.1Z',
-    uid: 'b1361d51-70fa-4f1b-803c-a252c2877707',
-    user: 'llama',
-    user_kind: 1,
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
     code: 'TLR00I',
     ei: 0,
     event: 'login_rule.create',
@@ -3290,19 +3321,6 @@ export const events = [
     name: 'assignment-id',
     source: 'source',
     user: 'mike',
-  },
-  {
-    code: 'TOK007I',
-    event: 'okta.user.sync',
-    time: '2023-05-08T19:21:36.144Z',
-    num_users_created: 5,
-    num_users_deleted: 1,
-    num_users_modified: 7,
-  },
-  {
-    code: 'TOK007E',
-    event: 'okta.user.sync',
-    time: '2023-05-08T19:21:36.144Z',
   },
   {
     code: 'TOK006I',

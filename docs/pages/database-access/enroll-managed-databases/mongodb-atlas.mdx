@@ -57,6 +57,7 @@ $ sudo teleport db start \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \
+  --ca-cert=/path/to/letsencrypt/isrgrootx1.pem \
   --labels=env=dev
 ```
 
@@ -89,6 +90,8 @@ db_service:
   - name: "mongodb-atlas"
     protocol: "mongodb"
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
+    tls:
+      ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
     static_labels:
       env: "dev"
 ```
@@ -118,6 +121,19 @@ Use only the scheme and hostname parts of the connection string in the URI:
 ```code
 $ --uri=mongodb+srv://cluster0.abcde.mongodb.net
 ```
+
+### Atlas CA certificate
+
+MongoDB Atlas uses certificates signed by Let's Encrypt.
+
+Download the Let's Encrypt root certificate and use it as a CA in the Database
+Service configuration:
+
+```code
+$ curl -o /tmp/isrgrootx1.pem https://letsencrypt.org/certs/isrgrootx1.pem.txt
+```
+
+You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases[*].ca_cert_file` configuration option or `--ca-cert` CLI flag.
 
 ## Step 2/4. Create a Teleport user
 

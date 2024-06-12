@@ -19,7 +19,6 @@
 package metrics
 
 import (
-	"errors"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -37,8 +36,7 @@ func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
 	var errs []error
 	for _, c := range collectors {
 		if err := prometheus.Register(c); err != nil {
-			var alreadyRegisteredError prometheus.AlreadyRegisteredError
-			if errors.As(err, &alreadyRegisteredError) {
+			if _, ok := err.(prometheus.AlreadyRegisteredError); ok {
 				continue
 			}
 			errs = append(errs, err)

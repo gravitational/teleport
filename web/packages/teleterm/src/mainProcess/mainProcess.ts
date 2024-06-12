@@ -51,7 +51,6 @@ import Logger from 'teleterm/logger';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
-import { staticConfig } from 'teleterm/staticConfig';
 
 import {
   ConfigService,
@@ -64,7 +63,6 @@ import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import {
-  getAgentsDir,
   createAgentConfigFile,
   isAgentConfigFileCreated,
   removeAgentDirectory,
@@ -171,21 +169,17 @@ export default class MainProcess {
   }
 
   private initTshd() {
-    const { binaryPath, homeDir } = this.settings.tshd;
+    const { binaryPath, flags, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
-    this.tshdProcess = spawn(
-      binaryPath,
-      ['daemon', 'start', ...this.getTshdFlags()],
-      {
-        stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
-        windowsHide: true,
-        env: {
-          ...process.env,
-          TELEPORT_HOME: homeDir,
-        },
-      }
-    );
+    this.tshdProcess = spawn(binaryPath, flags, {
+      stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
+      windowsHide: true,
+      env: {
+        ...process.env,
+        TELEPORT_HOME: homeDir,
+      },
+    });
 
     this.logProcessExitAndError('tshd', this.tshdProcess);
 
@@ -202,31 +196,6 @@ export default class MainProcess {
       this.tshdProcess,
       this.tshdProcessLastLogs
     );
-  }
-
-  private getTshdFlags(): string[] {
-    const settings = this.settings;
-    const agentsDir = getAgentsDir(settings.userDataDir);
-
-    const flags = [
-      // grpc-js requires us to pass localhost:port for TCP connections,
-      // for tshd we have to specify the protocol as well.
-      `--addr=${settings.tshd.requestedNetworkAddress}`,
-      `--certs-dir=${settings.certsDir}`,
-      `--prehog-addr=${staticConfig.prehogAddress}`,
-      `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
-      `--agents-dir=${agentsDir}`,
-      `--installation-id=${settings.installationId}`,
-    ];
-
-    if (settings.insecure) {
-      flags.unshift('--insecure');
-    }
-    if (settings.debug) {
-      flags.unshift('--debug');
-    }
-
-    return flags;
   }
 
   private initSharedProcess() {

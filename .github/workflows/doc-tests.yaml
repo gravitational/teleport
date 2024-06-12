@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -27,6 +27,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
+              - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
 
@@ -108,15 +109,10 @@ jobs:
           repository: "gravitational/teleport"
 
       - name: Run the linter
-        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
+        uses: errata-ai/vale-action@c99f2dfd2aeaedb3d4bb16f385841830b9164d31 # reviewdog
         with:
           version: 2.30.0
-          # Take the comma-separated list of files returned by the "Check for
-          # relevant changes" job.
           separator: ","
           files: ${{ needs.changes.outputs.changed_files }}
-          # Restrict the linter to lines modified/added by a PR, not entire
-          # changed files.
-          filter_mode: added
           fail_on_error: true
 

@@ -188,6 +188,16 @@ func (s *ServerV2) SetSubKind(sk string) {
 	s.SubKind = sk
 }
 
+// GetResourceID returns resource ID
+func (s *ServerV2) GetResourceID() int64 {
+	return s.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (s *ServerV2) SetResourceID(id int64) {
+	s.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (s *ServerV2) GetRevision() string {
 	return s.Metadata.GetRevision()

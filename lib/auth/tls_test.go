@@ -40,7 +40,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -48,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -1143,7 +1141,7 @@ func TestListUsers(t *testing.T) {
 	getUsers := func(t *testing.T, req *userspb.ListUsersRequest) []*types.UserV2 {
 		var users []*types.UserV2
 		for {
-			rsp, err := clt.ListUsers(ctx, req)
+			rsp, err := clt.ListUsersExt(ctx, req)
 			require.NoError(t, err)
 
 			users = append(users, rsp.Users...)
@@ -1347,7 +1345,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1362,7 +1360,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {
@@ -1390,7 +1388,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.Equal(t, "local", gotAP.GetType())
 	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
-	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
@@ -1410,54 +1408,16 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 
 func TestRemoteClustersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	testSrv := newTestTLSServer(t)
+
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	clusterName := "example.com"
-	out, err := clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-
-	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
-	require.NoError(t, err)
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc))
-
-	update := rc.Clone()
-	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	_, err = clt.UpdateRemoteCluster(ctx, update)
-	require.NoError(t, err)
-	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
-	require.NoError(t, err)
-	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
-	// Ensure other fields unchanged
-	require.Empty(t,
-		cmp.Diff(
-			rc,
-			updated,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
-		),
-	)
-
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.NoError(t, err)
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.True(t, trace.IsNotFound(err))
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
+	suite := &suite.ServicesTestSuite{
+		PresenceS: clt,
+	}
+	suite.RemoteClustersCRUD(t)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -1772,7 +1732,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create remote cluster so create access request doesn't err due to non existent cluster
 	rc, err := types.NewRemoteCluster("foobar")
 	require.NoError(t, err)
-	_, err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(ctx, rc)
+	err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -2634,7 +2594,7 @@ func TestGenerateCerts(t *testing.T) {
 		// but can renew their own cert, for example set route to cluster
 		rc, err := types.NewRemoteCluster("cluster-remote")
 		require.NoError(t, err)
-		rc, err = srv.Auth().CreateRemoteCluster(ctx, rc)
+		err = srv.Auth().CreateRemoteCluster(rc)
 		require.NoError(t, err)
 
 		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -2663,7 +2623,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		rc1, err := types.NewRemoteCluster("cluster1")
 		require.NoError(t, err)
-		rc1, err = srv.Auth().CreateRemoteCluster(ctx, rc1)
+		err = srv.Auth().CreateRemoteCluster(rc1)
 		require.NoError(t, err)
 
 		// User can renew their certificates, however the TTL will be limited
@@ -2763,7 +2723,7 @@ func TestGenerateCerts(t *testing.T) {
 		meta := rc2.GetMetadata()
 		meta.Labels = map[string]string{"env": "prod"}
 		rc2.SetMetadata(meta)
-		rc2, err = srv.Auth().CreateRemoteCluster(ctx, rc2)
+		err = srv.Auth().CreateRemoteCluster(rc2)
 		require.NoError(t, err)
 
 		// User can't generate certificates for leaf cluster they don't have access
@@ -2968,15 +2928,9 @@ func TestClusterConfigContext(t *testing.T) {
 	// we are recording at the nodes not at the proxy, the proxy may
 	// need to generate host certs if a client wants to connect to an
 	// agentless node
-	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         pub,
-		HostId:      "a",
-		NodeName:    "b",
-		Principals:  nil,
-		ClusterName: "localhost",
-		Role:        string(types.RoleProxy),
-		Ttl:         durationpb.New(0),
-	})
+	_, err = proxy.GenerateHostCert(ctx, pub,
+		"a", "b", nil,
+		"localhost", types.RoleProxy, 0)
 	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
@@ -2988,15 +2942,9 @@ func TestClusterConfigContext(t *testing.T) {
 	require.NoError(t, err)
 
 	// try and generate a host cert
-	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         pub,
-		HostId:      "a",
-		NodeName:    "b",
-		Principals:  nil,
-		ClusterName: "localhost",
-		Role:        string(types.RoleProxy),
-		Ttl:         durationpb.New(0),
-	})
+	_, err = proxy.GenerateHostCert(ctx, pub,
+		"a", "b", nil,
+		"localhost", types.RoleProxy, 0)
 	require.NoError(t, err)
 }
 
@@ -4100,7 +4048,7 @@ func TestEvents(t *testing.T) {
 		ConfigS:       clt,
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
-		PresenceS:     testSrv.Auth(),
+		PresenceS:     clt,
 		CAS:           testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
@@ -4443,7 +4391,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4613,7 +4561,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.token,
 					token,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			}
 		})
@@ -4636,12 +4584,12 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("no extra tokens", func(t *testing.T) {
+	t.Run("no tokens", func(t *testing.T) {
 		client, err := testSrv.NewClient(TestUser(privilegedUser.GetName()))
 		require.NoError(t, err)
 		toks, err := client.GetTokens(ctx)
 		require.NoError(t, err)
-		require.Len(t, toks, 1) // only a single static token exists
+		require.Empty(t, toks)
 	})
 
 	// Create tokens to then assert are returned
@@ -4703,7 +4651,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					expectTokens,
 					tokens,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Empty(t, tokens)
@@ -4773,7 +4721,7 @@ func TestGRPCServer_GetToken(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					token,
 					pt,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				))
 			} else {
 				require.Nil(t, token)

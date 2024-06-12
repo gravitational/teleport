@@ -579,7 +579,7 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 		return trace.Wrap(err)
 	}
 	response := make([]byte, 1)
-	if _, err := tlsConn.Read(response); !errors.Is(err, io.EOF) {
+	if _, err := tlsConn.Read(response); err != io.EOF {
 		// server should close the connection after receiving cancel request.
 		return trace.Wrap(err)
 	}

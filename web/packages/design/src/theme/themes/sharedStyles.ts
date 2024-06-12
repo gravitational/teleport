@@ -23,12 +23,14 @@ import { fonts } from '../fonts';
 
 import { SharedColors, SharedStyles } from './types';
 
+const dockedAssistWidth = 520;
 // TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
 // by changing the minimum width on a per-view basis (Main.tsx).
 const sidebarWidth = 256;
 
 // Styles that are shared by all themes.
 export const sharedStyles: SharedStyles = {
+  dockedAssistWidth,
   sidebarWidth,
   boxShadow: [
     '0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12)',

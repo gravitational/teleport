@@ -19,10 +19,6 @@ env:
   RDS_POSTGRES_INSTANCE_NAME: ci-database-e2e-tests-rds-postgres-instance-us-west-2-307493967395
   RDS_MYSQL_INSTANCE_NAME: ci-database-e2e-tests-rds-mysql-instance-us-west-2-307493967395
   RDS_MARIADB_INSTANCE_NAME: ci-database-e2e-tests-rds-mariadb-instance-us-west-2-307493967395
-  REDSHIFT_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-access
-  REDSHIFT_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-discovery
-  REDSHIFT_IAM_DB_USER: ci-database-e2e-tests-redshift-user
-  REDSHIFT_CLUSTER_NAME: ci-database-e2e-tests-redshift-cluster-us-west-2-307493967395
   REDSHIFT_SERVERLESS_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-access
   REDSHIFT_SERVERLESS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-discovery
   REDSHIFT_SERVERLESS_ENDPOINT_NAME: ci-database-e2e-tests-redshift-serverless-workgroup-rss-access-us-west-2-307493967395
@@ -41,7 +37,7 @@ jobs:
        - name: Checkout
          if: ${{ github.event_name == 'merge_group' }}
          uses: actions/checkout@v4
-       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+       - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
          id: changes
          with:
            base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -68,7 +64,7 @@ jobs:
       id-token: write
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
       env:
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
@@ -88,7 +84,7 @@ jobs:
         continue-on-error: true
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.GHA_ASSUME_ROLE }}

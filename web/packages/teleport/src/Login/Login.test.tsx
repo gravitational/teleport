@@ -45,7 +45,7 @@ test('basic rendering', () => {
 });
 
 test('login with redirect', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue({});
+  jest.spyOn(auth, 'login').mockResolvedValue(null);
 
   render(<Login />);
 
@@ -65,7 +65,7 @@ test('login with redirect', async () => {
 
 test('login with MFA, changing method to OTP', async () => {
   jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
-  jest.spyOn(auth, 'login').mockResolvedValue({});
+  jest.spyOn(auth, 'login').mockResolvedValue(null);
 
   render(<Login />);
 
@@ -115,7 +115,7 @@ test('login with SSO', () => {
 
 test('passwordless login', async () => {
   jest.spyOn(cfg, 'getPrimaryAuthType').mockReturnValue('passwordless');
-  jest.spyOn(auth, 'loginWithWebauthn').mockResolvedValue({});
+  jest.spyOn(auth, 'loginWithWebauthn').mockResolvedValue(undefined);
 
   render(<Login />);
 

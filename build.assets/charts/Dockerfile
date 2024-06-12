@@ -2,7 +2,7 @@
 FROM ubuntu:20.04 AS teleport
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
-# signals and orphaned processes are handled correctly. The ca-certificates
+# signals and orphaned processes are are handled correctly. The ca-certificates
 # package is installed because the base Ubuntu image does not come with any
 # certificate authorities. libelf1 is a dependency introduced by Teleport 7.0.
 #

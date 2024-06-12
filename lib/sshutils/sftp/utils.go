@@ -20,7 +20,6 @@ package sftp
 
 import (
 	"context"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -74,7 +73,7 @@ func (r *fileStreamReader) Read(b []byte) (int, error) {
 	for _, stream := range r.streams {
 		if _, innerError := stream.Read(readBuff); innerError != nil {
 			// Ignore EOF
-			if !errors.Is(err, io.EOF) {
+			if err != io.EOF {
 				return 0, innerError
 			}
 		}

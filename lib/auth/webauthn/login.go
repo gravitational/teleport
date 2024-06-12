@@ -297,7 +297,15 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	// Check if the given scope is satisfied by the challenge scope.
 	if requiredExtensions.Scope != sd.ChallengeExtensions.Scope && requiredExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-		return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
+		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
+		// TODO(Joerger): DELETE IN v16.0.0
+		// We make an exception if the password change scope has been requested,
+		// since only the web client can change passwords, and we can enforce the
+		// scope today.
+		if sd.ChallengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED ||
+			requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD {
+			return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
+		}
 	}
 
 	// If this session is reusable, but this login forbids reusable sessions, return an error.

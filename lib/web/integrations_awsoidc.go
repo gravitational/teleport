@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -582,7 +581,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 			return nil, trace.Wrap(err)
 		}
 
-		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
+		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins))
 	}
 
 	return ui.AWSOIDCListEC2Response{
@@ -926,7 +925,7 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
-// awsOIDCCreateAWSAppAccess creates an AppServer that uses an AWS OIDC Integration for proxying access.
+// awsOIDCDeployC2ICE creates an AppServer that uses an AWS OIDC Integration for proxying access.
 func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
@@ -983,62 +982,6 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		UserGroupLookup:       getUserGroupLookup(),
 		Logger:                h.log,
 	}), nil
-}
-
-// awsOIDCDeleteAWSAppAccess deletes the AWS AppServer created that uses the AWS OIDC Integration for proxying requests.
-func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	ctx := r.Context()
-
-	subkind := p.ByName("name_or_subkind")
-	if subkind != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("only aws oidc integrations are supported")
-	}
-
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ig, err := clt.GetIntegration(ctx, integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if ig.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("only aws oidc integrations are supported")
-	}
-
-	integrationAppServer, err := h.getAppServerByName(ctx, clt, integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if integrationAppServer.GetApp().GetIntegration() != integrationName {
-		return nil, trace.NotFound("app %s is not using integration %s", integrationAppServer.GetName(), integrationName)
-	}
-
-	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return nil, nil
-}
-
-func (h *Handler) getAppServerByName(ctx context.Context, userClient authclient.ClientI, appServerName string) (types.AppServer, error) {
-	appServers, err := userClient.GetApplicationServers(ctx, apidefaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, s := range appServers {
-		if s.GetName() == appServerName {
-			return s, nil
-		}
-	}
-	return nil, trace.NotFound("app %q not found", appServerName)
 }
 
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration

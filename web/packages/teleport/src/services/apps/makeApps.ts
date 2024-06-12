@@ -34,7 +34,6 @@ export default function makeApp(json: any): App {
     awsConsole = false,
     samlApp = false,
     friendlyName = '',
-    requiresRequest,
     integration = '',
   } = json;
 
@@ -85,7 +84,6 @@ export default function makeApp(json: any): App {
     userGroups,
     samlApp,
     samlAppSsoUrl,
-    requiresRequest,
     integration,
   };
 }

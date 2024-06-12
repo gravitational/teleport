@@ -51,7 +51,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		SortBy:              sortBy,
 		UseSearchAsRoles:    req.GetSearchAsRoles(),
 		PinnedOnly:          req.GetPinnedOnly(),
-		IncludeRequestable:  req.GetIncludeRequestable(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,7 +66,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				Resource: &api.PaginatedResource_Server{
 					Server: newAPIServer(*resource.Server),
 				},
-				RequiresRequest: resource.RequiresRequest,
 			})
 		}
 		if resource.Database != nil {
@@ -75,7 +73,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				Resource: &api.PaginatedResource_Database{
 					Database: newAPIDatabase(*resource.Database),
 				},
-				RequiresRequest: resource.RequiresRequest,
 			})
 		}
 		if resource.Kube != nil {
@@ -83,7 +80,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				Resource: &api.PaginatedResource_Kube{
 					Kube: newAPIKube(*resource.Kube),
 				},
-				RequiresRequest: resource.RequiresRequest,
 			})
 		}
 		if resource.App != nil {
@@ -91,7 +87,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				Resource: &api.PaginatedResource_App{
 					App: newAPIApp(*resource.App),
 				},
-				RequiresRequest: resource.RequiresRequest,
 			})
 		}
 		if resource.SAMLIdPServiceProvider != nil {
@@ -99,7 +94,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				Resource: &api.PaginatedResource_App{
 					App: newSAMLIdPServiceProviderAPIApp(*resource.SAMLIdPServiceProvider),
 				},
-				RequiresRequest: resource.RequiresRequest,
 			})
 		}
 	}

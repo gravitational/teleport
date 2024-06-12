@@ -22,8 +22,6 @@ package teleport.lib.teleterm.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
-import "teleport/devicetrust/v1/device_confirmation_token.proto";
-import "teleport/devicetrust/v1/device_web_token.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/app.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
@@ -166,13 +164,6 @@ service TerminalService {
   // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
   // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
   rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
-
-  // AuthenticateWebDevice blesses a web session with device trust by performing
-  // the on-behalf-of device authentication ceremony.
-  //
-  // See
-  // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
-  rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
 }
 
 message EmptyResponse {}
@@ -602,8 +593,6 @@ message ListUnifiedResourcesRequest {
   bool search_as_roles = 8;
   // Only the pinned resources will be returned for the requesting user.
   bool pinned_only = 9;
-  // include_requestable indicates that the response should include resources that the user must request access to.
-  bool include_requestable = 10;
 }
 
 message SortBy {
@@ -627,7 +616,6 @@ message PaginatedResource {
     Kube kube = 3;
     App app = 4;
   }
-  bool requires_request = 5;
 }
 
 message GetUserPreferencesRequest {
@@ -652,19 +640,4 @@ message UpdateUserPreferencesResponse {
 message UserPreferences {
   teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
   teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
-}
-
-// Request for AuthenticateWebDevice.
-message AuthenticateWebDeviceRequest {
-  // Device web token to be spent in exchange for the device authentication
-  // attempt.
-  teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
-  string root_cluster_uri = 2;
-}
-
-// Response for AuthenticateWebDevice.
-message AuthenticateWebDeviceResponse {
-  // Device confirmation token to be sent to the browser that originated the
-  // authentication attempt.
-  teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
 }

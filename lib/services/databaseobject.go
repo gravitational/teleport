@@ -26,25 +26,20 @@ import (
 
 // DatabaseObjects manages DatabaseObject resources.
 type DatabaseObjects interface {
-	DatabaseObjectsGetter
-
 	// CreateDatabaseObject will create a new DatabaseObject resource.
 	CreateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error)
 
 	// UpsertDatabaseObject creates a new DatabaseObject or forcefully updates an existing DatabaseObject.
 	UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error)
 
+	// GetDatabaseObject will get a DatabaseObject resource by name.
+	GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error)
+
 	// DeleteDatabaseObject will delete a DatabaseObject resource.
 	DeleteDatabaseObject(ctx context.Context, name string) error
 
 	// UpdateDatabaseObject updates an existing DatabaseObject.
 	UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error)
-}
-
-// DatabaseObjectsGetter defines methods for fetching database objects.
-type DatabaseObjectsGetter interface {
-	// GetDatabaseObject will get a DatabaseObject resource by name.
-	GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error)
 
 	// ListDatabaseObjects will list DatabaseObject resources.
 	ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error)

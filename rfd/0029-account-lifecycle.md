@@ -453,7 +453,7 @@ User <email> and <email> have initiated lock at <time> at <devices> <locations>.
 
 * <Lock details>
 
-To remove the lock, login to the locks UI and unfreeze the account.
+To remove the lock, login to the the locks UI and unfreeze the account.
 ```
 
 To remove the lock, users should follow the same procedure, but in reverse order:

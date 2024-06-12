@@ -1,17 +1,16 @@
-{{- $serviceAnnotations := coalesce .Values.annotations.service .Values.serviceAnnotations -}}
 kind: Service
 apiVersion: v1
 metadata:
   name: {{ include "jira.fullname" . }}
-  {{- if (or (eq .Values.chartMode "aws") $serviceAnnotations) }}
+  {{- if (or (eq .Values.chartMode "aws") .Values.serviceAnnotations) }}
   annotations:
     {{- if eq .Values.chartMode "aws" }}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
     {{- end }}
-    {{- if $serviceAnnotations }}
-      {{- toYaml $serviceAnnotations | nindent 4 }}
+    {{- if .Values.serviceAnnotations }}
+      {{- toYaml .Values.serviceAnnotations | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:

@@ -227,7 +227,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
 // Filecmd handles file modification requests.
 func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 	defer func() {
-		if errors.Is(retErr, sftp.ErrSSHFxOpUnsupported) {
+		if retErr == sftp.ErrSSHFxOpUnsupported {
 			return
 		}
 		s.sendSFTPEvent(req, retErr)

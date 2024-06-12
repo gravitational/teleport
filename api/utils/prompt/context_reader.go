@@ -21,12 +21,12 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/term"
 )
 
@@ -177,7 +177,7 @@ func (cr *ContextReader) processReads() {
 
 		select {
 		case <-cr.closed:
-			slog.WarnContext(context.Background(), "ContextReader closed during ongoing read,", "dropped_bytes", len(value))
+			log.Warnf("ContextReader closed during ongoing read, dropping %v bytes", len(value))
 			return
 		case cr.reads <- readOutcome{value: value, err: err}:
 		}
@@ -199,7 +199,7 @@ func (cr *ContextReader) handleInterrupt() {
 	for {
 		select {
 		case sig := <-c:
-			slog.DebugContext(context.Background(), "Captured signal attempting to restore terminal state", "signal", sig)
+			log.Debugf("Captured signal %s, attempting to restore terminal state", sig)
 			cr.mu.Lock()
 			_ = cr.maybeRestoreTerm(iAmHoldingTheLock{})
 			cr.mu.Unlock()
@@ -276,14 +276,14 @@ func (cr *ContextReader) ReadPassword(ctx context.Context) ([]byte, error) {
 	if cr.fd == -1 {
 		return nil, ErrNotTerminal
 	}
-	if err := cr.firePasswordRead(ctx); err != nil {
+	if err := cr.firePasswordRead(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return cr.waitForRead(ctx)
 }
 
-func (cr *ContextReader) firePasswordRead(ctx context.Context) error {
+func (cr *ContextReader) firePasswordRead() error {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
@@ -300,7 +300,7 @@ func (cr *ContextReader) firePasswordRead(ctx context.Context) error {
 		cr.cond.Broadcast()
 	case readerStateClean: // OK, ongoing clean read.
 		// TODO(codingllama): Transition the terminal to password read?
-		slog.WarnContext(ctx, "prompt: Clean read reused by password read")
+		log.Warn("prompt: Clean read reused by password read")
 	case readerStatePassword: // OK, ongoing password read.
 	case readerStateClosed:
 		return ErrReaderClosed

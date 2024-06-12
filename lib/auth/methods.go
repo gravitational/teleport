@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -621,13 +620,12 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent string
-	if cm := req.ClientMetadata; cm != nil {
-		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
+	loginIP := ""
+	if req.ClientMetadata != nil {
+		loginIP, _, err = net.SplitHostPort(req.ClientMetadata.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userAgent = cm.UserAgent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
@@ -640,27 +638,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
 	}
 
 	return sess, nil
@@ -787,8 +764,7 @@ func (a *Server) createUserWebSession(ctx context.Context, user services.UserSta
 }
 
 func getErrorByTraceField(err error) error {
-	var traceErr trace.Error
-	ok := errors.As(err, &traceErr)
+	traceErr, ok := err.(trace.Error)
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")

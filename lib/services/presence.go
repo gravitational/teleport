@@ -182,30 +182,22 @@ type Presence interface {
 	DeleteAllTunnelConnections() error
 
 	// CreateRemoteCluster creates a remote cluster
-	CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
+	CreateRemoteCluster(types.RemoteCluster) error
 
 	// UpdateRemoteCluster updates a remote cluster
-	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
-
-	// PatchRemoteCluster fetches a remote cluster and then calls updateFn
-	// to apply any changes, before persisting the updated remote cluster.
-	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
+	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error
 
 	// GetRemoteClusters returns a list of remote clusters
-	// Prefer ListRemoteClusters
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
-
-	// ListRemoteClusters returns a page of remote clusters
-	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
+	GetRemoteClusters(opts ...MarshalOption) ([]types.RemoteCluster, error)
 
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// DeleteRemoteCluster deletes remote cluster by name
 	DeleteRemoteCluster(ctx context.Context, clusterName string) error
 
 	// DeleteAllRemoteClusters deletes all remote clusters
-	DeleteAllRemoteClusters(ctx context.Context) error
+	DeleteAllRemoteClusters() error
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)

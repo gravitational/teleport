@@ -33,8 +33,6 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirmation_token_pb";
-import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
 import { App } from "./app_pb";
@@ -1077,12 +1075,6 @@ export interface ListUnifiedResourcesRequest {
      * @generated from protobuf field: bool pinned_only = 9;
      */
     pinnedOnly: boolean;
-    /**
-     * include_requestable indicates that the response should include resources that the user must request access to.
-     *
-     * @generated from protobuf field: bool include_requestable = 10;
-     */
-    includeRequestable: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.SortBy
@@ -1151,10 +1143,6 @@ export interface PaginatedResource {
     } | {
         oneofKind: undefined;
     };
-    /**
-     * @generated from protobuf field: bool requires_request = 5;
-     */
-    requiresRequest: boolean;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetUserPreferencesRequest
@@ -1211,38 +1199,6 @@ export interface UserPreferences {
      * @generated from protobuf field: teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
      */
     unifiedResourcePreferences?: UnifiedResourcePreferences;
-}
-/**
- * Request for AuthenticateWebDevice.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
- */
-export interface AuthenticateWebDeviceRequest {
-    /**
-     * Device web token to be spent in exchange for the device authentication
-     * attempt.
-     *
-     * @generated from protobuf field: teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
-     */
-    deviceWebToken?: DeviceWebToken;
-    /**
-     * @generated from protobuf field: string root_cluster_uri = 2;
-     */
-    rootClusterUri: string;
-}
-/**
- * Response for AuthenticateWebDevice.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
- */
-export interface AuthenticateWebDeviceResponse {
-    /**
-     * Device confirmation token to be sent to the browser that originated the
-     * authentication attempt.
-     *
-     * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
-     */
-    confirmationToken?: DeviceConfirmationToken;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -4894,8 +4850,7 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
             { no: 6, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "sort_by", kind: "message", T: () => SortBy },
             { no: 8, name: "search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 10, name: "include_requestable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 9, name: "pinned_only", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ListUnifiedResourcesRequest>): ListUnifiedResourcesRequest {
@@ -4908,7 +4863,6 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         message.search = "";
         message.searchAsRoles = false;
         message.pinnedOnly = false;
-        message.includeRequestable = false;
         if (value !== undefined)
             reflectionMergePartial<ListUnifiedResourcesRequest>(this, message, value);
         return message;
@@ -4944,9 +4898,6 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
                     break;
                 case /* bool pinned_only */ 9:
                     message.pinnedOnly = reader.bool();
-                    break;
-                case /* bool include_requestable */ 10:
-                    message.includeRequestable = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4987,9 +4938,6 @@ class ListUnifiedResourcesRequest$Type extends MessageType<ListUnifiedResourcesR
         /* bool pinned_only = 9; */
         if (message.pinnedOnly !== false)
             writer.tag(9, WireType.Varint).bool(message.pinnedOnly);
-        /* bool include_requestable = 10; */
-        if (message.includeRequestable !== false)
-            writer.tag(10, WireType.Varint).bool(message.includeRequestable);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5117,14 +5065,12 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 1, name: "database", kind: "message", oneof: "resource", T: () => Database },
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
-            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
-            { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App }
         ]);
     }
     create(value?: PartialMessage<PaginatedResource>): PaginatedResource {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.resource = { oneofKind: undefined };
-        message.requiresRequest = false;
         if (value !== undefined)
             reflectionMergePartial<PaginatedResource>(this, message, value);
         return message;
@@ -5158,9 +5104,6 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
-                case /* bool requires_request */ 5:
-                    message.requiresRequest = reader.bool();
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -5185,9 +5128,6 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* bool requires_request = 5; */
-        if (message.requiresRequest !== false)
-            writer.tag(5, WireType.Varint).bool(message.requiresRequest);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5444,106 +5384,6 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UserPreferences
  */
 export const UserPreferences = new UserPreferences$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AuthenticateWebDeviceRequest$Type extends MessageType<AuthenticateWebDeviceRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest", [
-            { no: 1, name: "device_web_token", kind: "message", T: () => DeviceWebToken },
-            { no: 2, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<AuthenticateWebDeviceRequest>): AuthenticateWebDeviceRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
-        if (value !== undefined)
-            reflectionMergePartial<AuthenticateWebDeviceRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthenticateWebDeviceRequest): AuthenticateWebDeviceRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* teleport.devicetrust.v1.DeviceWebToken device_web_token */ 1:
-                    message.deviceWebToken = DeviceWebToken.internalBinaryRead(reader, reader.uint32(), options, message.deviceWebToken);
-                    break;
-                case /* string root_cluster_uri */ 2:
-                    message.rootClusterUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: AuthenticateWebDeviceRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.devicetrust.v1.DeviceWebToken device_web_token = 1; */
-        if (message.deviceWebToken)
-            DeviceWebToken.internalBinaryWrite(message.deviceWebToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* string root_cluster_uri = 2; */
-        if (message.rootClusterUri !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.rootClusterUri);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
- */
-export const AuthenticateWebDeviceRequest = new AuthenticateWebDeviceRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDeviceResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse", [
-            { no: 1, name: "confirmation_token", kind: "message", T: () => DeviceConfirmationToken }
-        ]);
-    }
-    create(value?: PartialMessage<AuthenticateWebDeviceResponse>): AuthenticateWebDeviceResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<AuthenticateWebDeviceResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthenticateWebDeviceResponse): AuthenticateWebDeviceResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token */ 1:
-                    message.confirmationToken = DeviceConfirmationToken.internalBinaryRead(reader, reader.uint32(), options, message.confirmationToken);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: AuthenticateWebDeviceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1; */
-        if (message.confirmationToken)
-            DeviceConfirmationToken.internalBinaryWrite(message.confirmationToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
- */
-export const AuthenticateWebDeviceResponse = new AuthenticateWebDeviceResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5587,6 +5427,5 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetConnectMyComputerNodeName", options: {}, I: GetConnectMyComputerNodeNameRequest, O: GetConnectMyComputerNodeNameResponse },
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
-    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
-    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse }
+    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse }
 ]);

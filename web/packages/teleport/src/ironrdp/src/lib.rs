@@ -18,10 +18,6 @@
 #![allow(clippy::new_without_default)]
 
 use ironrdp_graphics::image_processing::PixelFormat;
-use ironrdp_pdu::cursor::ReadCursor;
-use ironrdp_pdu::decode_cursor;
-use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
-use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
 use ironrdp_pdu::write_buf::WriteBuf;
 use ironrdp_session::fast_path::UpdateKind;
@@ -35,6 +31,11 @@ use js_sys::Uint8Array;
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
+
+use ironrdp_pdu::cursor::ReadCursor;
+use ironrdp_pdu::decode_cursor;
+use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
+use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
@@ -66,6 +67,7 @@ pub fn init_wasm_log(log_level: &str) {
             .init();
 
         debug!("WASM log is ready");
+        // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
     }
 }
 
@@ -90,7 +92,45 @@ impl BitmapFrame {
 
     #[wasm_bindgen(getter)]
     pub fn image_data(&self) -> ImageData {
-        self.image_data.clone() // TODO(isaiah): can we remove this clone?
+        self.image_data.clone() // todo(isaiah): bad, see below for a potential approach:
+
+        // You can pass the `&[u8]` from Rust to JavaScript without copying it by using the `wasm_bindgen::memory`
+        // function to directly access the WebAssembly linear memory. Here's how you can achieve this:
+
+        // 1. Get a pointer to the data and its length.
+        // 2. Create a `Uint8Array` that directly refers to the WebAssembly linear memory.
+        // 3. Use the `subarray` method to create a new view that refers to the desired data without copying it.
+
+        // ```rust
+        // #[wasm_bindgen(getter)]
+        // pub fn image_data(&self) -> JsValue {
+        //     let data = self.image_data.data();
+        //     let data_ptr = data.as_ptr() as u32;
+        //     let data_len = data.len() as u32;
+
+        //     let memory_buffer = wasm_bindgen::memory()
+        //         .dyn_into::<WebAssembly::Memory>()
+        //         .unwrap()
+        //         .buffer();
+
+        //     let data_array = js_sys::Uint8Array::new(&memory_buffer).subarray(data_ptr, data_ptr + data_len);
+
+        //     let obj = js_sys::Object::new();
+        //     js_sys::Reflect::set(&obj, &"data".into(), &data_array).unwrap();
+        //     js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(self.image_data.width())).unwrap();
+        //     js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(self.image_data.height())).unwrap();
+
+        //     obj.into()
+        // }
+        // ```
+
+        // This implementation should pass the data from Rust to JavaScript without copying it.
+        // Note that the returned `Uint8Array` is a view over the WebAssembly linear memory, so
+        // you need to make sure that the data is not modified on the Rust side while it's being
+        // used in JavaScript. Also, keep in mind that the lifetime of the `Uint8Array` is tied
+        // to the lifetime of the `ImageData` object in Rust. If the `ImageData` object is dropped,
+        // the underlying data may be deallocated, and the `Uint8Array` in JavaScript may become
+        // invalid.
     }
 }
 
@@ -272,7 +312,7 @@ impl FastPathProcessor {
             Bitmap => Err(JsValue::from_str(concat!(
                 "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
                 "but it is not currently enabled. For detailed instructions, see:\n",
-                "https://goteleport.com/docs/desktop-access/active-directory-manual/#enable-remotefx"
+                "https://goteleport.com/docs/ver/15.x/desktop-access/active-directory-manual/#enable-remotefx"
             ))),
             _ => Ok(()),
         }
@@ -303,7 +343,6 @@ impl FastPathProcessor {
     }
 }
 
-/// Taken from https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L6
 pub fn extract_partial_image(
     image: &DecodedImage,
     region: InclusiveRectangle,
@@ -316,9 +355,7 @@ pub fn extract_partial_image(
     }
 }
 
-/// Faster for low-height and smaller images
-///
-/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L16
+// Faster for low-height and smaller images
 fn extract_smallest_rectangle(
     image: &DecodedImage,
     region: InclusiveRectangle,
@@ -354,9 +391,7 @@ fn extract_smallest_rectangle(
     (region, dst)
 }
 
-/// Faster for high-height and bigger images
-///
-/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L49
+// Faster for high-height and bigger images
 fn extract_whole_rows(
     image: &DecodedImage,
     region: InclusiveRectangle,

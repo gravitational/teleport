@@ -21,8 +21,6 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "teleport/accesslist/v1/accesslist.proto";
-import "teleport/crownjewel/v1/crownjewel.proto";
-import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
@@ -75,9 +73,5 @@ message ResourceEntry {
     types.WindowsDesktopV3 windows_desktop = 8;
     // access_list is a resource for access lists.
     teleport.accesslist.v1.AccessList access_list = 9;
-    // crown_jewel is a resource for crown jewels.
-    teleport.crownjewel.v1.CrownJewel crown_jewel = 10;
-    // database_object is a resource for database objects.
-    teleport.dbobject.v1.DatabaseObject database_object = 11;
   }
 }

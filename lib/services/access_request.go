@@ -54,7 +54,7 @@ const (
 	// granted for.
 	MaxAccessDuration = 14 * day
 
-	// requestTTL is the TTL for an access request, i.e. the amount of time that
+	// requestTTL is the the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
 )
@@ -83,7 +83,7 @@ type ClusterGetter interface {
 	// GetClusterName returns the local cluster name
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 }
 
 // ValidateAccessRequestClusterNames checks that the clusters in the access request exist
@@ -100,7 +100,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		if resourceID.ClusterName == localClusterName.GetClusterName() {
 			continue
 		}
-		_, err := cg.GetRemoteCluster(context.TODO(), resourceID.ClusterName)
+		_, err := cg.GetRemoteCluster(resourceID.ClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
@@ -1832,6 +1832,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := ValidateAccessRequest(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		req.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		req.SetRevision(cfg.Revision)
 	}
@@ -1854,7 +1857,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, accessRequest))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}

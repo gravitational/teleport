@@ -33,6 +33,9 @@ type Gateway interface {
 	Serve() error
 	// Close terminates gateway connection.
 	Close() error
+	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
+	// updates the cert of the running local proxy.
+	ReloadCert() error
 
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI

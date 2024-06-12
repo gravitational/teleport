@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { subSeconds, subMinutes, subHours, subMonths } from 'date-fns';
+import {
+  subSeconds,
+  subMinutes,
+  subHours,
+  subDays,
+  subWeeks,
+  subMonths,
+} from 'date-fns';
 
 import { NotificationSubKind } from 'teleport/services/notifications';
 import { Notification } from 'teleport/services/notifications';
@@ -89,6 +96,48 @@ export const notifications: Notification[] = [
   },
   {
     id: '6',
+    title: `2 resources are now available to access.`,
+    subKind: NotificationSubKind.AccessRequestNowAssumable,
+    createdDate: subDays(Date.now(), 1), // 1 day ago
+    clicked: true,
+    labels: [
+      {
+        name: 'request-id',
+        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
+      },
+      { name: 'request-type', value: 'resource' },
+    ],
+  },
+  {
+    id: '7',
+    title: `"node-5" is now available to access.`,
+    subKind: NotificationSubKind.AccessRequestNowAssumable,
+    createdDate: subDays(Date.now(), 3), // 3 days ago
+    clicked: false,
+    labels: [
+      {
+        name: 'request-id',
+        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
+      },
+      { name: 'request-type', value: 'resource' },
+    ],
+  },
+  {
+    id: '8',
+    title: `"auditor" is now ready to assume.`,
+    subKind: NotificationSubKind.AccessRequestNowAssumable,
+    createdDate: subWeeks(Date.now(), 2), // 2 weeks ago
+    clicked: true,
+    labels: [
+      {
+        name: 'request-id',
+        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
+      },
+      { name: 'request-type', value: 'role' },
+    ],
+  },
+  {
+    id: '9',
     title: 'This is an example user-created warning notification',
     subKind: NotificationSubKind.UserCreatedWarning,
     createdDate: subMonths(Date.now(), 3), // 3 months ago
@@ -97,19 +146,6 @@ export const notifications: Notification[] = [
       {
         name: 'text-content',
         value: 'This is the text content of a warning notification.',
-      },
-    ],
-  },
-  {
-    id: '7',
-    title: `joe promoted your access request to long-term access.`,
-    subKind: NotificationSubKind.AccessRequestPromoted,
-    createdDate: subMinutes(Date.now(), 4), // 4 minutes ago
-    clicked: false,
-    labels: [
-      {
-        name: 'request-id',
-        value: '3bd7d71f-64ad-588a-988c-22f3853910fa',
       },
     ],
   },

@@ -192,7 +192,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types
 		Value:   json,
 		Expires: tracker.Expiry(),
 	}
-	_, err = s.bk.Create(ctx, item)
+	_, err = s.bk.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

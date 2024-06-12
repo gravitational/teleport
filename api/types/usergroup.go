@@ -23,11 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-var _ compare.IsEqual[UserGroup] = (*UserGroupV1)(nil)
 
 // UserGroup specifies an externally sourced group.
 type UserGroup interface {
@@ -92,14 +89,6 @@ func (g *UserGroupV1) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// IsEqual determines if two user group resources are equivalent to one another.
-func (g *UserGroupV1) IsEqual(i UserGroup) bool {
-	if other, ok := i.(*UserGroupV1); ok {
-		return deriveTeleportEqualUserGroupV1(g, other)
-	}
-	return false
 }
 
 // UserGroups is a list of UserGroup resources.

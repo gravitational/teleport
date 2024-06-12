@@ -648,8 +648,8 @@ func (u *Uploader) emitEvent(e events.UploadEvent) {
 }
 
 func isSessionError(err error) bool {
-	var sessionError sessionError
-	return errors.As(trace.Unwrap(err), &sessionError)
+	_, ok := trace.Unwrap(err).(sessionError)
+	return ok
 }
 
 // sessionError highlights problems with session

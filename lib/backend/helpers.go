@@ -37,7 +37,7 @@ func FlagKey(parts ...string) []byte {
 	return internalKey(flagsPrefix, parts...)
 }
 
-func lockKey(parts ...string) []byte {
+func LockKey(parts ...string) []byte {
 	return internalKey(locksPrefix, parts...)
 }
 
@@ -88,7 +88,7 @@ func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
 	if err != nil {
 		return Lock{}, trace.Wrap(err)
 	}
-	key := lockKey(cfg.LockName)
+	key := LockKey(cfg.LockName)
 	id, err := randomID()
 	if err != nil {
 		return Lock{}, trace.Wrap(err)

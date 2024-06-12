@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
@@ -61,7 +59,6 @@ export type ResourceFilter = {
   startKey?: string;
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
-  includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };

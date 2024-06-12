@@ -24,12 +24,10 @@ import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
-import { storageService } from 'teleport/services/storageService';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
   const [checkingValidSession, setCheckingValidSession] = useState(true);
-  const licenseAcknowledged = storageService.getLicenseAcknowledged();
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
@@ -46,18 +44,6 @@ export default function useLogin() {
 
   function acknowledgeMotd() {
     setShowMotd(false);
-  }
-
-  // onSuccess can receive a device webtoken. If so, it will
-  // enable a prompt to allow users to authorize the current
-  function onSuccess({ deviceWebToken }: LoginResponse) {
-    // deviceWebToken will only exist on a login response
-    // from enterprise but just in case there is a version mismatch
-    // between the webclient and proxy
-    if (deviceWebToken && cfg.isEnterprise) {
-      return authorizeWithDeviceTrust(deviceWebToken);
-    }
-    return loginSuccess();
   }
 
   useEffect(() => {
@@ -108,29 +94,13 @@ export default function useLogin() {
     clearAttempt: attemptActions.clear,
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     primaryAuthType: cfg.getPrimaryAuthType(),
-    licenseAcknowledged,
-    setLicenseAcknowledged: storageService.setLicenseAcknowledged,
     motd,
     showMotd,
     acknowledgeMotd,
   };
 }
 
-type DeviceWebToken = {
-  id: string;
-  token: string;
-};
-
-type LoginResponse = {
-  deviceWebToken?: DeviceWebToken;
-};
-
-function authorizeWithDeviceTrust(token: DeviceWebToken) {
-  const authorize = cfg.getDeviceTrustAuthorizeRoute(token.id, token.token);
-  history.push(authorize, true);
-}
-
-function loginSuccess() {
+function onSuccess() {
   const redirect = getEntryRoute();
   const withPageRefresh = true;
   history.push(redirect, withPageRefresh);

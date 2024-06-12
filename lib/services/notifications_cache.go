@@ -205,9 +205,6 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 	// Get the initial startKey if it wasn't provided.
 	if startKey == "" {
 		startKey = sortcache.NextKey(endKey)
-	} else {
-		// The sortcache expects the key to be in <username>/<uuid> format, so we prepend the username since the startKey passed into this function will just be a UUID.
-		startKey = fmt.Sprintf("%s/%s", username, startKey)
 	}
 
 	var done bool
@@ -269,7 +266,7 @@ func (c *UserNotificationCache) fetch(ctx context.Context) (*sortcache.SortCache
 // GetUserSpecificKey returns the key for a user-specific notification in <username>/<notification uuid> format.
 func GetUserSpecificKey(n *notificationsv1.Notification) string {
 	username := n.GetSpec().GetUsername()
-	id := n.GetMetadata().GetName()
+	id := n.GetSpec().GetId()
 
 	return fmt.Sprintf("%s/%s", username, id)
 }

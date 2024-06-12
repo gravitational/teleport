@@ -187,21 +187,17 @@ func handleIncomingResizeEvents(stream *streamproto.SessionStream, term *termina
 
 func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode types.SessionParticipantMode, stdout io.Writer) error {
 	if s.stream.MFARequired && mode == types.SessionModeratorMode {
-		clt, err := tc.ConnectToCluster(ctx)
+		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		auth, err := clt.ConnectToCluster(ctx, s.meta.GetClusterName())
+		auth, err := proxy.ConnectToCluster(ctx, s.meta.GetClusterName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		go func() {
-			RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
-			auth.Close()
-			clt.Close()
-		}()
+		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
 	}
 
 	return nil

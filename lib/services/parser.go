@@ -531,6 +531,16 @@ func (r *EmptyResource) GetKind() string {
 	return r.Kind
 }
 
+// GetResourceID returns resource ID
+func (r *EmptyResource) GetResourceID() int64 {
+	return r.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (r *EmptyResource) SetResourceID(id int64) {
+	r.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (r *EmptyResource) GetRevision() string {
 	return r.Metadata.GetRevision()

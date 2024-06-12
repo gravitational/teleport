@@ -23,9 +23,11 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
+import { getAgentsDir } from './createAgentConfigFile';
 
 const { argv, env } = process;
 
@@ -74,14 +76,24 @@ export function getRuntimeSettings(): RuntimeSettings {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   const logsDir = path.join(userDataDir, 'logs');
-  const installationId = loadInstallationId(
-    path.resolve(app.getPath('userData'), 'installation_id')
-  );
+  // DO NOT expose agentsDir through RuntimeSettings. See the comment in getAgentsDir.
+  const agentsDir = getAgentsDir(userDataDir);
 
   const tshd = {
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
+    flags: [
+      'daemon',
+      'start',
+      // grpc-js requires us to pass localhost:port for TCP connections,
+      // for tshd we have to specify the protocol as well.
+      `--addr=${tshAddress}`,
+      `--certs-dir=${getCertsDir()}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${kubeConfigsDir}`,
+      `--agents-dir=${agentsDir}`,
+    ],
   };
   const sharedProcess = {
     requestedNetworkAddress: sharedAddress,
@@ -98,6 +110,13 @@ export function getRuntimeSettings(): RuntimeSettings {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
+
+  if (insecure) {
+    tshd.flags.unshift('--insecure');
+  }
+  if (debug) {
+    tshd.flags.unshift('--debug');
+  }
 
   return {
     dev,
@@ -116,7 +135,9 @@ export function getRuntimeSettings(): RuntimeSettings {
     kubeConfigsDir,
     logsDir,
     platform: process.platform,
-    installationId,
+    installationId: loadInstallationId(
+      path.resolve(app.getPath('userData'), 'installation_id')
+    ),
     arch: os.arch(),
     osVersion: os.release(),
     appVersion,

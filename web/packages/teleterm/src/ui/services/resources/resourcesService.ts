@@ -111,13 +111,11 @@ export class ResourcesService {
     search,
     filters,
     limit,
-    includeRequestable,
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
     filters: ResourceTypeFilter[];
     limit: number;
-    includeRequestable: boolean;
   }): Promise<SearchResult[]> {
     try {
       const { resources } = await this.listUnifiedResources({
@@ -130,7 +128,6 @@ export class ResourcesService {
         pinnedOnly: false,
         startKey: '',
         sortBy: { field: 'name', isDesc: true },
-        includeRequestable,
       });
       return resources.map(r => {
         if (r.kind === 'app') {
@@ -164,7 +161,6 @@ export class ResourcesService {
             return {
               kind: 'server' as const,
               resource: p.resource.server,
-              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -172,7 +168,6 @@ export class ResourcesService {
             return {
               kind: 'database' as const,
               resource: p.resource.database,
-              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -180,7 +175,6 @@ export class ResourcesService {
             return {
               kind: 'app' as const,
               resource: p.resource.app,
-              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -188,7 +182,6 @@ export class ResourcesService {
             return {
               kind: 'kube' as const,
               resource: p.resource.kube,
-              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -240,25 +233,15 @@ export class ResourceSearchError extends Error {
   }
 }
 
-export type SearchResultServer = {
-  kind: 'server';
-  resource: types.Server;
-  requiresRequest: boolean;
-};
+export type SearchResultServer = { kind: 'server'; resource: types.Server };
 export type SearchResultDatabase = {
   kind: 'database';
   resource: types.Database;
-  requiresRequest: boolean;
 };
-export type SearchResultKube = {
-  kind: 'kube';
-  resource: types.Kube;
-  requiresRequest: boolean;
-};
+export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
 export type SearchResultApp = {
   kind: 'app';
   resource: types.App & { addrWithProtocol: string };
-  requiresRequest: boolean;
 };
 
 export type SearchResult =
@@ -292,11 +275,10 @@ function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
 }
 
 export type UnifiedResourceResponse =
-  | { kind: 'server'; resource: types.Server; requiresRequest: boolean }
+  | { kind: 'server'; resource: types.Server }
   | {
       kind: 'database';
       resource: types.Database;
-      requiresRequest: boolean;
     }
-  | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: types.App; requiresRequest: boolean };
+  | { kind: 'kube'; resource: types.Kube }
+  | { kind: 'app'; resource: types.App };

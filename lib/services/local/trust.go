@@ -147,6 +147,7 @@ func (s *CA) UpdateCertAuthority(ctx context.Context, ca types.CertAuthority) (t
 
 	ca = ca.Clone()
 	ca.SetRevision(lease.Revision)
+	ca.SetResourceID(lease.ID)
 	return ca, nil
 }
 
@@ -329,7 +330,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -369,7 +370,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	// Marshal values into a []types.CertAuthority slice.
 	cas := make([]types.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			slog.WarnContext(ctx, "Failed to unmarshal cert authority", "key", item.Key, "error", err)
 			continue
@@ -433,6 +434,7 @@ func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
 		Key:      key,
 		Value:    value,
 		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
 		Revision: ca.GetRevision(),
 	}, nil
 }

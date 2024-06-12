@@ -21,11 +21,11 @@ package aws
 import "strings"
 
 const (
-	// TagKeyTeleportCreated defines a tag key that indicates that the cloud
+	// TagKeyTeleportCreated defines a tag key that indicates the the cloud
 	// resource is created by Teleport.
 	TagKeyTeleportCreated = "teleport.dev/created"
 
-	// TagKeyTeleportManaged defines a tag key that indicates that the cloud
+	// TagKeyTeleportManaged defines a tag key that indicates the the cloud
 	// resource is being managed by Teleport.
 	TagKeyTeleportManaged = "teleport.dev/managed"
 

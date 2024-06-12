@@ -34,7 +34,6 @@ export type Desktop = {
 
   host_id?: string;
   host_addr?: string;
-  requiresRequest?: boolean;
 };
 
 // DesktopService is a Windows Desktop Service.

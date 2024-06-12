@@ -195,7 +195,7 @@ discover Azure AKS kube clusters, Azure MySQL, and Azure PostgreSQL databases.
 
 Now suppose that four AKS kube clusters named `foo` exist in each combination of
 resource group and subscription ID, and a MySQL database and Postgres database
-both named `foo` exist in the `1111..` subscription and `group1`.
+both named `foo` exist in the the `1111..` subscription and `group1`.
 If the discovery service applies the new naming convention, the discovered
 resources should be named:
 

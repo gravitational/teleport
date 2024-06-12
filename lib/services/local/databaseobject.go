@@ -30,40 +30,38 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-// DatabaseObjectService manages database objects in the backend.
-type DatabaseObjectService struct {
+// databaseObjectService manages database objects in the backend.
+type databaseObjectService struct {
 	service *generic.ServiceWrapper[*dbobjectv1.DatabaseObject]
 }
 
-func (s *DatabaseObjectService) DeleteAllDatabaseObjects(ctx context.Context) error {
-	return trace.Wrap(s.service.DeleteAllResources(ctx))
-}
+var _ services.DatabaseObjects = (*databaseObjectService)(nil)
 
-func (s *DatabaseObjectService) UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+func (s *databaseObjectService) UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.UpsertResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *DatabaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+func (s *databaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.UpdateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *DatabaseObjectService) CreateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+func (s *databaseObjectService) CreateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.CreateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *DatabaseObjectService) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+func (s *databaseObjectService) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.GetResource(ctx, name)
 	return out, trace.Wrap(err)
 }
 
-func (s *DatabaseObjectService) DeleteDatabaseObject(ctx context.Context, name string) error {
+func (s *databaseObjectService) DeleteDatabaseObject(ctx context.Context, name string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
-func (s *DatabaseObjectService) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+func (s *databaseObjectService) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
 	out, next, err := s.service.ListResources(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)
 }
@@ -72,7 +70,7 @@ const (
 	databaseObjectPrefix = "databaseObjectPrefix"
 )
 
-func NewDatabaseObjectService(backend backend.Backend) (*DatabaseObjectService, error) {
+func NewDatabaseObjectService(backend backend.Backend) (services.DatabaseObjects, error) {
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindDatabaseObject,
 		databaseObjectPrefix,
@@ -84,5 +82,5 @@ func NewDatabaseObjectService(backend backend.Backend) (*DatabaseObjectService, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &DatabaseObjectService{service: service}, nil
+	return &databaseObjectService{service: service}, nil
 }

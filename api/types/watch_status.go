@@ -79,6 +79,16 @@ func (w *WatchStatusV1) GetMetadata() Metadata {
 	return w.Metadata
 }
 
+// GetResourceID returns the watch status resource ID.
+func (w *WatchStatusV1) GetResourceID() int64 {
+	return w.Metadata.ID
+}
+
+// SetResourceID sets the watch status resource ID.
+func (w *WatchStatusV1) SetResourceID(id int64) {
+	w.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (w *WatchStatusV1) GetRevision() string {
 	return w.Metadata.GetRevision()

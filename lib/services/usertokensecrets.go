@@ -55,8 +55,9 @@ func MarshalUserTokenSecrets(secrets types.UserTokenSecrets, opts ...MarshalOpti
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveRevision {
+		if !cfg.PreserveResourceID {
 			copy := *t
+			copy.SetResourceID(0)
 			copy.SetRevision("")
 			t = &copy
 		}

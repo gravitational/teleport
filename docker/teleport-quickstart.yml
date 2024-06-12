@@ -1,0 +1,47 @@
+version: '2'
+services:
+  # The configure container starts, generates a config, writes it to
+  # /etc/teleport/teleport.yaml and then immediately exits.
+  configure:
+    image: public.ecr.aws/gravitational/teleport:14
+    container_name: teleport-configure
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "if [ ! -f /etc/teleport/teleport.yaml ]; then teleport configure > /etc/teleport/teleport.yaml; fi"
+    volumes:
+      - ./teleport/config:/etc/teleport
+
+  # This container depends on the config written by the configure container above, so it
+  # sleeps for a second on startup to allow the configure container to run first.
+  teleport:
+    image: public.ecr.aws/gravitational/teleport:14
+    container_name: teleport
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "sleep 1 && /usr/bin/dumb-init teleport start -c /etc/teleport/teleport.yaml"
+    ports:
+      - "3023:3023"
+      - "3025:3025"
+      - "3080:3080"
+    volumes:
+      - ./teleport/config:/etc/teleport
+      - ./teleport/data:/var/lib/teleport
+    depends_on:
+      - configure
+
+  #
+  # one-sshd is a single-node Teleport cluster called "one" (runs all 3 roles: proxy, auth and node)
+  #
+  one-sshd:
+    image: teleport:latest
+    container_name: one-sshd
+    command: /usr/bin/start-sshd.sh
+    env_file: env.file
+    mem_limit: 300m
+    volumes:
+      - ./sshd/pam.d/ssh:/etc/pam.d/ssh
+      - ./sshd/etc/ssh/sshd_config:/etc/ssh/sshd_config
+      - certs:/mnt/shared/certs
+    networks:
+      teleport:
+        ipv4_address: 172.10.1.21

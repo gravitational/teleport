@@ -146,6 +146,9 @@ func UnmarshalOSSGithubConnector(bytes []byte, opts ...MarshalOption) (types.Git
 		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			c.SetResourceID(cfg.ID)
+		}
 		if cfg.Revision != "" {
 			c.SetRevision(cfg.Revision)
 		}
@@ -179,11 +182,11 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 		// Only return an error if the endpoint url is set and the build is OSS
 		// so that the enterprise marshaler can call this marshaler to produce
 		// the final output without receiving an error.
-		if modules.GetModules().IsOSSBuild() &&
+		if modules.GetModules().BuildType() == modules.BuildOSS &&
 			githubConnector.Spec.EndpointURL != "" {
 			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, githubConnector))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, githubConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}

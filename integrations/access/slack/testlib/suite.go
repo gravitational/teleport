@@ -448,7 +448,7 @@ func (s *SlackSuiteOSS) TestApproval() {
 
 	s.startApp()
 
-	// Test setup: we create an access request and wait for its Slack message
+	// Test setup: we create an access request and wait for its Discord message
 	userName := integration.RequesterOSSUserName
 	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1SlackUser.Profile.Email})
 	msgs := s.checkNewMessages(t, ctx, channelsToMessages(s.requesterOSSSlackUser.ID, s.reviewer1SlackUser.ID), matchOnlyOnChannel)
@@ -599,6 +599,7 @@ func (s *SlackSuiteEnterprise) TestApprovalByReview() {
 		require.NoError(t, err)
 		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nfinally okay```", statusLine)
 	})
+
 }
 
 // TestDenialByReview tests that the message is updated after the access request
@@ -886,7 +887,6 @@ func (s *SlackSuiteEnterprise) TestAccessListReminder() {
 }
 
 func (s *SlackBaseSuite) requireReminderMsgEqual(ctx context.Context, id, text string) {
-	s.T().Helper()
 	t := s.T()
 
 	msg, err := s.fakeSlack.CheckNewMessage(ctx)

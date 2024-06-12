@@ -233,16 +233,21 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-<Details title="Direct connections to agents">
+Some Teleport services listen for traffic to one of their proxied resources,
+meaning that you can expose ports on that service's host directly to clients.
+This is useful when you need to connect to resources directly if the Proxy
+Service becomes unavailable. 
 
-If you run a self-hosted Teleport cluster, you can join an agent [directly to
-the Teleport Auth
-Service](../agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
-In this setup, certain Teleport services open their own listeners rather than
-accepting connections via reverse tunnel. The Proxy Service connects to these
-agent services by dialing them directly.
+<Admonition
+  type="tip"
+  title="Note"
+>
+  In Teleport Cloud, the Auth and Proxy Services run in Teleport-owned infrastructure.
+For this reason, Teleport Cloud customers must connect their resources via reverse tunnels.
+Exposing ports for direct dial is only supported in self-hosted deployments.
+</Admonition>
 
-The table below describes the ports that each Teleport service opens for proxied
+The table below describes the ports that each Teleport Service opens for proxied
 traffic:
 
 | Port | Service | Traffic Type |
@@ -251,9 +256,6 @@ traffic:
 | 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
 | 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
 
-You can only access enrolled applications and desktops through the Teleport
-Proxy Service. The Teleport Application Service and Teleport Database Service
-use reverse tunnel connections through the Teleport Proxy Service and cannot
-expose ports directly.
-
-</Details>
+You can only access enrolled applications and databases through the Teleport Proxy Service.
+The Teleport Application Service and Teleport Database Service use reverse tunnel
+connections through the Teleport Proxy Service and cannot expose ports directly.

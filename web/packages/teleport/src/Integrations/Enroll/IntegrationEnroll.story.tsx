@@ -19,10 +19,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import cfg from 'teleport/config';
 
 import { IntegrationEnroll } from './IntegrationEnroll';
@@ -31,14 +27,8 @@ export default {
   title: 'Teleport/Integrations/Enroll',
 };
 
-export const Picker = () => {
-  const ctx = createTeleportContext();
-
-  return (
-    <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
-      <ContextProvider ctx={ctx}>
-        <IntegrationEnroll />
-      </ContextProvider>
-    </MemoryRouter>
-  );
-};
+export const Picker = () => (
+  <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
+    <IntegrationEnroll />
+  </MemoryRouter>
+);

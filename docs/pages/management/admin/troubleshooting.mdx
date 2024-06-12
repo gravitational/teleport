@@ -18,39 +18,6 @@ services such as the Application Service and Database Service.
 
 ## Step 1/3. Enable verbose logging
 
-To change log levels in Teleport, you can use either of the following methods:
-
-- Debug Service: Allows on-the-fly log level adjustments without restarting the
-  instance, which is ideal for troubleshooting sessions.
-- Updating configuration: Involves updating the Teleport configuration file and
-  restarting the instance.
-
-<Tabs>
-<TabItem label="Debug Service">
-The Teleport Debug Service allows administrators to dynamically manage log levels
-without restarting the instance. The service, enabled by default, ensures
-local-only access and must be consumed from inside the same instance.
-
-To change the instance log level use the `teleport debug set-log-level` command:
-
-```code
-$ teleport debug set-log-level DEBUG
-Changed log level from "INFO" to "DEBUG".
-
-$ kubectl -n teleport exec my-pod -- teleport set-log-level DEBUG 
-Changed log level from "INFO" to "DEBUG".
-```
-
-If you're unsure what is the current level you can retrieve it using
-`teleport debug get-log-level`.
-
-After troubleshooting, remember to turn the log level back to avoid generating
-unnecessary logs.
-
-(!docs/pages/includes/diagnostics/teleport-debug-config.mdx!)
-</TabItem>
-
-<TabItem label="Updating configuration">
 To diagnose problems, you can configure the `teleport` process to run with
 verbose logging enabled by passing it the `-d` flag. `teleport` will write logs
 to stderr.
@@ -66,12 +33,6 @@ teleport:
 Restart the `teleport` process to apply the modified log level. Logs will resemble
 the following (these logs were printed while joining a server to a cluster, then
 terminating the `teleport` process on the server):
-</TabItem>
-</Tabs>
-
-Debug logs include the file and line number of the code that emitted the log, so
-you can investigate (or report) what a `teleport` process was doing before it ran into
-problems. Here's an example:
 
 ```
 DEBU [NODE:PROX] Agent connected to proxy: [aee1241f-0f6f-460e-8149-23c38709e46d.tele.example.com aee1241f-0f6f-460e-8149-23c38709e46d teleport-proxy-us-west-2-6db8db844c-ftmg9.tele.example.com teleport-proxy-us-west-2-6db8db844c-ftmg9 localhost 127.0.0.1 ::1 tele.example.com 100.92.90.42 remote.kube.proxy.teleport.cluster.local]. leaseID:4 target:tele.example.com:11106 reversetunnel/agent.go:414
@@ -81,6 +42,10 @@ DEBU [NODE:PROX] handleDiscovery requests channel. leaseID:4 target:tele.example
 DEBU [NODE:PROX] Pool is closing agent. leaseID:2 target:tele.example.com:11106 reversetunnel/agentpool.go:238
 DEBU [NODE:PROX] Pool is closing agent. leaseID:3 target:tele.example.com:11106 reversetunnel/agentpool.go:238
 ```
+
+Debug logs include the file and line number of the code that emitted the log, so
+you can investigate (or report) what a `teleport` process was doing before it ran into
+problems.
 
 <Notice
   type="warning"

@@ -464,8 +464,6 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
-
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
 	for name := range s.apps {
@@ -477,25 +475,24 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			log := s.log.WithField("app", name)
-			log.Debug("Stopping app")
+			s.log.Debugf("Stopping app %q.", name)
 			if err := heartbeat.Close(); err != nil {
 				s.log.WithError(err).Warnf("Failed to stop app %q.", name)
 			} else {
-				log.Debug("Stopped app")
+				s.log.Debugf("Stopped app %q.", name)
 			}
+		}
 
-			if shouldDeleteApps {
-				g.Go(func() error {
-					log.Debug("Deleting app")
-					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warnf("Failed to delete app %q.", name)
-					} else {
-						log.Debugf("Deleted app")
-					}
-					return nil
-				})
-			}
+		if heartbeat != nil && services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			g.Go(func() error {
+				s.log.Debugf("Deleting app %q.", name)
+				if err := s.removeAppServer(gctx, name); err != nil {
+					s.log.WithError(err).Warnf("Failed to delete app %q.", name)
+				} else {
+					s.log.Debugf("Deleted app %q.", name)
+				}
+				return nil
+			})
 		}
 	}
 

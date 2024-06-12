@@ -18,81 +18,59 @@
 
 import React from 'react';
 
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import TeleportContext from 'teleport/teleportContext';
-
-import * as stores from 'teleport/Console/stores/types';
-
 import DocumentSsh from './DocumentSsh';
-
 import { TestLayout } from './../Console.story';
 import ConsoleCtx from './../consoleContext';
 
 import type { Session } from 'teleport/services/session';
 
 export const Connected = () => {
-  const { ctx, consoleCtx } = getContexts();
+  const ctx = new ConsoleCtx();
+  const tty = ctx.createTty(session);
+  tty.connect = () => null;
+  ctx.createTty = () => tty;
 
-  return <DocumentSshWrapper ctx={ctx} consoleCtx={consoleCtx} doc={doc} />;
+  return (
+    <TestLayout ctx={ctx}>
+      <DocumentSsh doc={doc} visible={true} />
+    </TestLayout>
+  );
 };
 
 export const NotFound = () => {
+  const ctx = new ConsoleCtx();
+  const tty = ctx.createTty(session);
+  tty.connect = () => null;
+  ctx.createTty = () => tty;
+
   const disconnectedDoc = {
     ...doc,
     status: 'disconnected' as const,
   };
-  const { ctx, consoleCtx } = getContexts();
 
   return (
-    <DocumentSshWrapper
-      ctx={ctx}
-      consoleCtx={consoleCtx}
-      doc={disconnectedDoc}
-    />
+    <TestLayout ctx={ctx}>
+      <DocumentSsh doc={disconnectedDoc} visible={true} />
+    </TestLayout>
   );
 };
 
 export const ServerError = () => {
+  const ctx = new ConsoleCtx();
+  const tty = ctx.createTty(session);
+  tty.connect = () => null;
+  ctx.createTty = () => tty;
   const noSidDoc = {
     ...doc,
     sid: '',
   };
-  const { ctx, consoleCtx } = getContexts();
 
   return (
-    <DocumentSshWrapper ctx={ctx} consoleCtx={consoleCtx} doc={noSidDoc} />
+    <TestLayout ctx={ctx}>
+      <DocumentSsh doc={noSidDoc} visible={true} />
+    </TestLayout>
   );
 };
-
-type Props = {
-  ctx: TeleportContext;
-  consoleCtx: ConsoleCtx;
-  doc: stores.DocumentSsh;
-};
-
-const DocumentSshWrapper = ({ ctx, consoleCtx, doc }: Props) => {
-  return (
-    <ContextProvider ctx={ctx}>
-      <TestLayout ctx={consoleCtx}>
-        <DocumentSsh doc={doc} visible={true} />
-      </TestLayout>
-    </ContextProvider>
-  );
-};
-
-function getContexts() {
-  const ctx = createTeleportContext();
-  const consoleCtx = new ConsoleCtx();
-  const tty = consoleCtx.createTty(session);
-  tty.connect = () => null;
-  consoleCtx.createTty = () => tty;
-  consoleCtx.storeUser = ctx.storeUser;
-
-  return { ctx, consoleCtx };
-}
 
 export default {
   title: 'Teleport/Console/DocumentSsh',

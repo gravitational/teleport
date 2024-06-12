@@ -96,6 +96,7 @@ export interface Acl {
   integrations: AccessWithUse;
   deviceTrust: Access;
   lock: Access;
+  assist: Access;
   samlIdpServiceProvider: Access;
   accessList: Access;
   auditQuery: Access;

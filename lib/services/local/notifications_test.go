@@ -32,7 +32,6 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -54,21 +53,21 @@ func TestUserNotificationCRUD(t *testing.T) {
 	testUsername := "test-username"
 
 	// Create a couple notifications.
-	userNotification1 := newUserNotification(t, testUsername, "test-notification-1")
-	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
+	userNotification1 := newUserNotification(t, "test-notification-1")
+	userNotification2 := newUserNotification(t, "test-notification-2")
 
 	// Create notifications.
-	notification, err := service.CreateUserNotification(ctx, userNotification1)
+	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification1, notification, protocmp.Transform()))
-	notification1Id := notification.GetMetadata().GetName()
+	notification1Id := notification.Spec.Id
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
-	notification, err = service.CreateUserNotification(ctx, userNotification2)
+	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
-	notification2Id := notification.GetMetadata().GetName()
+	notification2Id := notification.Spec.Id
 
 	// Test deleting a notification.
 	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
@@ -85,10 +84,10 @@ func TestUserNotificationCRUD(t *testing.T) {
 	// Test deleting all of a user's user-specific notifications.
 	// Upsert userNotification1 again.
 	// We reset it to the mock first because the previous CreateUserNotification will have mutated it and populated the `Created` field which should be empty.
-	userNotification1 = newUserNotification(t, testUsername, "test-notification-1")
-	_, err = service.CreateUserNotification(ctx, userNotification1)
+	userNotification1 = newUserNotification(t, "test-notification-1")
+	_, err = service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
-	notification1Id = notification.GetMetadata().GetName()
+	notification1Id = notification.Spec.Id
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
 	require.NoError(t, err)
 	// Verify that the notifications don't exist anymore by attempting to delete them.
@@ -149,7 +148,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification1, notification, protocmp.Transform()))
-	globalNotification1Id := notification.GetMetadata().GetName()
+	globalNotification1Id := notification.Spec.Notification.Spec.Id
 	notification, err = service.CreateGlobalNotification(ctx, globalNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification2, notification, protocmp.Transform()))
@@ -185,17 +184,17 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	testUsername := "test-username"
 
 	// Create a and upsert the notifications that these states will be for.
-	userNotification1 := newUserNotification(t, testUsername, "test-notification-1")
-	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
-	notification, err := service.CreateUserNotification(ctx, userNotification1)
+	userNotification1 := newUserNotification(t, "test-notification-1")
+	userNotification2 := newUserNotification(t, "test-notification-2")
+	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
-	notification1Id := notification.GetMetadata().GetName()
+	notification1Id := notification.Spec.Id
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
-	notification, err = service.CreateUserNotification(ctx, userNotification2)
+	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
 	require.NoError(t, err)
-	notification2Id := notification.GetMetadata().GetName()
+	notification2Id := notification.Spec.Id
 
 	userNotificationState1 := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
@@ -203,6 +202,9 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{"this-is": "1"},
 		},
 	}
 
@@ -214,6 +216,9 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
 		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{"this-is": "2"},
+		},
 	}
 
 	userNotificationState2 := &notificationsv1.UserNotificationState{
@@ -222,6 +227,9 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{"this-is": "3"},
 		},
 	}
 
@@ -252,7 +260,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	}
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	}
 
@@ -349,7 +357,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	}
 
@@ -375,25 +383,21 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
-func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, description string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
-			Username: username,
-		},
+		Spec:    &notificationsv1.NotificationSpec{},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{
-				types.NotificationTitleLabel: title,
-			},
+			Labels: map[string]string{"description": description},
 		},
 	}
 
 	return &notification
 }
 
-func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
@@ -405,9 +409,7 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{
-						types.NotificationTitleLabel: title,
-					},
+					Labels: map[string]string{"description": description},
 				},
 			},
 		},

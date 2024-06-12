@@ -1,0 +1,12 @@
+version: v3
+teleport:
+  nodename: graviton-node
+  auth_token: hello
+  auth_server: 127.0.0.1:5000
+  data_dir: .data
+proxy_service:
+  enabled: "no"
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "yes"

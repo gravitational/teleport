@@ -41,11 +41,11 @@ Things it doesn't do (yet):
   - Any other distribution
     - uses `.tar.gz` tarball package
 
-- macOS
+- MacOS
   - Architectures
     - x86_64
-    - aarch64
-  - MacOS 10.15+
+    - aarch64 (no Teleport binaries available yet)
+  - MacOS 10.12+
     - uses `.tar.gz` tarball package
 
 ## Arguments

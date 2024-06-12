@@ -834,8 +834,8 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, err error, mock *mockSQSDeleter) {
 				require.Error(t, err)
-				var agg trace.Aggregate
-				require.ErrorAs(t, trace.Unwrap(err), &agg)
+				agg, ok := trace.Unwrap(err).(trace.Aggregate)
+				require.True(t, ok)
 				for _, errFromAgg := range agg.Errors() {
 					require.ErrorContains(t, errFromAgg, "entry failed")
 				}

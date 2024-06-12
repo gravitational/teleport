@@ -189,7 +189,7 @@ const ReactSlider = createReactClass({
     onAfterChange: PropTypes.func,
 
     /**
-     *  Callback called when the slider is clicked (handle or bars).
+     *  Callback called when the the slider is clicked (handle or bars).
      *  Receives the value at the clicked position as argument.
      */
     onSliderClick: PropTypes.func,

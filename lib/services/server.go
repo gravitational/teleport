@@ -354,6 +354,9 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ID != 0 {
+		s.SetResourceID(cfg.ID)
+	}
 	if cfg.Revision != "" {
 		s.SetRevision(cfg.Revision)
 	}
@@ -383,7 +386,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, server))
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", server)
 	}

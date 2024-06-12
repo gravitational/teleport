@@ -19,7 +19,7 @@
 import React from 'react';
 import { CardTerminalLogin } from 'design/CardTerminal';
 
-import { LogoHero } from 'teleport/components/LogoHero';
+import LogoHero from 'teleport/components/LogoHero';
 
 export function LoginTerminalRedirect() {
   return (

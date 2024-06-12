@@ -164,7 +164,12 @@ func (r ResourceURI) GetRootClusterURI() ResourceURI {
 // If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 // If called on a root cluster URI or a leaf cluster URI, it's a noop.
 func (r ResourceURI) GetClusterURI() ResourceURI {
-	return r.GetRootClusterURI().AppendLeafCluster(r.GetLeafClusterName())
+	clusterURI := r.GetRootClusterURI()
+
+	if leafClusterName := r.GetLeafClusterName(); leafClusterName != "" {
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+	}
+	return clusterURI
 }
 
 // AppendServer appends server segment to the URI
@@ -173,12 +178,8 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
-// AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
+// AppendLeafCluster appends leaf cluster segment to the URI
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
-	if name == "" {
-		return r
-	}
-
 	r.path = fmt.Sprintf("%v/leaves/%v", r.path, name)
 	return r
 }

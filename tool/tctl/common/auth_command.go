@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -244,6 +243,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Cli
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	keygen := keygen.New(ctx)
+	defer keygen.Close()
 	privBytes, pubBytes, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return trace.Wrap(err)
@@ -266,7 +266,17 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // to sign certificates using the Auth Server.
 type certificateSigner interface {
 	kubeutils.KubeServicesPresence
+	CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	GenerateHostCert(
+		ctx context.Context,
+		key []byte,
+		hostID, nodeName string,
+		principals []string,
+		clusterName string,
+		role types.SystemRole,
+		ttl time.Duration,
+	) ([]byte, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -276,10 +286,8 @@ type certificateSigner interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 	GetProxies() ([]types.Server, error)
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
-	// TODO (Joerger): DELETE IN 17.0.0
-	authclient.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
@@ -388,15 +396,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	certAuthID := types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: cn.GetClusterName(),
-	}
-	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
+	dbClientCA, err := getDatabaseClientCA(ctx, clusterAPI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -506,20 +506,12 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	clusterName := cn.GetClusterName()
 
-	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.MarshalSSHPublicKey(),
-		HostId:      "",
-		NodeName:    "",
-		Principals:  principals,
-		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(0),
-	})
+	key.Cert, err = clusterAPI.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
+		"", "", principals,
+		clusterName, types.RoleNode, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = res.SshCertificate
-
 	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -891,18 +883,21 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			return trace.Wrap(err)
 		}
 
-		routeToApp = proto.RouteToApp{
-			Name:        a.appName,
+		appSession, err := clusterAPI.CreateAppSession(ctx, types.CreateAppSessionRequest{
+			Username:    a.genUser,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
-		}
-
-		// TODO (Joerger): DELETE IN v17.0.0
-		routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		routeToApp = proto.RouteToApp{
+			Name:        a.appName,
+			PublicAddr:  server.GetApp().GetPublicAddr(),
+			ClusterName: a.leafCluster,
+			SessionID:   appSession.GetName(),
+		}
 		certUsage = proto.UserCertsRequest_App
 	case a.dbService != "":
 		server, err := getDatabaseServer(ctx, clusterAPI, a.dbService)
@@ -1014,7 +1009,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI certificateSigner) error {
 		return nil
 	}
 
-	clusters, err := clusterAPI.GetRemoteClusters(context.TODO())
+	clusters, err := clusterAPI.GetRemoteClusters()
 	if err != nil {
 		return trace.WrapWithMessage(err, "couldn't load leaf clusters")
 	}
@@ -1225,4 +1220,34 @@ func (a *AuthCommand) helperMsgDst() io.Writer {
 		return os.Stderr
 	}
 	return os.Stdout
+}
+
+type caGetter interface {
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+}
+
+// TODO(gavin): DELETE IN 16.0.0
+func getDatabaseClientCA(ctx context.Context, clusterAPI caGetter) (types.CertAuthority, error) {
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: cn.GetClusterName(),
+	}, false)
+	if err == nil {
+		return dbClientCA, nil
+	}
+	if !types.IsUnsupportedAuthorityErr(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to DatabaseCA if DatabaseClientCA isn't supported by backend.
+	dbServerCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: cn.GetClusterName(),
+	}, false)
+	return dbServerCA, trace.Wrap(err)
 }

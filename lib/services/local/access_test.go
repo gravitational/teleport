@@ -80,7 +80,7 @@ func TestLockCRUD(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, locks, 2)
 				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			}
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLockCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
@@ -98,7 +98,7 @@ func TestLockCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match none of the locks.
 			locks, err = access.GetLocks(ctx, false, roleTarget)
@@ -111,7 +111,7 @@ func TestLockCRUD(t *testing.T) {
 			lock, err := access.GetLock(ctx, lock1.GetName())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(lock1, lock,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Attempt to get a nonexistent lock.
 			_, err = access.GetLock(ctx, "lock3")
@@ -168,7 +168,7 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, locks, 2)
 		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		for _, lock := range locks {
 			require.True(t, strings.HasPrefix(lock.GetName(), clusterName+"/"))
 		}
@@ -183,7 +183,7 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, locks, 1)
 		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		_, err = access.GetLock(ctx, lock2.GetName())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))

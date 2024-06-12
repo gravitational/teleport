@@ -584,7 +584,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 	for {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
-			if !errors.Is(err, io.EOF) {
+			if err != io.EOF {
 				log.Warningf("Failed to decode resize event: %v", err)
 			}
 			t.cancel()

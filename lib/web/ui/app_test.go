@@ -224,10 +224,7 @@ func newApp(t *testing.T, name, publicAddr, description string, labels map[strin
 }
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given an App.
-//
-//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPServiceProvider {
-	//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
 			AppServer: &types.AppServerV3{
@@ -242,8 +239,6 @@ func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPS
 }
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
-//
-//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 func createAppServerOrSPFromSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{

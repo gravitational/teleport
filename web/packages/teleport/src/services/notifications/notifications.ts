@@ -19,60 +19,41 @@
 import cfg, { UrlNotificationParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
-import {
-  FetchNotificationsResponse,
-  UpsertLastSeenNotificationRequest,
-  UpsertNotificationStateRequest,
-} from './types';
+import { FetchNotificationsResponse } from './types';
 
 export class NotificationService {
   fetchNotifications(
     params: UrlNotificationParams
   ): Promise<FetchNotificationsResponse> {
-    if (params.startKey === '') {
-      params.startKey = undefined;
+    if (params.userNotificationsStartKey === '') {
+      params.userNotificationsStartKey = undefined;
+    }
+    if (params.globalNotificationsStartKey === '') {
+      params.globalNotificationsStartKey = undefined;
     }
 
     return api.get(cfg.getNotificationsUrl(params)).then(json => {
       return {
-        notifications: json.notifications
-          ? json.notifications.map(notificationJson => {
-              const { id, title, subKind, created, clicked } = notificationJson;
-              const labels = notificationJson.labels || [];
+        notifications:
+          json.notifications.map(notificationJson => {
+            const { id, title, subKind, created, clicked } = notificationJson;
+            const labels = notificationJson.labels || [];
 
-              return {
-                id,
-                title,
-                subKind,
-                createdDate: new Date(created),
-                clicked,
-                labels,
-              };
-            })
-          : [],
-        nextKey: json.nextKey,
+            return {
+              id,
+              title,
+              subKind,
+              createdDate: new Date(created),
+              clicked,
+              labels,
+            };
+          }) || [],
+        userNotificationsNextKey: json.userNotificationsNextKey || '',
+        globalNotificationsNextKey: json.globalNotificationsNextKey || '',
         userLastSeenNotification: json.userLastSeenNotification
           ? new Date(json.userLastSeenNotification)
           : undefined,
       };
     });
-  }
-
-  upsertLastSeenNotificationTime(
-    clusterId: string,
-    req: UpsertLastSeenNotificationRequest
-  ): Promise<UpsertLastSeenNotificationRequest> {
-    return api
-      .put(cfg.getNotificationLastSeenUrl(clusterId), req)
-      .then((res: UpsertLastSeenNotificationRequest) => ({
-        time: new Date(res.time),
-      }));
-  }
-
-  upsertNotificationState(
-    clusterId: string,
-    req: UpsertNotificationStateRequest
-  ): Promise<UpsertNotificationStateRequest> {
-    return api.put(cfg.getNotificationStateUrl(clusterId), req);
   }
 }

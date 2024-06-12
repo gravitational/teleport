@@ -27,6 +27,7 @@ import (
 )
 
 var rootPreferencesMock = &userpreferencesv1.UserPreferences{
+	Assist:  nil,
 	Onboard: nil,
 	Theme:   userpreferencesv1.Theme_THEME_LIGHT,
 	ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
@@ -35,14 +36,14 @@ var rootPreferencesMock = &userpreferencesv1.UserPreferences{
 		},
 	},
 	UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-		DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
-		ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
-		LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
-		AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
+		DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+		ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+		LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 	},
 }
 
 var leafPreferencesMock = &userpreferencesv1.UserPreferences{
+	Assist:  nil,
 	Onboard: nil,
 	ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 		PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
@@ -105,10 +106,9 @@ func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 			},
 		},
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-			DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-			ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
-			LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_EXPANDED,
-			AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_REQUESTABLE,
+			DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+			ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_LIST,
+			LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_EXPANDED,
 		},
 	}
 

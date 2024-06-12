@@ -41,10 +41,10 @@ var defaultCompareOpts = []cmp.Option{
 	// Fixes time precision issues that might be caused by serialization/deserialization
 	cmpopts.EquateApproxTime(MaxTimeDiff),
 	// New resource headers
-	cmpopts.IgnoreFields(header.Metadata{}, "Labels", "Revision"),
+	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Labels", "Revision"),
 	cmpopts.IgnoreFields(header.ResourceHeader{}, "Kind"),
 	// Legacy gogoproto resource headers
-	cmpopts.IgnoreFields(types.Metadata{}, "Labels", "Revision", "Namespace"),
+	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Labels", "Revision", "Namespace"),
 	cmpopts.IgnoreFields(types.ResourceHeader{}, "Kind"),
 }
 

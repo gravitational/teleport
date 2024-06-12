@@ -136,6 +136,16 @@ func (o *SAMLConnectorV2) SetSubKind(sk string) {
 	o.SubKind = sk
 }
 
+// GetResourceID returns resource ID
+func (o *SAMLConnectorV2) GetResourceID() int64 {
+	return o.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (o *SAMLConnectorV2) SetResourceID(id int64) {
+	o.Metadata.ID = id
+}
+
 // GetRevision returns the revision
 func (o *SAMLConnectorV2) GetRevision() string {
 	return o.Metadata.GetRevision()

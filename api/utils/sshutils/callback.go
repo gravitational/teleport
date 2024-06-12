@@ -17,11 +17,9 @@ limitations under the License.
 package sshutils
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -74,7 +72,7 @@ func makeIsHostAuthorityFunc(getCheckers CheckersGetter) func(key ssh.PublicKey,
 	return func(key ssh.PublicKey, host string) bool {
 		checkers, err := getCheckers()
 		if err != nil {
-			slog.ErrorContext(context.Background(), "Failed to get checkers.", "host", host, "error", err)
+			logrus.WithError(err).Errorf("Failed to get checkers for %v.", host)
 			return false
 		}
 		for _, checker := range checkers {
@@ -89,7 +87,7 @@ func makeIsHostAuthorityFunc(getCheckers CheckersGetter) func(key ssh.PublicKey,
 				}
 			}
 		}
-		slog.DebugContext(context.Background(), "No CA found for target host.", "host", host)
+		logrus.Debugf("No CA for host %v.", host)
 		return false
 	}
 }

@@ -12,12 +12,9 @@ BEGIN
         -- match what the user currently has.
         IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
             SELECT CAST(array_agg(rolname) as varchar[]) INTO cur_roles FROM pg_auth_members JOIN pg_roles ON roleid = pg_roles.oid WHERE member=(SELECT oid FROM pg_roles WHERE rolname = username) AND rolname != 'teleport-auto-user';
-            -- both `cur_roles` and `roles` may be NULL; we want to work with empty arrays instead.
-            cur_roles := COALESCE(cur_roles, ARRAY[]::varchar[]);
-            roles := COALESCE(roles, ARRAY[]::varchar[]);
             -- "a <@ b" checks if all unique elements in "a" are contained by
             -- "b". Using length check plus "contains" check to avoid sorting.
-            IF cardinality(roles) = cardinality(cur_roles) AND roles <@ cur_roles THEN
+            IF ARRAY_LENGTH(roles, 1) = ARRAY_LENGTH(cur_roles, 1) AND roles <@ cur_roles THEN
                 RETURN;
             END IF;
             RAISE EXCEPTION SQLSTATE 'TP002' USING MESSAGE = 'TP002: User has active connections and roles have changed';

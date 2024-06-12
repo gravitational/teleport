@@ -24,10 +24,7 @@ import { rest } from 'msw';
 
 import { Flex } from 'design';
 
-import {
-  NotificationSubKind,
-  UpsertNotificationStateRequest,
-} from 'teleport/services/notifications';
+import { NotificationSubKind } from 'teleport/services/notifications';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
 
@@ -48,35 +45,27 @@ export const NotificationTypes = () => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        Enterprise notifications can be viewed in the
-        "TeleportE/Notifications/Notification Types E" story.
-        <Flex
-          mt={4}
-          p={4}
-          gap={4}
-          css={`
-            background: ${props => props.theme.colors.levels.surface};
-            width: fit-content;
-            height: fit-content;
-            flex-direction: column;
-          `}
-        >
-          {mockNotifications.map(notification => {
-            return (
-              <Notification
-                notification={notification}
-                key={notification.id}
-                closeNotificationsList={() => null}
-                markNotificationAsClicked={() => null}
-                removeNotification={() => null}
-              />
-            );
-          })}
-        </Flex>
-      </ContextProvider>
-    </MemoryRouter>
+    <ContextProvider ctx={ctx}>
+      Enterprise notifications can be viewed in the
+      "TeleportE/Notifications/Notification Types E" story.
+      <Flex
+        mt={4}
+        p={4}
+        gap={4}
+        css={`
+          background: ${props => props.theme.colors.levels.surface};
+          width: fit-content;
+          height: fit-content;
+          flex-direction: column;
+        `}
+      >
+        {mockNotifications.map(notification => {
+          return (
+            <Notification notification={notification} key={notification.id} />
+          );
+        })}
+      </Flex>
+    </ContextProvider>
   );
 };
 
@@ -86,38 +75,6 @@ NotificationsList.parameters = {
     handlers: [
       rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
         res.once(ctx.json(mockNotificationsResponseFirstPage))
-      ),
-      rest.put(cfg.api.notificationLastSeenTimePath, (req, res, ctx) =>
-        res(ctx.delay(2000), ctx.json({ time: Date.now() }))
-      ),
-      rest.put(cfg.api.notificationStatePath, (req, res, ctx) => {
-        const body = req.body as UpsertNotificationStateRequest;
-        return res(ctx.json({ notificationState: body.notificationState }));
-      }),
-      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
-        res(ctx.delay(2000), ctx.json(mockNotificationsResponseSecondPage))
-      ),
-    ],
-  },
-};
-
-export const NotificationListNotificationStateErrors = () => <ListComponent />;
-NotificationListNotificationStateErrors.parameters = {
-  msw: {
-    handlers: [
-      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
-        res.once(ctx.json(mockNotificationsResponseFirstPage))
-      ),
-      rest.put(cfg.api.notificationLastSeenTimePath, (req, res, ctx) =>
-        res(ctx.json({ time: Date.now() }))
-      ),
-      rest.put(cfg.api.notificationStatePath, (req, res, ctx) =>
-        res(
-          ctx.status(403),
-          ctx.json({
-            message: 'failed to update state',
-          })
-        )
       ),
       rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
         res(ctx.delay(2000), ctx.json(mockNotificationsResponseSecondPage))
@@ -133,7 +90,8 @@ NotificationsListEmpty.parameters = {
       rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
         res(
           ctx.json({
-            nextKey: '',
+            userNotificationsNextKey: '',
+            globalNotificationsNextKey: '',
             userLastSeenNotification: subDays(Date.now(), 15).toISOString(), // 15 days ago
             notifications: [],
           })
@@ -180,7 +138,8 @@ const ListComponent = () => {
 };
 
 const mockNotificationsResponseFirstPage = {
-  nextKey: '16,',
+  userNotificationsNextKey: '16',
+  globalNotificationsNextKey: '',
   userLastSeenNotification: subMinutes(Date.now(), 12).toISOString(), // 12 minutes ago
   notifications: [
     {
@@ -382,7 +341,8 @@ const mockNotificationsResponseFirstPage = {
 };
 
 const mockNotificationsResponseSecondPage = {
-  nextKey: '',
+  userNotificationsNextKey: '',
+  globalNotificationsNextKey: '',
   userLastSeenNotification: subDays(Date.now(), 60).toISOString(), // 60 days ago
   notifications: [
     {
