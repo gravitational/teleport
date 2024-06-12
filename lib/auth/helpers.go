@@ -42,8 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -89,8 +87,6 @@ type TestAuthServerConfig struct {
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
-	// Embedder is required to enable the assist in the auth server.
-	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
@@ -117,9 +113,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
-	}
-	if cfg.Embedder == nil {
-		cfg.Embedder = &noopEmbedder{}
 	}
 	return nil
 }
@@ -206,14 +199,6 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 func WithClock(clock clockwork.Clock) ServerOption {
 	return func(s *Server) error {
 		s.clock = clock
-		return nil
-	}
-}
-
-// WithEmbedder is a functional server option that sets the server's embedder.
-func WithEmbedder(embedder embedding.Embedder) ServerOption {
-	return func(s *Server) error {
-		s.embedder = embedder
 		return nil
 	}
 }
@@ -305,12 +290,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 				RSAKeyPairSource: authority.New().GenerateKeyPair,
 			},
 		},
-		EmbeddingRetriever: ai.NewSimpleRetriever(),
-		HostUUID:           uuid.New().String(),
-		AccessLists:        accessLists,
+		HostUUID:    uuid.New().String(),
+		AccessLists: accessLists,
 	},
 		WithClock(cfg.Clock),
-		WithEmbedder(cfg.Embedder),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1328,13 +1311,6 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return created, upsertedRole, nil
-}
-
-// noopEmbedder is a no op implementation of the Embedder interface.
-type noopEmbedder struct{}
-
-func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
-	return []embedding.Vector64{}, nil
 }
 
 // flushClt is the set of methods expected by the flushCache helper.

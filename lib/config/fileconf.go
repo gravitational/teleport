@@ -806,9 +806,6 @@ type Auth struct {
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
-
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
 }
@@ -851,8 +848,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
+		a.ProxyPingInterval != empty.ProxyPingInterval
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -1278,31 +1274,6 @@ func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNum
 		Enabled:               enabled,
 		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
-}
-
-// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
-type AssistOptions struct {
-	// OpenAI is a set of options related to the OpenAI assist backend.
-	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
-}
-
-// ProxyAssistOptions is a set of proxy service options related to the Assist feature
-type ProxyAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-}
-
-// AuthAssistOptions is a set of auth service options related to the Assist feature
-type AuthAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-	// CommandExecutionWorkers determines the number of workers that will
-	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
-}
-
-// OpenAIOptions stores options related to the OpenAI assist backend.
-type OpenAIOptions struct {
-	// APITokenPath is the path to a file with OpenAI API key.
-	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -2123,9 +2094,6 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
-
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
 
 	// TrustXForwardedFor enables the service to take client source IPs from
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
