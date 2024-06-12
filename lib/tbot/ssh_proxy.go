@@ -214,6 +214,14 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	}
 	defer apiClient.Close()
 
+	return resolveTargetHostWithClient(ctx, apiClient, search, query)
+}
+
+// resolveTargetHostWithClient resolves the target host using the provided
+// client and search and query parameters.
+func resolveTargetHostWithClient(
+	ctx context.Context, apiClient client.GetResourcesClient, search, query string,
+) (types.Server, error) {
 	nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
@@ -222,15 +230,12 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if len(nodes) == 0 {
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
-
 	if len(nodes) > 1 {
 		return nil, trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
 	}
-
 	return nodes[0], nil
 }
 
