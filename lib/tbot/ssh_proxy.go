@@ -220,23 +220,33 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 // resolveTargetHostWithClient resolves the target host using the provided
 // client and search and query parameters.
 func resolveTargetHostWithClient(
-	ctx context.Context, apiClient client.GetResourcesClient, search, query string,
+	ctx context.Context, apiClient client.ListUnifiedResourcesClient, search, query string,
 ) (types.Server, error) {
-	nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
+	res, err := apiClient.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		// We only want a single node, but, we set limit=2 so we can throw a
+		// helpful error when multiple match. In the happy path, where a single
+		// node matches, this does not degrade performance because even if
+		// limit=1 the UnifiedResource cache will still iterate to the end to
+		// determine if there is a NextKey to return.
+		Limit:               2,
+		Kinds:               []string{types.KindNode},
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(nodes) == 0 {
+	if len(res.Resources) == 0 {
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
-	if len(nodes) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
+	if len(res.Resources) > 1 {
+		return nil, trace.BadParameter("found multiple matching SSH hosts %v", res.Resources[:2])
 	}
-	return nodes[0], nil
+	node := res.Resources[0].GetNode()
+	if node == nil {
+		return nil, trace.BadParameter("expected node resource, got %T", res.Resources[0].Resource)
+	}
+	return node, nil
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
