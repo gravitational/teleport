@@ -86,17 +86,17 @@ var (
 	// ErrNoCredentials is returned by the client store when a specific key is not found.
 	// This error can be used to determine whether a client should retrieve new credentials,
 	// like how it is used with lib/client.RetryWithRelogin.
-	ErrNoCredentials = trace.NotFoundError{Message: "no credentials"}
+	ErrNoCredentials = &trace.NotFoundError{Message: "no credentials"}
 
 	// ErrNoProfile is returned by the client store when a specific profile is not found.
 	// This error can be used to determine whether a client should retrieve new credentials,
 	// like how it is used with lib/client.RetryWithRelogin.
-	ErrNoProfile = trace.NotFoundError{Message: "no profile"}
+	ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
 )
 
 // IsNoCredentialsError returns whether the given error implies that the user should retrieve new credentials.
 func IsNoCredentialsError(err error) bool {
-	return errors.Is(err, &ErrNoCredentials) || errors.Is(err, &ErrNoProfile)
+	return errors.Is(err, ErrNoCredentials) || errors.Is(err, ErrNoProfile)
 }
 
 // GetKey gets the requested key with trusted the requested certificates. The key's
@@ -106,7 +106,7 @@ func IsNoCredentialsError(err error) bool {
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
 	if trace.IsNotFound(err) {
-		return nil, trace.Wrap(&ErrNoCredentials, err.Error())
+		return nil, trace.Wrap(ErrNoCredentials, err.Error())
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,7 +169,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	profile, err := s.GetProfile(profileName)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.Wrap(&ErrNoProfile, err.Error())
+			return nil, trace.Wrap(ErrNoProfile, err.Error())
 		}
 		return nil, trace.Wrap(err)
 	}

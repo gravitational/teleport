@@ -311,6 +311,7 @@ type LocalCertGenerator struct {
 	// ca is the certificate authority for signing certificates.
 	ca tls.Certificate
 	// certsByHost is a cache of certs for hosts generated with the local CA.
+	// The key is the host's servername SNI.
 	certsByHost map[string]*tls.Certificate
 }
 
@@ -336,7 +337,7 @@ func (r *LocalCertGenerator) GetCertificate(clientHello *tls.ClientHelloInfo) (*
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := r.generateCertFor(clientHello.ServerName)
+	cert, err := r.generateCert(clientHello.ServerName)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "failed to generate certificate for %q: %v", clientHello.ServerName, err)
 	}
@@ -344,8 +345,8 @@ func (r *LocalCertGenerator) GetCertificate(clientHello *tls.ClientHelloInfo) (*
 	return cert, nil
 }
 
-// generateCertFor generates a new certificate for the specified host.
-func (r *LocalCertGenerator) generateCertFor(host string) (*tls.Certificate, error) {
+// generateCert generates a new certificate for the specified host.
+func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error) {
 	r.mu.RLock()
 	if cert, found := r.certsByHost[host]; found {
 		r.mu.RUnlock()

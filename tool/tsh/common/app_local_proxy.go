@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -56,7 +57,7 @@ func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, 
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxy(ctx, a.port, opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, a.port, false /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -68,7 +69,7 @@ func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.L
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxyWithTLS(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxyWithTLS(ctx, a.port, opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, a.port, true /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -80,7 +81,7 @@ func (a *localProxyApp) StartLocalProxyWithTLS(ctx context.Context, opts ...alpn
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxyWithForwarder(ctx context.Context, forwardMatcher requestMatcher, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxyWithTLS(ctx, "", opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, "", true /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -107,7 +108,7 @@ func (a *localProxyApp) Close() error {
 }
 
 // startLocalALPNProxy starts the local ALPN proxy.
-func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
+func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
 	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
 
@@ -118,68 +119,25 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, op
 		appCertChecker.SetCert(cert)
 	}
 
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
+	listenAddr := fmt.Sprintf("localhost:%s", cmp.Or(port, "0"))
 
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(ctx, a.tc, listener, a.insecure),
-		append(opts,
-			alpnproxy.WithClusterCAsIfConnUpgrade(ctx, a.tc.RootClusterCACertPool),
-			alpnproxy.WithMiddleware(appCertChecker),
-		)...,
-	)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
+	var listener net.Listener
+	if withTLS {
+		appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
+		localCertGenerator, err := client.NewLocalCertGenerator(appCertChecker, appLocalCAPath)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
-	}
 
-	fmt.Printf("Proxying connections to %s on %v\n", a.appInfo.RouteToApp.Name, a.localALPNProxy.GetAddr())
-
-	go func() {
-		if err = a.localALPNProxy.Start(ctx); err != nil {
-			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
+		if listener, err = tls.Listen("tcp", listenAddr, &tls.Config{
+			GetCertificate: localCertGenerator.GetCertificate,
+		}); err != nil {
+			return trace.Wrap(err)
 		}
-	}()
-	return nil
-}
-
-// startLocalALPNProxy starts the local ALPN proxy.
-func (a *localProxyApp) startLocalALPNProxyWithTLS(ctx context.Context, port string, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
-
-	// If a stored cert is found for the app, try using it.
-	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, a.appInfo.RouteToApp.Name)
-	if err == nil {
-		appCertChecker.SetCert(cert)
-	}
-
-	appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
-	localCertGenerator, err := client.NewLocalCertGenerator(appCertChecker, appLocalCAPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
-	listener, err := tls.Listen("tcp", listenAddr, &tls.Config{
-		GetCertificate: localCertGenerator.GetCertificate,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	} else {
+		if listener, err = net.Listen("tcp", listenAddr); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
@@ -209,11 +167,7 @@ func (a *localProxyApp) startLocalALPNProxyWithTLS(ctx context.Context, port str
 // startLocalForwardProxy starts a local forward proxy that forwards matching requests
 // to the local ALPN proxy and unmatched requests to their original hosts.
 func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port string, forwardMatcher requestMatcher) error {
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
+	listenAddr := fmt.Sprintf("localhost:%s", cmp.Or(port, "0"))
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
