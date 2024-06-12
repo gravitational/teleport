@@ -232,6 +232,7 @@ func resolveTargetHostWithClient(
 		Kinds:               []string{types.KindNode},
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -240,7 +241,11 @@ func resolveTargetHostWithClient(
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
 	if len(resources) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
+		names := make([]string, len(resources))
+		for i, res := range resources {
+			names[i] = res.GetName()
+		}
+		return nil, trace.BadParameter("found multiple matching SSH hosts %v", names)
 	}
 	node := resources[0].ResourceWithLabels.(*types.ServerV2)
 	if node == nil {
