@@ -27,8 +27,8 @@ func TestCreateCrownJewel(t *testing.T) {
 	generateEndpoint := webPack.clt.Endpoint("enterprise", "crownjewels")
 	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, createCrownJewelRequest{
 		TeleportMatcher: &crownjewelv1.TeleportMatcher{
-			Kinds: []string{"ssh"},
-			Name:  "test",
+			Kinds: []string{"node"},
+			Names: []string{"test"},
 		},
 	})
 	require.NoError(t, err)
@@ -39,7 +39,7 @@ func TestCreateCrownJewel(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, authResp, 1)
-	require.Equal(t, "test", authResp[0].Spec.TeleportMatchers[0].Name)
+	require.Equal(t, "test", authResp[0].Spec.TeleportMatchers[0].Names[0])
 }
 
 func TestDeleteCrownJewel(t *testing.T) {
@@ -60,8 +60,8 @@ func TestDeleteCrownJewel(t *testing.T) {
 		Spec: &crownjewelv1.CrownJewelSpec{
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 				{
-					Kinds: []string{"ssh"},
-					Name:  "test",
+					Kinds: []string{"node"},
+					Names: []string{"test"},
 				},
 			},
 		},

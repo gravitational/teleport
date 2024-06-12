@@ -192,7 +192,7 @@ func TestConvertEvent(t *testing.T) {
 			},
 			validate: func(t *testing.T, outputEvent apievents.AuditEvent) {
 				require.NotNil(t, outputEvent)
-				require.Equal(t, events.AccessGraphAccessPathChanged, outputEvent.GetType())
+				require.Equal(t, events.AccessGraphAccessPathChangedEvent, outputEvent.GetType())
 				require.Equal(t, events.AccessGraphAccessPathChangedCode, outputEvent.GetCode())
 
 				accessPathEvent, ok := outputEvent.(*apievents.AccessPathChanged)

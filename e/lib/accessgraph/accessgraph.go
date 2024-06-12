@@ -223,7 +223,7 @@ func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 		data := e.AccessPathChanged
 		tEvent = &apievents.AccessPathChanged{
 			Metadata: apievents.Metadata{
-				Type: events.AccessGraphAccessPathChanged,
+				Type: events.AccessGraphAccessPathChangedEvent,
 				Code: events.AccessGraphAccessPathChangedCode,
 			},
 			ChangeID:               data.ChangeId,
