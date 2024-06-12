@@ -1,0 +1,150 @@
+---
+title: VNet
+description: How to configure custom DNS zones for VNet
+---
+
+VNet automatically proxies connections made to TCP applications available under the public address
+of a Proxy Service. This guide explains how to configure VNet to support apps with [custom public
+addresses](connecting-apps.mdx/#customize-public-address). We are going to take an app available at
+`tcp-app.teleport.example.com` and make it available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/>
+with <Var name="suffix" initial="company.test" /> as the custom DNS zone.
+
+## How it works
+
+VNet captures DNS queries for domains of Proxy Services of the cluster and its leaf clusters. Type A
+and AAAA queries are matched against `public_addr` of applications registered in available clusters.
+If there's a match and the application is registered as a TCP application, VNet responds with a
+virtual IP address over which the connection will be proxied to the cluster. In any other case, the
+query is forwarded to the default DNS name server used by the OS.
+
+If you want VNet to forward connections to an app that has a custom `public_addr` set, you need
+to first update the VNet config in the Auth Server to include a matching DNS zone and authorize the
+zone through a DNS TXT record.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.0.0"!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A TCP application connected to the cluster. In this guide, we'll use the example app from
+  [TCP Application Access guide](tcp.mdx).
+- A domain name under your control.
+
+## Step 1/4. Configure custom DNS zone
+
+Create a file called `vnet-config.yaml` which specifies the custom DNS zone. In our case the
+`public_addr` of the app is going to be `tcp-app.company.test`, so we're going to set
+`company.test` as `suffix`:
+
+```yaml
+kind: vnet_config
+version: v1
+metadata:
+  name: vnet-config
+spec:
+  custom_dns_zones:
+  - suffix: <Var name="suffix" />
+```
+
+Create the VNet config:
+
+```code
+$ tctl create vnet-config.yaml
+vnet_config has been created
+```
+
+<Admonition type="note" title="Relationship between suffix and public_addr">
+`suffix` doesn't have to point to a domain that's exactly one level above the `public_addr` of an
+app. Any level of nesting works. E.g., you can have an app under `tcp-app.foo.bar.qux.test` and the
+suffix can be set to `bar.qux.test`.
+</Admonition>
+
+## Step 2/4. Set DNS TXT record
+
+Establish the name of your cluster:
+
+```code
+$ tctl status | awk '/Cluster/ {print $2}'
+teleport.example.com
+```
+
+Set a DNS TXT record `teleport-cluster=<cluster name>` on the domain provided as `suffix` in the
+VNet config. This is required by VNet to prevent a rogue cluster admin from hijacking DNS resolution
+of arbitrary domains for unsuspecting users.
+
+Wait a couple of minutes and verify that the DNS record changes have been propagated.
+
+```code
+$ host -t TXT <Var name="suffix" />
+company.test descriptive text "teleport-cluster=teleport.example.com"
+```
+
+<Admonition type="note" title="DNS TXT and CNAME records">
+If the domain you chose for the suffix has the CNAME record set, you won't be able to add a TXT
+record. A CNAME record must be the only record for the given name. In that scenario, you can set the
+suffix to a domain one level above if possible (e.g., `company.test` instead of
+`internal.company.test`) or switch from CNAME to A records.
+</Admonition>
+
+## Step 3/4. Set `public_addr` of the app
+
+Set `public_addr` field of the application in the Application Service configuration file
+`/etc/teleport.yaml` and restart the `teleport` daemon.
+
+```yaml
+version: v3
+# …
+app_service:
+  # …
+  apps:
+  - name: "tcp-app"
+    uri: tcp://localhost:5432
+    public_addr: "<Var name="public_addr" />"
+```
+
+## Step 4/4. Connect
+
+Once you [start VNet](../../connect-your-client/vnet.mdx), you should be able to connect to the
+application over the custom `public_addr` using the application client you would normally use to
+connect to it. You might need to restart VNet if it was already running while you were making
+changes to the cluster.
+
+```code
+$ psql postgres://postgres@tcp-app.company.test/postgres
+```
+
+## Next steps
+
+### Configuring leaf cluster apps
+
+To make a [leaf cluster](../../management/admin/trustedclusters.mdx) app accessible over a custom
+`public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
+
+```code
+$ tsh login --proxy=<Var name="leaf.example.com" /> --user=<Var name="email@example.com" />
+```
+
+`public_addr` needs to be set in the Application Service configuration file belonging to the leaf
+cluster and the DNS TXT record needs to contain the name of the leaf cluster.
+
+### Accessing web apps through VNet
+
+VNet does not officially support [web apps](connecting-apps.mdx) yet. However, technically any web
+app is [a TCP app](tcp.mdx), so it is possible to make those accessible over VNet as well. You'll
+need to change `uri` of your application in the Application Service configuration file to use
+`tcp://` instead of `http://`. There's also a couple of caveats:
+
+- VNet does not terminate TLS when proxying connections to TCP apps. The application itself needs to
+  handle TLS connections.
+- Because the Teleport Web UI uses [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security),
+  the application will not be accessible in browsers over plain HTTP, even with VNet running. Since
+  the application needs to be accessible over HTTPS, it must return [a valid cert](connecting-apps.mdx#tls-requirements)
+  for the domain it is served on.
+- [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
+  [header rewrites](connecting-apps.mdx#header-passthrough) are not available for TCP apps.
+- Teleport records the start and the end of a session for TCP apps in the audit log, but [session
+  chunks](../../architecture/session-recording.mdx#app-sessions) are not captured.
+
+### Further reading
+
+- Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.
