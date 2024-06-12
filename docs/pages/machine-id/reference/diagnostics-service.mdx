@@ -65,12 +65,7 @@ connections:
    connections that have been started.
 - `tbot_ssh_multiplexer_requests_handled_total`: the total number of SSH
    connections that have been handled. This has a `status` label with the
-   following values:
-    - `OK`: the connection was successful.
-    - `ERROR`: the connection failed.
-    - `OK_NETWORK_ERROR`: the connection was successful but later failed due
-      to a network error. These are to be expected in small numbers and are not
-      always indicative of a problem.
+   following values: `OK` or `ERROR`.
 - `tbot_ssh_multiplexer_requests_in_flight`: the number of SSH connections
    currently in progress.
 
