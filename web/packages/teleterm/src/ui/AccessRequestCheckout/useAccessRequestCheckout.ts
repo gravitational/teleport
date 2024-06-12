@@ -21,9 +21,7 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  getDryRunMaxDuration,
-} from 'shared/components/AccessRequests/NewRequest';
+import { getDryRunMaxDuration } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
