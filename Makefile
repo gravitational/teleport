@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0-alpha.3
+VERSION=16.0.0-rc.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -246,9 +246,15 @@ endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 # Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags -Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
 endif
 endif # OS == linux
+
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+# Temporary link flags due to changes in Apple's linker
+# https://github.com/golang/go/issues/67854
+GO_LDFLAGS += -extldflags=-ld_classic
+endif
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")

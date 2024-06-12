@@ -1432,6 +1432,7 @@ type ClientI interface {
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
+	services.VnetConfigGetter
 	types.Events
 
 	types.WebSessionsGetter
