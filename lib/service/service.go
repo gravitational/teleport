@@ -368,6 +368,10 @@ type TeleportProcess struct {
 	// instanceConnectorReadyOnce protects instanceConnectorReady from double-close.
 	instanceConnectorReadyOnce sync.Once
 
+	// dynamicAddrs is a list of additional dynamically discovered addresses that
+	// may need to be added to certs at runtime.
+	dynamicAddrs []string
+
 	// instanceRoles is the collection of enabled service roles (excludes things like "admin"
 	// and "instance" which aren't true user-facing services). The values in this mapping are
 	// the names of the associated identity events for these roles.
@@ -534,6 +538,18 @@ func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRo
 		out[role] = event
 	}
 	return out
+}
+
+func (process *TeleportProcess) SetDynamicAddrs(addrs []string) {
+	process.Lock()
+	defer process.Unlock()
+	process.dynamicAddrs = addrs
+}
+
+func (process *TeleportProcess) GetDynamicAddrs() []string {
+	process.Lock()
+	defer process.Unlock()
+	return process.dynamicAddrs
 }
 
 // SetExpectedInstanceRole marks a given instance role as active, storing the name of its associated
@@ -2757,6 +2773,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
+			regular.SetDynamicAddrsCallback(process.SetDynamicAddrs),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3476,6 +3493,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			addrs = append(addrs, *advertiseIP)
 		} else {
 			addrs = append(addrs, process.Config.SSH.Addr)
+		}
+		for _, addr := range process.GetDynamicAddrs() {
+			addrs = append(addrs, utils.NetAddr{Addr: addr})
 		}
 	case types.RoleKube:
 		addrs = append(addrs,

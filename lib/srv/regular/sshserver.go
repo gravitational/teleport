@@ -240,6 +240,8 @@ type Server struct {
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
 	remoteForwardingMap utils.SyncMap[string, io.Closer]
+
+	dynamicAddrsCallback func([]string)
 }
 
 // TargetMetadata returns metadata about the server.
@@ -705,6 +707,13 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	}
 }
 
+func SetDynamicAddrsCallback(fn func([]string)) ServerOption {
+	return func(s *Server) error {
+		s.dynamicAddrsCallback = fn
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -1072,6 +1081,15 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPeerAddr(s.peerAddr)
+
+	var additionalAddrs []string
+	if s, ok := server.Metadata.Labels["NODENAME"]; ok {
+		additionalAddrs = strings.Split(s, ",")
+	}
+	if s.dynamicAddrsCallback != nil {
+		s.dynamicAddrsCallback(additionalAddrs)
+	}
+
 	return server
 }
 
