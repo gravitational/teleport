@@ -220,23 +220,31 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 // resolveTargetHostWithClient resolves the target host using the provided
 // client and search and query parameters.
 func resolveTargetHostWithClient(
-	ctx context.Context, apiClient client.GetResourcesClient, search, query string,
+	ctx context.Context, apiClient client.ListUnifiedResourcesClient, search, query string,
 ) (types.Server, error) {
-	nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
+
+	page, _, err := client.GetUnifiedResourcePage(ctx, apiClient, &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(nodes) == 0 {
+
+	if len(page) == 0 {
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
-	if len(nodes) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
+	if len(page) > 1 {
+		return nil, trace.BadParameter("found multiple matching SSH hosts")
 	}
-	return nodes[0], nil
+
+	node, ok := page[0].ResourceWithLabels.(types.Server)
+	if !ok {
+		return nil, trace.BadParameter("expected types.Server but received unexpected type %T", page[0].ResourceWithLabels)
+	}
+
+	return node, nil
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
