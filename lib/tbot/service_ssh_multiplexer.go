@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -110,6 +112,41 @@ type SSHMultiplexerService struct {
 	agent   agent.ExtendedAgent
 }
 
+// writeIfChanged reads the artifact first to determine if it has changed
+// before writing to it. This avoids truncating the file during another
+// processes read.
+//
+// TODO(noah): Replace this with proper atomic writing.
+// https://github.com/gravitational/teleport/issues/25462
+func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger, path string, data []byte) error {
+	existingData, err := dest.Read(ctx, path)
+	if err != nil {
+		log.DebugContext(
+			ctx,
+			"Error occurred reading artifact for change-check, will write",
+			"path", path,
+			"error", err,
+		)
+		return dest.Write(ctx, path, data)
+	}
+
+	if bytes.Equal(existingData, data) {
+		log.DebugContext(
+			ctx,
+			"Artifact unchanged, not writing",
+			"path", path,
+		)
+		return nil
+	}
+	log.DebugContext(
+		ctx,
+		"Artifact changed, will write",
+		"path", path,
+	)
+
+	return dest.Write(ctx, path, data)
+}
+
 func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
@@ -123,7 +160,9 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	if err != nil {
 		return trace.Wrap(err, "generating known hosts")
 	}
-	if err := dest.Write(ctx, ssh.KnownHostsName, []byte(knownHosts)); err != nil {
+	if err := writeIfChanged(
+		ctx, dest, s.log, ssh.KnownHostsName, []byte(knownHosts),
+	); err != nil {
 		return trace.Wrap(err, "writing %s", ssh.KnownHostsName)
 	}
 
@@ -159,7 +198,10 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")
 	}
-	if err := dest.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	sshConfBytes := []byte(sshConfigBuilder.String())
+	if err := writeIfChanged(
+		ctx, dest, s.log, ssh.ConfigName, sshConfBytes,
+	); err != nil {
 		return trace.Wrap(err, "writing %s", ssh.ConfigName)
 	}
 
