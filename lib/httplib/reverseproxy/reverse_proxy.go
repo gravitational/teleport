@@ -82,11 +82,11 @@ func New(opts ...Option) (*Forwarder, error) {
 		opt(fwd)
 	}
 
-	// Director is called by the ReverseProxy to modify the request.
+	// Rewrite is called by the ReverseProxy to modify the request.
 	fwd.Rewrite = func(request *httputil.ProxyRequest) {
 		modifyRequest(request.Out)
 		if fwd.headerRewriter != nil {
-			fwd.headerRewriter.Rewrite(request.Out)
+			fwd.headerRewriter.Rewrite(request)
 		}
 		if !fwd.passHostHeader {
 			request.Out.Host = request.Out.URL.Host
