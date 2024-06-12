@@ -6,7 +6,7 @@ tokens:
   - 'Server Access'
   - 'Application Access'
   - 'Kubernetes Access'
-  - 'Desktop Access'
+  # - 'Desktop Access'
   # Ignore "Database Access Controls" since it's a Teleport feature, but catch
   # "Database Access" without "Controls".
   - 'Database Access(?!\s*Controls)'
