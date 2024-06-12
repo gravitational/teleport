@@ -161,7 +161,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 // NewApplicationFromKubeService creates application resources from kubernetes service.
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
-func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
+func NewApplicationFromKubeService(service corev1.Service, staticLabels map[string]string, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
 	appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
@@ -175,7 +175,7 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		return nil, trace.Wrap(err, "could not create app name for the service")
 	}
 
-	labels, err := getAppLabels(service.GetLabels(), clusterName)
+	labels, err := getAppLabels(service.GetLabels(), staticLabels, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not get labels for the service")
 	}
@@ -260,10 +260,17 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName), nil
 }
 
-func getAppLabels(serviceLabels map[string]string, clusterName string) (map[string]string, error) {
-	result := make(map[string]string, len(serviceLabels)+1)
+func getAppLabels(serviceLabels map[string]string, staticLabels map[string]string, clusterName string) (map[string]string, error) {
+	result := make(map[string]string, len(serviceLabels)+len(staticLabels)+1)
 
 	for k, v := range serviceLabels {
+		if !types.IsValidLabelKey(k) {
+			return nil, trace.BadParameter("invalid label key: %q", k)
+		}
+
+		result[k] = v
+	}
+	for k, v := range staticLabels {
 		if !types.IsValidLabelKey(k) {
 			return nil, trace.BadParameter("invalid label key: %q", k)
 		}

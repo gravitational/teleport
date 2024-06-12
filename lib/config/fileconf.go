@@ -1768,6 +1768,8 @@ type KubernetesMatcher struct {
 	Namespaces []string `yaml:"namespaces,omitempty"`
 	// Labels are Kubernetes services labels to match.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Labels added to discovered resources
+	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

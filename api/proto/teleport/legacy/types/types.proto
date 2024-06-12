@@ -6920,6 +6920,8 @@ message KubernetesMatcher {
     (gogoproto.jsontag) = "labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+  // Labels added to discovered resources
+  map<string, string> StaticLabels = 4 [(gogoproto.jsontag) = "static_labels,omitempty"];
 }
 
 // OktaOptions specify options related to the Okta service.

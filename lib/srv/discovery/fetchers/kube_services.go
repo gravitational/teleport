@@ -49,7 +49,8 @@ type KubeAppsFetcherConfig struct {
 	// FilterLabels are the filter criteria.
 	FilterLabels types.Labels
 	// Namespaces are the kubernetes namespaces in which to discover services
-	Namespaces []string
+	Namespaces   []string
+	StaticLabels map[string]string
 	// Log is a logger to use
 	Log logrus.FieldLogger
 	// ProtocolChecker inspects port to find your whether they are HTTP/HTTPS or not.
@@ -203,11 +204,12 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				if len(portProtocols) == 1 {
 					port.Name = ""
 				}
-				newApp, err := services.NewApplicationFromKubeService(service, f.ClusterName, portProtocol, port)
+				newApp, err := services.NewApplicationFromKubeService(service, f.StaticLabels, f.ClusterName, portProtocol, port)
 				if err != nil {
 					f.Log.WithError(err).Warnf("Could not get app from a Kubernetes service %q, port %d", service.GetName(), port.Port)
 					return nil
 				}
+				newApp.GetStaticLabels()
 				newApps = append(newApps, newApp)
 			}
 			appsMu.Lock()
