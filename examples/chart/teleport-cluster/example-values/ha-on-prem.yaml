@@ -1,0 +1,61 @@
+# This example demonstrates how the chart can be used to deploy an on-premise Highly Available Teleport
+# using etcd as its key-value backend, and minio as S3-compatible object storage for the recordings.
+#
+# You must deploy the etcd beforehand and have a service exposing all individual etcd peers.
+# The etcd client keypair and ca certificate are stored in a `etcd-client` secret with the
+# respective names "tls.key", "tls.crt", "ca.crt".
+#
+# You must deploy minio beforehand, create an access key and store it in a secret.
+# In this example the secret is named `minio-creds` and contains two entries:
+# `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
+# See: https://github.com/gravitational/teleport/discussions/18499
+
+chartMode: standalone
+clusterName: teleport.example.com
+persistence:
+  enabled: false
+
+auth:
+  teleportConfig:
+    teleport:
+      storage:
+        type: etcd
+        peers: [ "https://etcd-0.etcd-headless.teleport.svc.cluster.local:2379", "https://etcd-1.etcd-headless.teleport.svc.cluster.local:2379", "https://etcd-2.etcd-headless.teleport.svc.cluster.local:2379" ]
+        prefix: /teleport/
+        tls_key_file: /var/lib/etcd_client/tls.key
+        tls_cert_file: /var/lib/etcd_client/tls.crt
+        tls_ca_file: /var/lib/etcd_client/ca.crt
+        audit_sessions_uri: "s3://teleport?endpoint=https://minio.example.com:9000&insecure=false&disablesse=false&region=foo"
+
+  extraVolumes:
+    - name: etcd-client
+      secret:
+        secretName: etcd-client
+
+  extraVolumeMounts:
+    - name: etcd-client
+      mountPath: /var/lib/etcd_client/
+      readOnly: true
+
+  extraEnv:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: minio-creds
+          key: AWS_ACCESS_KEY_ID
+          optional: false
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: minio-creds
+          key: AWS_SECRET_ACCESS_KEY
+          optional: false
+
+highAvailability:
+  # We run 3 auth and 3 proxy pods
+  replicaCount: 3
+  # cert-manager must be already deployed in the cluster
+  certManager:
+    enabled: true
+    issuerName: my-issuer  # This can be a LetsEncrypt or SelfSigned issuer, it should be deployed beforehand
+    issuerKind: Issuer
