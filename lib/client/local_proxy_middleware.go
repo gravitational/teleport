@@ -307,7 +307,7 @@ type LocalCertGenerator struct {
 	certChecker *CertChecker
 	caPath      string
 
-	mu sync.RWMutex
+	mu sync.Mutex
 	// ca is the certificate authority for signing certificates.
 	ca tls.Certificate
 	// certsByHost is a cache of certs for hosts generated with the local CA.
@@ -347,13 +347,6 @@ func (r *LocalCertGenerator) GetCertificate(clientHello *tls.ClientHelloInfo) (*
 
 // generateCert generates a new certificate for the specified host.
 func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error) {
-	r.mu.RLock()
-	if cert, found := r.certsByHost[host]; found {
-		r.mu.RUnlock()
-		return cert, nil
-	}
-	r.mu.RUnlock()
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if cert, found := r.certsByHost[host]; found {
