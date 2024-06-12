@@ -283,7 +283,7 @@ is emitted to the Audit Log.
 - Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407).
 - User, host, and CA certificates (and host keys for recording proxy mode) only use 2048-bit RSA private keys.
 
-## Desktop Access
+## Remote desktop access
 
 Teleport uses Rust for RDP connections, and thus uses a fork of Cloudflare's [`boring`](https://github.com/gravitational/boring)
 library under the hood for FIPS-compliant TLS cryptography. The primary noteable difference to the specifications listed above is that
