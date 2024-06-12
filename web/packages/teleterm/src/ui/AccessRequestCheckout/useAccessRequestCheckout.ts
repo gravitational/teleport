@@ -25,7 +25,7 @@ import {
   getDryRunMaxDuration,
   PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
-import { useSpecifiableFields } from 'shared/components/AccessRequests/useSpecifiableFields';
+import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
@@ -63,12 +63,13 @@ export default function useAccessRequestCheckout() {
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     pendingRequestTtl,
     setPendingRequestTtl,
+    pendingRequestTtlOptions,
     dryRunResponse,
-    setDryRunResponse,
-    initSpecifiableFields,
+    onDryRunChange,
     startTime,
     onStartTimeChange,
   } = useSpecifiableFields();
@@ -140,7 +141,7 @@ export default function useAccessRequestCheckout() {
     ) {
       clearCreateAttempt();
       setRequestedCount(0);
-      setDryRunResponse(null);
+      onDryRunChange(null /* set dryRunResponse to null */);
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
@@ -273,7 +274,7 @@ export default function useAccessRequestCheckout() {
     setCreateRequestAttempt({ status: '' });
 
     const accessRequest = makeUiAccessRequest(teletermAccessRequest);
-    initSpecifiableFields(accessRequest);
+    onDryRunChange(accessRequest);
   }
 
   async function createRequest(req: CreateRequest) {
@@ -357,9 +358,11 @@ export default function useAccessRequestCheckout() {
     setSelectedReviewers,
     dryRunResponse,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     pendingRequestTtl,
     setPendingRequestTtl,
+    pendingRequestTtlOptions,
     startTime,
     onStartTimeChange,
   };

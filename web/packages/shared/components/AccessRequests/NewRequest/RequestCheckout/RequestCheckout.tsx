@@ -132,8 +132,10 @@ export function RequestCheckout<T extends PendingListItem>({
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  setMaxDuration,
+  onMaxDurationChange,
+  maxDurationOptions,
   setPendingRequestTtl,
+  pendingRequestTtlOptions,
   dryRunResponse,
   data,
   showClusterNameColumn,
@@ -328,10 +330,9 @@ export function RequestCheckout<T extends PendingListItem>({
                           accessRequest={dryRunResponse}
                         />
                         <AccessDurationRequest
-                          assumeStartTime={startTime}
                           maxDuration={maxDuration}
-                          setMaxDuration={setMaxDuration}
-                          accessRequest={dryRunResponse}
+                          onMaxDurationChange={onMaxDurationChange}
+                          maxDurationOptions={maxDurationOptions}
                         />
                       </Box>
                     )}
@@ -340,13 +341,13 @@ export function RequestCheckout<T extends PendingListItem>({
                       updateReason={updateReason}
                       requireReason={requireReason}
                     />
-                    {dryRunResponse && (
+                    {dryRunResponse && maxDuration && (
                       <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration?.value}
-                        maxDuration={maxDuration}
+                        selectedMaxDurationTimestamp={maxDuration.value}
                         setPendingRequestTtl={setPendingRequestTtl}
                         pendingRequestTtl={pendingRequestTtl}
                         dryRunResponse={dryRunResponse}
+                        pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
                     <Flex
@@ -742,21 +743,23 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     selectedReviewers: ReviewerOption[];
     data: T[];
     showClusterNameColumn?: boolean;
-    setPendingRequestTtl: (value: Option<number>) => void;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';
     fetchResourceRequestRolesAttempt: Attempt;
     pendingRequestTtl: Option<number>;
+    setPendingRequestTtl: (value: Option<number>) => void;
+    pendingRequestTtlOptions: Option<number>[];
     resourceRequestRoles: string[];
+    maxDuration: Option<number>;
+    onMaxDurationChange: (value: Option<number>) => void;
+    maxDurationOptions: Option<number>[];
     setSelectedReviewers: (value: ReviewerOption[]) => void;
-    setMaxDuration: (value: Option<number>) => void;
     clearAttempt: () => void;
     createAttempt: Attempt;
     setSelectedResourceRequestRoles: (value: string[]) => void;
     numRequestedResources: number;
     selectedResourceRequestRoles: string[];
     dryRunResponse: AccessRequest;
-    maxDuration: Option<number>;
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;

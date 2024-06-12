@@ -22,27 +22,15 @@ import { Flex, LabelInput, Text } from 'design';
 import Select, { Option } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { AccessRequest } from 'shared/services/accessRequests';
-
-import { getDurationOptionsFromStartTime } from './durationOptions';
-
 export function AccessDurationRequest({
-  assumeStartTime,
-  accessRequest,
   maxDuration,
-  setMaxDuration,
+  onMaxDurationChange,
+  maxDurationOptions,
 }: {
-  assumeStartTime: Date;
-  accessRequest: AccessRequest;
+  maxDurationOptions: Option<number>[];
   maxDuration: Option<number>;
-  setMaxDuration(s: Option<number>): void;
+  onMaxDurationChange(s: Option<number>): void;
 }) {
-  // Options for extending or shortening the access request duration.
-  const durationOptions = getDurationOptionsFromStartTime(
-    assumeStartTime,
-    accessRequest
-  );
-
   return (
     <LabelInput typography="body2" color="text.slightlyMuted">
       <Flex alignItems="center">
@@ -55,8 +43,8 @@ export function AccessDurationRequest({
       </Flex>
 
       <Select
-        options={durationOptions}
-        onChange={setMaxDuration}
+        options={maxDurationOptions}
+        onChange={onMaxDurationChange}
         value={maxDuration}
       />
     </LabelInput>
