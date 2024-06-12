@@ -94,10 +94,12 @@ export function AccessRequestCheckout() {
     goToRequestsList,
     setShowCheckout,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     dryRunResponse,
     pendingRequestTtl,
     setPendingRequestTtl,
+    pendingRequestTtlOptions,
     startTime,
     onStartTimeChange,
   } = useAccessRequestCheckout();
@@ -249,8 +251,10 @@ export function AccessRequestCheckout() {
             fetchStatus={'loaded'}
             dryRunResponse={dryRunResponse}
             maxDuration={maxDuration}
-            setMaxDuration={setMaxDuration}
+            onMaxDurationChange={onMaxDurationChange}
+            maxDurationOptions={maxDurationOptions}
             pendingRequestTtl={pendingRequestTtl}
+            pendingRequestTtlOptions={pendingRequestTtlOptions}
             setPendingRequestTtl={setPendingRequestTtl}
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}

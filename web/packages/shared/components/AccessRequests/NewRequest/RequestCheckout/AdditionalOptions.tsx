@@ -25,27 +25,19 @@ import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../../Shared/utils';
 
-import { getPendingRequestDurationOptions } from './utils';
-
 export function AdditionalOptions({
   selectedMaxDurationTimestamp,
   setPendingRequestTtl,
   pendingRequestTtl,
   dryRunResponse,
-  maxDuration,
+  pendingRequestTtlOptions,
 }: {
   selectedMaxDurationTimestamp: number;
   setPendingRequestTtl(o: Option<number>): void;
   pendingRequestTtl: Option<number>;
   dryRunResponse: AccessRequest;
-  maxDuration: Option<number>;
+  pendingRequestTtlOptions: Option<number>[];
 }) {
-  // Options for extending pending TTL.
-  const requestTTLDurationOptions = getPendingRequestDurationOptions(
-    dryRunResponse.created,
-    maxDuration.value
-  );
-
   const [expanded, setExpanded] = useState(false);
   const ArrowIcon = expanded ? Icon.ChevronDown : Icon.ChevronRight;
 
@@ -74,7 +66,7 @@ export function AdditionalOptions({
       </Flex>
       {expanded && (
         <Box data-testid="reviewers">
-          {requestTTLDurationOptions.length > 0 && (
+          {pendingRequestTtlOptions.length > 0 && (
             <LabelInput typography="body2" color="text.slightlyMuted" mb={3}>
               <Flex alignItems="center">
                 <Text mr={1}>Request expires if not reviewed in</Text>
@@ -84,7 +76,7 @@ export function AdditionalOptions({
                 </ToolTipInfo>
               </Flex>
               <Select
-                options={requestTTLDurationOptions}
+                options={pendingRequestTtlOptions}
                 onChange={(option: Option<number>) =>
                   setPendingRequestTtl(option)
                 }
