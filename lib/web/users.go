@@ -109,7 +109,7 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	// AllTraits is also used to delete all user traits,
 	// we explicitly check if TraitsPreset is empty so
 	// to prevent traits deletion.
-	if req.TraitsPreset == (traitsPreset{}) {
+	if req.TraitsPreset == nil {
 		user.SetTraits(req.AllTraits)
 	} else {
 		updateUserTraitsPreset(req, user)
@@ -183,7 +183,7 @@ func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	// AllTraits is also used to delete all user traits,
 	// we explicitly check if TraitsPreset is empty so
 	// to prevent traits deletion.
-	if req.TraitsPreset == (traitsPreset{}) {
+	if req.TraitsPreset == nil {
 		user.SetTraits(req.AllTraits)
 	} else {
 		updateUserTraitsPreset(req, user)
@@ -332,7 +332,7 @@ type saveUserRequest struct {
 	Roles []string `json:"roles"`
 	// TraitsPreset holds traits that are pre-defined in Teleport.
 	// Clients may use TraitsPreset to selectively update user traits.
-	TraitsPreset traitsPreset `json:"traits"`
+	TraitsPreset *traitsPreset `json:"traits"`
 	// AllTraits may hold all the user traits, including traits key defined
 	// in TraitsPreset and/or new trait key values defined by Teleport admin.
 	// AllTraits should be used to fully replace and update user traits.
@@ -346,7 +346,7 @@ func (r *saveUserRequest) checkAndSetDefaults() error {
 	if len(r.Roles) == 0 {
 		return trace.BadParameter("missing roles")
 	}
-	if len(r.AllTraits) != 0 && r.TraitsPreset != (traitsPreset{}) {
+	if len(r.AllTraits) != 0 && r.TraitsPreset != nil {
 		return trace.BadParameter("either traits or allTraits must be provided")
 	}
 	return nil
