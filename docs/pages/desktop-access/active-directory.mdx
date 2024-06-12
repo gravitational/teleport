@@ -51,14 +51,14 @@ For relatively simple Active Directory environments, you can use the `tctl` gene
 to bootstrap your Active Directory domain for use with Teleport. At a high level, the script does the following:
 
 1. Create a restrictive service account named `Teleport Service Account` with the SAM account name `svc-teleport` and create the necessary LDAP containers.
-2. Prevent the service account from performing interactive logins by creating and linking a Group Policy Object (GPO) named `Block teleport-svc Interactive Login`.
-3. Configure a GPO named `Teleport Access Policy` to allow Teleport connections, including:
+1. Prevent the service account from performing interactive logins by creating and linking a Group Policy Object (GPO) named `Block teleport-svc Interactive Login`.
+1. Configure a GPO named `Teleport Access Policy` to allow Teleport connections, including:
    - Importing the Teleport CA certificate.
    - Configuring firewall rules.
    - Allowing remote RDP connections.
    - Enabling RemoteFX for improved remote desktop performance.
-4. Read the LDAP CA certificate (required for secure LDAPS connections).
-5. Generate a Teleport configuration file for the Windows Desktop Service.
+1. Read the LDAP CA certificate (required for secure LDAPS connections).
+1. Generate a Teleport configuration file for the Windows Desktop Service.
 
 For more complex Active Directory environments, you may need to modify the generated script to meet your specific requirements.
 It may also be easier to comprehend what the script does by following the manual configuration steps below.
