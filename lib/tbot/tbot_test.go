@@ -1056,9 +1056,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprint(conn, "test.cluster.localhost:0\x00")
+	_, err = fmt.Fprint(conn, "server01.cluster.localhost:0\x00")
 	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.cluster.localhost:22", sshConfig)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.cluster.localhost:22", sshConfig)
 	require.NoError(t, err)
 	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 	t.Cleanup(func() {
