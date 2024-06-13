@@ -49,14 +49,16 @@ message CrownJewelSpec {
 
 // TeleportMatcher represents a matcher for Teleport resources.
 message TeleportMatcher {
-  // Name is the name of the resource. When the name is provided, it will match
-  // the resource with the same name.
-  string name = 1;
+  reserved 1;
+  reserved "name";
   // Kind is the kind of the resource: ssh, k8s, db, etc
   // Multiple kinds can be provided to match multiple kinds.
   repeated string kinds = 2;
   // Labels is a set of labels.
   repeated teleport.label.v1.Label labels = 3;
+  // Names are the name of resources. When the name is provided, it will match
+  // resources with the same name.
+  repeated string names = 4;
 }
 
 // AWSMatcher represents a matcher for AWS resources.
@@ -70,8 +72,12 @@ message AWSMatcher {
   // Tags are AWS resource Tags to match.
   // labels is a set of labels.
   repeated AWSTag tags = 3;
-  // ARN is the AWS resource ARN to match.
-  string arn = 4;
+
+  reserved 4;
+  reserved "arn";
+
+  // ARNs are AWS resources ARN to match.
+  repeated string arns = 5;
 }
 
 // AWSTag is a tag that is attached to an AWS resource.

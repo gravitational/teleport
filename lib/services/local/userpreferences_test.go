@@ -20,7 +20,6 @@ package local_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,7 +29,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -101,7 +99,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:                     defaultPref.Assist,
 				Onboard:                    defaultPref.Onboard,
 				Theme:                      userpreferencesv1.Theme_THEME_DARK,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
@@ -118,7 +115,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:  defaultPref.Assist,
 				Onboard: defaultPref.Onboard,
 				Theme:   defaultPref.Theme,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
@@ -140,7 +136,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:  defaultPref.Assist,
 				Onboard: defaultPref.Onboard,
 				Theme:   defaultPref.Theme,
 				UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
@@ -148,50 +143,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-				},
-				ClusterPreferences: defaultPref.ClusterPreferences,
-			},
-		},
-		{
-			name: "update the assist preferred logins only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					Assist: &userpreferencesv1.AssistUserPreferences{
-						PreferredLogins: []string{"foo", "bar"},
-					},
-					Onboard: &userpreferencesv1.OnboardUserPreferences{
-						PreferredResources: []userpreferencesv1.Resource{},
-						MarketingParams:    &userpreferencesv1.MarketingParams{},
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				Onboard:                    defaultPref.Onboard,
-				Assist: &userpreferencesv1.AssistUserPreferences{
-					PreferredLogins: []string{"foo", "bar"},
-					ViewMode:        defaultPref.Assist.ViewMode,
-				},
-				ClusterPreferences: defaultPref.ClusterPreferences,
-			},
-		},
-		{
-			name: "update the assist view mode only",
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Preferences: &userpreferencesv1.UserPreferences{
-					Assist: &userpreferencesv1.AssistUserPreferences{
-						ViewMode: userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
-					},
-				},
-			},
-			expected: &userpreferencesv1.UserPreferences{
-				Theme:                      defaultPref.Theme,
-				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
-				Onboard:                    defaultPref.Onboard,
-				Assist: &userpreferencesv1.AssistUserPreferences{
-					PreferredLogins: defaultPref.Assist.PreferredLogins,
-					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
 				},
 				ClusterPreferences: defaultPref.ClusterPreferences,
 			},
@@ -212,7 +163,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:                     defaultPref.Assist,
 				Theme:                      defaultPref.Theme,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
@@ -239,7 +189,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				},
 			},
 			expected: &userpreferencesv1.UserPreferences{
-				Assist:                     defaultPref.Assist,
 				Theme:                      defaultPref.Theme,
 				UnifiedResourcePreferences: defaultPref.UnifiedResourcePreferences,
 				Onboard:                    defaultPref.Onboard,
@@ -260,10 +209,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-					},
-					Assist: &userpreferencesv1.AssistUserPreferences{
-						PreferredLogins: []string{"baz"},
-						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
@@ -288,10 +233,6 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_LIST,
 					LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 					AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-				},
-				Assist: &userpreferencesv1.AssistUserPreferences{
-					PreferredLogins: []string{"baz"},
-					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
 				},
 				Onboard: &userpreferencesv1.OnboardUserPreferences{
 					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
@@ -334,38 +275,4 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected, res, protocmp.Transform()))
 		})
 	}
-}
-
-func TestLayoutUpdate(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	identity := newUserPreferencesService(t)
-
-	outdatedPrefs := &userpreferencesv1.UserPreferences{
-		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: []string{"foo", "bar"},
-		},
-	}
-	val, err := json.Marshal(outdatedPrefs)
-	require.NoError(t, err)
-
-	// Insert the outdated preferences directly into the backend
-	// to simulate a previous version of the preferences.
-	_, err = identity.Put(ctx, backend.Item{
-		Key:   backend.Key("user_preferences", "test"),
-		Value: val,
-	})
-	require.NoError(t, err)
-
-	// Get the preferences and ensure that the layout is updated.
-	prefs, err := identity.GetUserPreferences(ctx, "test")
-	require.NoError(t, err)
-	// The layout should be updated to the latest version (values should not be nil).
-	require.NotNil(t, prefs.Onboard)
-	// Non-existing values should be set to the default value.
-	require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, prefs.Assist.ViewMode)
-	require.Equal(t, userpreferencesv1.Theme_THEME_UNSPECIFIED, prefs.Theme)
-	// Existing values should be preserved.
-	require.Equal(t, []string{"foo", "bar"}, prefs.Assist.PreferredLogins)
 }
