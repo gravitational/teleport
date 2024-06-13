@@ -4,8 +4,6 @@ description: How to migrate from Teleport Enterprise (self-hosted) to Teleport E
 h1: Migrate to Cloud-Hosted Teleport Enterprise 
 ---
 
-Migrating from a self-hosted Teleport Enterprise deployment to a cloud-hosted
-
 Teleport Enterprise deployment offers scalability, reliability, and ease of
 management. By following the steps outlined in this guide, you can transition
 your Teleport deployment to the cloud successfully while ensuring minimal
@@ -14,9 +12,7 @@ disruption to your operations.
 ## How it works
 
 While in a cloud-hosted Teleport Enterprise account, Teleport manages the Auth
-
 Service and Proxy Service for you, but you need to migrate dynamic resources and
-
 Teleport services yourself. 
 
 To migrate a self-hosted Teleport Enterprise cluster to a cloud-hosted Teleport
@@ -25,7 +21,6 @@ Enterprise cluster:
 1. Set up a separate cloud-hosted Teleport account.
 1. Retrieve dynamic Teleport resources from the Auth Service backend on the
    self-hosted cluster and apply them against the Auth Service backend on the
-
    cloud-hosted cluster.
 1. Reconfigure Teleport agents and plugins to connect to the cloud-hosted
    Teleport cluster.
