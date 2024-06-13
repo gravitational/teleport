@@ -29,6 +29,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/userpref
 // UserPreferences is a collection of different user changeable preferences for the frontend.
 message UserPreferences {
   // assist is the preferences for the Teleport Assist.
+  // TODO(jakule): DELETE IN v17
   v1.AssistUserPreferences assist = 1;
   // theme is the theme of the frontend.
   Theme theme = 2;
