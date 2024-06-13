@@ -5,58 +5,45 @@ import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { TraitsEditor, traitsToTraitsOption, emptyTrait } from './TraitsEditor';
+import { TraitsEditor, emptyTrait } from './TraitsEditor';
+
+import { traitsToTraitsOption } from './useDialog';
 
 import type { TraitsOption } from './TraitsEditor';
 
 describe('Render traits correctly', () => {
-  const userTraits = {
+  const userTraits: AllUserTraits = {
     logins: ['root', 'ubuntu'],
     db_roles: ['dbadmin', 'postgres'],
     db_names: ['postgres', 'aurora'],
-  } as AllUserTraits;
+  };
 
   test('Available traits are rendered', async () => {
-    const configuredTraits = [] as TraitsOption[];
+    // const configuredTraits: TraitsOption[] = [];
     const setConfiguredTraits = jest.fn();
 
-    const { rerender } = render(
-      <TraitsEditor
-        allTraits={userTraits}
-        attempt={{ status: '' }}
-        configuredTraits={configuredTraits}
-        setConfiguredTraits={setConfiguredTraits}
-      />
-    );
-
-    expect(screen.getByText('User Traits')).toBeInTheDocument();
-    expect(setConfiguredTraits).toHaveBeenLastCalledWith(
-      traitsToTraitsOption(userTraits)
-    );
-
-    rerender(
+    render(
       <Validation>
         <TraitsEditor
-          allTraits={userTraits}
           attempt={{ status: '' }}
           configuredTraits={traitsToTraitsOption(userTraits)}
           setConfiguredTraits={setConfiguredTraits}
         />
       </Validation>
     );
+
+    expect(screen.getByText('User Traits')).toBeInTheDocument();
     expect(screen.getAllByTestId('trait-key')).toHaveLength(3);
     expect(screen.getAllByTestId('trait-value')).toHaveLength(3);
   });
 
   test('Add and remove Trait', async () => {
-    const userTraits = {} as AllUserTraits;
-    const configuredTraits = [] as TraitsOption[];
+    const configuredTraits: TraitsOption[] = [];
     const setConfiguredTraits = jest.fn();
 
     const { rerender } = render(
       <Validation>
         <TraitsEditor
-          allTraits={userTraits}
           attempt={{ status: '' }}
           configuredTraits={configuredTraits}
           setConfiguredTraits={setConfiguredTraits}
@@ -75,7 +62,6 @@ describe('Render traits correctly', () => {
     rerender(
       <Validation>
         <TraitsEditor
-          allTraits={singleTrait}
           attempt={{ status: '' }}
           configuredTraits={traitsToTraitsOption(singleTrait)}
           setConfiguredTraits={setConfiguredTraits}

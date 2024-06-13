@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Option } from 'shared/components/Select';
 
-import { ResetToken, User } from 'teleport/services/user';
+import { ResetToken, User, AllUserTraits } from 'teleport/services/user';
 
 import type { TraitsOption } from './TraitsEditor';
 
@@ -34,7 +34,9 @@ export default function useUserDialog(props: Props) {
       label: r,
     }))
   );
-  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>([]);
+  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>(
+    traitsToTraitsOption(props.user.allTraits)
+  );
 
   function onChangeName(name = '') {
     setName(name);
@@ -104,3 +106,22 @@ export type Props = {
   onCreate(user: User): Promise<any>;
   onUpdate(user: User): Promise<any>;
 };
+
+export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
+  let newTrait = [];
+  for (let trait in allTraits) {
+    if (!allTraits[trait][0]) {
+      continue;
+    }
+    if (allTraits[trait].length > 0) {
+      newTrait.push({
+        traitKey: { value: trait, label: trait },
+        traitValues: allTraits[trait].map(t => ({
+          value: t,
+          label: t,
+        })),
+      });
+    }
+  }
+  return newTrait;
+}

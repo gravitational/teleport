@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, Dispatch, SetStateAction } from 'react';
+import React, { Dispatch, SetStateAction } from 'react';
 import { ButtonBorder, Box, Flex, Text, ButtonIcon } from 'design';
 import { Add, Trash } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField, requiredAll } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { AllUserTraits } from 'teleport/services/user';
 
 /**
  * traitsPreset is a list of system defined traits in Teleport.
@@ -47,33 +45,26 @@ const traitsPreset = [
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.
- * @param allTraits all traits pre-configured for user.
  * @param attempt attempt is Attempt status.
  * @param configuredTraits holds traits configured for user in current editor.
  * @param setConfiguredTraits sets user traits in current editor.
  */
 export function TraitsEditor({
-  allTraits,
   attempt,
   configuredTraits,
   setConfiguredTraits,
 }: TraitEditorProps) {
-  useEffect(() => {
-    const newTraits = traitsToTraitsOption(allTraits);
-    setConfiguredTraits(newTraits);
-  }, [allTraits]);
-
-  function handleInputChange(i: InputOption) {
+  function handleInputChange(i: InputOption | InputOptionArray) {
     let newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
-      let traitValue: Option[] = i.option as Option[];
+      let traitValue: Option[] = i.option;
       newTraits[i.index] = {
         ...newTraits[i.index],
-        [i.labelField]: [...traitValue],
+        [i.labelField]: traitValue ?? [],
       };
       setConfiguredTraits(newTraits);
     } else {
-      let traitName: Option = i.option as Option;
+      let traitName: Option = i.option;
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitName,
@@ -83,9 +74,7 @@ export function TraitsEditor({
   }
 
   function addNewTraitPair() {
-    let newTraits = [...configuredTraits];
-    newTraits.push(emptyTrait);
-    setConfiguredTraits(newTraits);
+    setConfiguredTraits([...configuredTraits, emptyTrait]);
   }
 
   function removeTraitPair(index: number) {
@@ -112,7 +101,7 @@ export function TraitsEditor({
                       value: r,
                       label: r,
                     }))}
-                    placeholder="Select or type new trait name and enter"
+                    placeholder="Type a trait name and press enter"
                     autoFocus
                     isSearchable
                     value={traitKey}
@@ -123,7 +112,7 @@ export function TraitsEditor({
                     )}
                     onChange={e => {
                       handleInputChange({
-                        option: e,
+                        option: e as Option,
                         labelField: 'traitKey',
                         index: index,
                       });
@@ -140,7 +129,7 @@ export function TraitsEditor({
                     css={`
                       background: ${props => props.theme.colors.levels.surface};
                     `}
-                    placeholder="Type a new trait value and enter"
+                    placeholder="Type a trait value and press enter"
                     defaultValue={traitValues.map(r => ({
                       value: r,
                       label: r,
@@ -153,7 +142,7 @@ export function TraitsEditor({
                     rule={requiredField('Trait value cannot be empty')}
                     onChange={e => {
                       handleInputChange({
-                        option: e,
+                        option: e as Option[],
                         labelField: 'traitValues',
                         index: index,
                       });
@@ -217,8 +206,14 @@ export function TraitsEditor({
 }
 
 type InputOption = {
-  labelField: 'traitKey' | 'traitValues';
-  option: Option | Option[];
+  labelField: 'traitKey';
+  option: Option;
+  index: number;
+};
+
+type InputOptionArray = {
+  labelField: 'traitValues';
+  option: Option[];
   index: number;
 };
 
@@ -237,34 +232,14 @@ const requireNoDuplicateTraits =
     return { valid: true };
   };
 
-export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
-  let newTrait = [];
-  for (let trait in allTraits) {
-    if (!allTraits[trait][0]) {
-      continue;
-    }
-    if (allTraits[trait].length > 0) {
-      newTrait.push({
-        traitKey: { value: trait, label: trait },
-        traitValues: allTraits[trait].map(t => ({
-          value: t,
-          label: t,
-        })),
-      });
-    }
-  }
-  return newTrait;
-}
-
 export const emptyTrait = {
-  traitKey: { value: '', label: 'Select or type new trait name and enter' },
+  traitKey: { value: '', label: 'Type a trait name and press enter' },
   traitValues: [],
 };
 
 export type TraitsOption = { traitKey: Option; traitValues: Option[] };
 
 export type TraitEditorProps = {
-  allTraits: AllUserTraits;
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   attempt: Attempt;

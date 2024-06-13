@@ -47,7 +47,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
     onClose,
     fetchRoles,
     setConfiguredTraits,
-    allTraits,
     attempt,
     name,
     selectedRoles,
@@ -119,7 +118,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
               elevated={true}
             />
             <TraitsEditor
-              allTraits={allTraits}
               attempt={attempt}
               configuredTraits={configuredTraits}
               setConfiguredTraits={setConfiguredTraits}
