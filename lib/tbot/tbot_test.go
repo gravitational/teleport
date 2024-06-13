@@ -81,11 +81,11 @@ type defaultBotConfigOpts struct {
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "cluster.localhost")(o)
+		testenv.WithClusterName(t, "root.localhost")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
-				{AddrNetwork: "tcp", Addr: net.JoinHostPort("cluster.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("root.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
 		})(o)
 	}
@@ -195,6 +195,7 @@ func TestBot(t *testing.T) {
 	process := testenv.MakeTestServer(
 		t,
 		defaultTestServerOpts(t, log),
+		testenv.WithProxyKube(t),
 	)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
@@ -827,9 +828,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://cluster.localhost/foo", svid.ID.String())
+	require.Equal(t, "spiffe://root.localhost/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://cluster.localhost/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://root.localhost/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -1056,9 +1057,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprint(conn, "server01.cluster.localhost:0\x00")
+	_, err = fmt.Fprint(conn, "server01.root.localhost:0\x00")
 	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.cluster.localhost:22", sshConfig)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root.localhost:22", sshConfig)
 	require.NoError(t, err)
 	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 	t.Cleanup(func() {

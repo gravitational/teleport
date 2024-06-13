@@ -172,8 +172,6 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
-	cfg.Proxy.Kube.Enabled = true
-	cfg.Proxy.Kube.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors)}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
 	cfg.Proxy.DisableWebInterface = true
 
@@ -360,7 +358,20 @@ func WithLogger(log *slog.Logger) TestServerOptFunc {
 	})
 }
 
+// WithProxyKube enables the Proxy Kube listener with a random address.
+func WithProxyKube(t *testing.T) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Proxy.Kube.Enabled = true
+		cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors),
+		}
+	})
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	// TODO(noah): This function relies on extremely specific cluster names
+	// being used, it should be more resilient.
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
