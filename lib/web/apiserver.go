@@ -720,7 +720,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// endpoint returns the default authentication method and configuration that
 	// the server supports. the /webapi/ping/:connector endpoint can be used to
 	// query the authentication configuration for a specific connector.
-	h.GET("/webapi/ping", h.WithUnauthenticatedHighLimiter(h.ping))
+	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
 	h.GET("/webapi/ping/:connector", h.WithUnauthenticatedHighLimiter(h.pingWithConnector))
 
 	// Unauthenticated access to JWT public keys.
@@ -930,7 +930,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsCreate))
 	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
-	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
@@ -951,6 +951,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
+	// The Integration DELETE endpoint already sets the expected named param after `/integrations/`
+	// It must be re-used here, otherwise the router will not start.
+	// See https://github.com/julienschmidt/httprouter/issues/364
+	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind/aws-app-access/:name", h.WithClusterAuth(h.awsOIDCDeleteAWSAppAccess))
 	h.GET("/webapi/scripts/integrations/configure/ec2-ssm-iam.sh", h.WithLimiter(h.awsOIDCConfigureEC2SSMIAM))
 
 	// SAML IDP integration endpoints
@@ -973,7 +977,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
 
 	// Connection upgrades.
-	h.GET("/webapi/connectionupgrade", h.WithHighLimiter(h.connectionUpgrade))
+	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
 	// create user events.
 	h.POST("/webapi/precapture", h.WithUnauthenticatedLimiter(h.createPreUserEventHandle))

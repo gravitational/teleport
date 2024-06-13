@@ -77,7 +77,6 @@ export function AccessRequestCheckout() {
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
-    suggestedReviewers,
     selectedReviewers,
     setSelectedReviewers,
     assumedRequests,
@@ -85,10 +84,14 @@ export function AccessRequestCheckout() {
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
     setShowCheckout,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     dryRunResponse,
-    requestTTL,
-    setRequestTTL,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    startTime,
+    onStartTimeChange,
   } = useAccessRequestCheckout();
 
   return (
@@ -142,7 +145,6 @@ export function AccessRequestCheckout() {
             setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
-            reviewers={suggestedReviewers}
             selectedReviewers={selectedReviewers}
             setSelectedReviewers={setSelectedReviewers}
             requireReason={false}
@@ -151,9 +153,13 @@ export function AccessRequestCheckout() {
             fetchStatus={'loaded'}
             dryRunResponse={dryRunResponse}
             maxDuration={maxDuration}
-            setMaxDuration={setMaxDuration}
-            requestTTL={requestTTL}
-            setRequestTTL={setRequestTTL}
+            onMaxDurationChange={onMaxDurationChange}
+            maxDurationOptions={maxDurationOptions}
+            pendingRequestTtl={pendingRequestTtl}
+            pendingRequestTtlOptions={pendingRequestTtlOptions}
+            setPendingRequestTtl={setPendingRequestTtl}
+            startTime={startTime}
+            onStartTimeChange={onStartTimeChange}
           />
         )}
       </Transition>

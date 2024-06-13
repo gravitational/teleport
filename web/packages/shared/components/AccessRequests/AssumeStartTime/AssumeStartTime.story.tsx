@@ -54,10 +54,9 @@ export const NewRequest = () => {
         accessRequest={dryRunResponse}
       />
       <AccessDurationRequest
-        assumeStartTime={start}
-        accessRequest={dryRunResponse}
         maxDuration={maxDuration}
-        setMaxDuration={setMaxDuration}
+        onMaxDurationChange={setMaxDuration}
+        maxDurationOptions={[]}
       />
     </Box>
   );
