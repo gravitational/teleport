@@ -58,6 +58,13 @@ export function TraitsEditor({
     const newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
       const traitValue: Option[] = i.option;
+      if (traitValue) {
+        traitValue.forEach((v, i) => {
+          if (v.value.trim() === '') {
+            traitValue.splice(i, 1);
+          }
+        });
+      }
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitValue ?? [],

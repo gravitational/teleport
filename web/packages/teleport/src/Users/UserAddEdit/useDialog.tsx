@@ -34,7 +34,7 @@ export default function useUserDialog(props: Props) {
       label: r,
     }))
   );
-  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>(
+  const [configuredTraits, setConfiguredTraits] = useState<TraitsOption[]>(() =>
     traitsToTraitsOption(props.user.allTraits)
   );
 
@@ -47,7 +47,7 @@ export default function useUserDialog(props: Props) {
   }
 
   function onSave() {
-    let traitsToSave = {};
+    const traitsToSave = {};
     for (const traitKV of configuredTraits) {
       traitsToSave[traitKV.traitKey.value] = traitKV.traitValues.map(
         t => t.value
@@ -89,7 +89,6 @@ export default function useUserDialog(props: Props) {
     fetchRoles: props.fetchRoles,
     setConfiguredTraits,
     isNew: props.isNew,
-    allTraits: props.user.allTraits,
     attempt,
     name,
     selectedRoles,
