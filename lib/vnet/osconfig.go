@@ -103,7 +103,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		leafClusters, err := getLeafClusters(ctx, rootClient)
 		if err != nil {
 			slog.WarnContext(ctx,
-				"Failed to list leaf clusters, profile may be expired, not configuring VNet for this cluster",
+				"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
 				"profile", profileName, "error", err)
 			continue
 		}
