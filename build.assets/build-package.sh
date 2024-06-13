@@ -310,6 +310,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
             $DRY_RUN_PREFIX codesign -s "${DEVELOPER_ID_APPLICATION}" \
                 -f \
                 -v \
+                --entitlements build.assets/macos/tsh/tsh*.entitlements \
                 --timestamp \
                 --options runtime \
                 ${PACKAGE_TEMPDIR}/${FILE}

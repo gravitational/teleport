@@ -99,6 +99,7 @@ define notarize_binaries_cmd
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
 		--force \
 		--verbose \
+		--entitlements build.assets/macos/tsh/tsh*.entitlements \
 		--timestamp \
 		--options runtime \
 		$(BINARIES)
