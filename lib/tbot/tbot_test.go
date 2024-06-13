@@ -80,13 +80,15 @@ type defaultBotConfigOpts struct {
 }
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
-	return testenv.WithConfig(func(cfg *servicecfg.Config) {
-		testenv.WithClusterName(t, "cluster.localhost")
-		cfg.Logger = log
-		cfg.Proxy.PublicAddrs = []utils.NetAddr{
-			{AddrNetwork: "tcp", Addr: net.JoinHostPort("cluster.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
-		}
-	})
+	return func(o *testenv.TestServersOpts) {
+		testenv.WithClusterName(t, "cluster.localhost")(o)
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("cluster.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+		})(o)
+	}
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
@@ -1054,9 +1056,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprint(conn, "test.test-cluster.local:0\x00")
+	_, err = fmt.Fprint(conn, "test.cluster.localhost:0\x00")
 	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:22", sshConfig)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.cluster.localhost:22", sshConfig)
 	require.NoError(t, err)
 	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 	t.Cleanup(func() {
