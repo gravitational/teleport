@@ -127,13 +127,21 @@ func TestHeaderRewriter(t *testing.T) {
 			delegates = append(delegates, test.extraDelegates...)
 			hr := NewHeaderRewriter(delegates...)
 
+			// replicate net/http/httputil.ReverseProxy stripping
+			// forwarding headers from the outbound request
+			outReq := test.req.Clone(test.req.Context())
+			outReq.Header.Del("Forwarded")
+			outReq.Header.Del(reverseproxy.XForwardedFor)
+			outReq.Header.Del(reverseproxy.XForwardedHost)
+			outReq.Header.Del(reverseproxy.XForwardedProto)
+
 			hr.Rewrite(&httputil.ProxyRequest{
 				In:  test.req,
-				Out: test.req,
+				Out: outReq,
 			})
 
 			for header, value := range test.expectedHeaders {
-				assert.Equal(t, test.req.Header.Get(header), value[0])
+				assert.Equal(t, outReq.Header.Get(header), value[0])
 			}
 		})
 	}
