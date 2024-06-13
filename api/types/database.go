@@ -922,6 +922,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	const defaultKRB5FilePath = "/etc/krb5.conf"
+	if d.Spec.AD.Domain != "" && d.Spec.AD.Krb5File == "" {
+		d.Spec.AD.Krb5File = defaultKRB5FilePath
+	}
+
 	return nil
 }
 
