@@ -152,6 +152,10 @@ described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 - Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
   during your scheduled maintenance window.
 - Teleport agents are only updated automatically if you enroll them in automatic updates.
+- Teleport Auth and Proxy service will not be automatically upgraded to the next major version with
+  Teleport agents on older major versions. An example would be the Teleport Auth and Proxy service are on
+  version 16 and agents are still on version 15 or older. That would prevent Teleport Auth and Proxy
+  being updated to version 17 automatically.
 
 If you have Teleport agents connected to a Teleport Enterprise Cloud cluster
 that are more than one major version behind, you might experience compatibility
@@ -163,6 +167,17 @@ connected agents?](#how-can-i-find-version-information-on-connected-agents).
 
 For more information about automatic updates and compatibility issues, contact
 [Teleport support](https://goteleport.com/support/).
+
+### Why wasn't my Teleport Enterprise Cloud instance upgraded to the latest version?
+
+Teleport Auth and Proxy service will not be automatically upgraded to the next major version with
+Teleport agents on older major versions. An example would be the Teleport Auth and Proxy service are on
+version 16 and agents are still on version 15 or older. That would prevent Teleport Auth and Proxy
+being updated to version 17 automatically.
+
+You can check the status of your versions from the `tctl inventory ls` command. `Auth` and `Proxy` 
+services are those managed by Teleport. See [How can I find version information on
+connected agents?](#how-can-i-find-version-information-on-connected-agents) for further detail.
 
 ### Are updates times configurable for Teleport Enterprise Cloud?
 
@@ -197,26 +212,16 @@ Updates](../../upgrading/automatic-agent-updates.mdx) guide.
 
 ### How can I find version information on connected agents?
 
-To find the version of Teleport agent is attached to your cluster, run the
-following commands for the different protocols we support.
+You can check the status of your agents' version from the `tctl inventory ls` command. `Auth` and `Proxy` 
+services are those managed by Teleport.
 
-```code
-$ tctl get nodes --format=text
-$ tctl get kube_server --format=text
-$ tctl get app_server --format=text
-$ tctl get db_server --format=text
-$ tctl get windows_desktop_service --format=text
-```
-
-Below you can see sample output of `tctl get nodes --format=text`. Note the
-`Version` column will contain the version of the attached agent.
-
-```code
-$ tctl get nodes --format=text
-Host     UUID                                 Public Address Labels Version
--------- ------------------------------------ -------------- ------ ----------
-server01 46d8cad0-8967-4815-a01a-77aae62c34fe                       (=teleport.version=)
-server02 c33b5513-a9eb-463b-8f1b-1f209afe5b4f                       (=teleport.version=)
+```bash
+tctl inventory ls
+Server ID                            Hostname              Services        Agent Version Upgrader Upgrader Version
+------------------------------------ --------------------- --------------- ------------- -------- ----------------
+065ab336-1ac2-4314-8b16-32fc06a172a7 example-1             Node,App        v(=cloud.version=)      unit     v(=cloud.version=)
+065ab336-1ac2-4314-8b16-f00uj04004db example-2             Node,Db         v(=cloud.version=)      unit     v(=cloud.version=)
+3de21e67-845a-4be1-a024-908829718d27 teleport-kube-0       Kube            v(=cloud.version=)      kube     v(=cloud.version=)
 ```
 
 ## Architecture and networking
