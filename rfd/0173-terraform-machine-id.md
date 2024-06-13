@@ -19,8 +19,8 @@ Reduce the Terraform provider setup complexity and shorten the time-to-value for
 
 We introduced two fundamental changes in Teleport since the birth of the TF provider:
 - added MachineID for machines to obtain credentials and interact with Teleport
-- started rolling out "MFA for admin" (MFA4A in the rest od the document) in v15 which makes Teleport require MFA
-  certificates for administrative actions
+- started rolling out "MFA for admin" (MFA4A in the rest of the document) in v15 which makes Teleport require MFA
+  verification for administrative actions
 
 The previous recommendation was to create a TF user and sign a long-lived certificate with impersonation.
 When MFA4A is enabled (by default on clusters with webauthn only since v15) this certificate does not allow Terraform to
@@ -192,7 +192,7 @@ filesystem. Exfiltrating the MachineID certs requires dumping the process memory
 #### Risks
 
 The main risk is the amount of resources created by the `bootstrap` configuration. Each terraform invocation will
-create a bot resource. Too many resource could create noise opr affect Teleport's performance. This risk is mitigated
+create a bot resource. Too many resource could create noise or affect Teleport's performance. This risk is mitigated
 by:
 - the fact `bootstrap` is only usable on local laptop. It requires a valid `~/.tsh` profile and the ability to pass an
   MFA challenge (when MFA4A is enabled, which we are pushing everywhere and is Cloud's default). Intensive CI usage will
