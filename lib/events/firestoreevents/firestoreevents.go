@@ -387,7 +387,8 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 	}
 
 	query = query.OrderBy(createdAtDocProperty, firestoreOrdering).
-		OrderBy(firestore.DocumentID, firestore.Asc).Limit(limit)
+		OrderBy(firestore.DocumentID, firestore.Asc).
+		Limit(limit)
 
 	values, lastKey, err := l.query(ctx, query, lastKey, filter, limit, g)
 	if err != nil {
