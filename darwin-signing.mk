@@ -93,7 +93,7 @@ not_notarizing_cmd = echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSW
 
 notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
-root_dir = $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+root_dir := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
 define notarize_binaries_cmd
 	echo "USING CMD FOR NOTARIZATION AND SIGNING"
