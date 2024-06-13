@@ -74,6 +74,7 @@ type AuthCommand struct {
 	windowsDomain              string
 	windowsPKIDomain           string
 	windowsSID                 string
+	omitCDP                    bool
 	signOverwrite              bool
 	password                   string
 	caType                     string
@@ -145,6 +146,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
 	a.authSign.Flag("windows-pki-domain", `Active Directory domain where CRLs will be located. Only used when --format is set to "windows"`).StringVar(&a.windowsPKIDomain)
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
+	a.authSign.Flag("omit-cdp", `Omit CRL Distribution Points from the cert. Only used when --format is set to "windows"`).BoolVar(&a.omitCDP)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
@@ -348,6 +350,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		LDAPConfig:         windows.LDAPConfig{Domain: domain},
+		OmitCDP:            a.omitCDP,
 		AuthClient:         clusterAPI,
 	})
 	if err != nil {
