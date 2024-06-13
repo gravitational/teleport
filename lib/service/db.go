@@ -81,6 +81,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err := services.ValidateDatabase(db); err != nil {
+			return trace.Wrap(err)
+		}
 		databases = append(databases, db)
 	}
 
