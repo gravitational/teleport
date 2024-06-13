@@ -1731,6 +1731,8 @@ func TestInstanceMetadata(t *testing.T) {
 }
 
 func TestInitDatabaseService(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		desc      string
 		enabled   bool
@@ -1791,7 +1793,7 @@ func TestInitDatabaseService(t *testing.T) {
 			})
 			require.NoError(t, process.Start())
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
 			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
