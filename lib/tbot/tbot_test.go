@@ -23,11 +23,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -58,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -76,6 +77,16 @@ type defaultBotConfigOpts struct {
 	// Makes the bot accept an insecure auth or proxy server
 	insecure       bool
 	serviceConfigs config.ServiceConfigs
+}
+
+func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
+	return testenv.WithConfig(func(cfg *servicecfg.Config) {
+		testenv.WithClusterName(t, "cluster.localhost")
+		cfg.Logger = log
+		cfg.Proxy.PublicAddrs = []utils.NetAddr{
+			{AddrNetwork: "tcp", Addr: net.JoinHostPort("cluster.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+		}
+	})
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
@@ -181,7 +192,7 @@ func TestBot(t *testing.T) {
 
 	process := testenv.MakeTestServer(
 		t,
-		testenv.WithLogger(log),
+		defaultTestServerOpts(t, log),
 	)
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
@@ -502,7 +513,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create bot user and join token
@@ -546,7 +557,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create bot user and join token
@@ -717,7 +728,7 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log), testenv.WithClusterName(t, "cluster.local"))
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create a role that allows the bot to issue a SPIFFE SVID.
@@ -814,9 +825,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://test-cluster.local/foo", svid.ID.String())
+	require.Equal(t, "spiffe://cluster.localhost/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://test-cluster.local/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://cluster.localhost/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -837,7 +848,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
 	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Make fake postgres server and add a database access instance to expose
@@ -953,7 +964,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Make a new auth server with SSH agent
 	process := testenv.MakeTestServer(
 		t,
-		testenv.WithLogger(log),
+		defaultTestServerOpts(t, log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.Addr = utils.NetAddr{
@@ -981,10 +992,10 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			Insecure:      true,
-			ServiceConfigs: []config.ServiceConfig{
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+			serviceConfigs: []config.ServiceConfig{
 				&config.SSHMultiplexerService{
 					Destination: &config.DestinationDirectory{
 						Path: tmpDir,
