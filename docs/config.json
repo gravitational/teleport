@@ -3030,7 +3030,7 @@
     },
     {
       "source": "/access-graph/",
-      "destination": "/access-controls/access-graph/",
+      "destination": "/access-controls/getting-started-policy/",
       "permanent": true
     },
     {
