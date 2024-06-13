@@ -93,6 +93,7 @@ not_notarizing_cmd = echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSW
 
 notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
+root_dir = $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
 define notarize_binaries_cmd
 	echo "USING CMD FOR NOTARIZATION AND SIGNING"
@@ -100,7 +101,7 @@ define notarize_binaries_cmd
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
 		--force \
 		--verbose \
-		--entitlements build.assets/macos/tsh/tsh*.entitlements \
+		--entitlements $(root_dir)/build.assets/macos/tsh/tsh*.entitlements \
 		--timestamp \
 		--options runtime \
 		$(BINARIES)
