@@ -189,3 +189,29 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	}
 	return *cachedSoftHSMConfig, true
 }
+
+type testKeystoreOptions struct {
+	rsaKeyPairSource RSAKeyPairSource
+}
+
+type TestKeystoreOption func(*testKeystoreOptions)
+
+func WithRSAKeyPairSource(rsaKeyPairSource RSAKeyPairSource) TestKeystoreOption {
+	return func(opts *testKeystoreOptions) {
+		opts.rsaKeyPairSource = rsaKeyPairSource
+	}
+}
+
+// NewSoftwareKeystoreForTests returns a new *Manager that is valid for tests not specifically testing the
+// keystore functionality.
+func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Manager {
+	var options testKeystoreOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	softwareBackend := newSoftwareKeyStore(&SoftwareConfig{RSAKeyPairSource: options.rsaKeyPairSource})
+	return &Manager{
+		backendForNewKeys:     softwareBackend,
+		usableSigningBackends: []backend{softwareBackend},
+	}
+}

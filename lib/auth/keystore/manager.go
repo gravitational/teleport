@@ -142,7 +142,7 @@ func NewManager(ctx context.Context, cfg Config) (*Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	softwareBackend := newSoftwareKeyStore(&cfg.Software, cfg.Logger)
+	softwareBackend := newSoftwareKeyStore(&cfg.Software)
 
 	if (cfg.PKCS11 != PKCS11Config{}) {
 		pkcs11Backend, err := newPKCS11KeyStore(&cfg.PKCS11, cfg.Logger)

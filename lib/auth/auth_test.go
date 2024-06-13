@@ -3768,15 +3768,10 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	ksConfig := keystore.Config{
-		Software: keystore.SoftwareConfig{
-			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-				return privKey, pubKey, nil
-			},
-		},
+	rsaKeyPairSource := func() (priv []byte, pub []byte, err error) {
+		return privKey, pubKey, nil
 	}
-	keyStore, err := keystore.NewManager(ctx, ksConfig)
-	require.NoError(t, err)
+	keyStore := keystore.NewSoftwareKeystoreForTests(t, keystore.WithRSAKeyPairSource(rsaKeyPairSource))
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
