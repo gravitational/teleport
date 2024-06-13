@@ -17,7 +17,11 @@ import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/type
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
-import { ConfigurePool } from './ConfigureWorkforcePool';
+import {
+  ConfigurePool,
+  isValidGCPResourceName,
+  isValidGcpOrgID,
+} from './ConfigureWorkforcePool';
 
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
@@ -112,5 +116,39 @@ describe('Configure GCP workforce pool', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText('Teleport IdP Metadata')).toBeInTheDocument();
+  });
+});
+
+describe('isValidGcpOrgID', () => {
+  test.each`
+    orgId                  | valid
+    ${'1234567890'}        | ${true}
+    ${'123asbdac908'}      | ${false}
+    ${'abc-123-qwe99'}     | ${false}
+    ${'123458132-1234123'} | ${false}
+    ${'1abc-123-qwe'}      | ${false}
+  `('organization Id: $orgId', ({ orgId, valid }) => {
+    const result = isValidGcpOrgID(orgId)();
+
+    expect(result.valid).toEqual(valid);
+  });
+});
+
+describe('isValidGCPResourceName', () => {
+  test.each`
+    names                                                                                 | valid
+    ${'abc-asd-qwe'}                                                                      | ${true}
+    ${'abc-123-qwe'}                                                                      | ${true}
+    ${'abc-123-qwe99'}                                                                    | ${true}
+    ${'abc-123-qweabc-123-qabc-123-qweabc-123-qabc-123-qweabc-123-qabc-123-qweabc-123-q'} | ${false}
+    ${'abc-ABC-123-qwe'}                                                                  | ${false}
+    ${'Aabc-123-qwe'}                                                                     | ${false}
+    ${'abc-1_23-qwe'}                                                                     | ${false}
+    ${'abc-123-qwe-'}                                                                     | ${false}
+    ${'1abc-123-qwe'}                                                                     | ${false}
+  `('names: $names', ({ names, valid }) => {
+    const result = isValidGCPResourceName(names)();
+
+    expect(result.valid).toEqual(valid);
   });
 });

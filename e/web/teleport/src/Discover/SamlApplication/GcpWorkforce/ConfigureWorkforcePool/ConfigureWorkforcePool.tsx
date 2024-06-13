@@ -17,7 +17,11 @@ import FieldInput from 'shared/components/FieldInput';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredAll,
+  requiredField,
+  Rule,
+} from 'shared/components/Validation/rules';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
@@ -115,8 +119,6 @@ export function ConfigurePool({
 
   const [scriptUrl, setScriptUrl] = useState('');
   function genWorkforceConfigScript(validator: Validator) {
-    // TODO(sshah): The GCP resource naming convention validation
-    // is done in the backend but it will be great to do it here as well.
     if (!validator.validate()) {
       return;
     }
@@ -208,7 +210,10 @@ export function ScriptGenInput({
             pool provider
             <FieldInput
               mb={3}
-              rule={requiredField('Organization ID is required')}
+              rule={requiredAll(
+                requiredField('Organization ID is required'),
+                isValidGcpOrgID
+              )}
               label="GCP organization ID"
               toolTipContent="Obtain organization ID from GCP console."
               autoFocus
@@ -221,7 +226,10 @@ export function ScriptGenInput({
             />
             <FieldInput
               mb={3}
-              rule={requiredField('Pool name is required')}
+              rule={requiredAll(
+                requiredField('Pool name is required'),
+                isValidGCPResourceName
+              )}
               label="Workforce pool name"
               toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
               across GCP and follow GCP resource naming convention."
@@ -234,9 +242,11 @@ export function ScriptGenInput({
             />
             <FieldInput
               mb={3}
-              rule={requiredField('Pool provider name is required')}
-              labelTip="Workforce pool provider name"
-              label="App Name"
+              rule={requiredAll(
+                requiredField('Pool provider name is required'),
+                isValidGCPResourceName
+              )}
+              label="App Name - Workforce pool provider name"
               toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
@@ -291,6 +301,47 @@ export function Script({ scriptUrl }: { scriptUrl: string }) {
     </StyledBox>
   );
 }
+
+/**
+ * isValidGcpOrgID validates GCP organization ID, which
+ * should be numeric only value.
+ */
+export const isValidGcpOrgID: Rule = value => () => {
+  if (isNaN(value as any)) {
+    return {
+      valid: false,
+      message: 'GCP organization ID must be a numeric value',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * isValidGCPResourceName validates name based on GCP naming convention.
+ * https://cloud.google.com/compute/docs/naming-resources#resource-name-format.
+ */
+export const isValidGCPResourceName: Rule = value => () => {
+  if (value && value.length > 63) {
+    return {
+      valid: false,
+      message: 'Name cannot exceed 63 character length',
+    };
+  }
+  const resourceRegex = new RegExp('^[a-z]([-a-z0-9]*[a-z0-9])?$');
+  if (value && !resourceRegex.test(value)) {
+    return {
+      valid: false,
+      message: 'Name does not follow GCP resource naming convention',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
 
 function GCPPrerequisites() {
   return (
