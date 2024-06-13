@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, ButtonBorder, Flex, LabelInput, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import {
   ActionButtons,
@@ -88,21 +89,47 @@ export function ConfigureServiceProvider({
       </Flex>
 
       <Box mb={4}>
-        <LabelInput>Entity ID:</LabelInput>
+        <LabelInput>
+          <Flex alignItems="center">
+            <Text mr={1}> IdP Entity ID / Issuer URL</Text>
+            <ToolTipInfo>
+              IdP Entity ID is a unique identifier of Teleport SAML identity
+              provider, which is responsible for signing the SAML assertion.
+              This is also commonly referred to as an Issuer URL.
+            </ToolTipInfo>
+          </Flex>
+        </LabelInput>
         <TextSelectCopyMulti
           bash={false}
           lines={[{ text: samlIdPMetadata.entityID }]}
         />
       </Box>
       <Box mb={4}>
-        <LabelInput>SSO URL:</LabelInput>
+        <LabelInput>
+          <Flex alignItems="center">
+            <Text mr={1}> IdP SSO URL</Text>
+            <ToolTipInfo>
+              IdP Single Sign-on (SSO) URL is a URL location (usually a Teleport
+              proxy endpoint) where the service provider will redirect users to
+              authenticate with the IdP.
+            </ToolTipInfo>
+          </Flex>
+        </LabelInput>
         <TextSelectCopyMulti
           bash={false}
           lines={[{ text: samlIdPMetadata.ssoURL }]}
         />
       </Box>
       <Box mb={4}>
-        <LabelInput>X.509 Certificate:</LabelInput>
+        <LabelInput>
+          <Flex alignItems="center">
+            <Text mr={1}> IdP X.509 Certificate</Text>
+            <ToolTipInfo>
+              Service provider verifies that the SAML assertion is signed by
+              Teleport SAML IdP using this IdP X.509 Certificate.
+            </ToolTipInfo>
+          </Flex>
+        </LabelInput>
         <TextSelectCopyMulti
           bash={false}
           saveContent={{ save: true, filename: 'Teleport-SAML-IDP-X509.pem' }}

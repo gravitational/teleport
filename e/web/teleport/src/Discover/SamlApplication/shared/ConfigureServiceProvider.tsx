@@ -239,7 +239,9 @@ export function AddMetadataGeneric({
             ? requiredField(ErrMissingEntityIDOrACSURL)
             : undefined
         }
-        label="Entity ID"
+        label="SP Entity ID / Audience URI"
+        toolTipContent="SP Entity ID is a unique identifier of the service provider.
+        This is also commonly referred to as an Audience URI."
         value={spConfig.entityID}
         placeholder="https://example.com/saml/metadata"
         width="500px"
@@ -254,7 +256,9 @@ export function AddMetadataGeneric({
             ? requiredField(ErrMissingEntityIDOrACSURL)
             : undefined
         }
-        label="ACS URL"
+        label="ACS URL / SP SSO URL"
+        toolTipContent="Assertion Consumer Service (ACS) URL is a location where users will be redirected after authenticating with the IdP.
+        This is also commonly referred to as the Single Sign-on (SSO) URL."
         value={spConfig.acsURL}
         placeholder="https://example.com/saml/acs"
         width="500px"
