@@ -362,7 +362,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHo
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "output-renewal",
+		name: "identity-renewal",
 		f: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {
