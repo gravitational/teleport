@@ -170,6 +170,9 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -538,6 +541,10 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
 	c.Version = V2
 	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
@@ -1070,5 +1077,45 @@ func (r *RequireMFAType) setFromEnum(val int32) error {
 		return trace.BadParameter("invalid required mfa mode %v", val)
 	}
 	*r = RequireMFAType(val)
+	return nil
+}
+
+func (s *SignatureAlgorithmSuite) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.String() + `"`), nil
+}
+
+func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	switch v := val.(type) {
+	case string:
+		suite, ok := SignatureAlgorithmSuite_value[v]
+		if !ok {
+			return trace.BadParameter("SignatureAlgorithmSuite invalid value %v", v)
+		}
+		*s = SignatureAlgorithmSuite(suite)
+		return nil
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SignatureAlgorithmSuite invalid type %T", val)
+	}
+}
+
+func (s *SignatureAlgorithmSuite) setFromEnum(val int32) error {
+	if _, ok := SignatureAlgorithmSuite_name[val]; !ok {
+		return trace.BadParameter("SignatureAlgorithmSuite invalid value %v", val)
+	}
+	*s = SignatureAlgorithmSuite(val)
 	return nil
 }
