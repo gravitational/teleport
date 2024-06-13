@@ -25,10 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
@@ -88,7 +87,7 @@ func TestLocalCertGenerator(t *testing.T) {
 		ServerName: "localhost",
 	})
 	require.NoError(t, err)
-	require.Equal(t, caCert.Leaf.DNSNames, []string{"localhost"})
+	require.Equal(t, []string{"localhost"}, caCert.Leaf.DNSNames)
 
 	cert, err := localCertGenerator.GetCertificate(&tls.ClientHelloInfo{
 		ServerName: "",
@@ -101,7 +100,7 @@ func TestLocalCertGenerator(t *testing.T) {
 		ServerName: "example.com",
 	})
 	require.NoError(t, err)
-	require.Equal(t, exampleCert.Leaf.DNSNames, []string{"example.com"})
+	require.Equal(t, []string{"example.com"}, exampleCert.Leaf.DNSNames)
 }
 
 type mockCertIssuer struct {
