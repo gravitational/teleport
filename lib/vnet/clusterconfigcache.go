@@ -29,8 +29,6 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type getClusterClientFunc = func(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
-
 type clusterConfig struct {
 	// clusterName is the name of the cluster as reported by Ping.
 	clusterName string
@@ -61,16 +59,14 @@ func (e *clusterConfig) stale(clock clockwork.Clock) bool {
 type clusterConfigCache struct {
 	flightGroup singleflight.Group
 	clock       clockwork.Clock
-	getClient   getClusterClientFunc
 	cache       map[string]*clusterConfig
 	mu          sync.RWMutex
 }
 
-func newClusterConfigCache(getClient getClusterClientFunc, clock clockwork.Clock) *clusterConfigCache {
+func newClusterConfigCache(clock clockwork.Clock) *clusterConfigCache {
 	return &clusterConfigCache{
-		clock:     clock,
-		getClient: getClient,
-		cache:     make(map[string]*clusterConfig),
+		clock: clock,
+		cache: make(map[string]*clusterConfig),
 	}
 }
 

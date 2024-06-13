@@ -117,7 +117,7 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 		opt(r)
 	}
 	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
-	r.clusterConfigCache = newClusterConfigCache(appProvider.GetCachedClient, r.clock)
+	r.clusterConfigCache = newClusterConfigCache(r.clock)
 	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }

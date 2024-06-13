@@ -68,7 +68,7 @@ func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, er
 		homePath:    homePath,
 		clientStore: client.NewFSClientStore(homePath),
 	}
-	configurator.clusterConfigCache = newClusterConfigCache(configurator.getClusterClient, clockwork.NewRealClock())
+	configurator.clusterConfigCache = newClusterConfigCache(clockwork.NewRealClock())
 
 	return configurator, nil
 }
