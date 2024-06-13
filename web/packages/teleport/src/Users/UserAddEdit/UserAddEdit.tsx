@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert } from 'design';
+import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -88,40 +88,42 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}
-            <FieldInput
-              mr={2}
-              label="Username"
-              rule={requiredField('Username is required')}
-              placeholder="Username"
-              autoFocus
-              value={name}
-              onChange={e => onChangeName(e.target.value)}
-              readonly={isNew ? false : true}
-            />
-            <FieldSelectAsync
-              mr={2}
-              menuPosition="fixed"
-              label="User Roles"
-              rule={requiredField('At least one role is required')}
-              placeholder="Click to select roles"
-              isSearchable
-              isMulti
-              isSimpleValue
-              isClearable={false}
-              value={selectedRoles}
-              onChange={values => onChangeRoles(values as Option[])}
-              noOptionsMessage={() => 'No roles found'}
-              loadOptions={async input => {
-                const roles = await fetchRoles(input);
-                return roles.map(r => ({ value: r, label: r }));
-              }}
-              elevated={true}
-            />
-            <TraitsEditor
-              attempt={attempt}
-              configuredTraits={configuredTraits}
-              setConfiguredTraits={setConfiguredTraits}
-            />
+            <Box maxWidth={690}>
+              <FieldInput
+                mr={2}
+                label="Username"
+                rule={requiredField('Username is required')}
+                placeholder="Username"
+                autoFocus
+                value={name}
+                onChange={e => onChangeName(e.target.value)}
+                readonly={isNew ? false : true}
+              />
+              <FieldSelectAsync
+                mr={2}
+                menuPosition="fixed"
+                label="User Roles"
+                rule={requiredField('At least one role is required')}
+                placeholder="Click to select roles"
+                isSearchable
+                isMulti
+                isSimpleValue
+                isClearable={false}
+                value={selectedRoles}
+                onChange={values => onChangeRoles(values as Option[])}
+                noOptionsMessage={() => 'No roles found'}
+                loadOptions={async input => {
+                  const roles = await fetchRoles(input);
+                  return roles.map(r => ({ value: r, label: r }));
+                }}
+                elevated={true}
+              />
+              <TraitsEditor
+                attempt={attempt}
+                configuredTraits={configuredTraits}
+                setConfiguredTraits={setConfiguredTraits}
+              />
+            </Box>
           </DialogContent>
           <DialogFooter>
             <ButtonPrimary
