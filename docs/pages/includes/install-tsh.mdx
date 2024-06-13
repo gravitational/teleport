@@ -1,7 +1,7 @@
 <Tabs>
   <TabItem label="Mac">
     Download the signed macOS .pkg installer for `tsh`. In Finder double-click the `pkg` file to install it:
- 
+
     ```code
     $ curl -O https://cdn.teleport.dev/tsh-(=teleport.version=).pkg
     ```
@@ -28,6 +28,8 @@
     ```code
     $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
     # Unzip the archive and move `tsh.exe` to your %PATH%
+    # NOTE: Do not place tsh.exe in the System32 directory, as this can cause issues when using WinSCP.
+    # Use %SystemRoot% (C:\Windows) or %USERPROFILE% (C:\Users\<username>) instead.
     ```
   </TabItem>
 
