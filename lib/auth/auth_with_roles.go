@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -1539,6 +1540,8 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	return extendedContext, nil
 }
 
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
+
 // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
 // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
@@ -1551,7 +1554,15 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher := apiutils.NewSSHRouteMatcher(req.Host, req.Port, caseInsensitiveRouting)
+	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+		Host:                      req.Host,
+		Port:                      req.Port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	lreq := proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
