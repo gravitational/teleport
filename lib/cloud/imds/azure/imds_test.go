@@ -205,14 +205,18 @@ func TestGetInstanceInfo(t *testing.T) {
 			errAssertion: require.NoError,
 		},
 		{
-			name:         "request error",
-			statusCode:   http.StatusNotFound,
-			errAssertion: require.Error,
+			name:       "request error",
+			statusCode: http.StatusNotFound,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "not found")
+			},
 		},
 		{
-			name:         "empty body returns an error",
-			statusCode:   http.StatusOK,
-			errAssertion: require.Error,
+			name:       "empty body returns an error",
+			statusCode: http.StatusOK,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error found in #0 byte")
+			},
 		},
 	} {
 		tc := tc
@@ -256,9 +260,11 @@ func TestGetInstanceID(t *testing.T) {
 			errAssertion: require.Error,
 		},
 		{
-			name:         "request error",
-			statusCode:   http.StatusNotFound,
-			errAssertion: require.Error,
+			name:       "request error",
+			statusCode: http.StatusNotFound,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "not found")
+			},
 		},
 	} {
 		tc := tc
