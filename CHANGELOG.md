@@ -213,6 +213,35 @@ follow the manual setup guide.
 All Teleport Assist functionality and OpenAI integration has been removed from
 Teleport.
 
+## 15.4.4 (06/13/24)
+
+* Improve search and predicate/label based dialing performance in large clusters under very high load. [#42941](https://github.com/gravitational/teleport/pull/42941)
+* Fix an issue Oracle access failed through trusted cluster. [#42928](https://github.com/gravitational/teleport/pull/42928)
+* Fix errors caused by `dynamoevents` query `StartKey` not being within the [From, To] window. [#42915](https://github.com/gravitational/teleport/pull/42915)
+* Fix Jira Issue creation when Summary exceeds the max allowed size. [#42862](https://github.com/gravitational/teleport/pull/42862)
+* Fix editing reviewers from being ignored/overwritten when creating an access request from the web UI. [#4397](https://github.com/gravitational/teleport.e/pull/4397)
+
+## 15.4.3 (06/12/24)
+
+**Note:** This release includes a new binary, `fdpass-teleport`, that can be
+optionally used by Machine ID to significantly reduce resource consumption in
+use-cases that create large numbers of SSH connections (e.g. Ansible). Refer to
+the [documentation](docs/pages/machine-id/reference/configuration.mdx#ssh-multiplexer)
+for more details.
+
+* Update `azidentity` to `v1.6.0` (patches `CVE-2024-35255`). [#42859](https://github.com/gravitational/teleport/pull/42859)
+* Remote rate limits on endpoints used extensively to connect to the cluster. [#42835](https://github.com/gravitational/teleport/pull/42835)
+* Machine ID SSH multiplexer now only writes artifacts if they have not changed, resolving a potential race condition with the OpenSSH client. [#42830](https://github.com/gravitational/teleport/pull/42830)
+* Use more efficient API when querying SSH nodes to resolve Proxy Templates in `tbot`. [#42829](https://github.com/gravitational/teleport/pull/42829)
+* Improve the performance of the Athena audit log and S3 session storage backends. [#42795](https://github.com/gravitational/teleport/pull/42795)
+* Prevent a panic in the Proxy when accessing an offline application. [#42786](https://github.com/gravitational/teleport/pull/42786)
+* Improve backoff of session recording uploads by teleport agents. [#42776](https://github.com/gravitational/teleport/pull/42776)
+* Introduce the new Machine ID `ssh-multiplexer` service for significant improvements in SSH performance. [#42761](https://github.com/gravitational/teleport/pull/42761)
+* Reduce backend writes incurred by tracking status of non-recorded sessions. [#42694](https://github.com/gravitational/teleport/pull/42694)
+* Fix not being able to logout from the web UI when session invalidation errors. [#42648](https://github.com/gravitational/teleport/pull/42648)
+* Fix access list listing not updating when creating or deleting an access list in the web UI. [#4383](https://github.com/gravitational/teleport.e/pull/4383)
+* Fix crashes related to importing GCP labels. [#42871](https://github.com/gravitational/teleport/pull/42871)
+
 ## 15.4.2 (06/11/24)
 
 * Fixed a Desktop Access resize bug which occurs when window was resized during MFA. [#42705](https://github.com/gravitational/teleport/pull/42705)
