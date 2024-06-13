@@ -91,7 +91,7 @@ func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock cloc
 // OnNewConnection is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
 func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	cert, err := c.getCheckedCert(ctx)
+	cert, err := c.GetOrIssueCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (c *CertChecker) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalPr
 
 // OnStart is a callback triggered when the local proxy starts.
 func (c *CertChecker) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	cert, err := c.getCheckedCert(ctx)
+	cert, err := c.GetOrIssueCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -118,7 +118,9 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 	c.cert = cert
 }
 
-func (c *CertChecker) getCheckedCert(ctx context.Context) (tls.Certificate, error) {
+// GetOrIssueCert gets the CertChecker's certificate, or issues a new
+// certificate if the it is invalid (e.g. expired) or missing.
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -317,13 +319,13 @@ type LocalCertGenerator struct {
 
 // NewLocalCertGenerator creates a new LocalCertGenerator and listens to the
 // configured listen address.
-func NewLocalCertGenerator(certChecker *CertChecker, caPath string) (*LocalCertGenerator, error) {
+func NewLocalCertGenerator(ctx context.Context, certChecker *CertChecker, caPath string) (*LocalCertGenerator, error) {
 	r := &LocalCertGenerator{
 		certChecker: certChecker,
 		caPath:      caPath,
 	}
 
-	if err := r.ensureValidCA(); err != nil {
+	if err := r.ensureValidCA(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -333,7 +335,7 @@ func NewLocalCertGenerator(certChecker *CertChecker, caPath string) (*LocalCertG
 // GetCertificate generates and returns TLS certificate for incoming
 // connection. Implements tls.Config.GetCertificate.
 func (r *LocalCertGenerator) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	if err := r.ensureValidCA(); err != nil {
+	if err := r.ensureValidCA(clientHello.Context()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -381,13 +383,17 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 
+	if err := utils.InitCertLeaf(&cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	r.certsByHost[host] = &cert
 	return &cert, nil
 }
 
 // ensureValidCA checks if the CA is valid. If it is no longer valid, generate a new
 // CA and clear the host cert cache.
-func (r *LocalCertGenerator) ensureValidCA() error {
+func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -397,27 +403,26 @@ func (r *LocalCertGenerator) ensureValidCA() error {
 	}
 
 	// Generate a new CA from a valid remote cert.
-	remoteTLSCert, err := r.certChecker.getCheckedCert(context.Background())
+	remoteTLSCert, err := r.certChecker.GetOrIssueCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	caTLSCert, err := generateSelfSignedCAFromCert(remoteTLSCert, r.caPath, "localhost")
+	caTLSCert, err := generateSelfSignedCAFromCert(remoteTLSCert, r.caPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	caX509Cert, err := utils.TLSCertLeaf(caTLSCert)
-	if err != nil {
+	if err := utils.InitCertLeaf(&caTLSCert); err != nil {
 		return trace.Wrap(err)
 	}
 
-	certTTL := time.Until(caX509Cert.NotAfter).Round(time.Minute)
-	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caX509Cert.NotAfter.Format(time.RFC3339), certTTL)
+	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
+	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)
-	for _, host := range caX509Cert.DNSNames {
+	for _, host := range caTLSCert.Leaf.DNSNames {
 		r.certsByHost[host] = &caTLSCert
 	}
 
@@ -438,9 +443,9 @@ func (r *LocalCertGenerator) checkCA() error {
 	return trace.Wrap(err)
 }
 
-// generateSelfSignedCA generates a new self-signed CA for provided dnsNames
-// and saves/overwrites the local CA file in the profile directory.
-func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string, dnsNames ...string) (tls.Certificate, error) {
+// generateSelfSignedCA generates a new self-signed CA for localhost
+// and saves/overwrites the local CA file in the given path.
+func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Certificate, error) {
 	certExpiry, err := getTLSCertExpireTime(cert)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -457,7 +462,7 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string, dnsNames 
 			Organization: []string{"Teleport"},
 		},
 		Signer:      signer,
-		DNSNames:    dnsNames,
+		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         time.Until(certExpiry),
 	})

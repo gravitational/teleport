@@ -124,7 +124,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, wi
 	var listener net.Listener
 	if withTLS {
 		appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
-		localCertGenerator, err := client.NewLocalCertGenerator(appCertChecker, appLocalCAPath)
+		localCertGenerator, err := client.NewLocalCertGenerator(ctx, appCertChecker, appLocalCAPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
