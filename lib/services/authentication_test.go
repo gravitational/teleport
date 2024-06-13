@@ -82,3 +82,52 @@ func TestValidateLocalAuthSecrets_passwordHash(t *testing.T) {
 	assert.True(t, trace.IsBadParameter(err),
 		"ValidateLocalAuthSecrets returned err=%v (%T), want BadParameter", err, trace.Unwrap(err))
 }
+
+func TestSignatureAlgorithmSuiteRoundtrip(t *testing.T) {
+	for _, tc := range []struct {
+		str  string
+		enum types.SignatureAlgorithmSuite
+	}{
+		{
+			str:  "",
+			enum: types.SignatureAlgorithmSuite_UNSPECIFIED,
+		},
+		{
+			str:  "legacy",
+			enum: types.SignatureAlgorithmSuite_LEGACY,
+		},
+		{
+			str:  "balanced-dev",
+			enum: types.SignatureAlgorithmSuite_BALANCED_DEV,
+		},
+		{
+			str:  "fips-dev",
+			enum: types.SignatureAlgorithmSuite_FIPS_DEV,
+		},
+		{
+			str:  "hsm-dev",
+			enum: types.SignatureAlgorithmSuite_HSM_DEV,
+		},
+	} {
+		t.Run(tc.str, func(t *testing.T) {
+			prefs := &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					SignatureAlgorithmSuite: tc.enum,
+				},
+			}
+			err := prefs.CheckAndSetDefaults()
+			require.NoError(t, err)
+
+			marshalled, err := services.MarshalAuthPreference(prefs)
+			require.NoError(t, err)
+
+			require.Contains(t, string(marshalled), tc.str)
+
+			unmarshalled, err := services.UnmarshalAuthPreference(marshalled)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.enum, unmarshalled.GetSignatureAlgorithmSuite())
+		})
+	}
+
+}
