@@ -23,7 +23,6 @@ import (
 	"crypto"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -48,7 +47,7 @@ func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func newSoftwareKeyStore(config *SoftwareConfig, logger logrus.FieldLogger) *softwareKeyStore {
+func newSoftwareKeyStore(config *SoftwareConfig) *softwareKeyStore {
 	return &softwareKeyStore{
 		rsaKeyPairSource: config.RSAKeyPairSource,
 	}
