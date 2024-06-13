@@ -450,6 +450,71 @@ database: postgres
 username: postgres
 ```
 
+#### `ssh-multiplexer`
+
+The `ssh-multiplexer` service opens a listener for a high-performance local
+SSH multiplexer. This is designed for use-cases which create a large number
+of SSH connections using Teleport, for example, Ansible.
+
+This differs to using `identity` output for SSH in a few ways:
+
+- The `tbot` instance running the `ssh-multiplexer` service must be running on
+  the same host as the SSH client.
+- The `ssh-multiplexer` service is designed to be a long-running background
+  service and cannot be used in one-shot mode. It must be running in order for
+  SSH connections to be established and to continue running.
+- Resource consumption is significantly reduced by multiplexing SSH connections
+  through a fewer number of upstream connections to the Teleport Proxy Service.
+
+Additionally, the `ssh-multiplexer` opens a socket that implements the SSH
+agent protocol. This allows the SSH client to authenticate without writing the
+sensitive private key to disk.
+
+By default, the `ssh-multiplexer` service outputs an `ssh_config` which uses
+`tbot` itself as the ProxyCommand. You can further reduce the resource
+consumption of SSH connections by installing and specifying the
+`fdpass-teleport` binary.
+
+```yaml
+# type specifies the type of the service. For the SSH multiplexer
+type: ssh-multiplexer
+# destination specifies where the tunnel should be opened and any artifacts
+# should be written. It must be of type `directory`.
+destination:
+  type: directory
+  path: /foo
+# enable_resumption specifies whether the multiplexer should negotiate
+# session resumption. This allows SSH connections to survive network
+# interruptions. It does increase the memory resources used per connection.
+#
+# If unspecified, this defaults to true.
+enable_resumption: true
+# proxy_command specifies the command that should be used as the ProxyCommand
+# in the generated SSH configuration.
+#
+# If unspecified, the ProxyCommand will be the currently running binary of tbot
+# itself.
+proxy_command:
+  - /usr/local/bin/fdpass-teleport
+# proxy_templates_path specifies a path to a proxy templates configuration file
+# which should be used when resolving the Teleport node to connect to. This
+# file must be accessible by the long-lived tbot process running the
+# ssh-multiplexer.
+#
+# If unspecified, proxy templates will not be used.
+proxy_templates_path: /etc/my-proxy-templates.yaml
+```
+
+Once configured, `tbot` will create the following artifacts in the specified
+destination:
+
+- `ssh_config`: an SSH configuration file that will configure OpenSSH to use
+   the multiplexer and agent.
+- `known_hosts`: the known hosts file that will be used by OpenSSH to validate
+   a server's identity.
+- `v1.sock`: the Unix socket that the multiplexer listens on.
+- `agent.sock`: the Unix socket that the SSH agent listens on.
+
 ### Destinations
 
 A destination is somewhere that `tbot` can read and write artifacts.

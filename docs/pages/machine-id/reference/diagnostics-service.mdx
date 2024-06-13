@@ -52,9 +52,22 @@ to serve requests.
 
 The `/metrics` endpoint returns a Prometheus-compatible metrics snapshot.
 
-Currently, there are no `tbot` specific metrics, but, the metrics provided by
-the Go runtime are exposed and these can be used for monitoring the overall
-health of the `tbot` process.
+The metrics provided by the Go runtime are exposed and these can be used for
+monitoring the overall health of the `tbot` process. In addition, certain
+outputs and services configured in `tbot` will produce metrics.
+
+#### `ssh-multiplexer`
+
+The SSH multiplexer service exposes metrics about the number of active SSH
+connections:
+
+- `tbot_ssh_multiplexer_requests_started_total`: the total number of SSH
+   connections that have been started.
+- `tbot_ssh_multiplexer_requests_handled_total`: the total number of SSH
+   connections that have been handled. This has a `status` label with the
+   following values: `OK` or `ERROR`.
+- `tbot_ssh_multiplexer_requests_in_flight`: the number of SSH connections
+   currently in progress.
 
 ### `/debug/pprof`
 

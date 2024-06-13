@@ -723,6 +723,9 @@ const (
 
 	// WebsocketLatency provides latency information for a session.
 	WebsocketLatency = "l"
+
+	// WebsocketKubeExec provides latency information for a session.
+	WebsocketKubeExec = "k"
 )
 
 // The following are cryptographic primitives Teleport does not support in

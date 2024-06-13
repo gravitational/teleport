@@ -76,12 +76,23 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	instanceData, err := client.getMetadata(ctx, "instance")
-	return err == nil && instanceData != ""
+	_, err := client.getNumericID(ctx)
+	return err == nil
 }
 
-// GetTags gets all of the GCP instance's labels (note: these are separate from
-// its tags, which we do not use).
+func (client *InstanceMetadataClient) getNumericID(ctx context.Context) (uint64, error) {
+	idStr, err := client.GetID(ctx)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return 0, trace.BadParameter("Invalid instance ID %q", idStr)
+	}
+	return id, nil
+}
+
+// GetTags gets all of the GCP instance's labels and tags.
 func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
 	// Get a bunch of info from instance metadata.
 	projectID, err := client.GetProjectID(ctx)
@@ -96,11 +107,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	idStr, err := client.GetID(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := client.getNumericID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

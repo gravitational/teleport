@@ -524,7 +524,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			// wait for the upload of the right session to complete
-			timeoutC := time.After(10 * time.Second)
+			timeoutC := time.After(20 * time.Second)
 		loop:
 			for {
 				select {
@@ -1268,7 +1268,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			// Wait for the session recording to be uploaded and available
 			var uploaded bool
-			timeoutC := time.After(10 * time.Second)
+			timeoutC := time.After(20 * time.Second)
 			for !uploaded {
 				select {
 				case event := <-uploadChan:

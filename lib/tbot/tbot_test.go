@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -54,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -809,9 +814,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://cluster.local/foo", svid.ID.String())
+	require.Equal(t, "spiffe://test-cluster.local/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://cluster.local/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://test-cluster.local/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -927,4 +932,131 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// Shut down bot and make sure it exits.
 	cancel()
 	wg.Wait()
+}
+
+func TestBotSSHMultiplexer(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewSlogLoggerForTests()
+
+	currentUser, err := user.Current()
+	require.NoError(t, err)
+
+	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
+	tmpDir := path.Join(os.TempDir(), t.Name())
+	require.NoError(t, os.RemoveAll(tmpDir))
+	require.NoError(t, os.Mkdir(tmpDir, 0777))
+	t.Cleanup(func() {
+		assert.NoError(t, os.RemoveAll(tmpDir))
+	})
+
+	// Make a new auth server with SSH agent
+	process := testenv.MakeTestServer(
+		t,
+		testenv.WithLogger(log),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.Addr = utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        testenv.NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors),
+			}
+		}),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	// Create role that allows the bot to access the database.
+	role, err := types.NewRole("ssh-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			Logins: []string{currentUser.Username},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Prepare the bot config
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+	botConfig := defaultBotConfig(
+		t, process, onboarding, []config.Output{},
+		testhelpers.DefaultBotConfigOpts{
+			UseAuthServer: true,
+			Insecure:      true,
+			ServiceConfigs: []config.ServiceConfig{
+				&config.SSHMultiplexerService{
+					Destination: &config.DestinationDirectory{
+						Path: tmpDir,
+					},
+				},
+			},
+		},
+	)
+	botConfig.Oneshot = false
+	b := New(botConfig, log)
+
+	// Spin up goroutine for bot to run in
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
+	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancel()
+		wg.Wait()
+	})
+
+	// Wait for files to be output
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, fileName := range []string{
+			"known_hosts",
+			"ssh_config",
+		} {
+			_, err := os.Stat(filepath.Join(tmpDir, fileName))
+			assert.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		agentConn.Close()
+	})
+	agentClient := agent.NewClient(agentConn)
+	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
+	require.NoError(t, err)
+	sshConfig := &ssh.ClientConfig{
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(agentClient.Signers),
+		},
+		User:            currentUser.Username,
+		HostKeyCallback: callback,
+	}
+	conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	_, err = fmt.Fprint(conn, "test.test-cluster.local:0\x00")
+	require.NoError(t, err)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:22", sshConfig)
+	require.NoError(t, err)
+	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
+	t.Cleanup(func() {
+		sshClient.Close()
+	})
+	sshSess, err := sshClient.NewSession()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sshSess.Close()
+	})
+	out, err := sshSess.CombinedOutput("echo hello")
+	require.NoError(t, err)
+	require.Equal(t, "hello\n", string(out))
 }

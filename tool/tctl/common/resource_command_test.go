@@ -1745,7 +1745,6 @@ func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-networking-config
 spec:
-  assist_command_execution_workers: 30
   client_idle_timeout: 0s
   idle_timeout_message: ""
   keep_alive_count_max: 300
