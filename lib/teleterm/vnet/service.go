@@ -113,7 +113,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	if s.status == statusRunning {
-		return &api.StartResponse{}, nil
+		return nil, trace.AlreadyExists("VNet is already running")
 	}
 
 	appProvider := &appProvider{
