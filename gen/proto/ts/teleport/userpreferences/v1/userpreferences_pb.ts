@@ -43,6 +43,7 @@ import { AssistUserPreferences } from "./assist_pb";
 export interface UserPreferences {
     /**
      * assist is the preferences for the Teleport Assist.
+     * TODO(jakule): DELETE IN v17
      *
      * @generated from protobuf field: teleport.userpreferences.v1.AssistUserPreferences assist = 1;
      */

@@ -1976,7 +1976,7 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "16",
-      "version": "16.0.0-dev",
+      "version": "16.0.0",
       "url": "teleport.example.com",
       "golang": "1.22",
       "plugin": {
