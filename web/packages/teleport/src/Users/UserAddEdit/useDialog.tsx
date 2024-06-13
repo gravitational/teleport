@@ -110,7 +110,9 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
   const newTrait = [];
   for (let trait in allTraits) {
     if (!allTraits[trait][0]) {
-      continue;
+      if (allTraits[trait].length === 1) {
+        continue;
+      }
     }
     if (allTraits[trait].length > 0) {
       newTrait.push({
