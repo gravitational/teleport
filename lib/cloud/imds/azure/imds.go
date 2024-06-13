@@ -213,8 +213,8 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 }
 
 // InstanceInfo contains the current instance's metadata information.
-// Values obtained from
-// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#get-user-data
+// Values obtained from:
+// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#get-user-data.
 type InstanceInfo struct {
 	Location          string `json:"location"`
 	ResourceGroupName string `json:"resourceGroupName"`
@@ -223,7 +223,7 @@ type InstanceInfo struct {
 	ResourceID        string `json:"resourceId"`
 }
 
-// GetInstanceInfo gets the Azure Instance information
+// GetInstanceInfo gets the Azure Instance information.
 func (client *InstanceMetadataClient) GetInstanceInfo(ctx context.Context) (*InstanceInfo, error) {
 	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
 	if err != nil {
