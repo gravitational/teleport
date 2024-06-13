@@ -1704,6 +1704,24 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
+// TODO move to trust service?
+func (c *Client) SignGitHubUserCert(ctx context.Context, req *proto.SignGitHubUserCertRequest) (*proto.SignGitHubUserCertResponse, error) {
+	resp, err := c.grpc.SignGitHubUserCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// TODO move to trust service?
+func (c *Client) GenerateGitServerCert(ctx context.Context, req *proto.GenerateGitServerCertRequest) (*proto.GenerateGitServerCertResponse, error) {
+	resp, err := c.grpc.GenerateGitServerCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GenerateDatabaseCert generates a client certificate used by a database
 // service to authenticate with the database instance, or a server certificate
 // for configuring a self-hosted database, depending on the requester_name.

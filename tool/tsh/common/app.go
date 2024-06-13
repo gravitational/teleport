@@ -149,6 +149,16 @@ func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.Profi
 		log.Debugf("GCP service account is %q", gcpServiceAccount)
 	}
 
+	var githubUsername string
+	if app.IsGitHub() {
+		var err error
+		githubUsername, err = getGitHubUsernameFromFlags(cf, profile)
+		if err != nil {
+			return proto.RouteToApp{}, trace.Wrap(err)
+		}
+		log.Debugf("GitHub username is %q", githubUsername)
+	}
+
 	return proto.RouteToApp{
 		Name:              app.GetName(),
 		PublicAddr:        app.GetPublicAddr(),
@@ -156,6 +166,7 @@ func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.Profi
 		AWSRoleARN:        awsRoleARN,
 		AzureIdentity:     azureIdentity,
 		GCPServiceAccount: gcpServiceAccount,
+		GitHubUsername:    githubUsername,
 	}, nil
 }
 
@@ -213,6 +224,12 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	case app.IsTCP():
 		return appLoginTCPTpl.Execute(output, map[string]string{
+			"appName":  app.GetName(),
+			"username": routeToApp.GitHubUsername,
+		})
+
+	case app.IsGitHub():
+		return gitAppTpl.Execute(output, map[string]string{
 			"appName": app.GetName(),
 		})
 
@@ -311,6 +328,15 @@ var gcpCliTpl = template.Must(template.New("").Parse(
 	`Logged into GCP app "{{.appName}}".
 Your service account: {{.serviceAccount}}
 Example command: tsh gcloud compute instances list
+`))
+
+var gitAppTpl = template.Must(template.New("").Parse(
+	`Logged into git app {{.appName}}.
+
+Your GitHub username is: {{.username}}.
+ 
+Clone a repo with:
+  tsh git clone --app {{.appName}} https://github.com/example-org/example-repo
 `))
 
 // getRegisteredApp returns the registered application with the specified name.

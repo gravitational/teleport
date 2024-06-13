@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -319,18 +318,7 @@ func printAzureIdentities(identities []string) {
 }
 
 func formatAzureIdentities(identities []string) string {
-	if len(identities) == 0 {
-		return ""
-	}
-
-	t := asciitable.MakeTable([]string{"Available Azure identities"})
-
-	sort.Strings(identities)
-	for _, identity := range identities {
-		t.AddRow([]string{identity})
-	}
-
-	return t.AsBuffer().String()
+	return formatCloudAppAccounts("Available Azure identities", sort.StringSlice(identities))
 }
 
 func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {

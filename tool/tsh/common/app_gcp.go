@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -33,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -404,20 +402,7 @@ func printGCPServiceAccounts(accounts []string) {
 }
 
 func formatGCPServiceAccounts(accounts []string) string {
-	if len(accounts) == 0 {
-		return ""
-	}
-
-	t := asciitable.MakeTable([]string{"Available GCP service accounts"})
-
-	acc := gcp.SortedGCPServiceAccounts(accounts)
-	sort.Sort(acc)
-
-	for _, account := range acc {
-		t.AddRow([]string{account})
-	}
-
-	return t.AsBuffer().String()
+	return formatCloudAppAccounts("Available GCP service accounts", gcp.SortedGCPServiceAccounts(accounts))
 }
 
 func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {

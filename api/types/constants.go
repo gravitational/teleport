@@ -1278,6 +1278,8 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolGitHub is the GitHub apps protocol.
+	ApplicationProtocolGitHub = "github"
 )
 
 const (

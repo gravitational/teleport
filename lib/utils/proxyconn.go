@@ -28,7 +28,8 @@ import (
 
 // CombinedStdio reads from standard input and writes to standard output.
 // Closing a CombinedStdio does nothing, successfully.
-type CombinedStdio struct{}
+type CombinedStdio struct {
+}
 
 // Read reads from [os.Stdin].
 func (CombinedStdio) Read(p []byte) (int, error) {
@@ -51,6 +52,57 @@ func (CombinedStdio) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 func (CombinedStdio) Close() error {
+	return nil
+}
+
+// TODO replace CombinedStdio
+type CombinedStdioWithProperClose struct {
+	closeCtx       context.Context
+	closeCtxCancel context.CancelFunc
+}
+
+func NewCombinedStdioWithProperClose(ctx context.Context) *CombinedStdioWithProperClose {
+	closeCtx, closeCtxCancel := context.WithCancel(ctx)
+	return &CombinedStdioWithProperClose{
+		closeCtx:       closeCtx,
+		closeCtxCancel: closeCtxCancel,
+	}
+}
+
+// Read reads from [os.Stdin].
+func (c *CombinedStdioWithProperClose) Read(p []byte) (n int, err error) {
+	complete := make(chan struct{})
+	go func() {
+		n, err = os.Stdin.Read(p)
+		complete <- struct{}{}
+	}()
+
+	select {
+	case <-complete:
+		return n, trace.Wrap(err)
+	case <-c.closeCtx.Done():
+		return 0, io.EOF
+	}
+}
+
+// Write writes to [os.Stdout].
+func (c *CombinedStdioWithProperClose) Write(p []byte) (n int, err error) {
+	complete := make(chan struct{})
+	go func() {
+		n, err = os.Stdout.Write(p)
+		complete <- struct{}{}
+	}()
+
+	select {
+	case <-complete:
+		return n, trace.Wrap(err)
+	case <-c.closeCtx.Done():
+		return 0, io.EOF
+	}
+}
+
+func (c *CombinedStdioWithProperClose) Close() error {
+	c.closeCtxCancel()
 	return nil
 }
 

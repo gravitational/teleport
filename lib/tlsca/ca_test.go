@@ -397,6 +397,47 @@ func TestGCPExtensions(t *testing.T) {
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 
+func TestGitHubAppExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:        "alice@example.com",
+		Groups:          []string{"admin"},
+		Usage:           []string{teleport.UsageAppsOnly},
+		GitHubUsernames: []string{"alice-work-username", "alice-personal-username"},
+		RouteToApp: RouteToApp{
+			ClusterName:    "teleport.example.com",
+			Name:           "github-app",
+			GitHubUsername: "alice-work-username",
+		},
+		TeleportCluster: "tele-cluster",
+		Expires:         expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
 func TestIdentity_GetUserMetadata(t *testing.T) {
 	tests := []struct {
 		name     string

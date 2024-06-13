@@ -3102,6 +3102,8 @@ message RoleConditions {
   reserved "SAMLIdPServiceProviderLabels";
   reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
   reserved "SAMLIdPServiceProviderLabelsExpression";
+  // GitHubUsernames is a list of GitHub usernames this role is allowed to assume.
+  repeated string GitHubUsernames = 42 [(gogoproto.jsontag) = "github_usernames,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or

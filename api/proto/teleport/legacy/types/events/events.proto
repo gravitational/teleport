@@ -111,6 +111,9 @@ message UserMetadata {
   // UserKind indicates what type of user this is, e.g. a human or Machine ID
   // bot user.
   UserKind UserKind = 10 [(gogoproto.jsontag) = "user_kind,omitempty"];
+
+  // GitHubUsername is the GitHub username user use when accessing GitHub.
+  string GitHubUsername = 11 [(gogoproto.jsontag) = "github_username,omitempty"];
 }
 
 // Server is a server metadata
@@ -4125,6 +4128,8 @@ message OneOf {
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.AccessPathChanged AccessPathChanged = 157;
     events.SpannerRPC SpannerRPC = 158;
+    events.AppSessionGitFetchRequest AppSessionGitFetchRequest = 159;
+    events.AppSessionGitPushRequest AppSessionGitPushRequest = 160;
   }
 }
 
@@ -4255,6 +4260,8 @@ message Identity {
   // DeviceExtensions holds the device trust device extensions for the identity,
   // if any.
   DeviceExtensions DeviceExtensions = 28 [(gogoproto.jsontag) = "device_extensions,omitempty"];
+  // GitHubUsernames is a list of allowed GitHub usernames user can user.
+  repeated string GitHubUsernames = 29 [(gogoproto.jsontag) = "github_usernames,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -4273,6 +4280,8 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // GitHubUsername is the GitHub username to use when accessing GitHu.
+  string GitHubUsername = 8 [(gogoproto.jsontag) = "github_username,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -6287,4 +6296,67 @@ message SpannerRPC {
     (gogoproto.jsontag) = "args,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+}
+
+// AppSessionGitFetchRequest is emitted when a user performance a Git fetch request via app access.
+message AppSessionGitFetchRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ]; // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Path is git repo path
+  string Path = 4 [(gogoproto.jsontag) = "path"];
+}
+
+// AppSessionGitPushRequest is emitted when a user performance a Git push request via app access.
+message AppSessionGitPushRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ]; // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Path is git repo path
+  string Path = 4 [(gogoproto.jsontag) = "path"];
+
+  // AppSessionGitCommand defines details for a Git push.
+  repeated AppSessionGitCommand Commands = 5 [(gogoproto.jsontag) = "commands,omitempty"];
+}
+
+// AppSessionGitCommand defines details for a Git push.
+message AppSessionGitCommand {
+  // Action type like create or update.
+  string Action = 1 [(gogoproto.jsontag) = "action,omitempty"];
+  // Reference name like ref/main/my_branch.
+  string Reference = 2 [(gogoproto.jsontag) = "reference,omitempty"];
+  // Old is the old hash.
+  string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
+  // New is the new hash.
+  string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
 }

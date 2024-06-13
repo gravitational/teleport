@@ -461,6 +461,10 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, traits, "GCP service account")
 		r.SetGCPServiceAccounts(condition, apiutils.Deduplicate(outGCPAccounts))
 
+		inGitHubUsernames := r.GetGitHubUsernames(condition)
+		outGithubUsernames := applyValueTraitsSlice(inGitHubUsernames, traits, "GitHub usernames")
+		r.SetGitHubUsernames(condition, apiutils.Deduplicate(outGithubUsernames))
+
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
 		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
@@ -1518,6 +1522,38 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	}
 	if len(accounts) == 0 {
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
+	}
+	return utils.StringsSliceFromSet(accounts), nil
+}
+
+// CheckGitHubUsernames returns a list of GitHub usernames this role set is allowed to assume.
+func (set RoleSet) CheckGitHubUsernames(ttl time.Duration, overrideTTL bool) ([]string, error) {
+	accounts := make(map[string]struct{})
+	var matchedTTL bool
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
+			matchedTTL = true
+			for _, account := range role.GetGitHubUsernames(types.Allow) {
+				accounts[strings.ToLower(account)] = struct{}{}
+			}
+		}
+	}
+	for _, role := range set {
+		for _, account := range role.GetGitHubUsernames(types.Deny) {
+			// deny * removes all accounts
+			if account == types.Wildcard {
+				accounts = make(map[string]struct{})
+			}
+			// remove particular account
+			delete(accounts, strings.ToLower(account))
+		}
+	}
+	if !matchedTTL {
+		return nil, trace.AccessDenied("this user cannot request GitHub access for %v", ttl)
+	}
+	if len(accounts) == 0 {
+		return nil, trace.NotFound("this user cannot request GitHub access, has no assigned service accounts")
 	}
 	return utils.StringsSliceFromSet(accounts), nil
 }

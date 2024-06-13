@@ -94,6 +94,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,
   [eventCodes.APP_DELETED]: Icons.Code,
+  [eventCodes.APP_SESSION_GIT_FETCH_REQUEST]: Icons.Code,
+  [eventCodes.APP_SESSION_GIT_PUSH_REQUEST]: Icons.Code,
   [eventCodes.SESSION_END]: Icons.Cli,
   [eventCodes.SESSION_JOIN]: Icons.Cli,
   [eventCodes.SESSION_LEAVE]: Icons.Cli,

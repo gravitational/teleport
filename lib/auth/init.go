@@ -1076,7 +1076,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.OpenSSHCA:
+			case types.HostCA, types.UserCA, types.OpenSSHCA, types.GitHubCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)

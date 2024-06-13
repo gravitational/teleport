@@ -118,6 +118,9 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
+
+	// ProtocolGitSSH is the ALPN protocol for tunnelling the git SSH protocol.
+	ProtocolGitSSH = "teleport-git-ssh"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -138,6 +141,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
+		ProtocolGitSSH,
 	}, DatabaseProtocols...),
 )
 

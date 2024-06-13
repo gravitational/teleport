@@ -19,10 +19,12 @@
 package common
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -126,4 +128,24 @@ func findApp(apps []tlsca.RouteToApp, name string) (*tlsca.RouteToApp, error) {
 		}
 	}
 	return nil, trace.NotFound("failed to find app with %q name", name)
+}
+
+type sortableStringSlice interface {
+	~[]string
+	sort.Interface
+}
+
+func formatCloudAppAccounts[S sortableStringSlice](title string, accounts S) string {
+	if len(accounts) == 0 {
+		return ""
+	}
+
+	t := asciitable.MakeTable([]string{title})
+	sort.Sort(accounts)
+
+	for _, account := range accounts {
+		t.AddRow([]string{string(account)})
+	}
+
+	return t.AsBuffer().String()
 }

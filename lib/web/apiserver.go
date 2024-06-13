@@ -364,7 +364,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
-// HandleConnection handles connections from plain TCP applications.
+// HandleConnection handles connections from TCP or GitHub applications.
 func (h *APIHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
 	return h.appHandler.HandleConnection(ctx, conn)
 }

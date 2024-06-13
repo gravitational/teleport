@@ -56,6 +56,8 @@ export const eventCodes = {
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
+  APP_SESSION_GIT_FETCH_REQUEST: 'T2014I',
+  APP_SESSION_GIT_PUSH_REQUEST: 'T2015I',
   AUTH_ATTEMPT_FAILURE: 'T3007W',
   BILLING_INFORMATION_UPDATE: 'TBL03I',
   BILLING_CARD_CREATE: 'TBL00I',
@@ -608,6 +610,26 @@ export type RawEvents = {
     {
       target: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_GIT_FETCH_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_GIT_FETCH_REQUEST,
+    {
+      app_name: string;
+      path: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_GIT_PUSH_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_PUSH_REQUEST,
+    {
+      app_name: string;
+      path: string;
+      commands: {
+          action: string,
+          new: string,
+          old: string,
+          reference: string,
+      }[];
     }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<

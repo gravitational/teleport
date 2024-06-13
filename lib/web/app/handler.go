@@ -151,7 +151,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleConnection handles connections from plain TCP applications.
+// TODO do we need to differentiate TCP vs GitHub applications?
 func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
+	defer clientConn.Close()
+
 	tlsConn, ok := clientConn.(utils.TLSConn)
 	if !ok {
 		return trace.BadParameter("expected *tls.Conn, got: %T", clientConn)

@@ -402,6 +402,10 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
+
+	// TraitGitHubUsernames is the name of the variable used to store
+	// allowed GitHub usernames.
+	TraitGitHubUsernames = "github_usernames"
 )
 
 const (

@@ -83,6 +83,21 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 # End generated Teleport configuration
 `))
 
+var sshConfigTemplateForGit = template.Must(template.New("ssh-config-git").Funcs(template.FuncMap{
+	"proxyCommandQuote": proxyCommandQuote,
+}).Parse(
+	`# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
+{{$dot := . }}
+{{- range $clusterName := .ClusterNames }}
+Host *.teleport-git-app.{{ $clusterName }}
+    UserKnownHostsFile "{{ $dot.KnownHostsPath }}"
+    HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
+{{- end }}
+
+# End generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
+`))
+
 // SSHConfigParameters is a set of SSH related parameters used to generate ~/.ssh/config file.
 type SSHConfigParameters struct {
 	AppName             SSHConfigApps
@@ -124,8 +139,9 @@ var openSSHMinVersionForHostAlgos = semver.New("7.8.0")
 type SSHConfigApps string
 
 const (
-	TshApp  SSHConfigApps = teleport.ComponentTSH
-	TbotApp SSHConfigApps = teleport.ComponentTBot
+	TshApp    SSHConfigApps = teleport.ComponentTSH
+	TbotApp   SSHConfigApps = teleport.ComponentTBot
+	TshGitApp SSHConfigApps = teleport.ComponentTSH + " git"
 )
 
 // parseSSHVersion attempts to parse the local SSH version, used to determine
@@ -249,7 +265,11 @@ func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameter
 
 	c.log.Debugf("Using SSH options: %s", sshOptions)
 
-	if err := sshConfigTemplate.Execute(sb, sshTmplParams{
+	template := sshConfigTemplate
+	if config.AppName == TshGitApp {
+		template = sshConfigTemplateForGit
+	}
+	if err := template.Execute(sb, sshTmplParams{
 		SSHConfigParameters: *config,
 		sshConfigOptions:    *sshOptions,
 	}); err != nil {

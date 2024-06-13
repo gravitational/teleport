@@ -414,6 +414,13 @@ const (
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
 
+	// AppSessionGitFetchRequest is emitted when git client sends
+	// a request via app access session.
+	AppSessionGitFetchRequest = "app.session.git.fetch.request"
+	// AppSessionGitRequest is emitted when git client sends
+	// a request via app access session.
+	AppSessionGitPushRequest = "app.session.git.push.request"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.

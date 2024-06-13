@@ -178,6 +178,7 @@ type ConnectionsHandler struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
+	gitServer  *gitServer
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -236,6 +237,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	gitServer, err := newGitServer(cfg.AuthClient, cfg.Emitter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -248,6 +254,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
+		gitServer: gitServer,
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -556,6 +563,8 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		})
 	}
 
+	// TODO github username matcher
+
 	state := authContext.GetAccessState(authPref)
 	switch err := authContext.Checker.CheckAccess(
 		app,
@@ -605,7 +614,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
 	if err != nil {
-		if !app.IsTCP() {
+		if !app.IsTCP() && !app.IsGitHub() {
 			c.setConnAuth(tlsConn, err)
 		} else {
 			return nil, trace.Wrap(err)
@@ -628,6 +637,11 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		identity := authCtx.Identity.GetIdentity()
 		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
+	}
+	if app.IsGitHub() {
+		identity := authCtx.Identity.GetIdentity()
+		defer cancel(nil)
+		return nil, trace.Wrap(c.gitServer.handleConnection(ctx, tlsConn, &identity, app))
 	}
 
 	cleanup := func() {

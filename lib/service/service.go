@@ -4429,6 +4429,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
 			Handler:   webServer.HandleConnection,
 		})
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolGitSSH),
+			Handler:   webServer.HandleConnection,
+		})
 	}
 
 	var peerAddrString string

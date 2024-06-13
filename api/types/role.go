@@ -194,6 +194,11 @@ type Role interface {
 	// SetGCPServiceAccounts sets a list of GCP service accounts this role is allowed to assume.
 	SetGCPServiceAccounts(RoleConditionType, []string)
 
+	// GetGitHubUsernames returns a list of GitHub usernames this role is allowed to assume.
+	GetGitHubUsernames(RoleConditionType) []string
+	// SetGitHubUsernames sets a list of GitHub usernames this role is allowed to assume.
+	SetGitHubUsernames(RoleConditionType, []string)
+
 	// GetWindowsDesktopLabels gets the Windows desktop labels this role
 	// is allowed or denied access to.
 	GetWindowsDesktopLabels(RoleConditionType) Labels
@@ -808,6 +813,23 @@ func (r *RoleV6) SetGCPServiceAccounts(rct RoleConditionType, accounts []string)
 		r.Spec.Allow.GCPServiceAccounts = accounts
 	} else {
 		r.Spec.Deny.GCPServiceAccounts = accounts
+	}
+}
+
+// GetGitHubUsernames returns a list of GitHub usernames this role is allowed to assume.
+func (r *RoleV6) GetGitHubUsernames(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.GitHubUsernames
+	}
+	return r.Spec.Deny.GitHubUsernames
+}
+
+// SetGitHubUsernames sets a list of GitHub usernames this role is allowed to assume.
+func (r *RoleV6) SetGitHubUsernames(rct RoleConditionType, usernames []string) {
+	if rct == Allow {
+		r.Spec.Allow.GitHubUsernames = usernames
+	} else {
+		r.Spec.Deny.GitHubUsernames = usernames
 	}
 }
 

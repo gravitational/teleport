@@ -228,6 +228,9 @@ type ProfileStatus struct {
 	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
 	GCPServiceAccounts []string
 
+	// GitHubUsernames is a list of allowed GitHub username user can use.
+	GitHubUsernames []string
+
 	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
 	AllowedResourceIDs []types.ResourceID
@@ -367,6 +370,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
 		AzureIdentities:    tlsID.AzureIdentities,
 		GCPServiceAccounts: tlsID.GCPServiceAccounts,
+		GitHubUsernames:    tlsID.GitHubUsernames,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil

@@ -98,7 +98,8 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(s.cfg.Handler.Close(), s.cfg.Server.Close())
 }
 
-// HandleConnection handles connections from plain TCP applications.
+// HandleConnection handles connections from non-HTTP applications like TCP,
+// GitHub.
 func (s *Server) HandleConnection(ctx context.Context, conn net.Conn) error {
 	return s.cfg.Handler.appHandler.HandleConnection(ctx, conn)
 }

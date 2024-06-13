@@ -255,6 +255,8 @@ type NewAppSessionRequest struct {
 	AzureIdentity string
 	// GCPServiceAccount is the GCP service account the user wants to assume.
 	GCPServiceAccount string
+	// GitHubUsername is the GitHubUsername the user wants to assume.
+	GitHubUsername string
 	// MFAVerified is the UUID of an MFA device used to verify this request.
 	MFAVerified string
 	// DeviceExtensions holds device-aware user certificate extensions.
@@ -316,6 +318,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		AWSRoleARN:        req.AWSRoleARN,
 		AzureIdentity:     req.AzureIdentity,
 		GCPServiceAccount: req.GCPServiceAccount,
+		GitHubUsername:    req.GitHubUsername,
 		MFAVerified:       verifiedMFADeviceID,
 		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
 	})
@@ -393,6 +396,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
+		githubUsername:    req.GitHubUsername,
 		// Pass along device extensions from the user.
 		deviceExtensions: req.DeviceExtensions,
 		mfaVerified:      req.MFAVerified,

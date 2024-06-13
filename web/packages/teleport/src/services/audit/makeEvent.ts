@@ -694,6 +694,30 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.APP_SESSION_GIT_FETCH_REQUEST]: {
+    type: 'app.session.git.fetch.request',
+    desc: 'Git Fetch Request',
+    format: ({ user, app_name, path }) => {
+      return `User [${user}] has fetched from [${path}] at [${app_name}]`;
+    },
+  },
+  [eventCodes.APP_SESSION_GIT_PUSH_REQUEST]: {
+    type: 'app.session.git.push.request',
+    desc: 'Git Push Request',
+    format: ({ user, app_name, path, commands }) => {
+      if (commands.length == 1) {
+        switch(commands[0].action) {
+        case "delete":
+            return `User [${user}] has deleted [${commands[0].reference}] from [${path}] at [${app_name}]`;
+        case "create":
+            return `User [${user}] has created [${commands[0].reference}] on [${path}] at [${app_name}]`;
+        case "update":
+            return `User [${user}] has updated [${commands[0].reference}] to [${commands[0].new.substring(0,7)}] on [${path}] at [${app_name}]`;
+        };
+      };
+      return `User [${user}] has pushed to [${path}] at [${app_name}]`;
+    },
+  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',

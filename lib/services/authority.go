@@ -80,6 +80,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkSAMLIDPCA(ca)
 	case types.SPIFFECA:
 		err = checkSPIFFECA(ca)
+	case types.GitHubCA:
+		err = checkGitHubCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -249,6 +251,25 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// TODO
+func checkGitHubCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	// TODO check private key exist
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if _, err := sshutils.GetCheckers(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.ValidateSigners(ca); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

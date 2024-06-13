@@ -171,6 +171,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppUpdate{}
 	case AppDeleteEvent:
 		e = &events.AppDelete{}
+	case AppSessionGitFetchRequest:
+		e = &events.AppSessionGitFetchRequest{}
+	case AppSessionGitPushRequest:
+		e = &events.AppSessionGitPushRequest{}
 	case DatabaseCreateEvent:
 		e = &events.DatabaseCreate{}
 	case DatabaseUpdateEvent:

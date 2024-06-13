@@ -539,6 +539,13 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// GitHubUsername
+	GitHubUsername string
+	// GitURL
+	GitURL string
+	// GitSaveSSHConfig
+	GitSaveSSHConfig bool
 }
 
 // Stdout returns the stdout writer.
@@ -833,6 +840,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
+	appLogin.Flag("github-username", "(For GitHub access only) GitHub username.").StringVar(&cf.GitHubUsername)
 	appLogin.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
@@ -1165,6 +1173,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
 	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
+
 	// only expose `tsh puttyconfig` subcommand on windows
 	if runtime.GOOS != constants.WindowsOS {
 		puttyConfig.Hidden()
@@ -1186,6 +1195,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
+
+	// Git commands
+	git := app.Command("git", "Git proxy TODO.")
+	gitClone := git.Command("clone", "Git clone.")
+	gitClone.Flag("app", "App name to retrieve credentials for.").Required().StringVar(&cf.AppName)
+	gitClone.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
+	gitSSHConfig := git.Command("ssh-config", "SSH config for git apps.")
+	gitSSHConfig.Flag("save", "Update your SSH config.").BoolVar(&cf.GitSaveSSHConfig)
 
 	var err error
 
@@ -1549,6 +1566,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetCmd.run(&cf)
 	case vnetAdminSetupCmd.FullCommand():
 		err = vnetAdminSetupCmd.run(&cf)
+	case gitClone.FullCommand():
+		err = onGitClone(&cf)
+	case gitSSHConfig.FullCommand():
+		err = onGitSSHConfig(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

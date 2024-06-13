@@ -131,6 +131,10 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionGitFetchRequestCode is ...
+	AppSessionGitFetchRequestCode = "T2014I"
+	// AppSessionGitPushRequestCode is ...
+	AppSessionGitPushRequestCode = "T2015I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

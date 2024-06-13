@@ -203,6 +203,7 @@ var allowedCertificateTypes = []string{
 	"db-client-der",
 	"openssh",
 	"saml-idp",
+	"github",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can

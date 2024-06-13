@@ -3172,6 +3172,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
 				AzureIdentity:     req.RouteToApp.AzureIdentity,
 				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+				GitHubUsername:    req.RouteToApp.GitHubUsername,
 				MFAVerified:       verifiedMFADeviceID,
 				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
 			})
@@ -3229,6 +3230,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
 		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
+		githubUsername:    req.RouteToApp.GitHubUsername,
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
@@ -5226,6 +5228,20 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 		return nil, trace.AccessDenied("this request can only be executed by a proxy service")
 	}
 	return a.authServer.SignDatabaseCSR(ctx, req)
+}
+
+// TODO
+func (a *ServerWithRoles) SignGitHubUserCert(ctx context.Context, req *proto.SignGitHubUserCertRequest) (*proto.SignGitHubUserCertResponse, error) {
+	if !a.hasBuiltinRole(types.RoleApp) {
+		return nil, trace.AccessDenied("this request can only be executed by an app service")
+	}
+	return a.authServer.SignGitHubUserCert(ctx, req)
+}
+func (a *ServerWithRoles) GenerateGitServerCert(ctx context.Context, req *proto.GenerateGitServerCertRequest) (*proto.GenerateGitServerCertResponse, error) {
+	if !a.hasBuiltinRole(types.RoleApp) {
+		return nil, trace.AccessDenied("this request can only be executed by an app service")
+	}
+	return a.authServer.GenerateGitServerCert(ctx, req)
 }
 
 // GenerateDatabaseCert generates a client certificate used by a database

@@ -251,6 +251,8 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 				castr, err = userOrOpenSSHCAFormat(ca, key.PublicKey)
 			case types.HostCA:
 				castr, err = hostCAFormat(ca, key.PublicKey, client)
+			case types.GitHubCA:
+				castr, err = githubSSHCAFormat(ca, key.PublicKey)
 			default:
 				return "", trace.BadParameter("unknown user type: %q", ca.GetType())
 			}
@@ -343,4 +345,14 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.Cli
 			"logins": allowedLogins,
 		},
 	})
+}
+
+// TODO
+func githubSSHCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
+	exportedCA, err := sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// TODO move this to sshutils.
+	return strings.TrimPrefix(exportedCA, "cert-authority "), nil
 }

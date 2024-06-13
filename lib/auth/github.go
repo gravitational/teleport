@@ -810,10 +810,11 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
 	p.Traits = map[string][]string{
-		constants.TraitLogins:     {p.Username},
-		constants.TraitKubeGroups: p.KubeGroups,
-		constants.TraitKubeUsers:  p.KubeUsers,
-		teleport.TraitTeams:       claims.Teams,
+		constants.TraitLogins:          {p.Username},
+		constants.TraitKubeGroups:      p.KubeGroups,
+		constants.TraitKubeUsers:       p.KubeUsers,
+		teleport.TraitTeams:            claims.Teams,
+		constants.TraitGitHubUsernames: {p.Username},
 	}
 
 	evaluationInput := &loginrule.EvaluationInput{

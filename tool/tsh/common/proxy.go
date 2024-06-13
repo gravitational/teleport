@@ -57,6 +57,10 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if shouldProxyGitSSH(cf, tc) {
+		return trace.Wrap(onProxyCommandGitSSH(cf, tc))
+	}
+
 	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, func() error {
 		clt, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {

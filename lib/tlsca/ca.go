@@ -170,6 +170,8 @@ type Identity struct {
 	AzureIdentities []string
 	// GCPServiceAccounts is a list of allowed GCP service accounts that the user can assume.
 	GCPServiceAccounts []string
+	// GitHubUsernames is a list of allowed GitHub usernames that the user can use.
+	GitHubUsernames []string
 	// ActiveRequests is a list of UUIDs of active requests for this Identity.
 	ActiveRequests []string
 	// DisallowReissue is a flag that, if set, instructs the auth server to
@@ -228,6 +230,9 @@ type RouteToApp struct {
 
 	// GCPServiceAccount is the GCP service account to assume when accessing GCP API.
 	GCPServiceAccount string
+
+	// GitHubUsername is the GitHub username to use when accessing GitHub.
+	GitHubUsername string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -304,6 +309,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
 			AzureIdentity:     id.RouteToApp.AzureIdentity,
 			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+			GitHubUsername:    id.RouteToApp.GitHubUsername,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -349,6 +355,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AWSRoleARNs:             id.AWSRoleARNs,
 		AzureIdentities:         id.AzureIdentities,
 		GCPServiceAccounts:      id.GCPServiceAccounts,
+		GitHubUsernames:         id.GitHubUsernames,
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
@@ -528,6 +535,15 @@ var (
 	// RequestedDatabaseRolesExtensionOID is an extension OID used when
 	// encoding/decoding requested database roles.
 	RequestedDatabaseRolesExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 19}
+
+	// AppGitHubUsernameASN1ExtensionOID is an extension ID used when
+	// encoding/decoding the GitHub username (as part of RouteToApp) into a
+	// certificate.
+	AppGitHubUsernameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// GitHubUsernamesASN1ExtensionOID is an extension ID used when
+	// encoding/decoding allowed GitHub usernames into a certificate.
+	GitHubUsernamesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
 )
 
 // Device Trust OIDs.
@@ -669,6 +685,20 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  GCPServiceAccountsASN1ExtensionOID,
 				Value: id.GCPServiceAccounts[i],
+			})
+	}
+	if id.RouteToApp.GitHubUsername != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppGitHubUsernameASN1ExtensionOID,
+				Value: id.RouteToApp.GitHubUsername,
+			})
+	}
+	for i := range id.GitHubUsernames {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitHubUsernamesASN1ExtensionOID,
+				Value: id.GitHubUsernames[i],
 			})
 	}
 	if id.Renewable {
@@ -955,6 +985,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.GCPServiceAccounts = append(id.GCPServiceAccounts, val)
 			}
+		case attr.Type.Equal(AppGitHubUsernameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.GitHubUsername = val
+			}
+		case attr.Type.Equal(GitHubUsernamesASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.GitHubUsernames = append(id.GitHubUsernames, val)
+			}
 		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1115,6 +1155,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AWSRoleARN:        id.RouteToApp.AWSRoleARN,
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+		GitHubUsername:    id.RouteToApp.GitHubUsername,
 		AccessRequests:    id.ActiveRequests,
 		UserKind:          userKind,
 		TrustedDevice:     device,

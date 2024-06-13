@@ -1435,6 +1435,30 @@ func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *authpb.De
 	return &emptypb.Empty{}, nil
 }
 
+// TODO
+func (g *GRPCServer) SignGitHubUserCert(ctx context.Context, req *authpb.SignGitHubUserCertRequest) (*authpb.SignGitHubUserCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.SignGitHubUserCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+func (g *GRPCServer) GenerateGitServerCert(ctx context.Context, req *authpb.GenerateGitServerCertRequest) (*authpb.GenerateGitServerCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.GenerateGitServerCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *authpb.DatabaseCSRRequest) (*authpb.DatabaseCSRResponse, error) {

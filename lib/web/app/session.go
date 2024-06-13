@@ -45,18 +45,7 @@ type session struct {
 	tr *transport
 }
 
-// newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
-	// Extract the identity of the user.
-	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (h *Handler) findAppServers(ctx context.Context, identity *tlsca.Identity) ([]types.AppServer, error) {
 	// Query the cluster this application is running in to find the public
 	// address and cluster name pair which will be encoded into the certificate.
 	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
@@ -79,6 +68,25 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	if len(servers) == 0 {
 		return nil, trace.NotFound("failed to match applications")
+	}
+	return servers, nil
+}
+
+// newSession creates a new session.
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+	// Extract the identity of the user.
+	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := h.findAppServers(ctx, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Create a rewriting transport that will be used to forward requests.

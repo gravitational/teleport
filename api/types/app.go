@@ -67,6 +67,8 @@ type Application interface {
 	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
+	// IsGitHub returns true if this app represents a GitHub app.
+	IsGitHub() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -82,6 +84,8 @@ type Application interface {
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
+	// GetGitHubOrganization will return the organzation for GitHub apps.
+	GetGitHubOrganization() string
 }
 
 // NewAppV3 creates a new app resource.
@@ -267,16 +271,25 @@ func (a *AppV3) IsTCP() bool {
 	return IsAppTCP(a.Spec.URI)
 }
 
+// IsGitHub returns true if this app represents a GitHub app.
+func (a *AppV3) IsGitHub() bool {
+	return strings.HasPrefix(a.GetURI(), "github://")
+}
+
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
 }
 
 // GetProtocol returns the application protocol.
 func (a *AppV3) GetProtocol() string {
-	if a.IsTCP() {
-		return "TCP"
+	switch {
+	case a.IsTCP():
+		return ApplicationProtocolTCP
+	case a.IsGitHub():
+		return ApplicationProtocolGitHub
+	default:
+		return ApplicationProtocolHTTP
 	}
-	return "HTTP"
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -383,6 +396,15 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetGitHubOrganization will return the organzation for GitHub apps.
+func (a *AppV3) GetGitHubOrganization() string {
+	if !a.IsGitHub() {
+		return ""
+	}
+	// TODO maybe do a proper url.Parse.
+	return strings.TrimPrefix(a.GetURI(), "github://")
 }
 
 // IsEqual determines if two application resources are equivalent to one another.

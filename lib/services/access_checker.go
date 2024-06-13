@@ -79,6 +79,9 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
+	// CheckGitHubUsernames returns a list of GitHub usernames the user is allowed to assume.
+	CheckGitHubUsernames(ttl time.Duration, overrideTTL bool) ([]string, error)
+
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
 	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.

@@ -1698,6 +1698,10 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
+
+	// TODO
+	SignGitHubUserCert(ctx context.Context, req *proto.SignGitHubUserCertRequest) (*proto.SignGitHubUserCertResponse, error)
+	GenerateGitServerCert(ctx context.Context, req *proto.GenerateGitServerCertRequest) (*proto.GenerateGitServerCertResponse, error)
 }
 
 type CreateAppSessionForV15Client interface {
@@ -1728,6 +1732,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 		AWSRoleARN:        routeToApp.AWSRoleARN,
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GCPServiceAccount,
+		GitHubUsername:    routeToApp.GitHubUsername,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
