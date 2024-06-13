@@ -59,11 +59,13 @@ export function TraitsEditor({
     if (i.labelField === 'traitValues') {
       const traitValue: Option[] = i.option;
       if (traitValue) {
-        traitValue.forEach((v, i) => {
-          if (v.value.trim() === '') {
-            traitValue.splice(i, 1);
-          }
-        });
+        if (traitValue[traitValue.length - 1].value.trim() === '') {
+          return;
+        }
+        traitValue[traitValue.length - 1].label =
+          traitValue[traitValue.length - 1].label.trim();
+        traitValue[traitValue.length - 1].value =
+          traitValue[traitValue.length - 1].value.trim();
       }
       newTraits[i.index] = {
         ...newTraits[i.index],
@@ -72,6 +74,8 @@ export function TraitsEditor({
       setConfiguredTraits(newTraits);
     } else {
       const traitName: Option = i.option;
+      traitName.label = traitName.label.trim();
+      traitName.value = traitName.value.trim();
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitName,
