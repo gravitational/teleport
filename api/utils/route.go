@@ -88,7 +88,10 @@ func newSSHRouteMatcher(cfg SSHRouteMatcherConfig) SSHRouteMatcher {
 	_, err := uuid.Parse(cfg.Host)
 	dialByID := err == nil || aws.IsEC2NodeID(cfg.Host)
 
-	ips, _ := cfg.Resolver.LookupHost(context.Background(), cfg.Host)
+	var ips []string
+	if !dialByID {
+		ips, _ = cfg.Resolver.LookupHost(context.Background(), cfg.Host)
+	}
 
 	return SSHRouteMatcher{
 		cfg:            cfg,
