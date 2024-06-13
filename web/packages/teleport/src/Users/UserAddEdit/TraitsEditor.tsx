@@ -55,16 +55,16 @@ export function TraitsEditor({
   setConfiguredTraits,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
-    let newTraits = [...configuredTraits];
+    const newTraits = [...configuredTraits];
     if (i.labelField === 'traitValues') {
-      let traitValue: Option[] = i.option;
+      const traitValue: Option[] = i.option;
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitValue ?? [],
       };
       setConfiguredTraits(newTraits);
     } else {
-      let traitName: Option = i.option;
+      const traitName: Option = i.option;
       newTraits[i.index] = {
         ...newTraits[i.index],
         [i.labelField]: traitName,
@@ -78,7 +78,7 @@ export function TraitsEditor({
   }
 
   function removeTraitPair(index: number) {
-    let newTraits = [...configuredTraits];
+    const newTraits = [...configuredTraits];
     newTraits.splice(index, 1);
     setConfiguredTraits(newTraits);
   }
@@ -219,9 +219,11 @@ type InputOptionArray = {
 
 const requireNoDuplicateTraits =
   (configuredTraits: TraitsOption[]) => (enteredTrait: Option) => () => {
-    let k = configuredTraits.map(trait => trait.traitKey.value.toLowerCase());
+    const traitKey = configuredTraits.map(trait =>
+      trait.traitKey.value.toLowerCase()
+    );
     let occurance = 0;
-    k.forEach(key => {
+    traitKey.forEach(key => {
       if (key === enteredTrait.value.toLowerCase()) {
         occurance++;
       }
