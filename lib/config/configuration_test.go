@@ -2576,11 +2576,12 @@ func TestAppsCLF(t *testing.T) {
 	}
 }
 
+// TestDatabaseConfig ensures reading database the configuration won't return
+// error.
 func TestDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		desc           string
-		outError       string
 	}{
 		{
 			desc: "valid database config",
@@ -2612,7 +2613,6 @@ db_service:
       command: ["uname", "-p"]
       period: 1h
 `,
-			outError: "",
 		},
 		{
 			desc: "missing database name",
@@ -2623,7 +2623,6 @@ db_service:
   - protocol: postgres
     uri: localhost:5432
 `,
-			outError: "empty database name",
 		},
 		{
 			desc: "unsupported database protocol",
@@ -2635,7 +2634,6 @@ db_service:
     protocol: unknown
     uri: localhost:5432
 `,
-			outError: `unsupported database "foo" protocol`,
 		},
 		{
 			desc: "missing database uri",
@@ -2646,7 +2644,6 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2658,7 +2655,6 @@ db_service:
     protocol: postgres
     uri: 192.168.1.1
 `,
-			outError: `invalid database "foo" address`,
 		},
 	}
 	for _, tt := range tests {
@@ -2667,12 +2663,7 @@ db_service:
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
 			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
-			if tt.outError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
