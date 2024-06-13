@@ -244,6 +244,11 @@
               "forScopes": ["oss", "enterprise"]
             }
           ]
+        },
+        {
+          "title": "Multi-region Blueprint",
+          "slug": "/deploy-a-cluster/multi-region-blueprint/",
+          "forScopes": ["enterprise"]
         }
       ]
     },
