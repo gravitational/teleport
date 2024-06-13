@@ -110,9 +110,9 @@ export type Props = {
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
   let newTrait = [];
   for (let trait in allTraits) {
-    if (!allTraits[trait][0]) {
-      continue;
-    }
+    // if (!allTraits[trait][0]) {
+    //   continue;
+    // }
     if (allTraits[trait].length > 0) {
       newTrait.push({
         traitKey: { value: trait, label: trait },
