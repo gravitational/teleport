@@ -95,6 +95,7 @@ notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
 define notarize_binaries_cmd
+	echo "USING CMD FOR NOTARIZATION AND SIGNING"
 	codesign \
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
 		--force \
