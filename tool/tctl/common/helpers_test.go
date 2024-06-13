@@ -21,7 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -48,24 +47,10 @@ import (
 )
 
 type options struct {
-	CertPool *x509.CertPool
-	Insecure bool
-	Editor   func(string) error
+	Editor func(string) error
 }
 
 type optionsFunc func(o *options)
-
-func withRootCertPool(pool *x509.CertPool) optionsFunc {
-	return func(o *options) {
-		o.CertPool = pool
-	}
-}
-
-func withInsecure(insecure bool) optionsFunc {
-	return func(o *options) {
-		o.Insecure = insecure
-	}
-}
 
 func withEditor(editor func(string) error) optionsFunc {
 	return func(o *options) {
