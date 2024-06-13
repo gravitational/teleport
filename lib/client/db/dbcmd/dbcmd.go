@@ -112,12 +112,19 @@ func (s SystemExecer) LookPath(file string) (string, error) {
 type CLICommandBuilder struct {
 	tc          *client.TeleportClient
 	rootCluster string
-	profile     *client.ProfileStatus
-	db          *tlsca.RouteToDatabase
-	host        string
-	port        int
-	options     connectionCommandOpts
-	uid         utils.UID
+	// profile is the currently selected tsh profile.
+	//
+	// Note that profile.Cluster indicates the cluster selected with `tsh login
+	// <root/leaf>`. However, the target cluster can be overwritten with
+	// --cluster flag. Therefore profile.Cluster is not suitable for
+	// determining the target cluster or the root cluster. Use tc.SiteName for
+	// the target cluster and rootCluster for root cluster.
+	profile *client.ProfileStatus
+	db      *tlsca.RouteToDatabase
+	host    string
+	port    int
+	options connectionCommandOpts
+	uid     utils.UID
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
