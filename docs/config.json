@@ -10,12 +10,16 @@
 	},
 	{
 	  "title": "How Teleport Works",
-	  "slug": "/core-concepts/"
+	  "slug": "/get-started/core-concepts/"
 	},
         {
           "title": "Try out Teleport",
-          "slug": "/get-started/"
-        }
+          "slug": "/get-started/try-out-teleport/"
+        },
+	{
+	  "title": "All Topics",
+	  "slug": "/get-started/"
+	}
       ]
     },
     {
@@ -24,7 +28,7 @@
     	"entries": [
 	    {
 	       "title": "Protect Resources",
-	       "slug": "/admin-guides/protect-resources/"
+	       "slug": "/admin-guides/enroll-resources/"
 	    },
 	    {
 	       "title": "Set up Single Sign-On",
@@ -67,7 +71,7 @@
       "title": "References",
       "entries": [
 	{
-	   "title": "CLI Reference",
+	   "title": "Command Line Tools",
 	   "slug": "/reference/cli/overview/"
 	},
 	{
