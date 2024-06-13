@@ -82,6 +82,10 @@
           "title": "Introduction",
           "slug": "/choose-an-edition/introduction/"
         },
+	{
+	  "title": "Migrate to Cloud-Hosted Enterprise",
+	  "slug": "/choose-an-edition/migrate-to-cloud/"
+	},
         {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
