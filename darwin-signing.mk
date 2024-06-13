@@ -103,7 +103,7 @@ define notarize_binaries_cmd
 		--verbose \
 		--entitlements $(root_dir)/build.assets/macos/tsh/tsh*.entitlements \
 		--timestamp \
-		--options runtime \
+		--options kill,hard,runtime \
 		$(BINARIES)
 	rm -rf $(notary_dir)
 	mkdir $(notary_dir)

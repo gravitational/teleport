@@ -307,12 +307,22 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
         for FILE in ${FILE_LIST}; do
+            echo "filename: ${PKG_FILENAME}"
+            echo "pwd:"
+            pwd
+            echo "self: '$0'"
+            echo "dirname:"
+            dirname "$0"
+            echo "string:"
+            echo "$(dirname "$0")/macos/tsh/"tsh*.entitlements
+            echo "ls:"
+            ls "$(dirname "$0")/macos/tsh/"tsh*.entitlements
             $DRY_RUN_PREFIX codesign -s "${DEVELOPER_ID_APPLICATION}" \
                 -f \
                 -v \
                 --entitlements "$(dirname "$0")/macos/tsh/"tsh*.entitlements \
                 --timestamp \
-                --options runtime \
+                --options kill,hard,runtime \
                 ${PACKAGE_TEMPDIR}/${FILE}
         done
     fi
