@@ -908,7 +908,7 @@ Add the following to enable read access to trusted clusters
     - [ ] Verify that you can mix adding resources from the root and leaf clusters.
     - [ ] Verify that you can't mix roles and resources into the same request.
     - [ ] Verify that you can request resources from both the unified view and the search bar.
-    - Change `proxy_service.ui.show_resources` to `accessible_only`.
+    - Change `show_resources` to `accessible_only` in [the UI config](https://goteleport.com/docs/reference/resources/#ui-config) of the root cluster.
       - [ ] Verify that you can now only request resources from the new request tab.
   - **Viewing & Approving/Denying Requests**
     - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying Requests` from the Web UI testplan and then verify the tasks below.
