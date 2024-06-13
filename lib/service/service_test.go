@@ -1729,3 +1729,84 @@ func TestInstanceMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestInitDatabaseService(t *testing.T) {
+	for _, test := range []struct {
+		desc      string
+		enabled   bool
+		databases []servicecfg.Database
+		expectErr bool
+	}{
+		{
+			desc:    "enabled valid databases",
+			enabled: true,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+			},
+			expectErr: false,
+		},
+		{
+			desc:    "enabled invalid databases",
+			enabled: true,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: ""},
+			},
+			expectErr: true,
+		},
+		{
+			desc:    "disabled invalid databases",
+			enabled: false,
+			databases: []servicecfg.Database{
+				{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:0"},
+				{Name: ""},
+			},
+			expectErr: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := servicecfg.MakeDefaultConfig()
+			cfg.DataDir = t.TempDir()
+			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Hostname = "default.example.com"
+			cfg.Auth.Enabled = true
+			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Proxy.Enabled = true
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+			cfg.SSH.Enabled = false
+			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+			cfg.Databases.Enabled = test.enabled
+			cfg.Databases.Databases = test.databases
+
+			process, err := NewTeleport(cfg)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, process.Close())
+			})
+			require.NoError(t, process.Start())
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
+			if !test.expectErr {
+				// should timeout without the process exit event.
+				require.Error(t, err)
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, event)
+			exitPayload, ok := event.Payload.(ExitEventPayload)
+			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
+			require.Equal(t, "db.init", exitPayload.Service.Name())
+		})
+	}
+}
