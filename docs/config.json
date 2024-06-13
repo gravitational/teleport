@@ -1985,8 +1985,8 @@
     },
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
-      "major_version": "16",
-      "version": "16.0.0-dev",
+      "major_version": "17",
+      "version": "17.0.0-dev",
       "url": "teleport.example.com",
       "golang": "1.22",
       "plugin": {
