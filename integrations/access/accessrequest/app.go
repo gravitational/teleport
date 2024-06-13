@@ -490,7 +490,7 @@ func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types
 	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
 	switch a.pluginType {
 	// Enabled plugins are added to this case.
-	case types.PluginTypeSlack, types.PluginTypeMattermost:
+	case types.PluginTypeSlack, types.PluginTypeMattermost, types.PluginTypeDiscord:
 		log.Debug("Applying access monitoring rules to request")
 	default:
 		return &recipientSet
