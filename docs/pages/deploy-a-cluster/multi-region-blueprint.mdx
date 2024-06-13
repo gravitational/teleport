@@ -72,17 +72,17 @@ This section describes this setup in more detail.
 - Ensure pod mesh connectivity. Proxy pods must be able to dial each other
   [on port 3021](../reference/networking.mdx#ports). The setup will vary
   based on your network and CNI plugin configuration:
-    - If pods are using the native network layer (for example GKE, or AWS' vpc-cni addon)
-      you can rely on pure VPC peering, routing, and firewall capabilities to
-      connect pods from each Kubernetes cluster.
-    - If pods are given non-native IP addresses, you can use the Cilium
-      cluster-mesh capabilities to connect your pods. They
-      provide [a step-by-step guide on how to mesh clusters](https://docs.cilium.io/en/stable/network/clustermesh/clustermesh/).
+  - If pods are using the native network layer (for example GKE, or AWS' vpc-cni addon)
+    you can rely on pure VPC peering, routing, and firewall capabilities to
+    connect pods from each Kubernetes cluster.
+  - If pods are given non-native IP addresses, you can use the Cilium
+    cluster-mesh capabilities to connect your pods. They
+    provide [a step-by-step guide on how to mesh clusters](https://docs.cilium.io/en/stable/network/clustermesh/clustermesh/).
 - Set up a multi region object storage:
-    - on GCP, GCS has a multi-region location
-    - on-prem, MinIO supports [multi-site bucket replication](https://min.io/docs/minio/linux/administration/bucket-replication/enable-server-side-multi-site-bucket-replication.html)
-    - on AWS, you can [set up two-way-replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mrap-create-two-way-replication-rules.html)
-      between S3 buckets.
+  - on GCP, GCS has a multi-region location
+  - on-prem, MinIO supports [multi-site bucket replication](https://min.io/docs/minio/linux/administration/bucket-replication/enable-server-side-multi-site-bucket-replication.html)
+  - on AWS, you can [set up two-way-replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mrap-create-two-way-replication-rules.html)
+    between S3 buckets.
 - Setup [a CockroachDB multi-region cluster](https://www.cockroachlabs.com/docs/v24.1/multiregion-overview)
 
 ### Teleport backend configuration
