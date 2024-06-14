@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.4.4 (06/13/24)
+
+* Improve search and predicate/label based dialing performance in large clusters under very high load. [#42941](https://github.com/gravitational/teleport/pull/42941)
+* Fix an issue Oracle access failed through trusted cluster. [#42928](https://github.com/gravitational/teleport/pull/42928)
+* Fix errors caused by `dynamoevents` query `StartKey` not being within the [From, To] window. [#42915](https://github.com/gravitational/teleport/pull/42915)
+* Fix Jira Issue creation when Summary exceeds the max allowed size. [#42862](https://github.com/gravitational/teleport/pull/42862)
+* Fix editing reviewers from being ignored/overwritten when creating an access request from the web UI. [#4397](https://github.com/gravitational/teleport.e/pull/4397)
+
 ## 15.4.3 (06/12/24)
 
 **Note:** This release includes a new binary, `fdpass-teleport`, that can be
