@@ -115,6 +115,41 @@ $ psql postgres://postgres@tcp-app.company.test/postgres
 
 ## Next steps
 
+### Configuring IPv4 CIDR range
+
+VNet uses `100.64.0.0/10` as the IPv4 CIDR range by default. Each resource is assigned an IP address
+from that range just before the first connection is established. If this range conflicts with other
+software deployed on devices of your users, it can be changed by setting the `ipv4_cidr_range` field
+of the VNet config.
+
+When starting, VNet fetches configs from all available clusters and arbitrarily picks a range
+provided by one of the clusters. This means that if you have a root cluster with multiple leaf
+clusters, you should update the range on each cluster.
+
+Create a file called `vnet-config.yaml`:
+
+```yaml
+kind: vnet_config
+version: v1
+metadata:
+  name: vnet-config
+spec:
+  ipv4_cidr_range: "100.64.0.0/10"
+```
+
+Create the VNet config:
+
+```code
+$ tctl create vnet-config.yaml
+vnet_config has been created
+```
+
+If the config already exists, you can use `tctl edit` instead:
+
+```
+$ tctl edit vnet_config
+```
+
 ### Configuring leaf cluster apps
 
 To make a [leaf cluster](../../management/admin/trustedclusters.mdx) app accessible over a custom
