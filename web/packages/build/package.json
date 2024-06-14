@@ -35,7 +35,7 @@
     "@opentelemetry/resources": "1.8.0",
     "@opentelemetry/sdk-trace-base": "1.8.0",
     "@opentelemetry/sdk-trace-web": "1.8.0",
-    "@opentelemetry/semantic-conventions": "1.8.0",
+    "@opentelemetry/semantic-conventions": "1.25.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.11",
     "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
