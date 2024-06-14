@@ -1,4 +1,21 @@
 version: 2
+
+# aliases
+npm_props: &npm_props
+  schedule:
+    interval: monthly
+    day: "sunday"
+    time: "09:00" # 9am UTC
+  labels:
+    - "dependencies"
+    - "ui"
+    - "no-changelog"
+  groups:
+    ui:
+      update-types:
+        - "minor"
+        - "patch"
+
 updates:
   - package-ecosystem: gomod
     directory: "/"
@@ -229,73 +246,51 @@ updates:
       - "no-changelog"
 
   - package-ecosystem: npm
+    directory: "/"
+    <<: *npm_props
+    open-pull-requests-limit: 20
+    reviewers:
+      - avatus
+      - kimlisa
+      - rudream
+      - bl-nero
+  - package-ecosystem: npm
     directory: "/web/packages/build"
-    schedule:
-      interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+    <<: *npm_props
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - ryanclark
-    labels:
-      - "dependencies"
-      - "ui"
-      - "no-changelog"
   - package-ecosystem: npm
     directory: "/web/packages/design"
-    schedule:
-      interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+    <<: *npm_props
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - kimlisa
       - rudream
       - bl-nero
-    labels:
-      - "dependencies"
-      - "ui"
-      - "no-changelog"
   - package-ecosystem: npm
+    <<: *npm_props
     directory: "/web/packages/shared"
-    schedule:
-      interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - kimlisa
       - rudream
       - bl-nero
-    labels:
-      - "dependencies"
-      - "ui"
-      - "no-changelog"
   - package-ecosystem: npm
     directory: "/web/packages/teleport"
-    schedule:
-      interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+    <<: *npm_props
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - kimlisa
       - rudream
       - bl-nero
-    labels:
-      - "dependencies"
-      - "ui"
-      - "no-changelog"
   - package-ecosystem: npm
     directory: "/web/packages/teleterm"
-    schedule:
-      interval: monthly
-      day: "sunday"
-      time: "09:00" # 9am UTC
+    <<: *npm_props
     open-pull-requests-limit: 20
     reviewers:
       - avatus
