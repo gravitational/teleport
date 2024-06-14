@@ -4,9 +4,15 @@ ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 # Extract the built tarball to reduce the final image size
 FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 
-WORKDIR /extraction
 ARG TARGETARCH
-COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
+ARG TARGETOS
+ARG ARTIFACT_NAME=plugin    # Should be something like 'access-slack' or 'event-handler'
+ARG TELEPORT_VERSION=0.0.0  # Should be the version without 'v' prefix
+ARG FILENAME=teleport-${ARTIFACT_NAME}-v${TELEPORT_VERSION}-${TARGETOS}-{TARGETARCH}-bin.tar.gz # Optional override
+
+WORKDIR /extraction
+COPY "${FILENAME}" /plugin.tar.gz
+
 RUN tar -xzvf /plugin.tar.gz && \
     find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
