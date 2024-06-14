@@ -8,7 +8,7 @@ ARG TARGETARCH
 ARG TARGETOS
 ARG ARTIFACT_NAME=plugin    # Should be something like 'access-slack' or 'event-handler'
 ARG TELEPORT_VERSION=0.0.0  # Should be the version without 'v' prefix
-ARG FILENAME=teleport-${ARTIFACT_NAME}-v${TELEPORT_VERSION}-${TARGETOS}-{TARGETARCH}-bin.tar.gz # Optional override
+ARG FILENAME=teleport-${ARTIFACT_NAME}-v${TELEPORT_VERSION}-${TARGETOS}-${TARGETARCH}-bin.tar.gz # Optional override
 
 WORKDIR /extraction
 COPY "${FILENAME}" /plugin.tar.gz
