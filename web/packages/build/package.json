@@ -42,7 +42,7 @@
     "@storybook/components": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
-    "@swc/plugin-styled-components": "^1.5.105",
+    "@swc/plugin-styled-components": "^2.0.7",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.2",
