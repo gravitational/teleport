@@ -1563,10 +1563,7 @@ func (c *weakWaitGroup) Done() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.count--
-	if c.cond.L == nil {
-		c.cond.L = &c.mu
-	}
-	if c.count == 0 {
+	if c.count == 0 && c.cond.L != nil {
 		c.cond.Broadcast()
 	}
 }
