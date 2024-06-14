@@ -37,7 +37,7 @@
     "react-dom": "^18.2.0",
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",
-    "react-select": "^3.0.8",
+    "react-select": "^5.8.0",
     "reactflow": "^11.7.4",
     "remark-gfm": "^3.0.1",
     "tslib": "^2.6.3",
