@@ -1,21 +1,4 @@
 version: 2
-
-# aliases
-npm_props: &npm_props
-  schedule:
-    interval: monthly
-    day: "sunday"
-    time: "09:00" # 9am UTC
-  labels:
-    - "dependencies"
-    - "ui"
-    - "no-changelog"
-  groups:
-    ui:
-      update-types:
-        - "minor"
-        - "patch"
-
 updates:
   - package-ecosystem: gomod
     directory: "/"
@@ -247,7 +230,19 @@ updates:
 
   - package-ecosystem: npm
     directory: "/"
-    <<: *npm_props
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
@@ -256,14 +251,38 @@ updates:
       - bl-nero
   - package-ecosystem: npm
     directory: "/web/packages/build"
-    <<: *npm_props
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - ryanclark
   - package-ecosystem: npm
     directory: "/web/packages/design"
-    <<: *npm_props
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
@@ -271,8 +290,20 @@ updates:
       - rudream
       - bl-nero
   - package-ecosystem: npm
-    <<: *npm_props
     directory: "/web/packages/shared"
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
@@ -281,7 +312,19 @@ updates:
       - bl-nero
   - package-ecosystem: npm
     directory: "/web/packages/teleport"
-    <<: *npm_props
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
@@ -290,7 +333,15 @@ updates:
       - bl-nero
   - package-ecosystem: npm
     directory: "/web/packages/teleterm"
-    <<: *npm_props
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
