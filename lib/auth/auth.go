@@ -6747,7 +6747,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	case types.SPIFFECA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		tlsKeyPair, err := keyStore.NewEC256TLSKeyPair(ctx, caID.DomainName)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
