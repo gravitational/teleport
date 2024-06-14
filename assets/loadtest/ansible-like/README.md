@@ -4,7 +4,7 @@ This setup is designed to be ran from the home directory of a VM (the default wo
 
 This setup assumes that nodes are being ran by the `node-agent` Helm chart, and proxy templates are applied to do predicate-based dialing on the NODENAME label, as the chart sets up. Commenting or blanking the `proxy_templates.yaml` file (and restarting tbot) will change it to hostname-based dialing. Changing the `proxy_templates.yaml` file (and restarting tbot) can also be used to test a simpler predicate, or to test search-based dialing rather than predicate-based dialing.
 
-Bot and token can be created with `tctl -f loadtest-bot.yaml`. Token-based joining with tbot is incredibly annoying, so IAM joining or some other ambient-based joining method is recommended. Running the `node-agent` chart is left as an exercise for the reader.
+Bot and token can be created with `tctl -f loadtest-bot.yaml`, after editing the IAM account and role in it. Token-based joining with tbot is incredibly annoying, so IAM joining or some other ambient-based joining method is recommended. Running the `node-agent` chart is left as an exercise for the reader.
 
 The machine running the client should be scaled depending on how many nodes are targeted in the inventory; for 60000 nodes (i.e. 60k shell scripts and 120k ssh processes running at peak) the memory usage with Teleport 15 seems to be ~20GiB for tbot and ~200 for the scripts and SSH, so something like an AWS 32xlarge or 48xlarge might be necessary (maybe the compute-optimized variants, as memory isn't really a problem). Depending on the scale of the test and the runner machine, tuning GOMAXPROCS and GOMEMLIMIT in tbot.service might be useful.
 
