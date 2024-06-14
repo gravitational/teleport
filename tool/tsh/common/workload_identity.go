@@ -20,6 +20,9 @@ package common
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	cryptorand "crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -34,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -115,7 +117,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		// Generate keypair to use in SVID
-		privateKey, err := native.GenerateRSAPrivateKey()
+		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), cryptorand.Reader)
 		if err != nil {
 			return trace.Wrap(err)
 		}

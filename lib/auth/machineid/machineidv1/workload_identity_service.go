@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"math/big"
 	"net"
 	"net/url"
@@ -168,6 +169,10 @@ func signx509SVID(
 		URIs:        []*url.URL{spiffeID},
 		DNSNames:    dnsSANs,
 		IPAddresses: ipSANS,
+
+		Subject: pkix.Name{
+			Organization: []string{"Black Mesa Research Facility"},
+		},
 	}
 
 	// For legacy compatibility, we set the subject common name to the first
