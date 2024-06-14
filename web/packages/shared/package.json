@@ -17,7 +17,7 @@
     "@lezer/highlight": "^1.1.6",
     "@nivo/bar": "^0.83.0",
     "@nivo/core": "^0.83.0",
-    "@nivo/line": "^0.83.0",
+    "@nivo/line": "^0.87.0",
     "@nivo/pie": "^0.83.0",
     "@react-spring/web": "^9.7.2",
     "@uiw/codemirror-theme-dracula": "^4.21.9",
