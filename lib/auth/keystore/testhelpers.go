@@ -96,7 +96,6 @@ func awsKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	}
 	return servicecfg.KeystoreConfig{
 		AWSKMS: servicecfg.AWSKMSConfig{
-			Cluster:    "test-cluster",
 			AWSAccount: awsKMSAccount,
 			AWSRegion:  awsKMSRegion,
 		},
@@ -209,7 +208,7 @@ func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Mana
 	for _, opt := range opts {
 		opt(&options)
 	}
-	softwareBackend := newSoftwareKeyStore(&SoftwareConfig{RSAKeyPairSource: options.rsaKeyPairSource})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: options.rsaKeyPairSource})
 	return &Manager{
 		backendForNewKeys:     softwareBackend,
 		usableSigningBackends: []backend{softwareBackend},
