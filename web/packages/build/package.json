@@ -34,7 +34,7 @@
     "@opentelemetry/propagator-b3": "1.8.0",
     "@opentelemetry/resources": "1.8.0",
     "@opentelemetry/sdk-trace-base": "1.8.0",
-    "@opentelemetry/sdk-trace-web": "1.8.0",
+    "@opentelemetry/sdk-trace-web": "1.25.0",
     "@opentelemetry/semantic-conventions": "1.8.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.11",
     "@storybook/addon-toolbars": "^6.5.16",
