@@ -1,6 +1,6 @@
 # Ansible-like OpenSSH sessions load test
 
-This setup is designed to be ran from the home directory of a VM (the default working directory for a systemd user service) and the xltenant.teleport.sh service; the proxy public address and cluster name should be changed in `gen_inventory.sh`, `proxy_templates.yaml` and `tbot.yaml` for use in a different cluster. It requires openssh, jq, xargs, and dumb-init, as well as tbot and fdpass-teleport.
+This setup is designed to be ran from the home directory of a VM (the default working directory for a systemd user service); the proxy public address and cluster name should be changed in `gen_inventory.sh`, `proxy_templates.yaml` and `tbot.yaml` from `PROXYHOST` and `CLUSTERNAME` respectively. It requires openssh, jq, xargs, and dumb-init, as well as tbot and fdpass-teleport.
 
 This setup assumes that nodes are being ran by the `node-agent` Helm chart, and proxy templates are applied to do predicate-based dialing on the NODENAME label, as the chart sets up. Commenting or blanking the `proxy_templates.yaml` file (and restarting tbot) will change it to hostname-based dialing. Changing the `proxy_templates.yaml` file (and restarting tbot) can also be used to test a simpler predicate, or to test search-based dialing rather than predicate-based dialing.
 

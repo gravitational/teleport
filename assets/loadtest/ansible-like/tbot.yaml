@@ -1,5 +1,5 @@
 version: v2
-proxy_server: xltenant.teleport.sh:443
+proxy_server: PROXYHOST:443
 diag_addr: "0.0.0.0:3000"
 onboarding:
   join_method: iam
