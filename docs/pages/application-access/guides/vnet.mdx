@@ -5,9 +5,7 @@ description: How to configure custom DNS zones for VNet
 
 VNet automatically proxies connections made to TCP applications available under the public address
 of a Proxy Service. This guide explains how to configure VNet to support apps with [custom public
-addresses](connecting-apps.mdx/#customize-public-address). We are going to take an app available at
-`tcp-app.teleport.example.com` and make it available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/>
-with <Var name="suffix" initial="company.test" /> as the custom DNS zone.
+addresses](connecting-apps.mdx/#customize-public-address).
 
 ## How it works
 
@@ -30,9 +28,12 @@ zone through a DNS TXT record.
 (!docs/pages/includes/edition-prereqs-tabs.mdx version="16.0.0"!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A TCP application connected to the cluster. In this guide, we'll use the example app from
-  [TCP Application Access guide](tcp.mdx).
+- A TCP application connected to the cluster.
 - A domain name under your control.
+
+In this guide, we'll use the example app from [TCP Application Access guide](tcp.mdx) and make it
+available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/> with
+<Var name="suffix" initial="company.test" /> as the custom DNS zone.
 
 ## Step 1/4. Configure custom DNS zone
 
