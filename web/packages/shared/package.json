@@ -36,7 +36,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
     "react-router": "5.1.1",
-    "react-router-dom": "5.1.1",
+    "react-router-dom": "6.23.1",
     "react-select": "^3.0.8",
     "reactflow": "^11.7.4",
     "remark-gfm": "^3.0.1",
