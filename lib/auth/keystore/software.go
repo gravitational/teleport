@@ -36,20 +36,20 @@ type softwareKeyStore struct {
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
 type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
 
-type SoftwareConfig struct {
-	RSAKeyPairSource RSAKeyPairSource
+type softwareConfig struct {
+	rsaKeyPairSource RSAKeyPairSource
 }
 
-func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
-	if cfg.RSAKeyPairSource == nil {
-		cfg.RSAKeyPairSource = native.GenerateKeyPair
+func (cfg *softwareConfig) checkAndSetDefaults() {
+	if cfg.rsaKeyPairSource == nil {
+		cfg.rsaKeyPairSource = native.GenerateKeyPair
 	}
-	return nil
 }
 
-func newSoftwareKeyStore(config *SoftwareConfig) *softwareKeyStore {
+func newSoftwareKeyStore(config *softwareConfig) *softwareKeyStore {
+	config.checkAndSetDefaults()
 	return &softwareKeyStore{
-		rsaKeyPairSource: config.RSAKeyPairSource,
+		rsaKeyPairSource: config.rsaKeyPairSource,
 	}
 }
 
@@ -63,7 +63,7 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 // crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
 // private key, and can be passed to getSigner later to get the same
 // crypto.Signer.
-func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...RSAKeyOption) ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
 	priv, _, err := s.rsaKeyPairSource()
 	if err != nil {
 		return nil, nil, err
