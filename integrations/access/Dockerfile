@@ -5,6 +5,7 @@ ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 
 WORKDIR /extraction
+ARG TARGETARCH
 COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
 RUN tar -xzvf /plugin.tar.gz && \
     find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
