@@ -1,7 +1,7 @@
 #!/bin/sh
-cd $( dirname -- ${0} )
+cd "$( dirname -- "${0}" )" || exit 1
 
-sleep $( echo "90 * $(od -An -N4 -tu4 /dev/urandom) / 4294967295" | bc -l )
+sleep "$( echo "90 * $(od -An -N4 -tu4 /dev/urandom) / 4294967295" | bc -l )"
 
 ssh_opts="-qn -F tbot_destdir_mux/ssh_config -S /run/user/1000/ssh-control/%C -o ControlMaster=auto -o ControlPersist=60s -o Ciphers=^aes128-gcm@openssh.com -l root"
 
