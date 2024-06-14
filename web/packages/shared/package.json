@@ -25,7 +25,7 @@
     "@use-gesture/react": "^10.2.27",
     "ace-builds": "1.4.6",
     "create-react-class": "^15.6.3",
-    "cross-env": "5.0.5",
+    "cross-env": "7.0.3",
     "d3-hierarchy": "^3.1.2",
     "date-fns": "^2.28.0",
     "dompurify": "^3.0.1",
