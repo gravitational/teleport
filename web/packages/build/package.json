@@ -29,7 +29,7 @@
     "@opentelemetry/instrumentation": "0.34.0",
     "@opentelemetry/instrumentation-document-load": "0.30.0",
     "@opentelemetry/instrumentation-fetch": "0.34.0",
-    "@opentelemetry/instrumentation-user-interaction": "0.31.0",
+    "@opentelemetry/instrumentation-user-interaction": "0.39.0",
     "@opentelemetry/instrumentation-xml-http-request": "0.34.0",
     "@opentelemetry/propagator-b3": "1.8.0",
     "@opentelemetry/resources": "1.8.0",
