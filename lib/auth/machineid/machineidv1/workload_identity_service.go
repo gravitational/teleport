@@ -182,6 +182,9 @@ func signx509SVID(
 	// Eventually, we may wish to make this behavior more configurable.
 	if len(dnsSANs) > 0 {
 		template.Subject.CommonName = dnsSANs[0]
+	} else {
+		template.Subject.Country = []string{"US"}
+		template.Subject.Organization = []string{"Teleport"}
 	}
 
 	certBytes, err := x509.CreateCertificate(
