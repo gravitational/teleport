@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev.fred-plugins-amd64-2"
+.version: &version "17.0.0-dev.fred-plugins-arch-1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty

@@ -10,7 +10,7 @@ COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
 
 ## ***** for debug
 COPY *${TARGETARCH}*.tar.gz .
-RUN pwd && ls -laht . && && echo *${TARGETARCH}*.tar.gz \
+RUN pwd && ls -laht . && echo *${TARGETARCH}*.tar.gz \
     && tar -C /tmp -xzvf *${TARGETARCH}*.tar.gz && ls -laht /tmp \
     && find /tmp -type f -executable -name 'teleport-*' -exec file {} \;
 ## *****
