@@ -42,7 +42,9 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     'clustersService',
     useCallback(state => state.clusters, [])
   );
-  const rootClusters = [...clusters.values()].filter(cluster => !cluster.leaf);
+  const rootClusters = [...clusters.values()].filter(
+    cluster => !cluster.leaf && cluster.connected
+  );
   const rootProxyHostnames = rootClusters.map(
     cluster => new whatwg.URL(`https://${cluster.proxyHost}`).hostname
   );
