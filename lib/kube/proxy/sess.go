@@ -1534,7 +1534,7 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 // various parts of the codebase concurrently and need to be awaited only if they started before
 // a certain point in time, specifically before session.Close() is called. If a goroutine
 // is initiated after session.Close() has been invoked, it will not be included in the wait process.
-// It's the caller responsability to ensure that all goroutines started after Wait() returns end
+// It's the caller responsibility to ensure that all goroutines started after Wait() returns end
 // up being a no-op.
 //
 // Important Considerations:
