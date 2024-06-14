@@ -23,7 +23,7 @@
     "@uiw/codemirror-theme-dracula": "^4.21.9",
     "@uiw/react-codemirror": "^4.21.9",
     "@use-gesture/react": "^10.2.27",
-    "ace-builds": "1.4.6",
+    "ace-builds": "1.35.0",
     "create-react-class": "^15.6.3",
     "cross-env": "5.0.5",
     "d3-hierarchy": "^3.1.2",
