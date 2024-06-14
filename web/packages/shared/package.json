@@ -39,7 +39,7 @@
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
     "reactflow": "^11.7.4",
-    "remark-gfm": "^3.0.1",
+    "remark-gfm": "^4.0.0",
     "tslib": "^2.6.3",
     "web-worker": "^1.2.0",
     "whatwg-fetch": "^3.6.20"
