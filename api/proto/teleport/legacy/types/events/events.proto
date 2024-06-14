@@ -3889,6 +3889,9 @@ enum DeviceOrigin {
 
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
+  reserved 7; // string web_session_id
+  reserved "web_session_id";
+
   // ID of the device.
   string device_id = 1 [(gogoproto.jsontag) = "device_id"];
   // OS of the device.
@@ -3903,9 +3906,6 @@ message DeviceMetadata {
   // performed.
   // Only present in "device.authenticate" type events.
   bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
-  // Web Session ID associated with the device.
-  // Present in events related to device web authentication.
-  string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
   // Device web authentication attempt ID.
   // Present in events related to device web authentication.
   string web_authentication_id = 8 [(gogoproto.jsontag) = "web_authentication_id,omitempty"];
