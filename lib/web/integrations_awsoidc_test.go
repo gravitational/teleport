@@ -951,14 +951,16 @@ func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
 	}
 }
 
-func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
+func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	env := newWebPack(t, 1)
+	ctx := context.Background()
 
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser("my-user"), types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindIntegration, []string{types.VerbRead}),
-				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate}),
+				types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate, types.VerbList, types.VerbDelete}),
 				types.NewRule(types.KindUserGroup, []string{types.VerbList, types.VerbRead}),
 			},
 		},
@@ -976,16 +978,22 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().CreateIntegration(context.Background(), myIntegration)
+	_, err = env.server.Auth().CreateIntegration(ctx, myIntegration)
 	require.NoError(t, err)
+
+	// Deleting the AWS App Access should return an error because it was not created yet.
+	deleteEndpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "aws-app-access", "my-integration")
+	_, err = pack.clt.Delete(ctx, deleteEndpoint)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "not found")
 
 	// Create the AWS App Access for the current integration.
 	endpoint := pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "my-integration", "aws-app-access")
-	_, err = pack.clt.PostJSON(context.Background(), endpoint, nil)
+	_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 	require.NoError(t, err)
 
 	// Ensure the AppServer was correctly created.
-	appServers, err := env.server.Auth().GetApplicationServers(context.Background(), "default")
+	appServers, err := env.server.Auth().GetApplicationServers(ctx, "default")
 	require.NoError(t, err)
 	require.Len(t, appServers, 1)
 
@@ -1019,4 +1027,11 @@ func TestAWSOIDCAppAccessAppServerCreation(t *testing.T) {
 		appServers[0],
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 	))
+
+	// After deleting the application, it should be removed from the backend.
+	_, err = pack.clt.Delete(ctx, deleteEndpoint)
+	require.NoError(t, err)
+	appServers, err = env.server.Auth().GetApplicationServers(ctx, "default")
+	require.NoError(t, err)
+	require.Empty(t, appServers)
 }

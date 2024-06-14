@@ -355,29 +355,31 @@ func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) e
 	return nil
 }
 
-// processEventAndUpdateCurrent is part of the resourceCollector interface and is used to update the
+// processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
-func (c *AccessRequestCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (c *AccessRequestCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
 
-	switch event.Type {
-	case types.OpPut:
-		req, ok := event.Resource.(*types.AccessRequestV3)
-		if !ok {
-			slog.WarnContext(ctx, "unexpected resource type in event", "expected", logutils.TypeAttr(req), "got", logutils.TypeAttr(event.Resource))
-			return
+	for _, event := range events {
+		switch event.Type {
+		case types.OpPut:
+			req, ok := event.Resource.(*types.AccessRequestV3)
+			if !ok {
+				slog.WarnContext(ctx, "unexpected resource type in event", "expected", logutils.TypeAttr(req), "got", logutils.TypeAttr(event.Resource))
+				continue
+			}
+			if evicted := cache.Put(req); evicted > 1 {
+				// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
+				// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
+				slog.WarnContext(ctx, "request put event resulted in multiple cache evictions (this is a bug)", "id", req.GetName(), "evicted", evicted)
+			}
+		case types.OpDelete:
+			cache.Delete(accessRequestID, event.Resource.GetName())
+		default:
+			slog.WarnContext(ctx, "unexpected event variant", "op", logutils.StringerAttr(event.Type), "resource", logutils.TypeAttr(event.Resource))
 		}
-		if evicted := cache.Put(req); evicted > 1 {
-			// this warning, if it appears, means that we configured our indexes incorrectly and one access request is overwriting another.
-			// the most likely explanation is that one of our indexes is missing the request id suffix we typically use.
-			slog.WarnContext(ctx, "request put event resulted in multiple cache evictions (this is a bug)", "id", req.GetName(), "evicted", evicted)
-		}
-	case types.OpDelete:
-		cache.Delete(accessRequestID, event.Resource.GetName())
-	default:
-		slog.WarnContext(ctx, "unexpected event variant", "op", logutils.StringerAttr(event.Type), "resource", logutils.TypeAttr(event.Resource))
 	}
 }
 

@@ -483,16 +483,17 @@ func TestUploadBadSession(t *testing.T) {
 // uploaderPack reduces boilerplate required
 // to create a test
 type uploaderPack struct {
-	scanPeriod  time.Duration
-	clock       clockwork.FakeClock
-	eventsC     chan events.UploadEvent
-	memEventsC  chan events.UploadEvent
-	memUploader *eventstest.MemoryUploader
-	streamer    events.Streamer
-	scanDir     string
-	uploader    *Uploader
-	ctx         context.Context
-	cancel      context.CancelFunc
+	scanPeriod       time.Duration
+	initialScanDelay time.Duration
+	clock            clockwork.FakeClock
+	eventsC          chan events.UploadEvent
+	memEventsC       chan events.UploadEvent
+	memUploader      *eventstest.MemoryUploader
+	streamer         events.Streamer
+	scanDir          string
+	uploader         *Uploader
+	ctx              context.Context
+	cancel           context.CancelFunc
 }
 
 func (u *uploaderPack) Close(t *testing.T) {
@@ -505,13 +506,14 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	pack := uploaderPack{
-		clock:      clockwork.NewFakeClock(),
-		eventsC:    make(chan events.UploadEvent, 100),
-		memEventsC: make(chan events.UploadEvent, 100),
-		ctx:        ctx,
-		cancel:     cancel,
-		scanDir:    scanDir,
-		scanPeriod: 10 * time.Second,
+		clock:            clockwork.NewFakeClock(),
+		eventsC:          make(chan events.UploadEvent, 100),
+		memEventsC:       make(chan events.UploadEvent, 100),
+		ctx:              ctx,
+		cancel:           cancel,
+		scanDir:          scanDir,
+		scanPeriod:       10 * time.Second,
+		initialScanDelay: 10 * time.Millisecond,
 	}
 	pack.memUploader = eventstest.NewMemoryUploader(pack.memEventsC)
 
@@ -527,12 +529,13 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 	}
 
 	uploader, err := NewUploader(UploaderConfig{
-		ScanDir:      pack.scanDir,
-		CorruptedDir: corruptedDir,
-		ScanPeriod:   pack.scanPeriod,
-		Streamer:     pack.streamer,
-		Clock:        pack.clock,
-		EventsC:      pack.eventsC,
+		ScanDir:          pack.scanDir,
+		CorruptedDir:     corruptedDir,
+		InitialScanDelay: pack.initialScanDelay,
+		ScanPeriod:       pack.scanPeriod,
+		Streamer:         pack.streamer,
+		Clock:            pack.clock,
+		EventsC:          pack.eventsC,
 	})
 	require.NoError(t, err)
 	pack.uploader = uploader
@@ -564,12 +567,13 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		EventsC:      eventsC,
-		ScanDir:      scanDir,
-		CorruptedDir: corruptedDir,
-		ScanPeriod:   scanPeriod,
-		Streamer:     test.streamer,
-		Clock:        clock,
+		EventsC:          eventsC,
+		ScanDir:          scanDir,
+		CorruptedDir:     corruptedDir,
+		InitialScanDelay: 10 * time.Millisecond,
+		ScanPeriod:       scanPeriod,
+		Streamer:         test.streamer,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 	go uploader.Serve(ctx)
