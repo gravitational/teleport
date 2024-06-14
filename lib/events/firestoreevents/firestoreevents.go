@@ -357,56 +357,77 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	return l.searchEventsWithFilter(
+		ctx,
+		searchEventsWithFilterParams{
+			fromUTC:   req.From,
+			toUTC:     req.To,
+			namespace: apidefaults.Namespace,
+			limit:     req.Limit,
+			order:     req.Order,
+			lastKey:   req.StartKey,
+			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			sessionID: "",
+		})
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
-	if limit <= 0 {
-		limit = batchReadLimit
+type searchEventsWithFilterParams struct {
+	fromUTC, toUTC time.Time
+	namespace      string
+	limit          int
+	order          types.EventOrder
+	lastKey        string
+	filter         searchEventsFilter
+	sessionID      string
+}
+
+func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]apievents.AuditEvent, string, error) {
+	if params.limit <= 0 {
+		params.limit = batchReadLimit
 	}
 
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": lastKey})
+	g := l.WithFields(log.Fields{"From": params.fromUTC, "To": params.toUTC, "Namespace": params.namespace, "Filter": params.filter, "Limit": params.limit, "StartKey": params.lastKey})
 
 	var firestoreOrdering firestore.Direction
-	switch order {
+	switch params.order {
 	case types.EventOrderAscending:
 		firestoreOrdering = firestore.Asc
 	case types.EventOrderDescending:
 		firestoreOrdering = firestore.Desc
 	default:
-		return nil, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", params.order)
 	}
 
 	query := l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
-		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
-		Where(createdAtDocProperty, "<=", toUTC.Unix())
+		Where(createdAtDocProperty, ">=", params.fromUTC.Unix()).
+		Where(createdAtDocProperty, "<=", params.toUTC.Unix())
 
-	if sessionID != "" {
-		query = query.Where(sessionIDDocProperty, "==", sessionID)
+	if params.sessionID != "" {
+		query = query.Where(sessionIDDocProperty, "==", params.sessionID)
 	}
 
-	if len(filter.eventTypes) > 0 {
-		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+	if len(params.filter.eventTypes) > 0 {
+		query = query.Where(eventTypeDocProperty, "in", params.filter.eventTypes)
 	}
 
 	query = query.OrderBy(createdAtDocProperty, firestoreOrdering).
 		OrderBy(firestore.DocumentID, firestore.Asc).
-		Limit(limit)
+		Limit(params.limit)
 
-	values, lastKey, err := l.query(ctx, query, lastKey, filter, limit, g)
+	values, lastKey, err := l.query(ctx, query, params.lastKey, params.filter, params.limit, g)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	var toSort sort.Interface
-	switch order {
+	switch params.order {
 	case types.EventOrderAscending:
 		toSort = events.ByTimeAndIndex(values)
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(events.ByTimeAndIndex(values))
 	default:
-		return nil, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", params.order)
 	}
 
 	sort.Sort(toSort)
@@ -524,7 +545,19 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	return l.searchEventsWithFilter(
+		ctx,
+		searchEventsWithFilterParams{
+			fromUTC:   req.From,
+			toUTC:     req.To,
+			namespace: apidefaults.Namespace,
+			limit:     req.Limit,
+			order:     req.Order,
+			lastKey:   req.StartKey,
+			filter:    filter,
+			sessionID: req.SessionID,
+		},
+	)
 }
 
 type searchEventsFilter struct {
