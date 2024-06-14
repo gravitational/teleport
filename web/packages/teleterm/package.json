@@ -43,7 +43,7 @@
     "@types/node-forge": "^1.0.4",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^11.0.5",
-    "electron": "30.0.3",
+    "electron": "31.0.1",
     "electron-notarize": "^1.2.2",
     "electron-vite": "^2.0.0",
     "google-protobuf": "^3.21.2",
