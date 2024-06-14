@@ -256,10 +256,6 @@
           "slug": "/access-controls/introduction/"
         },
         {
-          "title": "Teleport Policy",
-          "slug": "/access-controls/teleport-policy/getting-started-policy/"
-        },
-        {
           "title": "Cluster Access and RBAC",
           "slug": "/access-controls/guides/",
           "entries": [
@@ -424,28 +420,6 @@
           ]
         },
         {
-          "title": "teleport-policy",
-          "slug": "/access-controls/teleport-policy/",
-          "forScopes": ["enterprise", "cloud"],
-          "entries": [
-          {
-          "title": "Getting started with Teleport Policy",
-          "slug": "/access-controls/teleport-policy/getting-started-policy/",
-          "forScopes": ["enterprise", "cloud"]
-          },
-          {
-          "title": "Teleport Policy Integrations",
-          "slug": "/access-controls/teleport-policy/getting-started-integrations/",
-          "forScopes": ["enterprise", "cloud"]
-          },
-          {
-          "title": "Teleport Policy Connections",
-          "slug": "/access-controls/teleport-policy/getting-started-policy-connections/",
-          "forScopes": ["enterprise", "cloud"]
-            }
-           ]
-          },
-        {
           "title": "Device Trust",
           "slug": "/access-controls/device-trust/",
           "forScopes": [
@@ -507,10 +481,23 @@
         {
           "title": "Teleport Policy",
           "slug": "/access-controls/teleport-policy/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "forScopes": [ "enterprise", "cloud"],
           "entries": [
+            {
+              "title": "Getting started with Teleport Policy",
+              "slug": "/access-controls/teleport-policy/getting-started-policy/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/getting-started-integrations/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+              {
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/getting-started-policy-connections/",
+              "forScopes": ["enterprise", "cloud"]
+                },
             {
               "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
