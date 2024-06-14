@@ -2576,11 +2576,12 @@ func TestAppsCLF(t *testing.T) {
 	}
 }
 
+// TestDatabaseConfig ensures reading database the configuration won't return
+// error.
 func TestDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		desc           string
-		outError       string
 	}{
 		{
 			desc: "valid database config",
@@ -2612,7 +2613,6 @@ db_service:
       command: ["uname", "-p"]
       period: 1h
 `,
-			outError: "",
 		},
 		{
 			desc: "missing database name",
@@ -2623,7 +2623,6 @@ db_service:
   - protocol: postgres
     uri: localhost:5432
 `,
-			outError: "empty database name",
 		},
 		{
 			desc: "unsupported database protocol",
@@ -2635,7 +2634,6 @@ db_service:
     protocol: unknown
     uri: localhost:5432
 `,
-			outError: `unsupported database "foo" protocol`,
 		},
 		{
 			desc: "missing database uri",
@@ -2646,7 +2644,6 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2658,7 +2655,6 @@ db_service:
     protocol: postgres
     uri: 192.168.1.1
 `,
-			outError: `invalid database "foo" address`,
 		},
 	}
 	for _, tt := range tests {
@@ -2667,12 +2663,7 @@ db_service:
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
 			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
-			if tt.outError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -2687,7 +2678,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		inFlags     CommandLineFlags
 		desc        string
 		outDatabase servicecfg.Database
-		outError    string
 	}{
 		{
 			desc: "valid database config",
@@ -2711,36 +2701,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
-		},
-		{
-			desc: "unsupported database protocol",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: "unknown",
-				DatabaseURI:      "localhost:5432",
-			},
-			outError: `unsupported database "foo" protocol`,
-		},
-		{
-			desc: "missing database uri",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-			},
-			outError: `database "foo" URI is empty`,
-		},
-		{
-			desc: "invalid database uri (missing port)",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-				DatabaseURI:      "localhost",
-			},
-			outError: `invalid database "foo" address`,
 		},
 		{
 			desc: "RDS database",
@@ -2767,9 +2728,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2800,9 +2758,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2820,7 +2775,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 				TLS: servicecfg.DatabaseTLS{
-					Mode:   servicecfg.VerifyFull,
 					CACert: fixtures.LocalhostCert,
 				},
 				GCP: servicecfg.DatabaseGCP{
@@ -2847,12 +2801,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver.example.com:1433",
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 				AD: servicecfg.DatabaseAD{
 					KeytabFile: "/etc/keytab",
-					Krb5File:   defaults.Krb5FilePath,
 					Domain:     "EXAMPLE.COM",
 					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
@@ -2876,9 +2826,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				URI:      "localhost:3306",
 				MySQL: servicecfg.MySQLOptions{
 					ServerVersion: "8.0.28",
-				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2911,9 +2858,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2941,9 +2885,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2976,9 +2917,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 	}
@@ -2990,12 +2928,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 			config := servicecfg.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config, false)
-			if tt.outError != "" {
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
-			}
+			require.NoError(t, err)
+			require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 		})
 	}
 }
