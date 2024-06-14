@@ -47,7 +47,7 @@
   "devDependencies": {
     "@types/d3-hierarchy": "^3.1.7",
     "@types/dompurify": "^3.0.5",
-    "@types/marked": "^4.0.8",
+    "@types/marked": "^6.0.0",
     "@types/react-highlight": "^0.12.6"
   }
 }
