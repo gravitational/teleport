@@ -85,7 +85,7 @@
     "optimist": "^0.6.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-is": "^16.8.0",
+    "react-is": "^18.3.1",
     "react-refresh": "^0.14.0",
     "react-select-event": "^5.5.1",
     "react-test-renderer": "^18.2.0",
