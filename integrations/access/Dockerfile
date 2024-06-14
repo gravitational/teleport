@@ -7,6 +7,14 @@ FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 WORKDIR /extraction
 ARG TARGETARCH
 COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
+
+## ***** for debug
+COPY *${TARGETARCH}*.tar.gz .
+RUN pwd && ls -laht . && && echo *${TARGETARCH}*.tar.gz \
+    && tar -C /tmp -xzvf *${TARGETARCH}*.tar.gz && ls -laht /tmp \
+    && find /tmp -type f -executable -name 'teleport-*' -exec file {} \;
+## *****
+
 RUN tar -xzvf /plugin.tar.gz && \
     find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
