@@ -1,5 +1,5 @@
 #!/bin/sh
-cd $( dirname -- ${0} )
+cd "$( dirname -- "${0}" )" || exit 1
 
 mkdir -p /run/user/1000/ssh-control
 
