@@ -32,7 +32,7 @@
     "@opentelemetry/instrumentation-user-interaction": "0.31.0",
     "@opentelemetry/instrumentation-xml-http-request": "0.34.0",
     "@opentelemetry/propagator-b3": "1.8.0",
-    "@opentelemetry/resources": "1.8.0",
+    "@opentelemetry/resources": "1.25.0",
     "@opentelemetry/sdk-trace-base": "1.8.0",
     "@opentelemetry/sdk-trace-web": "1.8.0",
     "@opentelemetry/semantic-conventions": "1.8.0",
