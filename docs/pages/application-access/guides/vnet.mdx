@@ -11,11 +11,15 @@ with <Var name="suffix" initial="company.test" /> as the custom DNS zone.
 
 ## How it works
 
-VNet captures DNS queries for domains of Proxy Services of the cluster and its leaf clusters. Type A
-and AAAA queries are matched against `public_addr` of applications registered in available clusters.
-If there's a match and the application is registered as a TCP application, VNet responds with a
-virtual IP address over which the connection will be proxied to the cluster. In any other case, the
-query is forwarded to the default DNS name server used by the OS.
+Let's assume that a user has logged in to a cluster through a Proxy Service available at
+`teleport.example.com`. There's a leaf cluster associated with that cluster. It has its own Proxy
+Service available at `leaf.example.com`. Once started, VNet captures DNS queries for both of those
+domains and their subdomains.
+
+Type A and AAAA queries are matched against `public_addr` of applications registered in both
+clusters. If there's a match and the application is registered as a TCP application, VNet responds
+with a virtual IP address over which the connection will be proxied to the app. In any other
+case, the query is forwarded to the default DNS name server used by the OS.
 
 If you want VNet to forward connections to an app that has a custom `public_addr` set, you need
 to first update the VNet config in the Auth Server to include a matching DNS zone and authorize the
