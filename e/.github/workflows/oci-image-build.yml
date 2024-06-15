@@ -257,7 +257,7 @@ jobs:
               export S3_FILE_NAME="${S3_FILE_NAME_OVERRIDE//'{arch}'/${arch}}"
             fi
 
-            aws s3 cp "s3://${PENDING_BUCKET_NAME}/${S3_FILE_NAME}" "./build/$(basename "${S3_FILE_NAME}")"
+            aws s3 cp "s3://${PENDING_BUCKET_NAME}/${S3_FILE_NAME}" "./build/$(basename "${S3_FILE_NAME}")" --no-progress
           done
 
           tree ./build

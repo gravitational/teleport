@@ -127,7 +127,7 @@ jobs:
         env:
           PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
-          aws s3 cp . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --recursive
+          aws s3 cp . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --recursive --no-progress
 
   # Container artifacts
   build-docker-images:
@@ -187,6 +187,10 @@ jobs:
       architectures: |
         amd64
         arm64
+      # Used to reconstruct tarball name
+      image-build-args: |
+        ARTIFACT_NAME=${{ matrix.plugins.artifact-name }}
+        TELEPORT_VERSION=${{ inputs.teleport-version }}
       s3-file-name-override: |-
         teleport-plugins/tag/${{ inputs.teleport-version }}/teleport-${{ matrix.plugins.artifact-name }}-v${{ inputs.teleport-version }}-linux-{arch}-bin.tar.gz
       image-build-context: ./teleport/. # Teleport repo directory
