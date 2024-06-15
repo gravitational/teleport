@@ -21,13 +21,13 @@ For example, we can connect to AWS through OIDC:
 
 Run the provided command in AWS CloudShell:
 
-(../../../img/access-graph/aws_enable_sync_access_graph_step2.png)
+![Run CloudShell](../../../img/access-graph/aws_enable_sync_access_graph_step2.png)
 
 ## Step 3/3. Select your AWS regions
 
 Choose your AWS regions:
 
-(../../../img/access-graph/aws_access_graph_regions_step3.png)
+![Choose regions](../../../img/access-graph/aws_access_graph_regions_step3.png)
 
 <Admonition type="note">
 To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:  
@@ -50,5 +50,5 @@ spec:
 The preset `editor` role has the required permissions by default.
 </Admonition>
 
-Teleport can import and grant access to resources from an Okta organizations, such as user profiles, groups and applications. You can view connection data in Access Graph. Follow the steps here to add an [Okta integration](../../application-access/okta/hosted-guide.mdx) in your cluster.
+Teleport can also import and grant access to resources from an Okta organizations, such as user profiles, groups and applications. You can view connection data in Access Graph. Follow the steps here to add an (../../application-access/okta/hosted-guide.mdx) in your cluster.
 
