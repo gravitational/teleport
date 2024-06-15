@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 import { UserAddEdit } from './UserAddEdit';
+
+import type { TraitsOption } from './TraitsEditor';
 
 export default {
   title: 'Teleport/Users/UserAddEdit',
@@ -36,6 +40,15 @@ export const Create = () => {
 };
 
 export const Edit = () => {
+  const [configuredTraits, setConfiguredTraits] = useState([]);
+  return (
+    <UserAddEdit
+      {...props}
+      attempt={{ status: '' }}
+      configuredTraits={configuredTraits}
+      setConfiguredTraits={setConfiguredTraits}
+    />
+  );
   return <UserAddEdit {...props} attempt={{ status: '' }} />;
 };
 
@@ -70,4 +83,12 @@ const props = {
     expires: new Date('2050-12-20T17:28:20.93Z'),
     username: 'Lester',
   },
+  allTraits: { ['logins']: ['root', 'ubuntu'] } as AllUserTraits,
+  configuredTraits: [
+    {
+      traitKey: { value: 'logins', label: 'logins' },
+      traitValues: [{ value: 'root', label: 'root' }],
+    },
+  ] as TraitsOption[],
+  setConfiguredTraits: () => null,
 };

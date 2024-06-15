@@ -54,10 +54,24 @@ const service = {
     return api.get(cfg.getUsersUrl()).then(makeUsers);
   },
 
+  /**
+   * Update user.
+   * use allTraits to create new or replace entire user traits.
+   * use traits to selectively add/update user traits.
+   * @param user
+   * @returns user
+   */
   updateUser(user: User) {
     return api.put(cfg.getUsersUrl(), user).then(makeUser);
   },
 
+  /**
+   * Create user.
+   * use allTraits to create new or replace entire user traits.
+   * use traits to selectively add/update user traits.
+   * @param user
+   * @returns user
+   */
   createUser(user: User) {
     return api.post(cfg.getUsersUrl(), user).then(makeUser);
   },
