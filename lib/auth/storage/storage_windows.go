@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build windows
+// +build windows
 
 /*
  * Teleport
@@ -19,47 +19,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package state
+package storage
 
 import (
 	"context"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // NewProcessStorage returns a new instance of the process storage.
 func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
-	if path == "" {
-		return nil, trace.BadParameter("missing parameter path")
-	}
-
-	litebk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:      path,
+	m, err := memory.New(memory.Config{
+		Context:   ctx,
 		EventsOff: true,
-		Sync:      lite.SyncFull,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// identityStorage holds the storage backend for identity and state.
-	// if the agent is running in Kubernetes it's replaced by kubernetes secret storage
-	var identityStorage stateBackend = litebk
-
-	// if running in a K8S cluster and required env vars are available
-	// the agent will automatically switch state storage from local
-	// sqlite into a Kubernetes Secret.
-	if kubernetes.InKubeCluster() {
-		kubeStorage, err := kubernetes.New()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		identityStorage = kubeStorage
-	}
-
-	return &ProcessStorage{BackendStorage: litebk, stateStorage: identityStorage}, nil
+	return &ProcessStorage{BackendStorage: m, stateStorage: m}, nil
 }
