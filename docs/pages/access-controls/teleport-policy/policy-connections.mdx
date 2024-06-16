@@ -34,39 +34,6 @@ Deny paths connect identities to resources. They show what an identity cannot ac
 and what actions they cannot perform. Deny paths take precedence over allow
 paths.
 
-## SQL Editor
-
-Access Graph allows creating SQL like queries to explore the graph.
-
-![SQL Editor](../../../img/access-graph/sql-editor.png)
-
-The query language allows to create different views of the graph, ex:
-
-Show only allowed paths
-
-```sql
-SELECT * FROM access_path WHERE kind = 'ALLOWED';
-```
-
-Show only denied paths
-```sql
-SELECT * FROM access_path WHERE kind = 'DENIED';
-```
-
-Show all access paths for a user
-
-```sql
-SELECT * FROM access_path WHERE identity = 'bob';
-```
-
-Show all access paths for a user AND resource
-
-```sql
-SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
-```
-
-More actionable examples is available under ? icon.
-
 ## Integrations
 
 ![Integrations](../../../img/access-graph/integrations.png)
