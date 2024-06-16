@@ -171,7 +171,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
-		return awsCliTpl.Execute(output, map[string]string{
+		return awsLoginTemplate.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
 			"awsRoleARN": routeToApp.AWSRoleARN,
@@ -200,24 +200,24 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
-		return azureCliTpl.Execute(output, map[string]string{
+		return azureLoginTemplate.Execute(output, map[string]string{
 			"appName":  app.GetName(),
 			"identity": routeToApp.AzureIdentity,
 		})
 
 	case app.IsGCP():
-		return gcpCliTpl.Execute(output, map[string]string{
+		return gcpLoginTemplate.Execute(output, map[string]string{
 			"appName":        app.GetName(),
 			"serviceAccount": routeToApp.GCPServiceAccount,
 		})
 
 	case app.IsTCP():
-		return appLoginTCPTpl.Execute(output, map[string]string{
+		return tcpAppLoginTemplate.Execute(output, map[string]string{
 			"appName": app.GetName(),
 		})
 
 	case localProxyRequiredForApp(tc):
-		return appLoginLocalProxyTpl.Execute(output, map[string]interface{}{
+		return webAppLoginProxyTemplate.Execute(output, map[string]interface{}{
 			"appName": app.GetName(),
 		})
 
@@ -241,7 +241,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return appLoginTpl.Execute(output, map[string]interface{}{
+		return webAppLoginTemplate.Execute(output, map[string]interface{}{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,
@@ -249,9 +249,9 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	}
 }
 
-// appLoginTpl is the message that gets printed to a user upon successful login
+// webAppLoginTemplate is the message that gets printed to a user upon successful login
 // into an HTTP application.
-var appLoginTpl = template.Must(template.New("").Parse(
+var webAppLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
 {{.curlCmd}}{{ if .insecure }}
@@ -260,9 +260,9 @@ WARNING: tsh was called with --insecure, so this curl command will be unable to 
 {{- end }}
 `))
 
-// appLoginLocalProxyTpl is the message that gets printed to a user upon successful login
+// webAppLoginProxyTemplate is the message that gets printed to a user upon successful login
 // into an HTTP application and local proxy is required.
-var appLoginLocalProxyTpl = template.Must(template.New("").Parse(
+var webAppLoginProxyTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Start the local proxy for it:
 
   tsh proxy app {{.appName}} -p 8080
@@ -272,9 +272,9 @@ Then connect to the application through this proxy:
   curl http://127.0.0.1:8080
 `))
 
-// appLoginTCPTpl is the message that gets printed to a user upon successful
+// tcpAppLoginTemplate is the message that gets printed to a user upon successful
 // login into a TCP application.
-var appLoginTCPTpl = template.Must(template.New("").Parse(
+var tcpAppLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
 
   tsh proxy app {{.appName}}
@@ -282,9 +282,9 @@ var appLoginTCPTpl = template.Must(template.New("").Parse(
 Then connect to the application through this proxy.
 `))
 
-// awsCliTpl is the message that gets printed to a user upon successful login
+// awsLoginTemplate is the message that gets printed to a user upon successful login
 // into an AWS Console application.
-var awsCliTpl = template.Must(template.New("").Parse(
+var awsLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into AWS app "{{.awsAppName}}".
 
 Your IAM role:
@@ -297,17 +297,17 @@ Or start a local proxy:
   tsh proxy aws --app {{.awsAppName}}
 `))
 
-// azureCliTpl is the message that gets printed to a user upon successful login
+// azureLoginTemplate is the message that gets printed to a user upon successful login
 // into an Azure application.
-var azureCliTpl = template.Must(template.New("").Parse(
+var azureLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into Azure app "{{.appName}}".
 Your identity: {{.identity}}
 Example Azure CLI command: tsh az vm list
 `))
 
-// gcpCliTpl is the message that gets printed to a user upon successful login
+// gcpLoginTemplate is the message that gets printed to a user upon successful login
 // into a GCP application.
-var gcpCliTpl = template.Must(template.New("").Parse(
+var gcpLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into GCP app "{{.appName}}".
 Your service account: {{.serviceAccount}}
 Example command: tsh gcloud compute instances list
@@ -438,8 +438,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	}
 
 	curlCmd := fmt.Sprintf(`curl %s\
-  --cert %v \
-  --key %v \
+  --cert %q \
+  --key %q \
   %v`,
 		curlInsecureFlag,
 		profile.AppCertPath(tc.SiteName, routeToApp.Name),
