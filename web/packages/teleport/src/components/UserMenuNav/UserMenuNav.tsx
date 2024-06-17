@@ -98,7 +98,7 @@ const StyledAvatar = styled.div`
   min-width: 24px;
 `;
 
-const Arrow = styled.div`
+const Arrow = styled.div<{ open?: boolean }>`
   line-height: 0;
   padding-left: 32px;
 
@@ -161,7 +161,7 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
 
   return (
     <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)} open={open}>
+      <UserInfo onClick={() => setOpen(!open)}>
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>

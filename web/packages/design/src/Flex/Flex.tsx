@@ -16,6 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from './Box';
+import styled from 'styled-components';
 
-export default Box;
+import {
+  alignItems,
+  AlignItemsProps,
+  justifyContent,
+  JustifyContentProps,
+  flexWrap,
+  FlexWrapProps,
+  flexDirection,
+  FlexDirectionProps,
+  gap,
+  GapProps,
+} from 'design/system';
+
+import Box, { BoxProps } from '../Box';
+
+interface FlexProps
+  extends BoxProps,
+    AlignItemsProps,
+    JustifyContentProps,
+    FlexWrapProps,
+    FlexDirectionProps,
+    GapProps {}
+
+const Flex = styled(Box)<FlexProps>`
+  display: flex;
+  ${alignItems}
+  ${justifyContent}
+  ${flexWrap}
+  ${flexDirection}
+  ${gap};
+`;
+
+Flex.displayName = 'Flex';
+
+export default Flex;

@@ -16,40 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
-function getTypography(props) {
-  const { typography, theme } = props;
-  return {
-    ...theme.typography[typography],
-    ...caps(props),
-    ...breakAll(props),
-    ...bold(props),
-    ...mono(props),
-  };
+import { space, SpaceProps } from 'design/system';
+
+interface LabelInputProps extends SpaceProps {
+  hasError?: boolean;
 }
 
-function caps(props) {
-  return props.caps ? { textTransform: 'uppercase' } : null;
-}
+const LabelInput = styled.label<LabelInputProps>`
+  color: ${props =>
+    props.hasError
+      ? props.theme.colors.error.main
+      : props.theme.colors.text.main};
+  display: block;
+  font-size: ${p => p.theme.fontSizes[1]}px;
+  width: 100%;
+  ${space}
+`;
 
-function mono(props) {
-  return props.mono ? { fontFamily: props.theme.fonts.mono } : null;
-}
-
-function breakAll(props) {
-  return props.breakAll ? { wordBreak: 'break-all' } : null;
-}
-
-function bold(props) {
-  return props.bold ? { fontWeight: props.theme.fontWeights.bold } : null;
-}
-
-getTypography.propTypes = {
-  caps: PropTypes.bool,
-  bold: PropTypes.bool,
-  italic: PropTypes.bool,
-  color: PropTypes.string,
+LabelInput.propTypes = {
+  hasError: PropTypes.bool,
 };
 
-export default getTypography;
+LabelInput.defaultProps = {
+  hasError: false,
+  mb: 1,
+};
+
+LabelInput.displayName = 'LabelInput';
+
+export default LabelInput;

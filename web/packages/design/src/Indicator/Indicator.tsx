@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import PropTypes from 'prop-types';
+import { IconProps } from 'design/Icon/Icon';
 
 import { Spinner as SpinnerIcon } from '../Icon';
 import { rotate360 } from '../keyframes';
@@ -30,8 +30,24 @@ const DelayValueMap = {
   long: 600, // 0.6s;
 };
 
-class Indicator extends React.Component {
-  constructor(props) {
+type Delay = 'none' | 'short' | 'long';
+
+interface IndicatorProps extends IconProps {
+  delay: Delay;
+}
+
+class Indicator extends React.Component<
+  IndicatorProps,
+  { canDisplay: boolean }
+> {
+  _timer?: ReturnType<typeof setTimeout>;
+  _delay: Delay;
+
+  static defaultProps = {
+    delay: 'short',
+  };
+
+  constructor(props: IndicatorProps = { delay: 'short' }) {
     super(props);
     this._timer = null;
     this._delay = props.delay;
@@ -61,14 +77,6 @@ class Indicator extends React.Component {
     return <StyledSpinner {...this.props} data-testid="indicator" />;
   }
 }
-
-Indicator.propTypes = {
-  delay: PropTypes.oneOf(['none', 'short', 'long']),
-};
-
-Indicator.defaultProps = {
-  delay: 'short',
-};
 
 const StyledSpinner = styled(SpinnerIcon)`
   color: ${props => props.color || props.theme.colors.spotBackground[2]};
