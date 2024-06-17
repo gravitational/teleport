@@ -186,7 +186,7 @@ function getBootstrapScript(
   const path = generatePath(cfg.api.externalAuditStorage.bootstrap, {
     clusterId: cfg.oss.proxyCluster,
   });
-  return `sudo bash -c "$(curl -fsSL  '${
+  return `bash -c "$(curl -fsSL  '${
     cfg.oss.baseUrl
   }${path}?${query.toString()}')"`;
 }

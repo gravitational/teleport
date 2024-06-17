@@ -118,7 +118,7 @@ describe('externalAuditStorage', () => {
       screen.getByText('Step 2: Configure Permissions')
     ).toBeInTheDocument();
     await userEvent.click(screen.getByText('Generate Script'));
-    expect(screen.getByText(/sudo bash/)).toBeInTheDocument();
+    expect(screen.getByText(/bash -c/)).toBeInTheDocument();
 
     // step 3
     expect(screen.getByText('Step 3: Test Connection')).toBeInTheDocument();
