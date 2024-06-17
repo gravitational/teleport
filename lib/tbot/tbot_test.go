@@ -23,11 +23,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -37,13 +39,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -53,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -63,6 +69,100 @@ func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
+}
+
+type defaultBotConfigOpts struct {
+	// Makes the bot connect via the Auth Server instead of the Proxy server.
+	useAuthServer bool
+	// Makes the bot accept an insecure auth or proxy server
+	insecure       bool
+	serviceConfigs config.ServiceConfigs
+}
+
+func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) {
+		testenv.WithClusterName(t, "root.localhost")(o)
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("root.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+		})(o)
+	}
+}
+
+// makeBot creates a server-side bot and returns joining parameters.
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*config.OnboardingConfig, *machineidv1pb.Bot) {
+	ctx := context.TODO()
+	t.Helper()
+
+	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: roles,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	require.NoError(t, err)
+	tok, err := types.NewProvisionTokenFromSpec(
+		tokenName,
+		time.Now().Add(10*time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles:   []types.SystemRole{types.RoleBot},
+			BotName: b.Metadata.Name,
+		})
+	require.NoError(t, err)
+	err = client.CreateToken(ctx, tok)
+	require.NoError(t, err)
+
+	return &config.OnboardingConfig{
+		TokenValue: tok.GetName(),
+		JoinMethod: types.JoinMethodToken,
+	}, b
+}
+
+// defaultBotConfig creates a usable bot config from joining parameters.
+// By default it:
+// - Has the outputs provided to it via the parameter `outputs`
+// - Runs in oneshot mode
+// - Uses a memory storage destination
+// - Does not verify Proxy WebAPI certificates
+func defaultBotConfig(
+	t *testing.T,
+	process *service.TeleportProcess,
+	onboarding *config.OnboardingConfig,
+	outputs []config.Output,
+	opts defaultBotConfigOpts,
+) *config.BotConfig {
+	t.Helper()
+
+	var authServer = process.Config.Proxy.WebAddr.String()
+	if opts.useAuthServer {
+		authServer = process.Config.AuthServerAddresses()[0].String()
+	}
+
+	cfg := &config.BotConfig{
+		AuthServer: authServer,
+		Onboarding: *onboarding,
+		Storage: &config.StorageConfig{
+			Destination: &config.DestinationMemory{},
+		},
+		Oneshot: true,
+		Outputs: outputs,
+		// Set insecure so the bot will trust the Proxy's webapi default signed
+		// certs.
+		Insecure: opts.insecure,
+		Services: opts.serviceConfigs,
+	}
+
+	require.NoError(t, cfg.CheckAndSetDefaults())
+	return cfg
 }
 
 // TestBot is a one-shot run of the bot that communicates with a stood up
@@ -79,7 +179,6 @@ func TestBot(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	fc, fds := testhelpers.DefaultConfig(t)
 	const (
 		fakeHostname        = "test-host"
 		fakeHostID          = "uuid"
@@ -93,9 +192,13 @@ func TestBot(t *testing.T) {
 		kubeClusterDiscoveredName     = "test-kube-cluster"
 	)
 
-	clusterName := string(fc.Auth.ClusterName)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(
+		t,
+		defaultTestServerOpts(t, log),
+		testenv.WithProxyKube(t),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
 
 	// Register an application server so the bot can request certs for it.
 	app, err := types.NewAppV3(types.Metadata{
@@ -191,7 +294,7 @@ func TestBot(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make and join a new bot instance.
-	botParams, botResource := testhelpers.MakeBot(
+	botParams, botResource := makeBot(
 		t, rootClient, "test", defaultRoles...,
 	)
 
@@ -236,8 +339,8 @@ func TestBot(t *testing.T) {
 		Destination: &config.DestinationMemory{},
 		Principals:  []string{hostPrincipal},
 	}
-	botConfig := testhelpers.DefaultBotConfig(
-		t, fc, botParams, []config.Output{
+	botConfig := defaultBotConfig(
+		t, process, botParams, []config.Output{
 			identityOutput,
 			identityOutputWithRoles,
 			appOutput,
@@ -247,9 +350,9 @@ func TestBot(t *testing.T) {
 			kubeOutput,
 			kubeDiscoveredNameOutput,
 		},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			Insecure:      true,
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
 		},
 	)
 	b := New(botConfig, log)
@@ -413,17 +516,16 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create bot user and join token
-	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
+	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			Insecure:      true,
+	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
 		},
 	)
 
@@ -458,17 +560,16 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create bot user and join token
-	botParams, _ := testhelpers.MakeBot(t, rootClient, "test", "access")
+	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: false,
-			Insecure:      true,
+	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+		defaultBotConfigOpts{
+			useAuthServer: false,
+			insecure:      true,
 		},
 	)
 	// Use a destination directory to ensure locking behaves correctly and
@@ -630,9 +731,8 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create a role that allows the bot to issue a SPIFFE SVID.
 	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
@@ -658,13 +758,13 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 
 	tempDir := t.TempDir()
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
-	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
-	botConfig := testhelpers.DefaultBotConfig(
-		t, fc, onboarding, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			Insecure:      true,
-			ServiceConfigs: []config.ServiceConfig{
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+	botConfig := defaultBotConfig(
+		t, process, onboarding, []config.Output{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+			serviceConfigs: []config.ServiceConfig{
 				&config.SPIFFEWorkloadAPIService{
 					Listen: socketPath,
 					SVIDs: []config.SVIDRequestWithRules{
@@ -728,9 +828,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://test-cluster.local/foo", svid.ID.String())
+	require.Equal(t, "spiffe://root.localhost/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://test-cluster.local/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://root.localhost/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -751,9 +851,8 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 
 	// Make a new auth server.
-	fc, fds := testhelpers.DefaultConfig(t)
-	process := testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Make fake postgres server and add a database access instance to expose
 	// it.
@@ -771,7 +870,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	})
 	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, testhelpers.AgentJoinToken, nil, servicecfg.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, testenv.StaticToken, nil, servicecfg.Database{
 		Name:     "test-database",
 		URI:      net.JoinHostPort("localhost", pts.Port()),
 		Protocol: "postgres",
@@ -798,15 +897,15 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	})
 
 	// Prepare the bot config
-	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
-	botConfig := testhelpers.DefaultBotConfig(
-		t, fc, onboarding, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			// Insecure required as the db tunnel will connect to proxies
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+	botConfig := defaultBotConfig(
+		t, process, onboarding, []config.Output{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			// insecure required as the db tunnel will connect to proxies
 			// self-signed.
-			Insecure: true,
-			ServiceConfigs: []config.ServiceConfig{
+			insecure: true,
+			serviceConfigs: []config.ServiceConfig{
 				&config.DatabaseTunnelService{
 					Listener: botListener,
 					Service:  "test-database",
@@ -866,11 +965,18 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	})
 
 	// Make a new auth server with SSH agent
-	fc, fds := testhelpers.DefaultConfig(t)
-	fc.SSH.EnabledFlag = "true"
-	fc.SSH.ListenAddress = testenv.NewTCPListener(t, service.ListenerNodeSSH, &fds)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(
+		t,
+		defaultTestServerOpts(t, log),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.Addr = utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        testenv.NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors),
+			}
+		}),
+	)
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create role that allows the bot to access the database.
 	role, err := types.NewRole("ssh-access", types.RoleSpecV6{
@@ -886,13 +992,13 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare the bot config
-	onboarding, _ := testhelpers.MakeBot(t, rootClient, "test", role.GetName())
-	botConfig := testhelpers.DefaultBotConfig(
-		t, fc, onboarding, []config.Output{},
-		testhelpers.DefaultBotConfigOpts{
-			UseAuthServer: true,
-			Insecure:      true,
-			ServiceConfigs: []config.ServiceConfig{
+	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
+	botConfig := defaultBotConfig(
+		t, process, onboarding, []config.Output{},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+			serviceConfigs: []config.ServiceConfig{
 				&config.SSHMultiplexerService{
 					Destination: &config.DestinationDirectory{
 						Path: tmpDir,
@@ -923,9 +1029,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Wait for files to be output
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		for _, fileName := range []string{
-			"key",
-			"key.pub",
-			"key-cert.pub",
 			"known_hosts",
 			"ssh_config",
 		} {
@@ -934,21 +1037,17 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	privateKeyBytes, err := os.ReadFile(filepath.Join(tmpDir, "key"))
+	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
 	require.NoError(t, err)
-	certBytes, err := os.ReadFile(filepath.Join(tmpDir, "key-cert.pub"))
-	require.NoError(t, err)
-	signer, err := ssh.ParsePrivateKey(privateKeyBytes)
-	require.NoError(t, err)
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
-	require.NoError(t, err)
-	certSigner, err := ssh.NewCertSigner(cert.(*ssh.Certificate), signer)
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		agentConn.Close()
+	})
+	agentClient := agent.NewClient(agentConn)
 	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 	require.NoError(t, err)
 	sshConfig := &ssh.ClientConfig{
 		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(certSigner),
+			ssh.PublicKeysCallback(agentClient.Signers),
 		},
 		User:            currentUser.Username,
 		HostKeyCallback: callback,
@@ -958,9 +1057,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	t.Cleanup(func() {
 		conn.Close()
 	})
-	_, err = fmt.Fprint(conn, "test.test-cluster.local:0\x00")
+	_, err = fmt.Fprint(conn, "server01.root.localhost:0\x00")
 	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "test.test-cluster.local:22", sshConfig)
+	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root.localhost:22", sshConfig)
 	require.NoError(t, err)
 	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 	t.Cleanup(func() {

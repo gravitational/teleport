@@ -18,60 +18,52 @@
 
 import styled from 'styled-components';
 
-import {
-  overflow,
-  borders,
-  borderRadius,
-  borderColor,
-  flex,
-  height,
-  lineHeight,
-  maxWidth,
-  minHeight,
-  maxHeight,
-  minWidth,
-  alignSelf,
-  justifySelf,
-  space,
-  width,
-  color,
-  textAlign,
-} from '../system';
+import { ResponsiveValue } from 'styled-system';
 
-const Box = styled.div`
-  box-sizing: border-box;
-  ${maxWidth}
-  ${minWidth}
+import { Property } from 'csstype';
+
+import {
+  typography,
+  TypographyProps,
+  fontSize,
+  FontSizeProps,
+  space,
+  SpaceProps,
+  color,
+  ColorProps,
+  textAlign,
+  TextAlignProps,
+  fontWeight,
+} from 'design/system';
+import { fontWeights } from 'design/theme/typography';
+
+interface FontWeightProps {
+  fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
+}
+
+export interface TextProps
+  extends TypographyProps,
+    FontSizeProps,
+    SpaceProps,
+    ColorProps,
+    TextAlignProps,
+    FontWeightProps {}
+
+const Text = styled.div<TextProps>`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  ${typography}
+  ${fontSize}
   ${space}
-  ${height}
-  ${lineHeight}
-  ${minHeight}
-  ${maxHeight}
-  ${width}
   ${color}
   ${textAlign}
-  ${flex}
-  ${alignSelf}
-  ${justifySelf}
-  ${borders}
-  ${borderRadius}
-  ${overflow}
-  ${borderColor}
+  ${fontWeight}
 `;
 
-Box.displayName = 'Box';
+Text.displayName = 'Text';
 
-Box.propTypes = {
-  ...space.propTypes,
-  ...height.propTypes,
-  ...width.propTypes,
-  ...color.propTypes,
-  ...textAlign.propTypes,
-  ...flex.propTypes,
-  ...alignSelf.propTypes,
-  ...justifySelf.propTypes,
-  ...borders.propTypes,
-  ...overflow.propTypes,
+Text.defaultProps = {
+  m: 0,
 };
 
-export default Box;
+export default Text;

@@ -272,8 +272,11 @@ First, generate a client certificate with `tctl`, being sure to replace the
 `--windows-user`, `--windows-sid`, and `--windows-domain` flags with values
 appropriate for your environment:
 
-```
-$  tctl auth sign \
+```code
+# NOTE: To issue Windows certificates, you must run 'tctl auth sign' locally
+# on the same machine as the Teleport auth_service. Running this command remotely
+# with an identity issued by 'tsh' will result in 'ERROR: access denied'
+$ tctl auth sign \
     --windows-user=svc-teleport \
     --windows-sid=S-1-5-21-3788279871-1068139173-3054872986-500 \
     --windows-domain=domain.example.com \

@@ -24,6 +24,7 @@ import { Box, ButtonPrimary, ButtonText } from 'design';
 import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
+import { useSpecifiableFields } from '../useSpecifiableFields';
 
 import {
   RequestCheckoutWithSlider,
@@ -60,22 +61,15 @@ function SuccessActionComponent({ reset, onClose }) {
 }
 
 export const Loaded = () => {
-  const [selectedReviewers, setSelectedReviewers] = useState(
-    props.selectedReviewers
-  );
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  const [requestTTL, setRequestTTL] = useState<Option<number>>();
+  const props = useSpecifiableFields();
+  if (!props.dryRunResponse) {
+    props.onDryRunChange(dryRunResponse);
+  }
 
   return (
-    <RequestCheckoutWithSlider
-      {...props}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-      maxDuration={maxDuration}
-      setMaxDuration={setMaxDuration}
-      requestTTL={requestTTL}
-      setRequestTTL={setRequestTTL}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider {...baseProps} {...props} />
+    </MemoryRouter>
   );
 };
 export const Empty = () => {
@@ -84,74 +78,84 @@ export const Empty = () => {
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
-    <RequestCheckoutWithSlider
-      {...props}
-      data={[]}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-      maxDuration={maxDuration}
-      setMaxDuration={setMaxDuration}
-      requestTTL={requestTTL}
-      setRequestTTL={setRequestTTL}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        data={[]}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+        maxDuration={maxDuration}
+        onMaxDurationChange={setMaxDuration}
+        pendingRequestTtl={requestTTL}
+        setPendingRequestTtl={setRequestTTL}
+      />
+    </MemoryRouter>
   );
 };
 
 export const Failed = () => (
-  <RequestCheckoutWithSlider
-    {...props}
-    requireReason={false}
-    createAttempt={{
-      status: 'failed',
-      statusText: 'some error message',
-    }}
-    SuccessComponent={SuccessActionComponent}
-    selectedReviewers={[]}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      requireReason={false}
+      createAttempt={{
+        status: 'failed',
+        statusText: 'some error message',
+      }}
+      SuccessComponent={SuccessActionComponent}
+      selectedReviewers={[]}
+    />
+  </MemoryRouter>
 );
 
 export const LoadedResourceRequest = () => {
   const [selectedReviewers, setSelectedReviewers] = useState(
-    props.selectedReviewers
+    baseProps.selectedReviewers
   );
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
-    useState(props.resourceRequestRoles);
+    useState(baseProps.resourceRequestRoles);
   return (
-    <RequestCheckoutWithSlider
-      {...props}
-      isResourceRequest={true}
-      fetchResourceRequestRolesAttempt={{ status: 'success' }}
-      selectedResourceRequestRoles={selectedResourceRequestRoles}
-      setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        selectedResourceRequestRoles={selectedResourceRequestRoles}
+        setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+      />
+    </MemoryRouter>
   );
 };
 
 export const ProcessingResourceRequest = () => (
-  <RequestCheckoutWithSlider
-    {...props}
-    isResourceRequest={true}
-    fetchResourceRequestRolesAttempt={{ status: 'processing' }}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{ status: 'processing' }}
+    />
+  </MemoryRouter>
 );
 
 export const FailedResourceRequest = () => (
-  <RequestCheckoutWithSlider
-    {...props}
-    isResourceRequest={true}
-    fetchResourceRequestRolesAttempt={{
-      status: 'failed',
-      statusText: 'An error has occurred',
-    }}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: 'An error has occurred',
+      }}
+    />
+  </MemoryRouter>
 );
 
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
     <RequestCheckoutWithSlider
-      {...props}
+      {...baseProps}
       requireReason={false}
       createAttempt={{ status: 'success' }}
       SuccessComponent={SuccessActionComponent}
@@ -159,15 +163,12 @@ export const Success = () => (
   </MemoryRouter>
 );
 
-const props: RequestCheckoutWithSliderProps = {
+const baseProps: RequestCheckoutWithSliderProps = {
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
-  reviewers: ['bob', 'cat', 'george washington'],
   selectedReviewers: [
-    { value: 'bob', label: 'bob', isSelected: true },
-    { value: 'cat', label: 'cat', isSelected: true },
     {
       value: 'george washington',
       label: 'george washington',
@@ -214,8 +215,12 @@ const props: RequestCheckoutWithSliderProps = {
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
   maxDuration: { value: 0, label: '12 hours' },
-  setMaxDuration: () => null,
-  requestTTL: { value: 0, label: '1 hour' },
-  setRequestTTL: () => null,
+  onMaxDurationChange: () => null,
+  maxDurationOptions: [],
+  pendingRequestTtl: { value: 0, label: '1 hour' },
+  setPendingRequestTtl: () => null,
+  pendingRequestTtlOptions: [],
   dryRunResponse,
+  startTime: null,
+  onStartTimeChange: () => null,
 };

@@ -177,7 +177,7 @@ export const BASE_RESOURCES: ResourceSpec[] = [
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
-    return {};
+    return '';
   }
 
   switch (r.kind) {
