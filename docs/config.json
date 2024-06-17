@@ -2425,6 +2425,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/teleport-policy/",
+      "destination": "/access-controls/teleport-policy/getting-started-policy/",
+      "permanent": true
+    },
+    {
       "source": "/try-out-teleport/",
       "destination": "/",
       "permanent": true
