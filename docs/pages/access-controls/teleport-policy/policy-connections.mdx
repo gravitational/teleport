@@ -34,17 +34,6 @@ Deny paths connect identities to resources. They show what an identity cannot ac
 and what actions they cannot perform. Deny paths take precedence over allow
 paths.
 
-## Integrations
-
-![Integrations](../../../img/access-graph/integrations.png)
-
-Integrations page shows integrations that can be enabled or are already enabled in Access Graph.
-
-<Admonition title="Note" type="tip">
-Resources imported into Teleport through Teleport enabled integrations are automatically imported into
-Access graph without any additional configuration.
-</Admonition>
-
 ## How resources and identities are represented
 
 Access Graph imports all resources and identities from Teleport and keeps them up to date, so every time you make a change
@@ -91,3 +80,6 @@ Resource Groups are created from Teleport roles.
 #### Resources
 
 Resources are created from Teleport resources like nodes, databases, and Kubernetes clusters.
+
+## Next steps
+- Uncover [privileges, permissions, and construct SQL queries](./policy-how-to-use.mdx) in Access Graph.
