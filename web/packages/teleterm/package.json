@@ -39,7 +39,6 @@
     "@protobuf-ts/grpc-transport": "^2.9.4",
     "@protobuf-ts/runtime": "^2.9.4",
     "@protobuf-ts/runtime-rpc": "^2.9.4",
-    "@types/google-protobuf": "^3.15.12",
     "@types/node-forge": "^1.0.4",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^11.0.5",
