@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Box, Text, Flex, Link } from 'design';
 
@@ -43,8 +43,6 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export function DeviceTrustLocked() {
-  const theme = useTheme();
-
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -67,10 +65,10 @@ export function DeviceTrustLocked() {
         />
       </Box>
       <StyledMessageContainer>
-        <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
+        <Box p="3" borderRadius="50%">
           <IconCircle Icon={LockIcon} size={64} />
         </Box>
-        <Text typography="subtitle" textAlign="justify">
+        <Text typography="subtitle1" textAlign="justify">
           Device Trust enables trusted and authenticated device access. When
           resources are configured with the Device Trust mode “required”,
           Teleport will authenticate the Trusted Device, in addition to

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,27 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import 'styled-components';
+import { Theme } from 'design/theme/themes/types';
 
-export const ButtonIconContainer = styled.div<{ open?: boolean }>`
-  padding: 0 10px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-left: 12px;
-  padding-right: 12px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    padding-left: 24px;
-    padding-right: 24px;
-  }
-  cursor: pointer;
-  user-select: none;
-  margin-right: 5px;
-
-  background: ${props =>
-    props.open ? props.theme.colors.spotBackground[0] : ''};
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
+declare module 'styled-components' {
+  export interface DefaultTheme extends Theme {}
+}
