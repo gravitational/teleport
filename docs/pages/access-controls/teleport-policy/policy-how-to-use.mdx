@@ -3,7 +3,7 @@ title: Teleport Policy usage
 description: Using Access Graph with Teleport Policy.
 ---
 
-## How to use it
+## How to use Policy with Access Graph
 
 Teleport Access Graph can help you to answer questions like:
 
@@ -101,27 +101,30 @@ Access Graph allows creating SQL like queries to explore the graph.
 
 The query language allows to create different views of the graph, ex:
 
-Show only allowed paths
+Show only allowed paths:
 
 ```sql
 SELECT * FROM access_path WHERE kind = 'ALLOWED';
 ```
 
-Show only denied paths
+Show only denied paths:
 ```sql
 SELECT * FROM access_path WHERE kind = 'DENIED';
 ```
 
-Show all access paths for a user
-
+Show all access paths for a user:
 ```sql
 SELECT * FROM access_path WHERE identity = 'bob';
 ```
 
-Show all access paths for a user AND resource
-
+Show all access paths for a user AND a resource:
 ```sql
 SELECT * FROM access_path WHERE identity = 'bob' AND resource = 'postgres';
+```
+
+Show all access paths for resources with specific labels:
+```sql
+SELECT * FROM access_path WHERE resource_labels @> '{"key": "value"}';
 ```
 
 More actionable examples is available under ? icon.

@@ -469,13 +469,13 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Teleport Policy Integrations",
-              "slug": "/access-controls/teleport-policy/policy-integrations/",
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/policy-connections/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Teleport Policy Connections",
-              "slug": "/access-controls/teleport-policy/policy-connections/",
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/policy-integrations/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
