@@ -1,0 +1,100 @@
+---
+title: Managing access to Teleport SAML IdP protected resources.
+description: Learn how SAML IdP service provider RBAC works.
+h1: Teleport SAML IdP service provider RBAC
+---
+
+To manage access to SAML IdP service provider, a role spec must target `saml_idp_service_provider`
+resource kind.
+
+Currently, SAML IdP only supports role-based access to `saml_idp_service_provider` resource.
+It does not support label-based resource filtering. User's can either have access to
+all the registered SAML IdP service provider's or they don't.
+
+This guide shows how to create roles that allow user's to access and manage SAML IdP protected
+resource in Teleport.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- If you're new to SAML, consider reviewing our [SAML Identity Provider
+  Reference](./saml-reference.mdx) before proceeding.
+- User with permission to read and modify `saml_idp_service_provider` resource. The preset `editor`
+role has this permission.
+
+
+
+## SAML IdP access role
+
+For non-administrative access to SAML IdP protected resources, a user should be assigned with
+a role that has `list` and `read` verbs defined for `saml_idp_service_provider` resource.
+
+Below is a reference role spec that enables accessing service provider's registered with Teleport
+SAML IdP.
+
+```yaml
+kind: role
+metadata:
+  name: saml-app-access
+spec:
+  allow:
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - read
+version: v7
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create saml-app-access.yaml
+role 'saml-app-access' has been created
+```
+
+Next, add the role to your user.
+
+(!docs/pages/includes/add-role-to-user.mdx role="saml-app-access"!)
+
+
+## SAML IdP administrative role
+
+For administrative access to SAML IdP service provider, a user should be assigned with
+a role that has `list`, `read`, `create`, `update` and `delete` verbs defined for
+`saml_idp_service_provider` resource.
+
+Below is a reference role spec that enables creating and managing service provider's with Teleport
+SAML IdP.
+
+```yaml
+kind: role
+metadata:
+  name: saml-idp-manager
+spec:
+  allow:
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+version: v7
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create saml-idp-manager.yaml
+role 'saml-idp-manager' has been created
+```
+
+Next, add the role to your user.
+
+(!docs/pages/includes/add-role-to-user.mdx role="saml-idp-manager"!)
