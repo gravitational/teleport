@@ -203,11 +203,11 @@ function Generate-Artifacts {
                 Break
             }
             "teleport-windows-auth-setup*.exe" {
-                $description = "Teleport Connect"
+                $description = "Teleport Authentication Package"
                 Break
             }
             "teleport*.zip" {
-                $description = "Teleport Connect"
+                $description = "Windows (64-bit, tsh client only)"
                 Break
             }
             "*" {
