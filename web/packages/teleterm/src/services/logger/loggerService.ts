@@ -88,6 +88,7 @@ export function createFileLoggerService(
         maxFiles: 5,
         dirname: opts.dir,
         filename: `${opts.name}.log`,
+        tailable: true,
       }),
     ],
   });
