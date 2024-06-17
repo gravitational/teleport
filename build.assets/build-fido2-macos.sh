@@ -25,8 +25,8 @@ readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
 readonly CRYPTO_VERSION=openssl-3.0.14
 readonly CRYPTO_COMMIT=9cff14fd97814baf8a9a07d8447960a64d616ada
-readonly FIDO2_VERSION=1.14.0
-readonly FIDO2_COMMIT=1a9d335c8f0e821f9eff27482fdda96e59a4f577
+readonly FIDO2_VERSION=1.15.0
+readonly FIDO2_COMMIT=f87c19c9487c0131531314d9ccb475ea5325794e
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
