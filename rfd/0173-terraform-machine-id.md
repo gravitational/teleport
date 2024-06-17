@@ -152,8 +152,6 @@ When running with this configuration, the provider will:
   - Prompt the user to answer the MFA challenge
   - Attach the MFA challenge response in the ctx for each API call (as described in #37121)
 - create the 3 bootstrap resources
-  - if the call fails because of MFA4A, perform the MFA challenge once, save the MFA certs valid for a minute and use
-    them to create the 3 resources
   - if the call fails because of missing permissions, output a user-friendly error such as:
     ```
     Failed to create bootstrap resources using your local credentials (user "hugo.hervieux@goteleport.com", address "mytenant.telpeort.sh:443").
