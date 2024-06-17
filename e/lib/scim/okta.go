@@ -166,7 +166,7 @@ func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.R
 }
 
 func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
-	if !s.plugin.Spec.GetOkta().EnableUserSync {
+	if !s.plugin.Spec.GetOkta().SyncSettings.SyncUsers {
 		// Note: User traits can differ between SCIM user and user created
 		// by Okta sync service due to different okta user/app user attributes
 		// mapping.
