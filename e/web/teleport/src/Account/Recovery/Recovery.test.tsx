@@ -122,7 +122,7 @@ describe('recovery dashboard testing', () => {
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
   });
 
-  test('fetches metadata and shows last generation date', async () => {
+  test('fetches metadata, shows informational text and last generation date', async () => {
     renderRecovery();
 
     await waitFor(() => {
@@ -131,6 +131,36 @@ describe('recovery dashboard testing', () => {
       ).toBeInTheDocument();
     });
     expect(screen.getByText('8/30/2019')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /When you generate new recovery codes, your old ones will no longer work/i
+      )
+    ).toBeVisible();
+  });
+
+  test('shows a message when there are no recovery codes', async () => {
+    jest
+      .spyOn(ctx.recoveryService, 'fetchRecoveryCodesMetadata')
+      .mockResolvedValue({});
+    renderRecovery();
+    await waitFor(() => {
+      expect(screen.getByTestId('indicator-wrapper')).not.toBeVisible();
+    });
+
+    expect(
+      screen.getByText(/Recovery codes are one-time use passcodes/i)
+    ).toBeVisible();
+  });
+
+  test('shows a message when username is not an email', async () => {
+    ctx.storeUser.setState({ username: 'foobar' });
+    renderRecovery();
+
+    expect(
+      screen.getByText(
+        /Account recovery is only available for local users with a valid email as their username/i
+      )
+    ).toBeVisible();
   });
 
   test('adds a notification when metadata fetch fails', async () => {
