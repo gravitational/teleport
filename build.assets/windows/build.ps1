@@ -196,6 +196,14 @@ function Generate-Artifacts {
     )
 
     $SearchPath = Join-Path -Path $ArtifactDirectory -ChildPath *
+    Write-Host $SearchPath  #DEBUG
+    Get-ChildItem -Path $SearchPath
+    Write-Host "1"
+    Get-ChildItem -Path $SearchPath #DEBUG
+    Write-Host "2"
+    Get-ChildItem -Path $SearchPath -Attributes Normal
+    Write-Host "3"
+    Get-ChildItem -Path $SearchPath -Attributes Normal -Include "*.exe","*.zip" #DEBUG
     Get-ChildItem -Path $SearchPath -Attributes Normal -Include "*.exe","*.zip" | ForEach-Object {
         switch -Wildcard ($_.FullName) {
             "Teleport Connect Setup*.exe" {
