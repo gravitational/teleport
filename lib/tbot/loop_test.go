@@ -27,18 +27,23 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_runOnInterval(t *testing.T) {
 	t.Parallel()
-	clock := clockwork.NewFakeClock()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	log := utils.NewSlogLoggerForTests()
+	clock := clockwork.NewFakeClock()
 	callCount := atomic.Int64{}
 	cfg := runOnIntervalConfig{
 		name:  "test",
 		clock: clock,
+		log:   log,
 		f: func(ctx context.Context) error {
 			callCount.Add(1)
 			return nil
@@ -75,10 +80,12 @@ func Test_runOnInterval_failureExit(t *testing.T) {
 
 	callCount := atomic.Int64{}
 
+	log := utils.NewSlogLoggerForTests()
 	testErr := fmt.Errorf("test error")
 	cfg := runOnIntervalConfig{
 		name:  "test",
 		clock: clockwork.NewRealClock(),
+		log:   log,
 		f: func(ctx context.Context) error {
 			callCount.Add(1)
 			return testErr
