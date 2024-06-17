@@ -52,7 +52,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -109,7 +108,7 @@ type Server struct {
 
 	proxyMode        bool
 	proxyTun         reversetunnelclient.Tunnel
-	proxyAccessPoint auth.ReadProxyAccessPoint
+	proxyAccessPoint authclient.ReadProxyAccessPoint
 	peerAddr         string
 
 	advertiseAddr   *utils.NetAddr
@@ -246,6 +245,7 @@ type Server struct {
 // TargetMetadata returns metadata about the server.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.ID(),
 		ServerAddr:      s.Addr(),
@@ -453,7 +453,7 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
+func SetProxyMode(peerAddr string, tsrv reversetunnelclient.Tunnel, ap authclient.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -1382,6 +1382,13 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 			}
 		}
+	case teleport.SessionIDQueryRequest:
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions
+		if err := r.Reply(true, nil); err != nil {
+			s.Logger.WithError(err).Warnf("Failed to reply to session ID query request")
+		}
+		return
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1473,6 +1480,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
 					ServerMetadata: apievents.ServerMetadata{
+						ServerVersion:   teleport.Version,
 						ServerID:        s.uuid,
 						ServerNamespace: s.GetNamespace(),
 					},

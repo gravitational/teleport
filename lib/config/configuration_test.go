@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -730,7 +729,7 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "join-token", token)
-	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
+	require.Equal(t, types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
@@ -2577,11 +2576,12 @@ func TestAppsCLF(t *testing.T) {
 	}
 }
 
+// TestDatabaseConfig ensures reading database the configuration won't return
+// error.
 func TestDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		desc           string
-		outError       string
 	}{
 		{
 			desc: "valid database config",
@@ -2613,7 +2613,6 @@ db_service:
       command: ["uname", "-p"]
       period: 1h
 `,
-			outError: "",
 		},
 		{
 			desc: "missing database name",
@@ -2624,7 +2623,6 @@ db_service:
   - protocol: postgres
     uri: localhost:5432
 `,
-			outError: "empty database name",
 		},
 		{
 			desc: "unsupported database protocol",
@@ -2636,7 +2634,6 @@ db_service:
     protocol: unknown
     uri: localhost:5432
 `,
-			outError: `unsupported database "foo" protocol`,
 		},
 		{
 			desc: "missing database uri",
@@ -2647,7 +2644,6 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2659,7 +2655,6 @@ db_service:
     protocol: postgres
     uri: 192.168.1.1
 `,
-			outError: `invalid database "foo" address`,
 		},
 	}
 	for _, tt := range tests {
@@ -2668,12 +2663,7 @@ db_service:
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
 			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
-			if tt.outError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -2688,7 +2678,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		inFlags     CommandLineFlags
 		desc        string
 		outDatabase servicecfg.Database
-		outError    string
 	}{
 		{
 			desc: "valid database config",
@@ -2712,36 +2701,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
-		},
-		{
-			desc: "unsupported database protocol",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: "unknown",
-				DatabaseURI:      "localhost:5432",
-			},
-			outError: `unsupported database "foo" protocol`,
-		},
-		{
-			desc: "missing database uri",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-			},
-			outError: `database "foo" URI is empty`,
-		},
-		{
-			desc: "invalid database uri (missing port)",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-				DatabaseURI:      "localhost",
-			},
-			outError: `invalid database "foo" address`,
 		},
 		{
 			desc: "RDS database",
@@ -2768,9 +2728,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2801,9 +2758,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2821,7 +2775,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 				TLS: servicecfg.DatabaseTLS{
-					Mode:   servicecfg.VerifyFull,
 					CACert: fixtures.LocalhostCert,
 				},
 				GCP: servicecfg.DatabaseGCP{
@@ -2848,12 +2801,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver.example.com:1433",
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 				AD: servicecfg.DatabaseAD{
 					KeytabFile: "/etc/keytab",
-					Krb5File:   defaults.Krb5FilePath,
 					Domain:     "EXAMPLE.COM",
 					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
@@ -2877,9 +2826,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				URI:      "localhost:3306",
 				MySQL: servicecfg.MySQLOptions{
 					ServerVersion: "8.0.28",
-				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2912,9 +2858,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2942,9 +2885,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2977,9 +2917,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 	}
@@ -2991,12 +2928,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 			config := servicecfg.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config, false)
-			if tt.outError != "" {
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
-			}
+			require.NoError(t, err)
+			require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 		})
 	}
 }
@@ -3090,7 +3023,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 
 		auth Auth
 
-		want       keystore.Config
+		want       servicecfg.KeystoreConfig
 		errMessage string
 	}{
 		{
@@ -3112,8 +3045,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "pin",
@@ -3133,8 +3066,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
 					Pin:        "secure-pin-file",
@@ -3192,8 +3125,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				GCPKMS: keystore.GCPKMSConfig{
+			want: servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
 					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
 					ProtectionLevel: "HSM",
 				},
@@ -3494,6 +3427,22 @@ jamf_service:
 			},
 		},
 		{
+			name: "using API credentials",
+			yaml: fmt.Sprintf(`jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: %v`, passwordFile),
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:      true,
+					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
+					ClientId:     "llama-UUID",
+					ClientSecret: password,
+				},
+			},
+		},
+		{
 			name: "all fields",
 			yaml: minimalYAML + `  name: jamf2
   sync_delay: 1m
@@ -3534,15 +3483,6 @@ jamf_service:
 			wantErr: "listen_addr",
 		},
 		{
-			name: "password_file empty",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama`,
-			wantErr: "password_file required",
-		},
-		{
 			name: "password_file invalid",
 			yaml: `
 jamf_service:
@@ -3551,6 +3491,16 @@ jamf_service:
   username: llama
   password_file: /path/to/file/that/doesnt/exist.txt`,
 			wantErr: "password_file",
+		},
+		{
+			name: "client_secret_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "client_secret_file",
 		},
 		{
 			name: "spec is validated",
@@ -3574,7 +3524,7 @@ jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password_file",
+			wantErr: "password",
 		},
 	}
 	for _, test := range tests {
@@ -4108,65 +4058,6 @@ func TestApplyOktaConfig(t *testing.T) {
 	}
 }
 
-func TestAssistKey(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		desc        string
-		input       string
-		expectKey   string
-		expectError bool
-	}{
-		{
-			desc: "api token is set",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-      api_token_path: testdata/test-api-key
-`,
-			expectKey: "123-abc-zzz",
-		},
-		{
-			desc: "api token file does not exist",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-      api_token_path: testdata/non-existent-file
-`,
-			expectError: true,
-		},
-		{
-			desc: "missing api token doesn't error",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-`,
-			expectKey: "",
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			conf, err := ReadConfig(strings.NewReader(tc.input))
-			require.NoError(t, err)
-
-			cfg := servicecfg.MakeDefaultConfig()
-			err = ApplyFileConfig(conf, cfg)
-
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
-		})
-	}
-}
-
 func TestApplyKubeConfig(t *testing.T) {
 	t.Parallel()
 
@@ -4560,6 +4451,45 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedAWSMatchers: []types.AWSMatcher{{
 				Types:   []string{"ec2"},
 				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      installers.InstallerScriptName,
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
+			}},
+		},
+		{
+			desc:          "AWS section is filled using the example config in docs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"us-east-1", "us-west-1"},
+						"install": map[string]map[string]string{
+							"join_params": {
+								"token_name": "aws-discovery-iam-token",
+								"method":     "iam",
+							},
+						},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1", "us-west-1"},
 				Tags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},

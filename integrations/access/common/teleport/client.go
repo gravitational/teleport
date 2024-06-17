@@ -40,5 +40,5 @@ type Client interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }

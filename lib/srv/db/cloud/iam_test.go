@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -420,7 +420,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 // mockAccessPoint is a mock for auth.DatabaseAccessPoint.
 type mockAccessPoint struct {
-	auth.DatabaseAccessPoint
+	authclient.DatabaseAccessPoint
 }
 
 func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {

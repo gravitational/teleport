@@ -12,10 +12,9 @@ Opsgenie plugin users, role annotations must now contain
 See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
 for setup instructions.
 
-#### Teleport Assist chat has been remove.
+#### Teleport Assist has been removed
 
-Teleport Assist chat has been removed from Teleport 16. Assist is still available
-in the SSH Web Terminal and Audit Monitoring.
+Teleport Assist chat has been removed from Teleport 16.
 
 #### DynamoDB permission requirements have changed
 
@@ -33,6 +32,15 @@ Users with custom `ssh_config` should modify their ProxyCommand to use the new,
 more performant, `tbot ssh-proxy-command`. See the
 [v16 upgrade guide](docs/pages/machine-id/reference/v16-upgrade-guide.mdx) for
 more details.
+
+#### Default keyboard shortcuts in Teleport Connect have been changed
+
+On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts 
+(e.g. Ctrl + E, Ctrl + K).
+On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
+We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.  
+See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
+for the current list of shortcuts.
 
 ## 15.0.0 (xx/xx/24)
 

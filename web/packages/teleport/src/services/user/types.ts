@@ -96,7 +96,6 @@ export interface Acl {
   integrations: AccessWithUse;
   deviceTrust: Access;
   lock: Access;
-  assist: Access;
   samlIdpServiceProvider: Access;
   accessList: Access;
   auditQuery: Access;
@@ -124,12 +123,14 @@ export interface User {
   origin?: UserOrigin;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
-  // traits existed before field "externalTraits"
-  // and returns only "specific" traits.
+  // isBot is true if the user is a Bot User.
+  isBot?: boolean;
+  // traits are preset traits defined in Teleport, such as
+  // logins, db_role etc. These traits are defiend in UserTraits interface.
   traits?: UserTraits;
-  // externalTraits came after field "traits"
-  // and contains ALL the traits defined for
-  // this user.
+  // allTraits contains both preset traits, as well as externalTraits
+  // such as those created by external IdP attributes to roles mapping
+  // or new values as set by Teleport admin.
   allTraits?: AllUserTraits;
 }
 

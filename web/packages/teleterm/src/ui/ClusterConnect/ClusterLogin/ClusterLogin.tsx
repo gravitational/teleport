@@ -113,12 +113,22 @@ function getPrimaryAuthType(auth: AuthSettings): PrimaryAuthType {
 }
 
 function Reason({ reason }: { reason: ClusterConnectReason }) {
+  const $targetDesc = getTargetDesc(reason);
+
+  return (
+    <Text px={4} pt={2} mb={0}>
+      You tried to connect to {$targetDesc} but your session has expired. Please
+      log in to refresh the session.
+    </Text>
+  );
+}
+
+const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
   switch (reason.kind) {
     case 'reason.gateway-cert-expired': {
       const { gateway, targetUri } = reason;
-      let $targetDesc: React.ReactNode;
       if (gateway) {
-        $targetDesc = (
+        return (
           <>
             <strong>{gateway.targetName}</strong>
             {gateway.targetUser && (
@@ -130,18 +140,15 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
           </>
         );
       } else {
-        $targetDesc = <strong>{getTargetNameFromUri(targetUri)}</strong>;
+        return <strong>{getTargetNameFromUri(targetUri)}</strong>;
       }
-
-      return (
-        <Text px={4} pt={2} mb={0}>
-          You tried to connect to {$targetDesc} but your session has expired.
-          Please log in to refresh the session.
-        </Text>
-      );
+    }
+    case 'reason.vnet-cert-expired': {
+      return <strong>{reason.publicAddr}</strong>;
     }
     default: {
+      reason satisfies never;
       return;
     }
   }
-}
+};

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import * as tsh from './types';
 import { TshdRpcError } from './cloneableClient';
 
@@ -87,6 +89,7 @@ export const makeRootCluster = (
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
+  showResources: ShowResources.REQUESTABLE,
   ...props,
 });
 
@@ -101,6 +104,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  showResources: ShowResources.UNSPECIFIED,
   ...props,
 });
 

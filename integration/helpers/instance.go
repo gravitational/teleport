@@ -54,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -433,7 +434,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -450,7 +451,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf = servicecfg.MakeDefaultConfig()
 	}
 	if tconf.InstanceMetadataClient == nil {
-		tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+		tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
@@ -1005,7 +1006,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 		},
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1098,7 +1099,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
 	// apply options
 	for _, o := range opts {
@@ -1558,7 +1559,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 // SSH establishes an SSH connection via the web api in the same manner that
 // the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
 // for the session.
-func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
@@ -1594,7 +1595,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	}
 
 	defer resp.Body.Close()
-	return web.NewTerminalStream(context.Background(), web.TerminalStreamConfig{WS: ws}), nil
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -120,7 +121,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 
 	// Authenticate.
 	user := req.User
-	authReq := AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
@@ -128,7 +129,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 	}
 	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
+		authReq.Pass = &authclient.PassCreds{
 			Password: req.OldPassword,
 		}
 	} else {
@@ -138,7 +139,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		requiredExt.UserVerificationRequirement = string(protocol.VerificationRequired)
 	}
 	if req.SecondFactorToken != "" {
-		authReq.OTP = &OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: req.OldPassword,
 			Token:    req.SecondFactorToken,
 		}
@@ -262,7 +263,10 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 
 		if err := a.checkTOTP(ctx, user, otpToken, dev); err != nil {
-			log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+			log.
+				WithError(err).
+				WithField("device", dev.GetName()).
+				Debug("TOTP device failed verification. This is expected if the user has multiple TOTP devices.")
 			continue
 		}
 		return dev, nil

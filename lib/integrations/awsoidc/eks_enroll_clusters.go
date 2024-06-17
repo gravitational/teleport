@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -52,7 +53,6 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -70,6 +70,7 @@ const (
 )
 
 var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
+var agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -529,18 +530,27 @@ type installKubeAgentParams struct {
 	req          EnrollEKSClustersRequest
 }
 
-func getChartURL(version string) *url.URL {
-	return &url.URL{
-		Scheme: agentRepoURL.Scheme,
-		Host:   agentRepoURL.Host,
-		Path:   fmt.Sprintf("%s-%s.tgz", agentName, version),
+func getChartURL(version string) (*url.URL, error) {
+	repo := agentRepoURL
+	ver, err := semver.NewVersion(version)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse chart version %q", version)
 	}
+
+	// pre release tagged charts are located in the staging repo.
+	if ver.PreRelease != "" {
+		repo = agentStagingRepoURL
+	}
+	return repo.JoinPath(fmt.Sprintf("%s-%s.tgz", agentName, version)), nil
 }
 
 // getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
 // chart downloading because it tends to save temporary files and here we do everything just in memory.
 func getChartData(version string) (*chart.Chart, error) {
-	chartURL := getChartURL(version)
+	chartURL, err := getChartURL(version)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	g, err := getter.All(helmCli.New()).ByScheme(chartURL.Scheme)
 	if err != nil {
@@ -600,7 +610,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		eksTags[k] = aws.String(v)
 	}
 	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -114,7 +115,7 @@ type ForwarderConfig struct {
 	// AuthClient is a auth server client.
 	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
-	CachingAuthClient auth.ReadKubernetesAccessPoint
+	CachingAuthClient authclient.ReadKubernetesAccessPoint
 	// Emitter is used to emit audit events
 	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
@@ -790,7 +791,7 @@ func (f *Forwarder) setupContext(
 		recordingConfig:       recordingConfig,
 		kubeClusterName:       kubeCluster,
 		certExpires:           identity.Expires,
-		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, &identity),
+		disconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -871,10 +872,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 			LocalAddr:  sess.kubeAddress,
 			Protocol:   events.EventProtocolKube,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.HostID,
-			ServerNamespace: f.cfg.Namespace,
-		},
+		ServerMetadata:            sess.getServerMetadata(),
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
@@ -1435,12 +1433,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 
 	sessionStart := f.cfg.Clock.Now().UTC()
 
-	serverMetadata := apievents.ServerMetadata{
-		ServerID:        f.cfg.HostID,
-		ServerNamespace: f.cfg.Namespace,
-		ServerHostname:  sess.teleportCluster.name,
-		ServerAddr:      sess.kubeAddress,
-	}
+	serverMetadata := sess.getServerMetadata()
 
 	sessionMetadata := ctx.Identity.GetIdentity().GetSessionMetadata(uuid.NewString())
 
@@ -2259,6 +2252,17 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
+}
+
+func (s *clusterSession) getServerMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerID:        s.parent.cfg.HostID,
+		ServerNamespace: s.parent.cfg.Namespace,
+		ServerHostname:  s.teleportCluster.name,
+		ServerAddr:      s.kubeAddress,
+		ServerLabels:    maps.Clone(s.kubeClusterLabels),
+		ServerVersion:   teleport.Version,
+	}
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {

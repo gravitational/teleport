@@ -85,7 +85,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -524,7 +524,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			// wait for the upload of the right session to complete
-			timeoutC := time.After(10 * time.Second)
+			timeoutC := time.After(20 * time.Second)
 		loop:
 			for {
 				select {
@@ -1236,7 +1236,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -1268,7 +1268,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			// Wait for the session recording to be uploaded and available
 			var uploaded bool
-			timeoutC := time.After(10 * time.Second)
+			timeoutC := time.After(20 * time.Second)
 			for !uploaded {
 				select {
 				case event := <-uploadChan:
@@ -2002,7 +2002,7 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.NetworkingConfig = netConfig
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
@@ -7253,7 +7253,7 @@ func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	return cfg
 }
 
@@ -8597,7 +8597,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			authCfg.Console = nil
 			authCfg.Log = utils.NewLoggerForTests()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-			authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			authCfg.Auth.Preference.SetSecondFactor("off")
 			authCfg.Auth.Enabled = true
 			authCfg.Auth.NoAudit = true
@@ -8660,7 +8660,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.Console = nil
 			nodeCfg.Log = utils.NewLoggerForTests()
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-			nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			nodeCfg.Auth.Enabled = false
 			// Configure Proxy.
 			nodeCfg.Proxy.Enabled = true
@@ -8741,7 +8741,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	authCfg.Console = nil
 	authCfg.Log = utils.NewLoggerForTests()
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	authCfg.Auth.Preference.SetSecondFactor("off")
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.NoAudit = true
@@ -8801,7 +8801,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.Console = nil
 	nodeCfg.Log = utils.NewLoggerForTests()
 	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
 	nodeCfg.Auth.Enabled = false
 	// Configure Proxy.
@@ -8984,7 +8984,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		_, err = asrv.CreateUser(ctx, u)
 		require.NoError(t, err)
 
-		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: user,
 		})
 		require.NoError(t, err)

@@ -281,7 +281,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
-	validateRequest := ValidateTrustedClusterRequest{
+	validateRequest := authclient.ValidateTrustedClusterRequest{
 		Token:           trustedCluster.GetToken(),
 		CAs:             localCertAuthorities,
 		TeleportVersion: teleport.Version,
@@ -457,7 +457,7 @@ func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 	return remoteClusters, trace.Wrap(err)
 }
 
-func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
+func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *authclient.ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
 			log.WithError(err).Info("Trusted cluster validation failed")
@@ -509,6 +509,13 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	originLabel, ok := tokenLabels[types.OriginLabel]
+	if ok && originLabel == types.OriginConfigFile {
+		// static tokens have an OriginLabel of OriginConfigFile and we don't want
+		// to propegate that to the trusted cluster
+		delete(tokenLabels, types.OriginLabel)
+	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
 		meta.Labels = utils.CopyStringsMap(tokenLabels)
@@ -529,7 +536,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{}
+	validateResponse := authclient.ValidateTrustedClusterResponse{}
 
 	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName)
 	if err != nil {
@@ -574,7 +581,7 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(host string, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
 		Host:   host,
@@ -621,7 +628,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		return nil, trace.Wrap(err)
 	}
 
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	var validateResponseRaw authclient.ValidateTrustedClusterResponseRaw
 	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -634,14 +641,6 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 
 	return validateResponse, nil
 }
-
-type ValidateTrustedClusterRequest = authclient.ValidateTrustedClusterRequest
-
-type ValidateTrustedClusterRequestRaw = authclient.ValidateTrustedClusterRequestRaw
-
-type ValidateTrustedClusterResponse = authclient.ValidateTrustedClusterResponse
-
-type ValidateTrustedClusterResponseRaw = authclient.ValidateTrustedClusterResponseRaw
 
 // activateCertAuthority will activate both the user and host certificate
 // authority given in the services.TrustedCluster resource.

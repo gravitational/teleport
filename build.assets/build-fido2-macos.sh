@@ -11,7 +11,7 @@
 # Written mainly for macOS builders.
 set -eu
 
-readonly MACOS_VERSION_MIN=10.13
+readonly MACOS_VERSION_MIN=10.15
 
 # Cross-architecture building
 # Set C_ARCH to $(uname -m) if unset, and validate supported architecture
@@ -23,8 +23,8 @@ fi
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
-readonly CRYPTO_VERSION=openssl-3.0.13
-readonly CRYPTO_COMMIT=85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c
+readonly CRYPTO_VERSION=openssl-3.0.14
+readonly CRYPTO_COMMIT=9cff14fd97814baf8a9a07d8447960a64d616ada
 readonly FIDO2_VERSION=1.14.0
 readonly FIDO2_COMMIT=1a9d335c8f0e821f9eff27482fdda96e59a4f577
 

@@ -188,7 +188,8 @@ Type=simple
 # destination directory.
 User=teleport
 Group=teleport
-Restart=on-failure
+Restart=always
+RestartSec=5
 # Adjust `12345` to any port of your choosing that is free on the local loopback
 # interface. Adjust `example-server` to the name of the Database Service in
 # teleport.

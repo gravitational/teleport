@@ -150,7 +150,8 @@ func deriveTeleportEqual_8(this, that *types.AWSMatcher) bool {
 			deriveTeleportEqual_16(this.Params, that.Params) &&
 			deriveTeleportEqual_17(this.SSM, that.SSM) &&
 			this.Integration == that.Integration &&
-			this.KubeAppDiscovery == that.KubeAppDiscovery
+			this.KubeAppDiscovery == that.KubeAppDiscovery &&
+			this.SetupAccessForARN == that.SetupAccessForARN
 }
 
 // deriveTeleportEqual_9 returns whether this and that are equal.

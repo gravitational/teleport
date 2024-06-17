@@ -1174,7 +1174,7 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)

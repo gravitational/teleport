@@ -51,6 +51,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
@@ -139,7 +140,8 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
-  | 'jamf';
+  | 'jamf'
+  | 'entra-id';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use

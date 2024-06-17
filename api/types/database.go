@@ -142,6 +142,9 @@ type Database interface {
 	// GetCloud gets the cloud this database is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
+	// IsUsernameCaseInsensitive returns true if the database username is case
+	// insensitive.
+	IsUsernameCaseInsensitive() bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -174,16 +177,6 @@ func (d *DatabaseV3) GetSubKind() string {
 // SetSubKind sets the database resource subkind.
 func (d *DatabaseV3) SetSubKind(sk string) {
 	d.SubKind = sk
-}
-
-// GetResourceID returns the database resource ID.
-func (d *DatabaseV3) GetResourceID() int64 {
-	return d.Metadata.ID
-}
-
-// SetResourceID sets the database resource ID.
-func (d *DatabaseV3) SetResourceID(id int64) {
-	d.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -929,6 +922,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	const defaultKRB5FilePath = "/etc/krb5.conf"
+	// The presence of AD Domain indicates the AD configuration will be used.
+	// In those cases, set the default KRB5 file location if not present.
+	if d.Spec.AD.Domain != "" && d.Spec.AD.Krb5File == "" {
+		d.Spec.AD.Krb5File = defaultKRB5FilePath
+	}
+
 	return nil
 }
 
@@ -1097,6 +1097,14 @@ func (d *DatabaseV3) GetEndpointType() string {
 	return ""
 }
 
+// IsUsernameCaseInsensitive returns true if the database username is case
+// insensitive.
+func (d *DatabaseV3) IsUsernameCaseInsensitive() bool {
+	// CockroachDB usernames are case-insensitive:
+	// https://www.cockroachlabs.com/docs/stable/create-user#user-names
+	return d.GetProtocol() == DatabaseProtocolCockroachDB
+}
+
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
@@ -1108,6 +1116,8 @@ const (
 	DatabaseProtocolMySQL = "mysql"
 	// DatabaseProtocolMongoDB is the MongoDB database protocol.
 	DatabaseProtocolMongoDB = "mongodb"
+	// DatabaseProtocolCockroachDB is the CockroachDB database protocol.
+	DatabaseProtocolCockroachDB = "cockroachdb"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"

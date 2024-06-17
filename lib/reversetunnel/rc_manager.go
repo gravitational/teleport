@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -66,7 +65,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 	// HostSigners is a signer for the host private key.
 	HostSigner ssh.Signer
 	// HostUUID is a unique ID of this host

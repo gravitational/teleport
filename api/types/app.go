@@ -116,16 +116,6 @@ func (a *AppV3) SetSubKind(sk string) {
 	a.SubKind = sk
 }
 
-// GetResourceID returns the app resource ID.
-func (a *AppV3) GetResourceID() int64 {
-	return a.Metadata.ID
-}
-
-// SetResourceID sets the app resource ID.
-func (a *AppV3) SetResourceID(id int64) {
-	a.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (a *AppV3) GetRevision() string {
 	return a.Metadata.GetRevision()

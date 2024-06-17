@@ -48,8 +48,8 @@ func TestCreateCrownJewel(t *testing.T) {
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})
@@ -74,8 +74,8 @@ func TestUpsertCrownJewel(t *testing.T) {
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})
@@ -130,7 +130,7 @@ func TestGetCrownJewel(t *testing.T) {
 			}
 
 			cmpOpts := []cmp.Option{
-				protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
 			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
@@ -236,7 +236,7 @@ func TestListCrownJewel(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
@@ -260,7 +260,7 @@ func TestListCrownJewel(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
 					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
@@ -287,8 +287,8 @@ func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 	obj, err := crownjewel.NewCrownJewel(name, &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})

@@ -36,7 +36,8 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { Notifications } from './Notifications';
+import { Notifications } from 'teleport/Notifications';
+
 import { ButtonIconContainer } from './Shared';
 
 import type * as history from 'history';

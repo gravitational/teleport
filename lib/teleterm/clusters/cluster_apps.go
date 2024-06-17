@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -149,8 +148,8 @@ func (c *Cluster) getApp(ctx context.Context, authClient authclient.ClientI, app
 	return app, trace.Wrap(err)
 }
 
-// reissueAppCert issue new certificates for the app and saves them to disk.
-func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
+// ReissueAppCert issue new certificates for the app and saves them to disk.
+func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, app types.Application) (tls.Certificate, error) {
 	if app.IsAWSConsole() || app.IsGCP() || app.IsAzureCloud() {
 		return tls.Certificate{}, trace.BadParameter("cloud applications are not supported")
 	}
@@ -178,7 +177,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	defer rootClient.Close()
-	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.status.Username, routeToApp)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -188,7 +187,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, clusterClient *client.Clus
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", routeToApp.Name)))
+	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", routeToApp.Name)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

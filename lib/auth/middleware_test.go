@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -664,10 +665,16 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type fakeConn struct {
 	net.Conn
+	closed atomic.Bool
 }
 
-func (f fakeConn) Close() error {
+func (f *fakeConn) Close() error {
+	f.closed.CompareAndSwap(false, true)
 	return nil
+}
+
+func (f *fakeConn) RemoteAddr() net.Addr {
+	return &utils.NetAddr{}
 }
 
 func TestValidateClientVersion(t *testing.T) {
@@ -732,7 +739,7 @@ func TestValidateClientVersion(t *testing.T) {
 				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
 			}
 
-			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
+			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
 		})
 	}
 }
@@ -751,7 +758,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
 		"version": semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
 	}))
-	err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
 	assert.Error(t, err)
 
 	// Validate a client with an unknown version, which should trigger an alert, however,
@@ -759,34 +766,50 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
 		"version": "abcd",
 	}))
-	err = mw.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	err = mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
 	assert.Error(t, err)
 
 	// Assert that only a single alert was created based on the above rejections.
 	require.Len(t, alerts, 1)
 	require.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
+	require.Contains(t, alerts[0].Spec.Message, "agents")
 
-	// Reset the last alert time to a time beyond the rate limit, allowing the next
-	// rejection to trigger another alert.
-	mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+	for _, tool := range []string{"tsh", "tctl", "tbot"} {
+		t.Run(tool, func(t *testing.T) {
+			// Reset the test alerts.
+			alerts = nil
 
-	// Validate two unsupported clients in parallel to verify that concurrent attempts
-	// to create an alert are prevented.
-	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
-			assert.Error(t, err)
-		}()
+			// Reset the last alert time to a time beyond the rate limit, allowing the next
+			// rejection to trigger another alert.
+			mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+
+			// Create a new context with the user-agent set to a client tool. This should alter the
+			// text in the alert to indicate the connection was from a client tool and not an agent.
+			ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+				"version":    semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
+				"user-agent": tool + "/" + teleport.Version,
+			}))
+
+			// Validate two unsupported clients in parallel to verify that concurrent attempts
+			// to create an alert are prevented.
+			var wg sync.WaitGroup
+			for i := 0; i < 2; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+					assert.Error(t, err)
+				}()
+			}
+
+			wg.Wait()
+
+			// Assert that only a single additional alert was created and that
+			// it was created for clients and not agents.
+			require.Len(t, alerts, 1)
+			assert.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
+			require.Contains(t, alerts[0].Spec.Message, tool)
+		})
 	}
 
-	wg.Wait()
-
-	// Assert that only a single additional alert was created.
-	require.Len(t, alerts, 2)
-	for _, alert := range alerts {
-		assert.Equal(t, "rejected-unsupported-connection", alert.GetName())
-	}
 }

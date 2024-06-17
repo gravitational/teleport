@@ -41,7 +41,6 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -459,7 +458,7 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0
-	routeToApp.SessionID, err = auth.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
+	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}

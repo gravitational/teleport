@@ -236,13 +236,6 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      assist: {
-        list: false,
-        read: false,
-        edit: false,
-        create: false,
-        remove: false,
-      },
       samlIdpServiceProvider: {
         list: false,
         read: false,
@@ -312,6 +305,7 @@ test('fetch users, null response values gives empty array', async () => {
   expect(response).toStrictEqual([
     {
       authType: '',
+      isBot: undefined,
       isLocal: false,
       name: '',
       roles: [],

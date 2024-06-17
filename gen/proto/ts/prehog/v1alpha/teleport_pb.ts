@@ -749,6 +749,26 @@ export interface UIDiscoverDatabaseRDSEnrollEvent {
     selectedResourcesCount: bigint;
 }
 /**
+ * UIDiscoverKubeEKSEnrollEvent is emitted when a user is finished with
+ * the step that asks user to select from a list of EKS clusters.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
+ */
+export interface UIDiscoverKubeEKSEnrollEvent {
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
+     */
+    metadata?: DiscoverMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverResourceMetadata resource = 2;
+     */
+    resource?: DiscoverResourceMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverStepStatus status = 3;
+     */
+    status?: DiscoverStepStatus;
+}
+/**
  * UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
  * For SSH this is the Teleport 'install-node' script.
  *
@@ -834,6 +854,66 @@ export enum UIDiscoverDeployServiceEvent_DeployType {
      * @generated from protobuf enum value: DEPLOY_TYPE_AMAZON_ECS = 2;
      */
     AMAZON_ECS = 2
+}
+/**
+ * UIDiscoverCreateDiscoveryConfigEvent is emitted when a discovery config is successfully created.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+ */
+export interface UIDiscoverCreateDiscoveryConfigEvent {
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
+     */
+    metadata?: DiscoverMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverResourceMetadata resource = 2;
+     */
+    resource?: DiscoverResourceMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverStepStatus status = 3;
+     */
+    status?: DiscoverStepStatus;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method = 4;
+     */
+    configMethod: UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod;
+}
+/**
+ * ConfigMethod describes how the discovery config is configured.
+ *
+ * @generated from protobuf enum prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
+ */
+export enum UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod {
+    /**
+     * CONFIG_METHOD_UNSPECIFIED means config method unspecified/unset.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * CONFIG_METHOD_SSM means EC2 auto discovery configured with ssm.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EC2_SSM = 1;
+     */
+    AWS_EC2_SSM = 1,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for EC2 using EICE.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EC2_EICE = 2;
+     */
+    AWS_EC2_EICE = 2,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for RDS using ECS.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_RDS_ECS = 3;
+     */
+    AWS_RDS_ECS = 3,
+    /**
+     * CONFIG_METHOD_SSM means auto discovery configured for EKS.
+     *
+     * @generated from protobuf enum value: CONFIG_METHOD_AWS_EKS = 4;
+     */
+    AWS_EKS = 4
 }
 /**
  * UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -2735,6 +2815,18 @@ export interface SubmitEventRequest {
          */
         databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent;
     } | {
+        oneofKind: "uiDiscoverCreateDiscoveryConfig";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83;
+         */
+        uiDiscoverCreateDiscoveryConfig: UIDiscoverCreateDiscoveryConfigEvent;
+    } | {
+        oneofKind: "uiDiscoverKubeEksEnrollEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
+         */
+        uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3040,7 +3132,11 @@ export enum DiscoverResource {
     /**
      * @generated from protobuf enum value: DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
      */
-    KUBERNETES_EKS = 40
+    KUBERNETES_EKS = 40,
+    /**
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+     */
+    APPLICATION_AWS_CONSOLE = 41
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
@@ -3133,7 +3229,11 @@ export enum CTA {
     /**
      * @generated from protobuf enum value: CTA_OKTA_USER_SYNC = 11;
      */
-    CTA_OKTA_USER_SYNC = 11
+    CTA_OKTA_USER_SYNC = 11,
+    /**
+     * @generated from protobuf enum value: CTA_ENTRA_ID = 12;
+     */
+    CTA_ENTRA_ID = 12
 }
 /**
  * IntegrationEnrollKind represents the types of integration that
@@ -3233,7 +3333,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
      */
-    MACHINE_ID_KUBERNETES = 22
+    MACHINE_ID_KUBERNETES = 22,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
+     */
+    ENTRA_ID = 23
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -4999,6 +5103,66 @@ class UIDiscoverDatabaseRDSEnrollEvent$Type extends MessageType<UIDiscoverDataba
  */
 export const UIDiscoverDatabaseRDSEnrollEvent = new UIDiscoverDatabaseRDSEnrollEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIDiscoverKubeEKSEnrollEvent$Type extends MessageType<UIDiscoverKubeEKSEnrollEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => DiscoverMetadata },
+            { no: 2, name: "resource", kind: "message", T: () => DiscoverResourceMetadata },
+            { no: 3, name: "status", kind: "message", T: () => DiscoverStepStatus }
+        ]);
+    }
+    create(value?: PartialMessage<UIDiscoverKubeEKSEnrollEvent>): UIDiscoverKubeEKSEnrollEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UIDiscoverKubeEKSEnrollEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIDiscoverKubeEKSEnrollEvent): UIDiscoverKubeEKSEnrollEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoverMetadata metadata */ 1:
+                    message.metadata = DiscoverMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.DiscoverResourceMetadata resource */ 2:
+                    message.resource = DiscoverResourceMetadata.internalBinaryRead(reader, reader.uint32(), options, message.resource);
+                    break;
+                case /* prehog.v1alpha.DiscoverStepStatus status */ 3:
+                    message.status = DiscoverStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIDiscoverKubeEKSEnrollEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoverMetadata metadata = 1; */
+        if (message.metadata)
+            DiscoverMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverResourceMetadata resource = 2; */
+        if (message.resource)
+            DiscoverResourceMetadata.internalBinaryWrite(message.resource, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverStepStatus status = 3; */
+        if (message.status)
+            DiscoverStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
+ */
+export const UIDiscoverKubeEKSEnrollEvent = new UIDiscoverKubeEKSEnrollEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class UIDiscoverDeployServiceEvent$Type extends MessageType<UIDiscoverDeployServiceEvent> {
     constructor() {
         super("prehog.v1alpha.UIDiscoverDeployServiceEvent", [
@@ -5074,6 +5238,74 @@ class UIDiscoverDeployServiceEvent$Type extends MessageType<UIDiscoverDeployServ
  * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverDeployServiceEvent
  */
 export const UIDiscoverDeployServiceEvent = new UIDiscoverDeployServiceEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIDiscoverCreateDiscoveryConfigEvent$Type extends MessageType<UIDiscoverCreateDiscoveryConfigEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => DiscoverMetadata },
+            { no: 2, name: "resource", kind: "message", T: () => DiscoverResourceMetadata },
+            { no: 3, name: "status", kind: "message", T: () => DiscoverStepStatus },
+            { no: 4, name: "config_method", kind: "enum", T: () => ["prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod", UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod, "CONFIG_METHOD_"] }
+        ]);
+    }
+    create(value?: PartialMessage<UIDiscoverCreateDiscoveryConfigEvent>): UIDiscoverCreateDiscoveryConfigEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.configMethod = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UIDiscoverCreateDiscoveryConfigEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIDiscoverCreateDiscoveryConfigEvent): UIDiscoverCreateDiscoveryConfigEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoverMetadata metadata */ 1:
+                    message.metadata = DiscoverMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.DiscoverResourceMetadata resource */ 2:
+                    message.resource = DiscoverResourceMetadata.internalBinaryRead(reader, reader.uint32(), options, message.resource);
+                    break;
+                case /* prehog.v1alpha.DiscoverStepStatus status */ 3:
+                    message.status = DiscoverStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                case /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method */ 4:
+                    message.configMethod = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIDiscoverCreateDiscoveryConfigEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoverMetadata metadata = 1; */
+        if (message.metadata)
+            DiscoverMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverResourceMetadata resource = 2; */
+        if (message.resource)
+            DiscoverResourceMetadata.internalBinaryWrite(message.resource, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverStepStatus status = 3; */
+        if (message.status)
+            DiscoverStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod config_method = 4; */
+        if (message.configMethod !== 0)
+            writer.tag(4, WireType.Varint).int32(message.configMethod);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+ */
+export const UIDiscoverCreateDiscoveryConfigEvent = new UIDiscoverCreateDiscoveryConfigEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UIDiscoverDatabaseRegisterEvent$Type extends MessageType<UIDiscoverDatabaseRegisterEvent> {
     constructor() {
@@ -8695,7 +8927,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 79, name: "spiffe_svid_issued", kind: "message", oneof: "event", T: () => SPIFFESVIDIssuedEvent },
             { no: 80, name: "okta_access_list_sync", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent },
             { no: 81, name: "database_user_created", kind: "message", oneof: "event", T: () => DatabaseUserCreatedEvent },
-            { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent }
+            { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
+            { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent },
+            { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9191,6 +9425,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         databaseUserPermissionsUpdated: DatabaseUserPermissionsUpdateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).databaseUserPermissionsUpdated)
                     };
                     break;
+                case /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config */ 83:
+                    message.event = {
+                        oneofKind: "uiDiscoverCreateDiscoveryConfig",
+                        uiDiscoverCreateDiscoveryConfig: UIDiscoverCreateDiscoveryConfigEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateDiscoveryConfig)
+                    };
+                    break;
+                case /* prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event */ 84:
+                    message.event = {
+                        oneofKind: "uiDiscoverKubeEksEnrollEvent",
+                        uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverKubeEksEnrollEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9446,6 +9692,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.DatabaseUserPermissionsUpdateEvent database_user_permissions_updated = 82; */
         if (message.event.oneofKind === "databaseUserPermissionsUpdated")
             DatabaseUserPermissionsUpdateEvent.internalBinaryWrite(message.event.databaseUserPermissionsUpdated, writer.tag(82, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83; */
+        if (message.event.oneofKind === "uiDiscoverCreateDiscoveryConfig")
+            UIDiscoverCreateDiscoveryConfigEvent.internalBinaryWrite(message.event.uiDiscoverCreateDiscoveryConfig, writer.tag(83, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84; */
+        if (message.event.oneofKind === "uiDiscoverKubeEksEnrollEvent")
+            UIDiscoverKubeEKSEnrollEvent.internalBinaryWrite(message.event.uiDiscoverKubeEksEnrollEvent, writer.tag(84, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

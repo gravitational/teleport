@@ -45,9 +45,6 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Next, start the Database Service.
 
 <Tabs>
-<TabItem scope={["enterprise","oss"]} label="Self-Hosted">
-
-<Tabs>
 <TabItem label="Teleport CLI">
 
 On the node where you will run the Database Service, start Teleport, pointing
@@ -56,7 +53,7 @@ the `--auth-server` flag at the address of your Teleport Proxy Service:
 ```code
 $ sudo teleport db start \
   --token=/tmp/token \
-  --auth-server=teleport.example.com:443 \
+  --auth-server=<Var name="example.teleport.sh:443" /> \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \
@@ -79,7 +76,7 @@ in `/etc/teleport.yaml`:
 version: v3
 teleport:
   auth_token: "/tmp/token"
-  proxy_server: teleport.example.com:443
+  proxy_server: <Var name="example.teleport.sh:443" />
 
 # disable services that are on by default
 ssh_service: { enabled: no }
@@ -94,7 +91,6 @@ db_service:
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
     static_labels:
       env: "dev"
-
 ```
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
@@ -102,54 +98,6 @@ db_service:
 See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
-</Tabs>
-</TabItem>
-
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-<Tabs>
-<TabItem label="Teleport CLI">
-
-On the node where you will run the Database Service, start Teleport, pointing the
-`--auth-server` flag at the address of your Teleport Cloud tenant, e.g.,
-`mytenant.teleport.sh`.
-
-```code
-$ sudo teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=mongodb-atlas \
-  --protocol=mongodb \
-  --uri=mongodb+srv://cluster0.abcde.mongodb.net \
-  --labels=env=dev
-```
-
-</TabItem>
-<TabItem label="Configuration file">
-
-On the node where you will run the Teleport Database Service, run
-`teleport db start` with the following in `/etc/teleport.yaml`:
-
-```yaml
-version: v3
-teleport:
-  auth_token: "/tmp/token"
-  proxy_server: mytenant.teleport.sh:443
-db_service:
-  enabled: "yes"
-  databases:
-  - name: "mongodb-atlas"
-    protocol: "mongodb"
-    uri: "mongodb+srv://cluster0.abcde.mongodb.net"
-    static_labels:
-      env: "dev"
-```
-
-See the full [YAML reference](../reference/configuration.mdx) for details.
-
-</TabItem>
-</Tabs>
-</TabItem>
-
 </Tabs>
 
 See below for details on how to configure the Teleport Database Service.

@@ -49,7 +49,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -79,7 +79,6 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
@@ -106,7 +105,6 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
-		ID:       desktop.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
@@ -134,7 +132,6 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
-		ID:       desktop.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
@@ -205,7 +202,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -277,7 +274,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

@@ -958,11 +958,6 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"assist_command_execution_workers": {
-					Description: "AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-				},
 				"case_insensitive_routing": {
 					Description: "CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.",
 					Optional:    true,
@@ -10818,23 +10813,6 @@ func CopyClusterNetworkingConfigV2FromTerraform(_ context.Context, tf github_com
 						}
 					}
 					{
-						a, ok := tf.Attrs["assist_command_execution_workers"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Spec.AssistCommandExecutionWorkers"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.AssistCommandExecutionWorkers", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-							} else {
-								var t int32
-								if !v.Null && !v.Unknown {
-									t = int32(v.Value)
-								}
-								obj.AssistCommandExecutionWorkers = t
-							}
-						}
-					}
-					{
 						a, ok := tf.Attrs["case_insensitive_routing"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Spec.CaseInsensitiveRouting"})
@@ -11471,28 +11449,6 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 							v.Value = time.Duration(obj.ProxyPingInterval)
 							v.Unknown = false
 							tf.Attrs["proxy_ping_interval"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["assist_command_execution_workers"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ClusterNetworkingConfigV2.Spec.AssistCommandExecutionWorkers"})
-						} else {
-							v, ok := tf.Attrs["assist_command_execution_workers"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ClusterNetworkingConfigV2.Spec.AssistCommandExecutionWorkers", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.AssistCommandExecutionWorkers", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-								}
-								v.Null = int64(obj.AssistCommandExecutionWorkers) == 0
-							}
-							v.Value = int64(obj.AssistCommandExecutionWorkers)
-							v.Unknown = false
-							tf.Attrs["assist_command_execution_workers"] = v
 						}
 					}
 					{

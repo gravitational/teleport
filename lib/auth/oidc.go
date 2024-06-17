@@ -33,7 +33,7 @@ import (
 
 type OIDCService interface {
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
-	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
+	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
 }
 
 var errOIDCNotImplemented = &trace.AccessDeniedError{Message: "OIDC is only available in enterprise subscriptions"}
@@ -133,7 +133,7 @@ func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 	return rq, trace.Wrap(err)
 }
 
-func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
 	}
@@ -141,18 +141,3 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	resp, err := a.oidcAuthService.ValidateOIDCAuthCallback(ctx, q)
 	return resp, trace.Wrap(err)
 }
-
-// OIDCAuthResponse is returned when auth server validated callback parameters
-// returned from OIDC provider
-type OIDCAuthResponse = authclient.OIDCAuthResponse
-
-// OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
-type OIDCAuthRequest = authclient.OIDCAuthRequest
-
-// ValidateOIDCAuthCallbackReq is the request made by the proxy to validate
-// and activate a login via OIDC.
-type ValidateOIDCAuthCallbackReq = authclient.ValidateOIDCAuthCallbackReq
-
-// OIDCAuthRawResponse is returned when auth server validated callback parameters
-// returned from OIDC provider
-type OIDCAuthRawResponse = authclient.OIDCAuthRawResponse

@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -420,7 +420,7 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 	_, leafCACertPEM, err := genUserKey("example.com")
 	require.NoError(t, err)
 	creds.TrustedCerts[0].ClusterName = clusterName
-	creds.TrustedCerts = append(creds.TrustedCerts, auth.TrustedCerts{
+	creds.TrustedCerts = append(creds.TrustedCerts, authclient.TrustedCerts{
 		ClusterName:     leafClusterName,
 		TLSCertificates: [][]byte{leafCACertPEM},
 	})
@@ -586,7 +586,7 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 	return &client.Key{
 		PrivateKey: priv,
 		TLSCert:    tlsCert,
-		TrustedCerts: []auth.TrustedCerts{{
+		TrustedCerts: []authclient.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil

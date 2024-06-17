@@ -272,6 +272,9 @@ const (
 )
 
 // awsEC2APIChunkSize is the max number of instances SSM will send commands to at a time
+// This is used for limiting the number of instances for API Calls:
+// ssm:SendCommand only accepts between 0 and 50.
+// ssm:DescribeInstanceInformation only accepts between 5 and 50.
 const awsEC2APIChunkSize = 50
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
