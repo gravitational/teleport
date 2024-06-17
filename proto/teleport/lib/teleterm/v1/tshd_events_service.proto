@@ -77,13 +77,11 @@ message GatewayCertExpired {
 }
 
 // VnetCertExpired describes which app the user was trying to reach with an expired cert.
-//
-// As this message originates from within a local proxy used by VNet, the proxy is not able to say
-// under which address the user was trying to reach the app. Best it can do is point at the cluster
-// to which the app belongs and the name of the app.
 message VnetCertExpired {
   // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
   string target_uri = 1;
+  // public_addr is the public address of the app that the user tried to access.
+  string public_addr = 2;
 }
 
 // Response for Relogin.
@@ -116,6 +114,8 @@ message CannotProxyGatewayConnection {
 message CannotProxyVnetConnection {
   string target_uri = 1;
   string error = 2;
+  // public_addr is the public address of the app that the user tried to access.
+  string public_addr = 3;
 }
 
 // Response for SendNotification.
