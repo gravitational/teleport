@@ -253,7 +253,7 @@ Amazon RDS Blue/Green deployment may enter a state of "Replication degraded"
 when auto-user provisioning is used to connect to the database.
 
 This occurs due to a [limitation in PostgreSQL logical
-replication(https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/blue-green-deployments-overview.html#blue-green-deployments-limitations-postgres)
+replication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/blue-green-deployments-overview.html#blue-green-deployments-limitations-postgres)
 for Blue/Green deployments as Data Definition Language (DDL) statements cannot
 be replicated. Consequently, Amazon RDS will enter the "Replication degraded"
 state when a DDL change is detected.
