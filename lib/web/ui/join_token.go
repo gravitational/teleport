@@ -19,7 +19,9 @@ package ui
 import (
 	"time"
 
+	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 // JoinToken is a UI-friendly representation of a JoinToken
@@ -40,22 +42,33 @@ type JoinToken struct {
 	Method types.JoinMethod `json:"method"`
 	// AllowRules is a list of allow rules
 	AllowRules []string `json:"allowRules,omitempty"`
+	// Content is resource yaml content.
+	Content string `json:"content"`
 }
 
-func MakeJoinToken(token types.ProvisionToken) JoinToken {
-	return JoinToken{
+func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
+	content, err := yaml.Marshal(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &JoinToken{
 		ID:       token.GetName(),
 		SafeName: token.GetSafeName(),
 		Expiry:   token.Expiry(),
 		Roles:    token.GetRoles(),
 		IsStatic: token.IsStatic(),
 		Method:   token.GetJoinMethod(),
-	}
+		Content:  string(content[:]),
+	}, nil
 }
 
-func MakeJoinTokens(tokens []types.ProvisionToken) (joinTokens []JoinToken) {
+func MakeJoinTokens(tokens []types.ProvisionToken) (joinTokens []JoinToken, err error) {
 	for _, t := range tokens {
-		joinTokens = append(joinTokens, MakeJoinToken(t))
+		uiToken, err := MakeJoinToken(t)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinTokens = append(joinTokens, *uiToken)
 	}
-	return joinTokens
+	return joinTokens, nil
 }

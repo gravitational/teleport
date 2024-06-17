@@ -77,6 +77,14 @@ const api = {
     );
   },
 
+  deleteWithHeaders(url, headers?: Record<string, string>, signal?) {
+    return api.fetch(url, {
+      method: 'DELETE',
+      headers,
+      signal,
+    });
+  },
+
   put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,

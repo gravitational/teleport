@@ -3780,6 +3780,9 @@ func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetu
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Println("-----asdf")
+	fmt.Printf("%+v\n", el)
+	fmt.Println("-----asdf")
 	return eventsListGetResponse{Events: el, StartKey: lastKey}, nil
 }
 

@@ -44,6 +44,30 @@ class JoinTokenService {
       )
       .then(makeJoinToken);
   }
+
+  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
+    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
+      console.log({ resp });
+      return {
+        items: resp.items.map(makeJoinToken),
+      };
+    });
+  }
+
+  deleteJoinToken(id: string, signal: AbortSignal = null) {
+    return api
+      .deleteWithHeaders(
+        cfg.getJoinTokensUrl(),
+        { 'X-Teleport-TokenName': id },
+        signal
+      )
+      .then(resp => {
+        console.log({ resp });
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  }
 }
 
 function makeAllowField(rules: JoinRule[] = []) {

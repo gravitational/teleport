@@ -68,6 +68,7 @@ import { LockedAccessRequests } from './AccessRequests';
 import { Integrations } from './Integrations';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { JoinTokens } from './JoinTokens/JoinTokens';
 
 import type { FeatureFlags, TeleportFeature } from './types';
 
@@ -118,6 +119,20 @@ export class FeatureNodes implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureJoinTokens implements TeleportFeature {
+  category = NavigationCategory.Management;
+  route = {
+    title: 'Join Tokens',
+    path: cfg.routes.joinTokens,
+    exact: true,
+    component: JoinTokens,
+  };
+
+  hasAccess(flags: FeatureFlags): boolean {
+    return flags.tokens;
   }
 }
 
@@ -626,6 +641,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBots(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureJoinTokens(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
 

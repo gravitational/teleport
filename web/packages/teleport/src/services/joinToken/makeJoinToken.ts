@@ -24,19 +24,36 @@ export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
 
 export default function makeToken(json): JoinToken {
   json = json || {};
-  const { id, expiry, suggestedLabels } = json;
+  const { id, roles, isStatic, expiry, method, suggestedLabels, safeName } =
+    json;
 
   const labels = suggestedLabels || [];
 
   return {
     id,
+    isStatic,
+    safeName,
+    method,
+    roles: roles || [],
     suggestedLabels: labels,
     internalResourceId: extractInternalResourceId(labels),
     expiry: expiry ? new Date(expiry) : null,
-    expiryText: expiry
-      ? formatDistanceStrict(new Date(), new Date(expiry))
-      : '',
+    expiryText: getExpiryText(expiry, isStatic),
   };
+}
+
+function getExpiryText(expiry: string, isStatic: boolean): string {
+  // a manually configured token with no TTL will be set to zero date
+  if (expiry == '0001-01-01T00:00:00Z') {
+    return 'never';
+  }
+  if (isStatic) {
+    return 'never';
+  }
+  if (!expiry) {
+    return '';
+  }
+  return formatDistanceStrict(new Date(), new Date(expiry));
 }
 
 function extractInternalResourceId(labels: any[]) {
