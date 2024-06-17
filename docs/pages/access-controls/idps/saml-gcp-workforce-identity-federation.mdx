@@ -27,6 +27,8 @@ SAML IdP, so users can sign in into GCP web console by authenticating with Telep
 Reference](./saml-reference.mdx) before proceeding.
 - User with permission to create service provider resource. The preset `editor` role has this permission.
 - Access to GCP IAM API, with permission to create workforce identity pool, pool provider and an IAM policy.
+At a minimum, both the "IAM Workforce Pool Admin" and "Organization Viewer" [GCP roles](https://cloud.google.com/iam/docs/configuring-workforce-identity-federation#required-roles)
+are required (assigned at the GCP organization level) to configure GCP Workforce Identity Federation.
 
 
 Teleport Web UI offers both the guided and manual configuration flow for GCP Workforce Identity
