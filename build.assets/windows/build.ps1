@@ -195,24 +195,18 @@ function Get-Relcli {
         [Parameter(Mandatory)]
         [string] $Url,
         [Parameter(Mandatory)]
-        [string] $Sha256,
-        [Parameter(Mandatory)]
         [string] $Workspace
     )
     begin {
         New-Item -Path "$Workspace" -ItemType Directory -Force | Out-Null
         Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
-        $gotSha256 = (Get-FileHash "$Workspace\relcli.exe").hash
-        if ($gotSha256 -ne $Sha256) {
-            Write-Output "sha256 mismatch: $gotSha256 != $Sha256"
-        }
     }
 }
 
-function Register-Artifacts {
+function Generate-Artifacts {
     <#
     .SYNOPSIS
-        Invokes relcli to automatically upload built artifacts
+        Invokes relcli to automatically generate manfiests for built artifacts
     #>
     [CmdletBinding()]
     param(
@@ -220,20 +214,34 @@ function Register-Artifacts {
         [string] $Workspace,
         [Parameter(Mandatory)]
         [string] $OutputsDir,
-        [string] $ReleaseRepo = $env:RELEASE_REPO,
-        [string] $ArtifactVersion = $env:ARTIFACT_VERSION
     )
-    begin {
-        $certPath = "$Workspace\releases.crt"
-        Out-File -FilePath $certPath -Encoding ascii -InputObject "$env:RELEASES_CERT"
-        $keyPath = "$Workspace\releases.key"
-        Out-File -FilePath $keyPath -Encoding ascii -InputObject "$env:RELEASES_KEY"
 
-        # These must be set for the `auto_upload` command
-        $env:DRONE_REPO = "$ReleaseRepo"
-        $env:DRONE_TAG = "$ArtifactVersion"
+    $SearchPath = Join-Path -Path $OutputsDir -ChildPath *
+    Get-ChildItem -Path $SearchPath -Attributes Normal -Include "*.exe","*.zip" | ForEach-Object {
+        switch -Wildcard ($_.FullName) {
+            "Teleport Connect Setup*.exe" {
+                $description = "Teleport Connect"
+                Break
+            }
+            "teleport-windows-auth-setup*.exe" {
+                $description = "Teleport Connect"
+                Break
+            }
+            "teleport*.zip" {
+                $description = "Teleport Connect"
+                Break
+            }
+            "*" {
+                # Unmatched file, skip it
+                Write-Host "Skipping $_"
+                return
+            }
+        }
 
-        & "$Workspace\relcli.exe" --cert $certPath --key $keyPath auto_upload -f -v 6 $OutputsDir
+        & "$Workspace\relcli.exe" generate-manifest --path $_.FullName `
+            --products teleport --products teleport-ent `
+            --os "windows" --architecture "amd64" `
+            --description $description
     }
 }
 
