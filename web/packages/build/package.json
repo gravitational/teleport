@@ -104,7 +104,7 @@
     "webpack-dev-server": "^4.9.3"
   },
   "devDependencies": {
-    "msw-storybook-addon": "^1.8.0",
+    "msw-storybook-addon": "^2.0.2",
     "ts-loader": "^9.4.2"
   }
 }
