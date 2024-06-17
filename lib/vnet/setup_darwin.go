@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -73,7 +74,7 @@ do shell script quoted form of executableName & `+
 		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
 		`" >/var/log/vnet.log 2>&1" `+
-		`with prompt "VNet wants to set up a virtual network device" with administrator privileges`,
+		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
 		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
@@ -141,7 +142,7 @@ func createUnixSocket() (*net.UnixListener, string, error) {
 
 // sendTUNNameAndFd sends the name of the TUN device and its open file descriptor over a unix socket, meant
 // for passing the TUN from the root process which must create it to the user process.
-func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
+func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
 	socketAddr := &net.UnixAddr{Name: socketPath, Net: "unix"}
 	conn, err := net.DialUnix(socketAddr.Net, nil /*laddr*/, socketAddr)
 	if err != nil {
@@ -153,11 +154,14 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	}
 
 	// Write the device name as the main message and pass the file desciptor as out-of-band data.
-	rights := unix.UnixRights(int(fd))
-	if _, _, err := conn.WriteMsgUnix([]byte(tunName), rights, socketAddr); err != nil {
-		return trace.Wrap(err, "writing to unix conn")
-	}
-	return nil
+	rights := unix.UnixRights(int(tunFile.Fd()))
+	_, _, err = conn.WriteMsgUnix([]byte(tunName), rights, socketAddr)
+
+	// Hint to the garbage collector not to call the finalizer on tunFile, which would close the file and
+	// invalidate fd, until it has been written to the socket.
+	runtime.KeepAlive(tunFile)
+
+	return trace.Wrap(err, "writing to unix conn")
 }
 
 // recvTUNNameAndFd receives the name of a TUN device and its open file descriptor over a unix socket, meant

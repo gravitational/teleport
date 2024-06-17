@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -82,8 +82,6 @@ type OneOffScriptParams struct {
 	SuccessMessage string
 }
 
-var validPackageNames = []string{types.PackageNameOSS, types.PackageNameEnt}
-
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	if p.TeleportArgs == "" {
@@ -103,7 +101,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 
 	if p.TeleportVersion == "" {
-		p.TeleportVersion = "v" + teleport.Version
+		p.TeleportVersion = "v" + api.Version
 	}
 
 	if p.TeleportFlavor == "" {
@@ -112,8 +110,8 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 			p.TeleportFlavor = types.PackageNameEnt
 		}
 	}
-	if !slices.Contains(validPackageNames, p.TeleportFlavor) {
-		return trace.BadParameter("invalid teleport flavor, only %v are supported", validPackageNames)
+	if !slices.Contains(types.PackageNameKinds, p.TeleportFlavor) {
+		return trace.BadParameter("invalid teleport flavor, only %v are supported", types.PackageNameKinds)
 	}
 
 	if p.SuccessMessage == "" {

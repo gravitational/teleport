@@ -31,6 +31,7 @@ export interface Session {
   clusterId: string;
   parties: Participant[];
   addr: string;
+  kubeExec?: boolean;
   // resourceName depending on the "kind" field, is the name
   // of resource that the session is running in:
   //  - ssh: is referring to the hostname
@@ -45,6 +46,7 @@ export interface Session {
   moderated: boolean;
   // command is the command that was run to start this session.
   command: string;
+  isInteractive?: boolean;
 }
 
 export type SessionMetadata = {

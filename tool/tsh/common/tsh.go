@@ -909,6 +909,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.Labels)
+	dbList.Alias(dbListHelp)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
@@ -1568,18 +1569,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	return trace.Wrap(err)
 }
 
-// cloudAutomaticSamplingRate is the sampling rate at which traces are captured
-// when tracing is automatically enabled for invocations of some tsh commands
-// when performed against a cloud tenant.
-const cloudAutomaticSamplingRate = 0.25
-
-// isCloudTenant determines if the proxy address provided
-// belongs to a cloud tenant. It currently returns true if
-// the tenant is a production tenant.
-func isCloudTenant(proxyAddress string) bool {
-	return strings.HasSuffix(proxyAddress, ".teleport.sh:443")
-}
-
 func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
@@ -1596,14 +1585,11 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
-	// The list of commands that are automatically traced and forward to Cloud.
-	autoForwardedToCloud := []string{"ssh"}
-
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
-	samplingRate := 1.0
+	const samplingRate = 1.0
 
 	switch {
 	// kubectl is a special case because it is the only command that we re-execute
@@ -1641,7 +1627,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
-	case !cf.SampleTraces && !slices.Contains(autoForwardedToCloud, cf.command):
+	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
 	}
@@ -1652,18 +1638,6 @@ func initializeTracing(cf *CLIConf) func() {
 	if err != nil {
 		log.WithError(err).Debug("failed to set up span forwarding.")
 		return func() {}
-	}
-
-	if !cf.SampleTraces {
-		// Automatically enable and forward spans to Cloud if the following conditions are met:
-		// 1) The proxy address resembles that of a Cloud tenant
-		// 2) The command being executed is tsh ssh
-		// 3) The user has not already explicitly provided the --trace flag.
-		if isCloudTenant(tc.WebProxyAddr) {
-			samplingRate = cloudAutomaticSamplingRate
-		} else {
-			return func() {}
-		}
 	}
 
 	var provider *tracing.Provider
@@ -3000,6 +2974,8 @@ func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, a
 		rows:    rows,
 		verbose: verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, w, len(rows))
 }
 
 func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
@@ -3020,6 +2996,8 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 		showProxyAndCluster: true,
 		verbose:             cf.Verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, cf.Stdout(), len(rows))
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {

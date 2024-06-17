@@ -72,7 +72,10 @@ func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePac
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, dbGatewayCertRenewalParams{
+			pack:        pack,
+			databaseURI: databaseURI,
+		})
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
@@ -81,7 +84,10 @@ func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePac
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, dbGatewayCertRenewalParams{
+			pack:        pack,
+			databaseURI: databaseURI,
+		})
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -95,17 +101,59 @@ func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePac
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(ctx, t, pack, albProxy.Addr().String(), databaseURI)
+		testDBGatewayCertRenewal(ctx, t, dbGatewayCertRenewalParams{
+			pack:        pack,
+			databaseURI: databaseURI,
+			albAddr:     albProxy.Addr().String(),
+		})
+	})
+	t.Run("root cluster with per-session MFA", func(t *testing.T) {
+		requireSessionMFAAuthPref(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), "127.0.0.1")
+		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
+
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
+		databaseURI := uri.NewClusterURI(profileName).
+			AppendDB(pack.Root.MysqlService.Name)
+
+		testDBGatewayCertRenewal(ctx, t, dbGatewayCertRenewalParams{
+			pack:          pack,
+			databaseURI:   databaseURI,
+			webauthnLogin: webauthnLogin,
+		})
+	})
+	t.Run("leaf cluster with per-session MFA", func(t *testing.T) {
+		requireSessionMFAAuthPref(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), "127.0.0.1")
+		requireSessionMFAAuthPref(ctx, t, pack.Leaf.Cluster.Process.GetAuthServer(), "127.0.0.1")
+		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
+
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
+		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
+		databaseURI := uri.NewClusterURI(profileName).
+			AppendLeafCluster(leafClusterName).
+			AppendDB(pack.Leaf.MysqlService.Name)
+
+		testDBGatewayCertRenewal(ctx, t, dbGatewayCertRenewalParams{
+			pack:          pack,
+			databaseURI:   databaseURI,
+			webauthnLogin: webauthnLogin,
+		})
 	})
 }
 
-func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
+type dbGatewayCertRenewalParams struct {
+	pack          *dbhelpers.DatabasePack
+	albAddr       string
+	databaseURI   uri.ResourceURI
+	webauthnLogin libclient.WebauthnLoginFunc
+}
+
+func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewayCertRenewalParams) {
 	t.Helper()
 
-	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
-		Login:   pack.Root.User.GetName(),
-		Cluster: pack.Root.Cluster.Secrets.SiteName,
-		ALBAddr: albAddr,
+	tc, err := params.pack.Root.Cluster.NewClient(helpers.ClientConfig{
+		Login:   params.pack.Root.User.GetName(),
+		Cluster: params.pack.Root.Cluster.Secrets.SiteName,
+		ALBAddr: params.albAddr,
 	})
 	require.NoError(t, err)
 
@@ -114,20 +162,21 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers
 		t,
 		gatewayCertRenewalParams{
 			tc:      tc,
-			albAddr: albAddr,
+			albAddr: params.albAddr,
 			createGatewayParams: daemon.CreateGatewayParams{
-				TargetURI:  databaseURI.String(),
-				TargetUser: pack.Root.User.GetName(),
+				TargetURI:  params.databaseURI.String(),
+				TargetUser: params.pack.Root.User.GetName(),
 			},
 			testGatewayConnectionFunc: mustConnectDatabaseGateway,
+			webauthnLogin:             params.webauthnLogin,
 			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-					Process:  pack.Root.Cluster.Process,
+					Process:  params.pack.Root.Cluster.Process,
 					Username: tc.Username,
 					TTL:      ttl,
 				})
 				require.NoError(t, err)
-				err = helpers.SetupUserCreds(tc, pack.Root.Cluster.Process.Config.Proxy.SSHAddr.Addr, *creds)
+				err = helpers.SetupUserCreds(tc, params.pack.Root.Cluster.Process.Config.Proxy.SSHAddr.Addr, *creds)
 				require.NoError(t, err)
 			},
 		},
@@ -642,7 +691,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 			AppendLeafCluster(pack.LeafAppClusterName()).
 			AppendApp(pack.LeafAppName())
 
-			// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		t.Cleanup(cancel)
 		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
