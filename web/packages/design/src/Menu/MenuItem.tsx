@@ -16,16 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import PropTypes from 'prop-types';
 import styled from 'styled-components';
-import { fontSize, color, space } from 'styled-system';
+import {
+  fontSize,
+  color,
+  space,
+  FontSizeProps,
+  SpaceProps,
+  ColorProps,
+} from 'styled-system';
+
+import { Theme } from 'design/theme/themes/types';
 
 const defaultValues = {
   fontSize: 1,
   px: 3,
 };
 
-const fromTheme = props => {
+interface MenuItemProps extends FontSizeProps, SpaceProps, ColorProps {
+  disabled?: boolean;
+}
+
+interface ThemedMenuItemProps extends MenuItemProps {
+  theme: Theme;
+}
+
+const fromTheme = (props: ThemedMenuItemProps) => {
   const values = {
     ...defaultValues,
     ...props,
@@ -48,7 +64,7 @@ const fromTheme = props => {
   };
 };
 
-const MenuItem = styled.div`
+const MenuItem = styled.div<MenuItemProps>`
   min-height: 40px;
   box-sizing: border-box;
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
@@ -68,11 +84,5 @@ const MenuItem = styled.div`
 `;
 
 MenuItem.displayName = 'MenuItem';
-MenuItem.propTypes = {
-  /**
-   * Menu item contents.
-   */
-  children: PropTypes.node,
-};
 
 export default MenuItem;

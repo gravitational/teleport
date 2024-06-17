@@ -69,11 +69,7 @@ export function SearchPanel({
   }
 
   return (
-    <StyledPanel
-      onSubmit={handleOnSubmit}
-      borderTopLeftRadius={3}
-      borderTopRightRadius={3}
-    >
+    <StyledPanel onSubmit={handleOnSubmit}>
       <Flex justifyContent="space-between" alignItems="center" width="100%">
         <Flex as="form" style={{ width: '70%' }} alignItems="center">
           <StyledFlex

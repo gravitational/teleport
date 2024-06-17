@@ -55,7 +55,10 @@ export const Dropdown = styled.div<OpenProps>`
   }
 `;
 
-export const DropdownItem = styled.div`
+export const DropdownItem = styled.div<{
+  open?: boolean;
+  $transitionDelay: number;
+}>`
   line-height: 1;
   font-size: ${p => p.theme.fontSizes[2]}px;
   color: ${props => props.theme.colors.text.main};

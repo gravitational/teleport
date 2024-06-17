@@ -16,32 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import Box from './Box';
 
-import { space } from 'design/system';
-
-const LabelInput = styled.label`
-  color: ${props =>
-    props.hasError
-      ? props.theme.colors.error.main
-      : props.theme.colors.text.main};
-  display: block;
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  width: 100%;
-  ${space}
-`;
-
-LabelInput.propTypes = {
-  hasError: PropTypes.bool,
-};
-
-LabelInput.defaultProps = {
-  hasError: false,
-  fontSize: 0,
-  mb: 1,
-};
-
-LabelInput.displayName = 'LabelInput';
-
-export default LabelInput;
+export default Box;
+export type { BoxProps } from './Box';

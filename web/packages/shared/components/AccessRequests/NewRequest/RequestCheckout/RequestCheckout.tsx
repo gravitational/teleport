@@ -112,7 +112,7 @@ export function RequestCheckoutWithSlider<
       `}
     >
       <Dimmer className={transitionState} />
-      <SidePanel state={transitionState} className={transitionState}>
+      <SidePanel className={transitionState}>
         <RequestCheckout {...props} />
       </SidePanel>
     </div>

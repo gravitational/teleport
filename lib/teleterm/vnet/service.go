@@ -296,7 +296,8 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
 			VnetCertExpired: &apiteleterm.VnetCertExpired{
-				TargetUri: appURI.String(),
+				TargetUri:  appURI.String(),
+				PublicAddr: app.GetPublicAddr(),
 			},
 		},
 	}
@@ -322,8 +323,9 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 		notifyErr := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
 			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
-					TargetUri: appURI.String(),
-					Error:     err.Error(),
+					TargetUri:  appURI.String(),
+					PublicAddr: app.GetPublicAddr(),
+					Error:      err.Error(),
 				},
 			},
 		})
