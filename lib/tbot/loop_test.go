@@ -21,6 +21,7 @@ package tbot
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,39 +38,37 @@ func Test_runOnInterval(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	taskCh := make(chan struct{}, 3)
 	log := utils.NewSlogLoggerForTests()
 	clock := clockwork.NewFakeClock()
-	callCount := atomic.Int64{}
 	cfg := runOnIntervalConfig{
 		name:  "test",
 		clock: clock,
 		log:   log,
 		f: func(ctx context.Context) error {
-			callCount.Add(1)
+			taskCh <- struct{}{}
 			return nil
 		},
-		retryLimit:           3,
-		interval:             time.Minute * 10,
-		exitOnRetryExhausted: true,
+		retryLimit: 3,
+		interval:   time.Minute * 10,
 	}
 
-	errCh := make(chan error)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		errCh <- runOnInterval(ctx, cfg)
+		defer wg.Done()
+		assert.NoError(t, runOnInterval(ctx, cfg))
 	}()
 
 	// Wait for three iterations to have been completed.
-	clock.BlockUntil(1)
-	clock.Advance(time.Minute * 11)
-	clock.BlockUntil(1)
-	clock.Advance(time.Minute * 11)
-	clock.BlockUntil(1)
+	for i := 0; i < 3; i++ {
+		<-taskCh
+		clock.Advance(time.Minute * 11)
+	}
 
 	// Cancel the ctx and make sure runOnInterval returns
 	cancel()
-	gotErr := <-errCh
-	assert.NoError(t, gotErr)
-	assert.Equal(t, int64(3), callCount.Load())
+	wg.Wait()
 }
 
 func Test_runOnInterval_failureExit(t *testing.T) {
@@ -90,17 +89,18 @@ func Test_runOnInterval_failureExit(t *testing.T) {
 			callCount.Add(1)
 			return testErr
 		},
-		retryLimit:           3,
+		retryLimit:           2,
 		interval:             time.Second,
 		exitOnRetryExhausted: true,
 	}
 
-	errCh := make(chan error)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		errCh <- runOnInterval(ctx, cfg)
+		defer wg.Done()
+		assert.ErrorIs(t, runOnInterval(ctx, cfg), testErr)
 	}()
 
-	gotErr := <-errCh
-	assert.ErrorIs(t, gotErr, testErr)
-	assert.Equal(t, int64(3), callCount.Load())
+	wg.Wait()
+	assert.Equal(t, int64(2), callCount.Load())
 }
