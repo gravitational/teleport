@@ -94,9 +94,9 @@ A typical GitHub actions provider configuration would look like:
 ```hcl
 provider "teleport" {
   addr               = "mytenant.teleport.sh:443"
-  onboarding = {
-    token       = "gha-runner"
-    join_method = "github"
+  joining = {
+    token  = "gha-runner"
+    method = "github"
   }
 }
 ```
@@ -106,6 +106,12 @@ As Teleport does not support yet reusable bot tokens so the `token` join method 
 Implementation-wise, this would reuse the
 same [in-process tbot library](https://github.com/gravitational/teleport/tree/rfd/173-terraform-machine-id/integrations/operator/embeddedtbot)
 we used for the Teleport operator.
+
+##### Notes regarding CGO
+
+The Terraform provider is currently built without CGO and tbot depends on `lib/auth`, which depends on `lib/services`
+which depends on CGO. To avoid adding un unnecessary CGO dependency and potentially break musl users, the embedded tbot
+will rely on the work currently done by @rosstimothy and the MachineID team to remove the CGO dependency from tbot.
 
 #### Resource bootstrapping
 
@@ -141,6 +147,10 @@ When running with this configuration, the provider will:
 - get a client from the local `~/.tsh` profile associated with this `addr`
 - ping the cluster to validate the user client and recover the user's name
 - generate a random secret token (16 bytes of hex-encoded random, the Teleport default)
+- Check if MFA4A is required, if so:
+  - Create an MFA challenge that can be reused for all 3 API calls (reuse challenge extension)
+  - Prompt the user to answer the MFA challenge
+  - Attach the MFA challenge response in the ctx for each API call (as described in #37121)
 - create the 3 bootstrap resources
   - if the call fails because of MFA4A, perform the MFA challenge once, save the MFA certs valid for a minute and use
     them to create the 3 resources
@@ -150,29 +160,29 @@ When running with this configuration, the provider will:
     Please chech you have the rights to create role, bot and token resources. If you got recently granted those rights you might need to re-log in.
     (tsh logout --proxy="mytenant.teleport.sh:443" --user="hugo.hervieux@goteleport.com")
     ```
-- continue the provider flow with the following onboarding config
+- continue the provider flow with the following joining config
   ```hcl
-  onboarding = {
-    token = "<secret token that got generated earlier>"
-    join_method = "token"
+  joining = {
+    token  = "<secret token that got generated earlier>"
+    method = "token"
   }
   ```
 
 #### Backward compatibility
 
-By default, when neither `bootstrap` nor `onboarding` values are set the provided uses the existing `identity_*` values.
+By default, when neither `bootstrap` nor `joining` values are set the provided uses the existing `identity_*` values.
 This ensures compatibility with existing setups.
 
-`onboarding`, `bootstrap` and the `identity_` settings are mutually exclusive and the Provider will refuse to start if
+`joining`, `bootstrap` and the `identity_` settings are mutually exclusive and the Provider will refuse to start if
 more than one is set. This will avoid any un-tested hybrid configuration.
 
 The error message would look like:
 ```
-Invalid provider configuration. `bootstrap`, `onboarding` and `identity_*`/`key_*`/`profile_*` values are mutually exclusive.
+Invalid provider configuration. `bootstrap`, `joining` and `identity_*`/`key_*`/`profile_*` values are mutually exclusive.
 You must set only one.
 
 - `bootstrap` is used when running Terraform on a developper laptop
-- `onboarding` is used when running Terraform in CI/CD pipelines such as GitHub Actions or GitLab CI.
+- `joining` is used when running Terraform in CI/CD pipelines such as GitHub Actions or GitLab CI.
 - passing certificates directly with `identity_*`, `key_*` or `profile_*` is used when you already have Teleport credentials for the provider.
 ```
 
@@ -196,7 +206,7 @@ create a bot resource. Too many resource could create noise or affect Teleport's
 by:
 - the fact `bootstrap` is only usable on local laptop. It requires a valid `~/.tsh` profile and the ability to pass an
   MFA challenge (when MFA4A is enabled, which we are pushing everywhere and is Cloud's default). Intensive CI usage will
-  use existing bot resources and the `onboarding` configuration.
+  use existing bot resources and the `joining` configuration.
 - the bootstrap resource expiry, by default 1 hour.
 
 Reusing the same resource (delete/re-create) proved to be very harmful when we did this in the Kubernetes operator.
@@ -247,7 +257,7 @@ To validate product adoption and join method usage we need some Telemetry, there
 
 #### Anonymous opt-in Telemetry client-side
 
-In this approach, telemetry would be opt-in and reuse the existing tbot start event and adding new fields:
+In this approach, telemetry would be opt-in and reuse the existing tbot start event and its `helper` field:
 
 ```protobuf
 syntax = "proto3";
@@ -262,15 +272,12 @@ message TbotStartEvent {
   RunMode run_mode = 1;
   string version = 2;
   string join_type = 3;
-  string helper = 4;
-  string helper_version = 5;
+  string helper = 4;  // helper would be `terraform`
+  string helper_version = 5; // helper_version would be the TF provider version
   int32 destinations_other = 6;
   int32 destinations_database = 7;
   int32 destinations_kubernetes = 8;
   int32 destinations_application = 9;
-  // process is the name of the process running tbot when run mode is "in process".
-  // The only value will be "terraform" but we can reuse this in kube with "operator".
-  string process = 10;
 }
 ```
 
@@ -290,13 +297,13 @@ Anonymization step would check the usage/integration value against a hardcoded l
 ### Test plan
 
 Write integration tests for:
-- `onboarding` with an existing bot
-- `onboarding` with mocking MFA (not sure about the feasibility)
+- `joining` with an existing bot
+- `joining` with mocking MFA (not sure about the feasibility)
 - `bootstrap` enabled and checking resources are created
 
 Manual test (in the test plan) for:
-- running the provider in GitHub actions with `onboarding`
-- running the provider locally with `onboarding` against a cluster with MFA4A
+- running the provider in GitHub actions with `joining`
+- running the provider locally with `joining` against a cluster with MFA4A
 
 ### Future work
 
