@@ -277,7 +277,7 @@ func TestUpdateUser_updateUserTraitsPreset(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:         "removesall",
 				Roles:        defaultRoles,
-				TraitsPreset: &traitsPreset{Logins: &[]string{"login1", "login2", "login1"}},
+				TraitsPreset: &traitsPreset{Logins: &[]string{}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {},
