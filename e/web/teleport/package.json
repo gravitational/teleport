@@ -19,8 +19,7 @@
     "cross-env": "5.0.5"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0",
-    "@types/google-protobuf": "^3.10.0"
+    "@gravitational/build": "^1.0.0"
   },
   "private": true,
   "workspaces": {
