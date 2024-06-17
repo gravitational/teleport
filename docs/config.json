@@ -652,21 +652,21 @@
           ]
         },
         {
-          "title": "Access Graph",
+          "title": "Teleport Policy",
           "slug": "/access-controls/access-graph/",
           "forScopes": [
             "enterprise"
           ],
           "entries": [
             {
-              "title": "TAG for Self-Hosted Clusters",
+              "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
               "forScopes": [
                 "enterprise"
               ]
             },
             {
-              "title": "TAG for Self-Hosted Clusters with Helm",
+              "title": "Teleport Policy for Self-Hosted Clusters with Helm",
               "slug": "/access-controls/access-graph/self-hosted-helm/",
               "forScopes": [
                 "enterprise"
