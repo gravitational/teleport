@@ -4011,6 +4011,16 @@ func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *authpb
 	return response, nil
 }
 
+func (g *GRPCServer) GetDesktopBootstrapScript(ctx context.Context, _ *emptypb.Empty) (*authpb.DesktopBootstrapScriptResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.GetDesktopBootstrapScript(ctx)
+	return res, trace.Wrap(err)
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *authpb.ChangeUserAuthenticationRequest) (*authpb.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)

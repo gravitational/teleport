@@ -128,7 +128,7 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
 1. Remote Session Environment > Limit maximum color depth
 
 Detailed instructions are available in the
-[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
 A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
