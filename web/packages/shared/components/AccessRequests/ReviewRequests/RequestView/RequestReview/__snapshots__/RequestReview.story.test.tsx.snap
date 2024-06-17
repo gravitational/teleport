@@ -300,7 +300,6 @@ exports[`failed state 1`] = `
       >
         <label
           class="c17"
-          font-size="0"
         >
           Message
           <textarea
@@ -594,7 +593,6 @@ exports[`loaded state 1`] = `
       >
         <label
           class="c16"
-          font-size="0"
         >
           Message
           <textarea

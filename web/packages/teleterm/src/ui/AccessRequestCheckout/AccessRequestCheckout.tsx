@@ -137,7 +137,7 @@ export function AccessRequestCheckout() {
                 {pluralize(data.length, isRoleRequest ? 'role' : 'resource')}{' '}
                 added to access request:
               </Text>
-              <Flex direction="row" gap={1} flexWrap="wrap">
+              <Flex gap={1} flexWrap="wrap">
                 {data
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {

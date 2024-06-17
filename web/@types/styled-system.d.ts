@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,39 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import 'styled-system';
 
-import {
-  typography,
-  fontSize,
-  space,
-  color,
-  textAlign,
-  fontWeight,
-} from 'design/system';
+declare module 'styled-system' {
+  export function style(args: LowLevelStylefunctionArguments): styleFn;
 
-const Text = styled.div`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  ${typography}
-  ${fontSize}
-  ${space}
-  ${color}
-  ${textAlign}
-  ${fontWeight}
-`;
-
-Text.displayName = 'Text';
-
-Text.propTypes = {
-  ...space.propTypes,
-  ...fontSize.propTypes,
-  ...textAlign.propTypes,
-  ...typography.propTypes,
-};
-
-Text.defaultProps = {
-  m: 0,
-};
-
-export default Text;
+  export interface styleFn {
+    (...args: any[]): any;
+    propTypes: React.WeakValidationMap<{ [string]: any }>;
+  }
+}
