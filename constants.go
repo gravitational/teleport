@@ -373,6 +373,9 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// ForcePathStyle is an optional switch to force path style URI	for S3
+	ForcePathStyle = "force_path_style"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 

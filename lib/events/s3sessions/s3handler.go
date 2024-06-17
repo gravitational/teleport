@@ -75,6 +75,8 @@ type Config struct {
 	Path string
 	// Endpoint is an optional third party S3 compatible endpoint
 	Endpoint string
+	// ForcePathStyle forces the use of path style URLs
+	ForcePathStyle bool
 	// ACL is the canned ACL to send to S3
 	ACL string
 	// Session is an optional existing AWS client session
@@ -145,6 +147,14 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		}
 	}
 
+	if val := in.Query().Get(teleport.ForcePathStyle); val != "" {
+		forcePathStyle, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.ForcePathStyle, val)
+		}
+		s.ForcePathStyle = forcePathStyle
+	}
+
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
@@ -165,7 +175,7 @@ func (s *Config) CheckAndSetDefaults() error {
 		}
 		if s.Endpoint != "" {
 			awsConfig.Endpoint = aws.String(s.Endpoint)
-			awsConfig.S3ForcePathStyle = aws.Bool(true)
+			awsConfig.S3ForcePathStyle = aws.Bool(s.ForcePathStyle)
 		}
 		if s.Insecure {
 			awsConfig.DisableSSL = aws.Bool(s.Insecure)
