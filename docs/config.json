@@ -2735,11 +2735,6 @@
       "permanent": true
     },
     {
-      "source": "/access-graph/",
-      "destination": "/access-controls/access-graph/",
-      "permanent": true
-    },
-    {
       "source": "/database-access/guides/aws-discovery/",
       "destination": "/auto-discovery/databases/",
       "permanent": true
