@@ -3518,13 +3518,12 @@ jamf_service:
 			yaml: `jamf_service: {}`,
 		},
 		{
-			name: "disabled config is validated",
+			name: "disabled config ignored",
 			yaml: `
 jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password",
 		},
 	}
 	for _, test := range tests {
