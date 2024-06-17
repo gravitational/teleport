@@ -39,7 +39,7 @@
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.11",
     "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
-    "@storybook/components": "^6.5.16",
+    "@storybook/components": "^8.1.9",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
     "@swc/plugin-styled-components": "^1.5.105",
