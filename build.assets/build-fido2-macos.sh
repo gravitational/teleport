@@ -21,8 +21,8 @@ if ! [[ "${C_ARCH:=$(uname -m)}" =~ ^(x86_64|arm64)$ ]]; then
 fi
 
 # Note: versions are the same as the corresponding git tags for each repo.
-readonly CBOR_VERSION=v0.10.2
-readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
+readonly CBOR_VERSION=v0.11.0
+readonly CBOR_COMMIT=170bee2b82cdb7b2ed25af301f62cb6efdd40ec1
 readonly CRYPTO_VERSION=openssl-3.0.14
 readonly CRYPTO_COMMIT=9cff14fd97814baf8a9a07d8447960a64d616ada
 readonly FIDO2_VERSION=1.15.0
