@@ -988,11 +988,44 @@ Add the following to enable read access to trusted clusters
     - [ ] macOS
     - [ ] Windows
     - [ ] Linux
-- [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
-      `~/Library/Application\ Support/Teleport\ Connect/logs`.
-- [ ] Verify that the password from the login form is not saved in the renderer log.
-- [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
-      works properly after that.
-- [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
-      Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
-      the app was able to reopen the tabs without any errors.
+- VNet
+  - VNet doesn't work with local clusters made available under custom domains through entries in
+    `/etc/hosts`. It's best to use a "real" cluster. nip.io might work, but it hasn't been confirmed
+    yet.
+  - Verify that VNet works for TCP apps within:
+    - [ ] a root cluster
+    - [ ] a custom DNS zone of a root cluster
+    - [ ] a leaf cluster
+    - [ ] a custom DNS zone of a leaf cluster
+  - [ ] Verify that setting a custom IPv4 CIDR range works.
+  - [ ] Verify that Connect asks for relogin when attempting to connect to an app after cert expires.
+    - Be mindful that you need to connect to the app at least once before the cert expires for
+      Connect to properly recognize it as a TCP app.
+  - Start the app with debug logs on and tail `tshd.log`. Verify that the UI works correctly in the
+    following scenarios:
+    - All buth the first point assume that you successfully go through the osascript prompt.
+    - Close the osascript prompt.
+      - [ ] The VNet panel shows info about the password prompt being closed.
+    - Start VNet, then stop it.
+      - [ ] The VNet panel doesn't show any errors related to VNet being stopped.
+    - Start VNet, then remove the socket file used for communication with the admin process. It's reported in
+      `tshd.log` as `Created unix socket for admin subcommand socket:<path>`.
+      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
+      - [ ] The admin process cleans up files in `/etc/resolver`.
+    - Start VNet. While its running, kill the admin process.
+      - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
+        All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
+        authtrampoline → bash → tsh. Then just `sudo kill -s KILL <tsh pid>`.
+      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
+      - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
+        VNet again, connect to a TCP app, then shut VNet down and it results in the files being
+        cleaned up.
+- Misc
+  - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
+        `~/Library/Application\ Support/Teleport\ Connect/logs`.
+  - [ ] Verify that the password from the login form is not saved in the renderer log.
+  - [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
+        works properly after that.
+  - [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
+        Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
+        the app was able to reopen the tabs without any errors.
