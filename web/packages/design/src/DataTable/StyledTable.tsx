@@ -106,7 +106,6 @@ export const StyledPanel = styled.nav`
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: ${props => props.theme.space[3]}px 0;
+  padding: 0 0 ${props => props.theme.space[3]}px 0;
   max-height: ${props => props.theme.space[6]}px;
-  margin-bottom: ${p => p.theme.space[2]}px;
 `;

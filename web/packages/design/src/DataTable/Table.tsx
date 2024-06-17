@@ -279,13 +279,11 @@ function PagedTable<T>({
   return (
     <>
       {isTopPager && (
-        <>
-          <StyledPanel>
-            <InputSearch
-              searchValue={searchValue}
-              setSearchValue={setSearchValue}
-            />
-          </StyledPanel>
+        <StyledPanel>
+          <InputSearch
+            searchValue={searchValue}
+            setSearchValue={setSearchValue}
+          />
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -293,7 +291,7 @@ function PagedTable<T>({
             {...fetching}
             {...pagination}
           />
-        </>
+        </StyledPanel>
       )}
       <StyledTable {...radiusProps} className={className} style={style}>
         {renderHeaders()}
