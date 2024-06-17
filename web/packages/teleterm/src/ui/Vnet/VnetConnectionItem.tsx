@@ -163,7 +163,7 @@ const VnetConnectionItemBase = forwardRef<
             <ButtonIcon
               as="a"
               title="Open VNet documentation"
-              href="https://goteleport.com/docs/connect-your-client/teleport-connect/#vnet"
+              href="https://goteleport.com/docs/connect-your-client/vnet/"
               target="_blank"
               onClick={e => {
                 // Don't trigger ListItem's onClick.

@@ -83,8 +83,6 @@ type Features struct {
 	AutomaticUpgrades bool
 	// IsUsageBasedBilling enables some usage-based billing features
 	IsUsageBasedBilling bool
-	// Assist enables Assistant feature
-	Assist bool
 	// DeviceTrust holds its namesake feature settings.
 	DeviceTrust DeviceTrustFeature
 	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
@@ -191,7 +189,6 @@ func (f Features) ToProto() *proto.Features {
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
-		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
 		CustomTheme:             f.CustomTheme,
 		AccessGraph:             f.AccessGraph,
@@ -413,7 +410,6 @@ func (p *defaultModules) Features() Features {
 		App:                true,
 		Desktop:            true,
 		AutomaticUpgrades:  p.automaticUpgrades,
-		Assist:             true,
 		JoinActiveSessions: true,
 		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}

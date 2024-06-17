@@ -380,6 +380,9 @@ func configureTLS(c *tls.Config) *tls.Config {
 // source of authentication for Client. It does not automatically watch the
 // identity file or reload on an interval, this is left as an exercise for the
 // consumer.
+//
+// DynamicIdentityFileCreds is the recommended [Credentials] implementation for
+// tools that use Machine ID certificates.
 type DynamicIdentityFileCreds struct {
 	// mu protects the fields that may change if the underlying identity file
 	// is reloaded.

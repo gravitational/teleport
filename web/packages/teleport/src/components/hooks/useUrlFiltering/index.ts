@@ -18,3 +18,4 @@
 
 export { useUrlFiltering } from './useUrlFiltering';
 export { encodeUrlQueryParams } from './encodeUrlQueryParams';
+export { decodeUrlQueryParam } from './decodeUrlQueryParam';

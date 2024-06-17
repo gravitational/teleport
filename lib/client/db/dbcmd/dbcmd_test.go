@@ -74,6 +74,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		Name:     "example.com",
 		Username: "bob",
 		Dir:      "/tmp",
+		Cluster:  "example.com",
 	}
 
 	tests := []struct {
@@ -619,7 +620,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
 			execer:       &fakeExec{},
 			databaseName: "oracle01",
-			cmd:          []string{"sql", "-L", "jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet"},
+			cmd:          []string{"sql", "-L", "jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/db.example.com/mysql-wallet"},
 			wantErr:      false,
 		},
 		{
@@ -628,7 +629,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, ""), WithPrintFormat()},
 			execer:       &fakeExec{},
 			databaseName: "oracle01",
-			cmd:          []string{"sql", "-L", "'jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet'"},
+			cmd:          []string{"sql", "-L", "'jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/db.example.com/mysql-wallet'"},
 			wantErr:      false,
 		},
 		{
@@ -947,6 +948,7 @@ func TestConvertCommandError(t *testing.T) {
 		Name:     "example.com",
 		Username: "bob",
 		Dir:      homePath,
+		Cluster:  "example.com",
 	}
 
 	tests := []struct {
