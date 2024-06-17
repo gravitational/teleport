@@ -310,6 +310,10 @@ func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
 		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
+	if dataLength > maxFastPastUpdatePDULength {
+		return RDPFastPathPDU(nil), trace.BadParameter(message string, args ...interface{})
+	}
+
 	// Allocate buffer that will fit the data
 	// TODO(isaiah): improve performance by changing
 	// this api to allow buffer re-use.
@@ -1698,8 +1702,15 @@ const (
 	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
 )
 
-// maxPNGFrameDataLength is maximum data length for PNG2Frame
-const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
+const (
+	// maxPNGFrameDataLength is maximum data length for PNG2Frame
+	maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
+
+	// maxFastPastUpdatePDULength is the maximum length for a fast path update PDU.
+	// Note: the spec says that "The overall PDU length SHOULD be less than or equal to 16,383 bytes"
+	// but there are 15-bits so we'll go with 32K just to be safe.
+	maxFastPastUpdatePDULength = 32786
+)
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (
