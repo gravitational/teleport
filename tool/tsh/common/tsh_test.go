@@ -2011,15 +2011,9 @@ func TestSSHAccessRequest(t *testing.T) {
 
 			requests, err := rootAuth.GetAuthServer().GetAccessRequests(ctx, types.AccessRequestFilter{})
 			require.NoError(t, err)
-
-			found := false
-			for _, r := range requests {
-				if r.GetRequestReason() == requestReason {
-					found = true
-					break
-				}
-			}
-			require.True(t, found, "access request with the specified reason was not found")
+			require.True(t, slices.ContainsFunc(requests, func(request types.AccessRequest) bool {
+				return request.GetRequestReason() == requestReason
+			}), "access request with the specified reason was not found")
 
 			// now that we have an approved access request, it should work without
 			// prompting for a request reason
