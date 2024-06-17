@@ -20,6 +20,11 @@ import { ResourceLabel } from '../agents';
 
 export type JoinToken = {
   id: string;
+  safeName: string;
+  isStatic: boolean;
+  method: string;
+  // Roles are the roles granted to the token
+  roles: string[];
   expiry: Date;
   expiryText?: string;
   // suggestedLabels are labels that the resource should add when adding

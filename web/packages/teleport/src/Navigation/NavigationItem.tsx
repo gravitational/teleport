@@ -68,9 +68,9 @@ const Link = styled(NavLink)<{ isHighlighted?: boolean }>`
   color: ${props => props.theme.colors.text.main};
   z-index: 1;
   background: ${p =>
-    p.isHighlighted ? p.theme.colors.highlightedNavigationItem : 'none'};
+    p.highlighted ? p.theme.colors.highlightedNavigationItem : 'none'};
   animation: ${p =>
-    p.isHighlighted
+    p.highlighted
       ? css`
           ${highlight} 10s forwards linear
         `
@@ -279,7 +279,7 @@ export function NavigationItem(props: NavigationItemProps) {
           tabIndex={props.visible ? 0 : -1}
           to={navigationItemVersion.getLink(clusterId)}
           exact={navigationItemVersion.exact}
-          isHighlighted={highlighted}
+          highlighted={highlighted}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}

@@ -114,8 +114,13 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err)
 	}
 
+	uiTokens, err := ui.MakeJoinTokens(tokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return GetTokensResponse{
-		Items: ui.MakeJoinTokens(tokens),
+		Items: uiTokens,
 	}, nil
 }
 
