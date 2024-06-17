@@ -51,8 +51,8 @@ is also referred to as SAML SSO URL.
 
 To configure Simple Test Service Provider, the values you need to provide are the following:
 - **App Name:** `iamshowcase`
-- **Entity ID:** `iamshowcase`
-- **ACS URL:** `https://sptest.iamshowcase.com/acs`
+- **SP Entity ID / Audience URI:** `iamshowcase`
+- **ACS URL / SP SSO URL:** `https://sptest.iamshowcase.com/acs`
 
 Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
@@ -187,44 +187,7 @@ federated by Teleport SAML IdP.
 
 This demonstrates adding a service provider to Teleport configured with a working idp-initiated SSO login flow.
 
-## Recommended: Creating dedicated role to manage service provider
-
-For production, we recommend creating a dedicated role to manage service provider.
-
-To create a dedicated role, first, ensure you are logged into Teleport as a user that has
-permissions to read and modify `saml_idp_service_provider` objects. The default `editor` role
-has access to this already, but in case you are using a more customized configuration,
-create a role called `sp-manager.yaml` with the following contents:
-
-```yaml
-kind: role
-metadata:
-  name: sp-manager
-spec:
-  allow:
-    rules:
-    - resources:
-      - saml_idp_service_provider
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-version: v7
-```
-
-Create the role with `tctl`:
-
-```code
-$ tctl create sp-manager.yaml
-role 'saml-idp-service-provider-manager' has been created
-```
-
-Next, add the role to your user.
-
-(!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)
-
 
 ## Next steps
+- Configure [access to SAML IdP protected resources](./saml-rbac.mdx).
 - Configure [SAML Attribute Mapping](./saml-attribute-mapping.mdx).
