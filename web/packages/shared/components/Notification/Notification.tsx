@@ -241,4 +241,6 @@ const Container = styled(Flex)`
   color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   cursor: pointer;
+  // Break up long addresses.
+  word-break: break-word;
 `;
