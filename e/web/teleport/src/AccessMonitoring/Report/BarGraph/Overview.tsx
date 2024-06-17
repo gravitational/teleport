@@ -15,7 +15,7 @@ const Container = styled.div`
   flex-wrap: wrap;
 `;
 
-const Item = styled.div`
+const Item = styled.div<{ selected?: boolean }>`
   cursor: pointer;
   border-radius: 7px;
   padding: 4px 8px;

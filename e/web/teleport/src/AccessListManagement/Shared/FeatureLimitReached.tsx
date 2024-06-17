@@ -35,7 +35,7 @@ const FeatureLimitReachedCard = styled(Card)`
   top: 150px;
 `;
 
-export const featureLimitReachedBlurCss = {
+export const featureLimitReachedBlurCss: React.CSSProperties = {
   filter: 'blur(2px)',
   pointerEvents: 'none',
   userSelect: 'none',

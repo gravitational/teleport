@@ -95,7 +95,6 @@ const GraphTitle = styled.div`
 
 const GraphDescription = styled.div`
   font-size: 14px;
-  color: ${p => p.theme.colors.text.secondary};
 `;
 
 export function ReportContent(props: ReportContentProps) {

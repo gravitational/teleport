@@ -114,7 +114,7 @@ export function RunScript() {
                 },
               ]}
             />
-            <Text typography="subtitle" bold mt={2}>
+            <Text bold mt={2}>
               Considerations:
             </Text>
             <Flex as="ul" flexDirection="column" gap={1} pl={3} my={0}>
@@ -176,7 +176,7 @@ export function RunScript() {
                       <Icons.Upload size="small" />
                     </ButtonBorder>
 
-                    <FileLabel fontSize={2} hasError={fileHasError}>
+                    <FileLabel hasError={fileHasError}>
                       {fileHasError ? 'Cache file must be specified' : fileName}
                     </FileLabel>
                     <input

@@ -396,7 +396,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   >
     <label
       class="c9"
-      font-size="0"
     >
       Username
       <input
@@ -418,7 +417,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
     >
       <label
         class="c13"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type
@@ -704,7 +702,6 @@ exports[`render failed state form for authenticating with password 1`] = `
   >
     <label
       class="c9"
-      font-size="0"
     >
       Username
       <input
@@ -722,7 +719,6 @@ exports[`render failed state form for authenticating with password 1`] = `
   >
     <label
       class="c9"
-      font-size="0"
     >
       Password
       <input
@@ -1148,7 +1144,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
   >
     <label
       class="c9"
-      font-size="0"
     >
       Username
       <input
@@ -1170,7 +1165,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
     >
       <label
         class="c13"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type
@@ -1235,7 +1229,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
     >
       <label
         class="c9"
-        font-size="0"
       >
         Authenticator Code
         <input
@@ -1656,7 +1649,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   >
     <label
       class="c9"
-      font-size="0"
     >
       Username
       <input
@@ -1678,7 +1670,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
     >
       <label
         class="c13"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type
@@ -2113,7 +2104,6 @@ exports[`render form for authenticating with multi option 1`] = `
   >
     <label
       class="c8"
-      font-size="0"
     >
       Username
       <input
@@ -2135,7 +2125,6 @@ exports[`render form for authenticating with multi option 1`] = `
     >
       <label
         class="c12"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type
@@ -2389,7 +2378,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   >
     <label
       class="c8"
-      font-size="0"
     >
       Username
       <input
@@ -2407,7 +2395,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   >
     <label
       class="c8"
-      font-size="0"
     >
       Password
       <input
@@ -2801,7 +2788,6 @@ exports[`render form for authenticating with totp 1`] = `
   >
     <label
       class="c8"
-      font-size="0"
     >
       Username
       <input
@@ -2823,7 +2809,6 @@ exports[`render form for authenticating with totp 1`] = `
     >
       <label
         class="c12"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type
@@ -2888,7 +2873,6 @@ exports[`render form for authenticating with totp 1`] = `
     >
       <label
         class="c8"
-        font-size="0"
       >
         Authenticator Code
         <input
@@ -3277,7 +3261,6 @@ exports[`render form for authenticating with webauthn 1`] = `
   >
     <label
       class="c8"
-      font-size="0"
     >
       Username
       <input
@@ -3299,7 +3282,6 @@ exports[`render form for authenticating with webauthn 1`] = `
     >
       <label
         class="c12"
-        font-size="0"
         for="select"
       >
         Multi-Factor Type

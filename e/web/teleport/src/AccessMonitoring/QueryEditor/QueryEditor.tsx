@@ -33,7 +33,7 @@ const CustomDialect = SQLDialect.define({
   types: '',
 });
 
-const Query = styled.div`
+const Query = styled.div<{ disabled?: boolean }>`
   background: ${p => p.theme.colors.levels.popout};
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
   padding: ${p => p.theme.space[2]}px 0 ${p => p.theme.space[3]}px 0;
@@ -58,7 +58,7 @@ const ExecuteContainer = styled.div`
   gap: ${p => p.theme.space[3]}px;
 `;
 
-const ExecuteButton = styled.div`
+const ExecuteButton = styled.div<{ disabled?: boolean }>`
   display: flex;
   gap: ${p => p.theme.space[3]}px;
   padding: 6px 12px;

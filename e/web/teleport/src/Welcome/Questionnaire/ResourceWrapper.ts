@@ -1,7 +1,10 @@
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-export const ResourceWrapper = styled(Flex)`
+export const ResourceWrapper = styled(Flex)<{
+  isSelected?: boolean;
+  invalid?: boolean;
+}>`
   flex-direction: column;
   height: 100%;
   background-color: ${props => props.theme.colors.levels.surface};

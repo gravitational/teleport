@@ -122,7 +122,7 @@ const renderRolesAndTraits = ({
   return <Flex flexWrap="wrap">{$labels}</Flex>;
 };
 
-const AccessCardContainer = styled(Flex)`
+const AccessCardContainer = styled(Flex)<{ $onlyRender?: boolean }>`
   position: relative;
   transition: all 150ms;
 
@@ -163,7 +163,7 @@ const Description = styled(Text)`
   line-height: 16px;
 `;
 
-const SingleLineBox = styled(Text)`
+const SingleLineBox = styled(Text)<{ $requiresReview: boolean }>`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

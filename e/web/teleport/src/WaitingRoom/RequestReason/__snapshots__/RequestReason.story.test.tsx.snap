@@ -255,7 +255,6 @@ exports[`failed 1`] = `
         </div>
         <label
           class="c11"
-          font-size="0"
         >
           Authorization Request Message
         </label>
@@ -517,7 +516,6 @@ exports[`loaded with custom prompt 1`] = `
         </div>
         <label
           class="c10"
-          font-size="0"
         >
           Authorization Request Message
         </label>
@@ -779,7 +777,6 @@ exports[`loaded without custom prompt 1`] = `
         </div>
         <label
           class="c10"
-          font-size="0"
         >
           Authorization Request Message
         </label>

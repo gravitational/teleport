@@ -87,7 +87,7 @@ export const StatusBanner = ({
         p="20px 0 20px 40px"
       >
         <h2>{title()}</h2>
-        <Text color={theme.colors.text.secondary}>{description()}</Text>
+        <Text>{description()}</Text>
         {cancelable && (
           <ButtonSecondary mt="12px" onClick={() => setOpen(true)}>
             Cancel Plan

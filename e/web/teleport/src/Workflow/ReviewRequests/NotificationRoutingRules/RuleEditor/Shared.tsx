@@ -56,7 +56,7 @@ export const EditorSaveCancelButton = ({
   );
 };
 
-export const EditorWrapper = styled(Box)`
+export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
 `;

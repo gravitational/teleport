@@ -120,7 +120,7 @@ export const Cycle = ({
           </h2>
           <UpdatedAtDisplay theme={theme} usageUpdatedAt={usageUpdatedAt} />
         </Flex>
-        <Text color={theme.colors.text.secondary}>
+        <Text>
           {stripeMissingPaymentMethod
             ? `Your trial will expire on ${displayUnixShortDate(
                 stripeTrialEnd

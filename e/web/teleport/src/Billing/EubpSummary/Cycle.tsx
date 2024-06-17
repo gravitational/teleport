@@ -62,9 +62,7 @@ export const Cycle = ({
           </h2>
           <UpdatedAtDisplay theme={theme} usageUpdatedAt={usageUpdatedAt} />
         </Flex>
-        <Text color={theme.colors.text.secondary}>
-          Monthly usage will reset at the end of this cycle.
-        </Text>
+        <Text>Monthly usage will reset at the end of this cycle.</Text>
         <Flex flexWrap="wrap">
           {usage.map(u => (
             <Usage key={u.name} usage={u} />

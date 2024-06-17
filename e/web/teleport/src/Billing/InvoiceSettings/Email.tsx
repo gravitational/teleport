@@ -55,7 +55,6 @@ export const Email = ({ email, reload }: EmailProps) => {
         aria-label="email"
         mt={3}
         type="email"
-        label="Email Address"
         value={field}
         placeholder="invoices@mycompany.com"
         onChange={e => {

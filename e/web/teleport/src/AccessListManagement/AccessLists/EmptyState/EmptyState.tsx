@@ -54,7 +54,7 @@ export function EmptyState() {
       </Box>
       <FeatureContainer py={2} pr={2}>
         <Box css={{ position: 'relative' }}>
-          <FeatureSlider $featureCount={4} $currIndex={currIndex} />
+          <FeatureSlider $currIndex={currIndex} />
           <AutomateAccessRequest
             active={currIndex === 0}
             isSliding={!!intervalId}
@@ -139,7 +139,7 @@ const FeatureContainer = styled(Flex)`
   }
 `;
 
-const FeatureSlider = styled.div`
+const FeatureSlider = styled.div<{ $currIndex: number }>`
   z-index: -1;
   position: absolute;
   height: var(--feature-height);

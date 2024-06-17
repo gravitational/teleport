@@ -37,7 +37,7 @@ export default function RequestPending() {
   );
 }
 
-const StyledProgressBar = styled(Flex)`
+const StyledProgressBar = styled(Flex)<{ value: number }>`
   align-items: center;
   flex-shrink: 0;
   width: 80%;

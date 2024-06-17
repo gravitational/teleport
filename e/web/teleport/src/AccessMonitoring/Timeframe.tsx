@@ -73,7 +73,7 @@ export function Timeframe(props: TimeframeProps) {
   }
 
   return (
-    <StyledSelect disabled={!cfg.isIgsEnabled}>
+    <StyledSelect>
       <Select
         onChange={handleChange}
         value={selectedTimeframe}

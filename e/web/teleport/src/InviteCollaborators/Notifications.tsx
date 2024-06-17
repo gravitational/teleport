@@ -77,7 +77,7 @@ export function Notifications({
   const getColor = () => '#000000';
 
   function getStyle(item: NotificationItem) {
-    let background = theme.colors.elevated;
+    let background = theme.colors.levels.elevated;
     let color = theme.colors.text.main;
 
     switch (item.severity) {

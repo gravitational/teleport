@@ -160,7 +160,6 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
     >
       <label
         class="c6"
-        font-size="0"
       >
         Username
         <input
@@ -178,7 +177,6 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
     >
       <label
         class="c6"
-        font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
         <input
@@ -362,7 +360,6 @@ exports[`render correct form for clicking forgot password 1`] = `
     >
       <label
         class="c6"
-        font-size="0"
       >
         Username
         <input
@@ -380,7 +377,6 @@ exports[`render correct form for clicking forgot password 1`] = `
     >
       <label
         class="c6"
-        font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
         <input

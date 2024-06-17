@@ -229,7 +229,7 @@ export function AccessLists() {
     MainContent = (
       <>
         <Box width="600px" mb={4}>
-          <InputWrapper mb={2} onSubmit={handleOnSubmitSearch}>
+          <InputWrapper onSubmit={handleOnSubmitSearch}>
             <StyledInput
               placeholder="Search by title or description"
               autoFocus

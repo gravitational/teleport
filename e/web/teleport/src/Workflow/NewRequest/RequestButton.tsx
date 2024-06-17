@@ -190,7 +190,6 @@ const StyledSelect = styled(BaseStyledSelect)`
     font-size: 12px;
     width: 230px;
     right: 0;
-    color: ${p => p.theme.colors.primary};
   }
 
   .react-select__option {

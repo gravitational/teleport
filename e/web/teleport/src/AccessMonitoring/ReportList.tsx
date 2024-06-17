@@ -18,7 +18,7 @@ import { REPORT_VIEW_CONFIGS } from 'e-teleport/AccessMonitoring/Report/config';
 
 import { ReportOverview } from './types';
 
-const Container = styled.div`
+const Container = styled.div<{ isLoading?: boolean }>`
   display: flex;
   flex-direction: column;
   pointer-events: ${p => (p.isLoading ? 'none' : 'auto')};
@@ -31,7 +31,7 @@ const List = styled.div`
   margin-bottom: ${p => p.theme.space[3]}px;
 `;
 
-const itemStyles = css`
+const itemStyles = css<{ disabled?: boolean }>`
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};
   border-radius: 7px;
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px

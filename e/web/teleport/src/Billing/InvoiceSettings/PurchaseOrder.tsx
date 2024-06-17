@@ -55,7 +55,6 @@ export const PurchaseOrder = ({ po, reload }: PurchaseOrderProps) => {
         aria-label="purchase order"
         mt={3}
         type="text"
-        label="purchase order"
         value={field}
         placeholder="PO Number for Invoices"
         onChange={e => {

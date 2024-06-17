@@ -69,7 +69,7 @@ function renderItem(
         {desc}
       </Text>
       {info && (
-        <Text mt={2} color="text.primary" transform="none">
+        <Text mt={2} color="text.primary">
           {info}
         </Text>
       )}

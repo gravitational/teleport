@@ -15,9 +15,7 @@ export function PluginEnrollFailedDialog(props: State) {
           Unable to connect {plugin.name}
         </Text>
         <Text>
-          <Text display="inline" typography="h6">
-            Access to {plugin.name} was denied:
-          </Text>
+          <Text typography="h6">Access to {plugin.name} was denied:</Text>
           <Text mono my="2">
             {errorDescription}
           </Text>

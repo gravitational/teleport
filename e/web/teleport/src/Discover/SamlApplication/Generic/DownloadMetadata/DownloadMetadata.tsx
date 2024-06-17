@@ -73,7 +73,7 @@ export function ConfigureServiceProvider({
   samlIdPMetadata,
 }: ConfigureSPProps) {
   return (
-    <StyledBox mb={4} padding={6}>
+    <StyledBox mb={4}>
       <Text bold>Teleport IdP Metadata</Text>
 
       <Flex alignItems="baseline" gap={4} mb={4}>

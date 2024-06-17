@@ -51,7 +51,6 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
             name={resource.label}
             readOnly
             checked={checked.includes(resource.value as ResourceOption)}
-            rule={requiredResourceField(checked)}
             style={{
               alignSelf: 'flex-end',
               margin: '0',

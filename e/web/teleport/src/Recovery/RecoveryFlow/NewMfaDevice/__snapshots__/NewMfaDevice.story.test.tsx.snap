@@ -313,7 +313,6 @@ exports[`render correct form to add TOTP device 1`] = `
     >
       <label
         class="c16"
-        font-size="0"
       >
         MFA method name
         <input
@@ -352,7 +351,6 @@ exports[`render correct form to add TOTP device 1`] = `
         >
           <label
             class="c16"
-            font-size="0"
           >
             Authenticator Code
             <input

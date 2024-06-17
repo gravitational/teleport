@@ -16,7 +16,7 @@ export const Description = styled(Text)`
   font-size: ${p => p.theme.fontSizes[1]};
 `;
 
-export const Feature = styled(Box)`
+export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
 height: var(--feature-height);
 
   line-height: 20px;

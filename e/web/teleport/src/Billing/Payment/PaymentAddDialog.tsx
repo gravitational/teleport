@@ -124,11 +124,7 @@ export const PaymentAddDialog = ({
         </Text>
       </DialogHeader>
       <DialogContent width="400px">
-        <Text
-          mb={3}
-          typography={theme.typography.h5}
-          color={theme.colors.text.slightlyMuted}
-        >
+        <Text mb={3} color={theme.colors.text.slightlyMuted}>
           {description
             ? description
             : `Add a payment method for your cluster, ${clusterId}`}

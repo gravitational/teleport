@@ -157,7 +157,10 @@ export const CalendarDateSelect = ({
   );
 };
 
-const CalendarInput = styled(Flex)`
+const CalendarInput = styled(Flex)<{
+  dateSelected?: boolean;
+  hasError?: boolean;
+}>`
   color: ${p => (p.dateSelected ? 'inherit' : p.theme.colors.text.disabled)};
   height: 40px;
   border: 1px solid ${p => p.theme.colors.text.muted};

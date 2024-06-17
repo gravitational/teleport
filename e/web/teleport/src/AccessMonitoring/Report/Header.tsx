@@ -27,7 +27,7 @@ const Title = styled.div`
   font-size: 24px;
 `;
 
-const Controls = styled.div`
+const Controls = styled.div<{ disabled?: boolean }>`
   flex: 1;
   display: flex;
   align-items: center;

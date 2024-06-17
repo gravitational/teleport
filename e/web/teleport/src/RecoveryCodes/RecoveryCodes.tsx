@@ -99,7 +99,7 @@ export function RecoveryCodes({
                 <Text
                   style={{ whiteSpace: 'pre-wrap' }}
                   ref={codesRef}
-                  classNam="codes"
+                  className="codes"
                 >
                   {recoveryCodes.codes.join('\n\n')}
                 </Text>

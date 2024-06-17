@@ -28,7 +28,7 @@ const TabsContainer = styled.div`
   border-bottom: 1px solid ${p => p.theme.colors.spotBackground[0]};
 `;
 
-const TabContainer = styled(NavLink)`
+const TabContainer = styled(NavLink)<{ selected?: boolean }>`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
   position: relative;
@@ -67,7 +67,7 @@ export function AccessMonitoring() {
   const location = useLocation();
 
   const borderRef = useRef<HTMLDivElement>(null);
-  const parentRef = useRef<HTMLElement>();
+  const parentRef = useRef<HTMLDivElement>();
 
   const activeTab =
     location.pathname === config.routes.accessMonitoring.queryEditor
