@@ -213,7 +213,7 @@ function Generate-Artifacts {
         [Parameter(Mandatory)]
         [string] $Workspace,
         [Parameter(Mandatory)]
-        [string] $OutputsDir,
+        [string] $OutputsDir
     )
 
     $SearchPath = Join-Path -Path $OutputsDir -ChildPath *
