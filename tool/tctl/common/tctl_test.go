@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
@@ -54,10 +55,11 @@ func TestConnect(t *testing.T) {
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	username := "admin"
-	mustAddUser(t, fileConfig, "admin", "access")
+	mustAddUser(t, clt, "admin", "access")
 
 	for _, tc := range []struct {
 		name         string
@@ -89,7 +91,7 @@ func TestConnect(t *testing.T) {
 			name: "identity file",
 			cliFlags: GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
-				IdentityFilePath: mustWriteIdentityFile(t, fileConfig, username),
+				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				Insecure:         true,
 			},
 		},
