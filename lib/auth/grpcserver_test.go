@@ -3629,6 +3629,12 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	require.Empty(t, listResp)
 }
 
+const (
+	testWDSName    = "test_wds"
+	testWDSAddr    = "test_addr"
+	testWDSVersion = "test_version"
+)
+
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3723,8 +3729,22 @@ func TestListResources(t *testing.T) {
 		"WindowsDesktops": {
 			resourceType: types.KindWindowsDesktop,
 			createResource: func(name string, clt *authclient.Client) error {
+				// WindowsDesktops require a WindowsDesktopService with a name corresponding to the
+				// HostID of the WindowsDesktop, so we create one here first.
+				wds, err := types.NewWindowsDesktopServiceV3(
+					types.Metadata{Name: testWDSName},
+					types.WindowsDesktopServiceSpecV3{
+						// Required fields.
+						TeleportVersion: testWDSVersion,
+						Addr:            testWDSAddr,
+					})
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.UpsertWindowsDesktopService(ctx, wds)
+				require.NoError(t, err)
+
+				// This is the actual WindowsDesktop resource that we're testing.
 				desktop, err := types.NewWindowsDesktopV3(name, nil,
-					types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+					types.WindowsDesktopSpecV3{Addr: "_", HostID: testWDSName})
 				if err != nil {
 					return err
 				}
@@ -3810,6 +3830,47 @@ func TestListResources(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+}
+
+func TestWindowsDesktop(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a WindowsDesktopService.
+	wds, err := types.NewWindowsDesktopServiceV3(
+		types.Metadata{Name: testWDSName},
+		types.WindowsDesktopServiceSpecV3{
+			// Required fields.
+			TeleportVersion: testWDSVersion,
+			Addr:            testWDSAddr,
+		})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.AuthServer.UpsertWindowsDesktopService(ctx, wds)
+	require.NoError(t, err)
+
+	// Create/Upsert a WindowsDesktop with a HostID that corresponds to the WindowsDesktopService.
+	desktopWithInvalidHostID, err := types.NewWindowsDesktopV3("desktop1", nil,
+		types.WindowsDesktopSpecV3{Addr: "1", HostID: testWDSName})
+	require.NoError(t, err)
+	desktopToUpsert, err := types.NewWindowsDesktopV3("desktop2", nil,
+		types.WindowsDesktopSpecV3{Addr: "2", HostID: testWDSName})
+	require.NoError(t, err)
+	require.NoError(t, err)
+	err = clt.CreateWindowsDesktop(ctx, desktopWithInvalidHostID)
+	require.NoError(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, desktopToUpsert)
+	require.NoError(t, err)
+
+	// Create/Upsert a WindowsDesktop with a HostID that doesn't correspond to the WindowsDesktopService.
+	desktopWithInvalidHostID, err = types.NewWindowsDesktopV3("desktop3", nil,
+		types.WindowsDesktopSpecV3{Addr: "3", HostID: "doesnt-exist"})
+	require.NoError(t, err)
+	err = clt.CreateWindowsDesktop(ctx, desktopWithInvalidHostID)
+	require.Error(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, desktopWithInvalidHostID)
+	require.Error(t, err)
 }
 
 func TestCustomRateLimiting(t *testing.T) {

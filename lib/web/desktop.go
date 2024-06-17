@@ -153,9 +153,7 @@ func (h *Handler) createDesktopConnection(
 	var validServiceIDs []string
 	for _, desktop := range winDesktops {
 		if desktop.GetHostID() == "" {
-			// desktops with empty host ids are invalid and should
-			// only occur when migrating from an old version of teleport
-			continue
+			return trace.BadParameter("desktop %q has no host ID", desktop.GetName())
 		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}

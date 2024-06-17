@@ -167,10 +167,21 @@ metadata:
     foo: bar
     baz: quux
 spec:
-  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
   addr: 192.168.1.153:3389
-  domain: ""
   non_ad: true
+  # host_id is the `metadata.name` of the `windows_desktop_service` resource
+  # reporting this desktop.
+  #
+  # This value MUST be the `name` of a `windows_desktop_service`
+  # that can access the RDP port of the host (`spec.addr` above).
+  #
+  # `windows_desktop` resources are identified by the combination of
+  # `metadata.name` and `spec.host_id`. To update a specific `windows_desktop` resource,
+  # ensure you use the same values for both fields as the resource you intend to update.
+  #
+  # You can list all `windows_desktop_service` resources in your cluster by running
+  # `tctl get windows_desktop_service`.
+  host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
 
   # Optional - ensures that all sessions use the same screen size,
   # no matter what the size of the browser window is.
@@ -189,7 +200,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 ## Database object import rule
 
-Database object import rule define the labels to be applied to database objects imported into Teleport. 
+Database object import rule define the labels to be applied to database objects imported into Teleport.
 
 See [Database Access Controls](../database-access/rbac.mdx) for more details.
 
