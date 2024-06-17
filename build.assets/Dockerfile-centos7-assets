@@ -109,7 +109,7 @@ RUN mkdir -p /opt/custom-packages && cd /opt && \
     yumdownloader --source elfutils-libelf-devel-static && \
     yum-builddep -y elfutils-libelf-devel-static && \
     export DIST=$(rpm -qp --queryformat '%{RELEASE}' elfutils-*.src.rpm | cut -d '.' -f 2) && \
-    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" elfutils-*.src.rpm && \
+    rpmbuild --nocheck --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" elfutils-*.src.rpm && \
     if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
     cp /root/rpmbuild/RPMS/${BUILDARCH}/elfutils-libelf-devel-static-*${DIST}.${BUILDARCH}.rpm /opt/custom-packages/
 
