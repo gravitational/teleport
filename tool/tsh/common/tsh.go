@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -82,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3488,6 +3490,31 @@ func onSSHLatency(cf *CLIConf) error {
 	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
+// Executes the given command on the client machine (localhost). If no command is given,
+// executes shell
+func runLocalCommand(hostLogin string, command []string) error {
+	if len(command) == 0 {
+		if hostLogin == "" {
+			user, err := apiutils.CurrentUser()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
+		}
+		shell, err := shell.GetLoginShell(hostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		command = []string{shell}
+	}
+
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -3500,7 +3527,13 @@ func onSSH(cf *CLIConf) error {
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
+
+			var opts []func(*client.SSHOptions)
+			if cf.LocalExec {
+				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
