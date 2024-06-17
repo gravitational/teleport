@@ -51,10 +51,10 @@ As a first step, provide the following information to the script generator.
 
 ![Test the IdP](../../../img/access-controls/saml-idp/gcp-workforce/generate-script.png)
 - **Organization ID:** Organization ID of GCP account. The ID is required to create a workforce pool.
-- **Pool Name:** Name of the workforce pool to be created. Name should follow [GCP resource naming
+- **Workforce pool name:** Name of the workforce pool to be created. Name should follow [GCP resource naming
 convention](https://cloud.google.com/compute/docs/naming-resources#resource-name-format).
-- **Pool Provider Name:** Name of the workforce pool provider to be created. Pool provider name
-will also be used as SAML service provider name in the next step. Name should follow
+- **App name - Workforce pool provider name:** SAML app name. The name
+will also be used as a workforce pool provider name in the GCP. Name should follow
 [GCP resource naming convention](https://cloud.google.com/compute/docs/naming-resources#resource-name-format).
 
 Click on **Generate Command** button. Teleport Web UI will now show you a copyable bash script.
