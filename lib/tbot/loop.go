@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -32,6 +33,7 @@ import (
 type runOnIntervalConfig struct {
 	name                 string
 	f                    func(ctx context.Context) error
+	clock                clockwork.Clock
 	reloadCh             chan struct{}
 	log                  *slog.Logger
 	interval             time.Duration
@@ -47,8 +49,18 @@ type runOnIntervalConfig struct {
 // - Time taken to execute attempt
 // - Time of next attempt
 func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
-	ticker := time.NewTicker(cfg.interval)
-	jitter := retryutils.NewJitter()
+	switch {
+	case cfg.interval <= 0:
+		return trace.BadParameter("interval must be greater than 0")
+	case cfg.retryLimit < 0:
+		return trace.BadParameter("retryLimit must be greater than or equal to 0")
+	case cfg.log == nil:
+		return trace.BadParameter("log is required")
+	case cfg.f == nil:
+		return trace.BadParameter("f is required")
+	case cfg.name == "":
+		return trace.BadParameter("name is required")
+	}
 
 	// If no reload channel is provided, create one that never yields a value.
 	if cfg.reloadCh == nil {
@@ -56,15 +68,20 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 	}
 	log := cfg.log.With("task", cfg.name)
 
-	firstRun := true
+	if cfg.clock == nil {
+		cfg.clock = clockwork.NewRealClock()
+	}
 
+	ticker := cfg.clock.NewTicker(cfg.interval)
 	defer ticker.Stop()
+	jitter := retryutils.NewJitter()
+	firstRun := true
 	for {
 		if !firstRun || (firstRun && cfg.waitBeforeFirstRun) {
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-ticker.C:
+			case <-ticker.Chan():
 			case <-cfg.reloadCh:
 			}
 		}
@@ -98,7 +115,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 				select {
 				case <-ctx.Done():
 					return nil
-				case <-time.After(backoffTime):
+				case <-cfg.clock.After(backoffTime):
 				}
 			}
 		}
