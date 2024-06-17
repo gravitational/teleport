@@ -164,27 +164,6 @@ function Enable-Node {
     }
 }
 
-function Format-FileHashes {
-    <#
-    .SYNOPSIS
-        Finds each file matching the supplied path glob and creates a sidecar
-        `*.sha256` file containing the file's hash
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $PathGlob
-    )
-    begin {
-        foreach ($file in $(Get-ChildItem $PathGlob)) {
-            Write-Output "Hashing  $($file.Name)"
-            $Hash = (Get-FileHash $file.FullName).Hash
-            "$($Hash.ToLower()) $($file.Name)" `
-            | Out-File -Encoding ASCII -FilePath "$($file.FullName).sha256"
-        }
-    }
-}
-
 function Get-Relcli {
     <#
     .SYNOPSIS
@@ -576,11 +555,6 @@ function Build-Artifacts {
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
-
-    # Copy artifacts to output directory
-    Write-Host "::group::Generating artifact checksums..."
-    Format-FileHashes -PathGlob "$ArtifactDirectory\*"
-    Write-Host "::endgroup::"
 
     Write-Host "Build complete"
 }
