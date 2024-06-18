@@ -190,7 +190,7 @@ Detailed setup instructions are available in the [documentation](https://github.
 
 Teleport clusters using the DynamoDB backend on AWS now require the
 `dynamodb:ConditionCheckItem` permissions. For a full list of required
-permissions, see the IAM policy [example](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/includes/dynamodb-iam-policy.mdx).
+permissions, see the IAM policy [example](docs/pages/reference/backends.mdx#dynamodb).
 
 #### Updated keyboard shortcuts in Teleport connect
 
