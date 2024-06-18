@@ -206,8 +206,8 @@ export function ScriptGenInput({
         {({ validator }) => (
           <>
             <Text bold>Step 1:</Text>
-            Generate script to configure Workforce Identity Federation pool and
-            pool provider
+            Generate an installation command to configure Workforce Identity
+            Federation pool and pool provider
             <FieldInput
               mb={3}
               rule={requiredAll(
@@ -246,7 +246,7 @@ export function ScriptGenInput({
                 requiredField('Pool provider name is required'),
                 isValidGCPResourceName
               )}
-              label="App Name - Workforce pool provider name"
+              label="App name - Workforce pool provider name"
               toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
@@ -286,8 +286,8 @@ export function Script({ scriptUrl }: { scriptUrl: string }) {
         >
           GCP CloudShell
         </Link>{' '}
-        and copy and paste the command shown below that configures the Workforce
-        Identity Federation based on the input provided above:
+        and copy and paste the installation command shown below that configures
+        the Workforce Identity Federation based on the input provided above.
       </Text>
       <Box mb={2}>
         <TextSelectCopyMulti

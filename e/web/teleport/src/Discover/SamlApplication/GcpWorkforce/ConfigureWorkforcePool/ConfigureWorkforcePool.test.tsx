@@ -99,7 +99,7 @@ describe('Configure GCP workforce pool', () => {
 
     expect(
       screen.getByText(
-        'Generate script to configure Workforce Identity Federation pool and pool provider'
+        'Generate an installation command to configure Workforce Identity Federation pool and pool provider'
       )
     ).toBeInTheDocument();
 
