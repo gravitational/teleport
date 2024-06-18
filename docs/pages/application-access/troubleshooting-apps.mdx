@@ -41,6 +41,7 @@ To fix CSRF or CORS issues if you use statically configured apps in `/etc/telepo
 
 1. Open the `/etc/teleport.yaml` file that contains the application configuration in a text editor.
 
+{/*lint ignore ordered-list-marker-value*/}
 2. Add a `rewrite.headers` section similar to the following `grafana` example:
 
   ```yaml
@@ -65,6 +66,7 @@ To fix CSRF or CORS issues if you deploy applications using Kubernetes and `tele
 1. Open the `teleport/examples/chart/teleport-kube-agent/values.yaml` file that contains the application
   configuration in a text editor.
 
+{/*lint ignore ordered-list-marker-value*/}
 2. Locate the `apps` section in the `values.yaml` file.
 
   ```yaml
