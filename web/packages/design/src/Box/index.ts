@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package webauthncli
+import Box from './Box';
 
-var U2FDevices = &u2fDevices
-var U2FOpen = &u2fOpen
-var U2FNewToken = &u2fNewToken
+export default Box;
+export type { BoxProps } from './Box';

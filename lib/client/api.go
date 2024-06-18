@@ -29,7 +29,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -87,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -1622,6 +1620,10 @@ type SSHOptions struct {
 	// HostAddress is the address of the target host. If specified it
 	// will be used instead of the target provided when `tsh ssh` was invoked.
 	HostAddress string
+	// LocalCommandExecutor should be used to execute the command on the local
+	// machine. If provided, it will be used instead of establishing a connection
+	// to the target host and executing the command remotely.
+	LocalCommandExecutor func(string, []string) error
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1632,11 +1634,19 @@ func WithHostAddress(addr string) func(*SSHOptions) {
 	}
 }
 
+// WithLocalCommandExecutor returns a SSHOptions which specifies
+// an executor that should be used to invoke commands locally.
+func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.LocalCommandExecutor = executor
+	}
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
-func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool, opts ...func(*SSHOptions)) error {
+func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...func(*SSHOptions)) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SSH",
@@ -1676,7 +1686,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].addr, command, runLocally)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].addr, command, options.LocalCommandExecutor)
 }
 
 // ConnectToNode attempts to establish a connection to the node resolved to by the provided
@@ -1879,7 +1889,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	return nodeClient, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, runLocally bool) error {
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, commandExecutor func(string, []string) error) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1934,11 +1944,11 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 
 	// After port forwarding, run a local command that uses the connection, and
 	// then disconnect.
-	if runLocally {
+	if commandExecutor != nil {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return runLocalCommand(tc.Config.HostLogin, command)
+		return commandExecutor(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
@@ -1973,7 +1983,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, false)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -4690,31 +4700,6 @@ func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 	}
 
 	return tokens
-}
-
-// Executes the given command on the client machine (localhost). If no command is given,
-// executes shell
-func runLocalCommand(hostLogin string, command []string) error {
-	if len(command) == 0 {
-		if hostLogin == "" {
-			user, err := apiutils.CurrentUser()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			hostLogin = user.Username
-		}
-		shell, err := shell.GetLoginShell(hostLogin)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		command = []string{shell}
-	}
-
-	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	return cmd.Run()
 }
 
 // String returns the same string spec which can be parsed by ParsePortForwardSpec.

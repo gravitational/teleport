@@ -19,6 +19,7 @@
 import { Text, LabelState, Flex } from 'design';
 import { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
+import { LabelKind } from 'design/LabelState/LabelState';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
@@ -66,7 +67,7 @@ export const renderStatusCell = ({ state }: AccessRequest) => {
     );
   }
 
-  let kind = 'warning';
+  let kind: LabelKind = 'warning';
   if (state === 'APPROVED') {
     kind = 'success';
   } else if (state === 'DENIED') {

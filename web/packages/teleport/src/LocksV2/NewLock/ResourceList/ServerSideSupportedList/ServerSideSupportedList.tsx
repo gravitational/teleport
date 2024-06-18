@@ -157,7 +157,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
         disableSearch={fetchStatus === 'loading'}
       />
       {table}
-      <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+      <StyledPanel>
         <Flex justifyContent="flex-end" width="100%">
           <Flex alignItems="center" mr={2}></Flex>
           <Flex>

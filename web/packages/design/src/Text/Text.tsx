@@ -18,16 +18,38 @@
 
 import styled from 'styled-components';
 
+import { ResponsiveValue } from 'styled-system';
+
+import { Property } from 'csstype';
+
 import {
   typography,
+  TypographyProps,
   fontSize,
+  FontSizeProps,
   space,
+  SpaceProps,
   color,
+  ColorProps,
   textAlign,
+  TextAlignProps,
   fontWeight,
 } from 'design/system';
+import { fontWeights } from 'design/theme/typography';
 
-const Text = styled.div`
+interface FontWeightProps {
+  fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
+}
+
+export interface TextProps
+  extends TypographyProps,
+    FontSizeProps,
+    SpaceProps,
+    ColorProps,
+    TextAlignProps,
+    FontWeightProps {}
+
+const Text = styled.div<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
   ${typography}
@@ -39,13 +61,6 @@ const Text = styled.div`
 `;
 
 Text.displayName = 'Text';
-
-Text.propTypes = {
-  ...space.propTypes,
-  ...fontSize.propTypes,
-  ...textAlign.propTypes,
-  ...typography.propTypes,
-};
 
 Text.defaultProps = {
   m: 0,

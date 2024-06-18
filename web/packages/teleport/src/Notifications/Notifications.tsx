@@ -496,7 +496,7 @@ const ViewButton = styled.div<{ selected: boolean }>`
 
 export type View = 'All' | 'Unread';
 
-const NotificationsList = styled.div<{ isScrollbarVisible: boolean }>`
+const NotificationsList = styled.div`
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

@@ -19,26 +19,64 @@
 import styled from 'styled-components';
 
 import {
-  overflow,
-  borders,
-  borderRadius,
-  borderColor,
-  flex,
-  height,
-  lineHeight,
-  maxWidth,
-  minHeight,
-  maxHeight,
-  minWidth,
   alignSelf,
-  justifySelf,
-  space,
-  width,
+  AlignSelfProps,
+  borderColor,
+  BorderColorProps,
+  BorderProps,
+  borderRadius,
+  BorderRadiusProps,
+  borders,
+  BordersProps,
   color,
+  ColorProps,
+  flex,
+  FlexProps,
+  height,
+  HeightProps,
+  justifySelf,
+  JustifySelfProps,
+  lineHeight,
+  LineHeightProps,
+  maxHeight,
+  MaxHeightProps,
+  maxWidth,
+  MaxWidthProps,
+  minHeight,
+  MinHeightProps,
+  minWidth,
+  MinWidthProps,
+  overflow,
+  OverflowProps,
+  space,
+  SpaceProps,
   textAlign,
+  TextAlignProps,
+  width,
+  WidthProps,
 } from '../system';
 
-const Box = styled.div`
+export interface BoxProps
+  extends MaxWidthProps,
+    MinWidthProps,
+    SpaceProps,
+    HeightProps,
+    LineHeightProps,
+    MinHeightProps,
+    MaxHeightProps,
+    WidthProps,
+    ColorProps,
+    TextAlignProps,
+    FlexProps,
+    AlignSelfProps,
+    JustifySelfProps,
+    BorderProps,
+    BordersProps,
+    BorderRadiusProps,
+    OverflowProps,
+    BorderColorProps {}
+
+const Box = styled.div<BoxProps>`
   box-sizing: border-box;
   ${maxWidth}
   ${minWidth}
@@ -60,18 +98,5 @@ const Box = styled.div`
 `;
 
 Box.displayName = 'Box';
-
-Box.propTypes = {
-  ...space.propTypes,
-  ...height.propTypes,
-  ...width.propTypes,
-  ...color.propTypes,
-  ...textAlign.propTypes,
-  ...flex.propTypes,
-  ...alignSelf.propTypes,
-  ...justifySelf.propTypes,
-  ...borders.propTypes,
-  ...overflow.propTypes,
-};
 
 export default Box;

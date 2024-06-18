@@ -18,7 +18,16 @@
 
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-import { space, width, color, height } from 'styled-system';
+import {
+  space,
+  width,
+  color,
+  height,
+  ColorProps,
+  SpaceProps,
+  WidthProps,
+  HeightProps,
+} from 'styled-system';
 
 function error({ hasError, theme }) {
   if (!hasError) {
@@ -34,7 +43,11 @@ function error({ hasError, theme }) {
   };
 }
 
-const Input = styled.input`
+interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
+  hasError?: boolean;
+}
+
+const Input = styled.input<InputProps>`
   appearance: none;
   border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
@@ -72,7 +85,11 @@ const Input = styled.input`
     border-color: ${props => props.theme.colors.text.disabled};
   }
 
-  ${color} ${space} ${width} ${height} ${error};
+  ${color}
+  ${space}
+  ${width}
+  ${height}
+  ${error}
 `;
 
 Input.displayName = 'Input';
