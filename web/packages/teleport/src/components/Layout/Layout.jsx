@@ -25,7 +25,7 @@ import { Flex, Text } from 'design';
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
+  // border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
