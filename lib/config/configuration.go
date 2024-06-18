@@ -671,10 +671,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	// Apply regardless of Jamf being enabled.
-	// If a config is present, we want it to be valid.
-	if err := applyJamfConfig(fc, cfg); err != nil {
-		return trace.Wrap(err)
+	if fc.Jamf.Enabled() {
+		if err := applyJamfConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
