@@ -156,6 +156,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
 			parser = newKubeClusterParser()
+		case types.KindCrownJewel:
+			parser = newCrownJewelParser()
 		case types.KindPlugin:
 			parser = newPluginParser(kind.LoadSecrets)
 		case types.KindSAMLIdPServiceProvider:
@@ -1216,6 +1218,35 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newCrownJewelParser() *crownJewelParser {
+	return &crownJewelParser{
+		baseParser: newBaseParser(backend.Key(crownJewelsKey)),
+	}
+}
+
+type crownJewelParser struct {
+	baseParser
+}
+
+func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindCrownJewel, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalCrownJewel(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

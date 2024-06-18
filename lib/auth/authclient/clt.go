@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -580,6 +581,11 @@ func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, e
 // DiscoveryConfigClient returns a client for managing the DiscoveryConfig resource.
 func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
 	return c.APIClient.DiscoveryConfigClient()
+}
+
+// CrownJewelsClient returns a client for managing Crown Jewel resources.
+func (c *Client) CrownJewelsClient() services.CrownJewels {
+	return c.APIClient.CrownJewelServiceClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -1535,7 +1541,7 @@ type ClientI interface {
 	SecReportsClient() *secreport.Client
 
 	// BotServiceClient returns a client for security reports.
-	// Clients connecting to  older Teleport versions, still get a bot service client
+	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
@@ -1551,6 +1557,9 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
+
+	// CrownJewelServiceClient returns a Crown Jewel service client.
+	CrownJewelServiceClient() *crownjewel.Client
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

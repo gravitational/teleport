@@ -183,6 +183,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.SPANNER_RPC]: Icons.Database,
   [eventCodes.SPANNER_RPC_DENIED]: Icons.Database,
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: Icons.Info,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,

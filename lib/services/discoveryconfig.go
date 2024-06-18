@@ -61,7 +61,7 @@ type DiscoveryConfigsGetter interface {
 	GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error)
 }
 
-// MarshalDiscoveryConfig marshals the DiscoveryCOnfig resource to JSON.
+// MarshalDiscoveryConfig marshals the DiscoveryConfig resource to JSON.
 func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, opts ...MarshalOption) ([]byte, error) {
 	if err := discoveryConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
