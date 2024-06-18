@@ -6089,14 +6089,14 @@ message PluginStatusV1 {
   // error_message is a human-readable error message that can be displayed to the user.
   string error_message = 2;
   // last_sync_time is the last time the plugin was run.
-  google.protobuf.Timestamp last_sync_time = 4 [
+  google.protobuf.Timestamp last_sync_time = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
   // details contains provider-specific plugin status details.
   oneof details {
     // gitlab is the status details for the Gitlab plugin.
-    PluginGitlabStatusV1 gitlab = 5;
+    PluginGitlabStatusV1 gitlab = 4;
   }
 }
 
