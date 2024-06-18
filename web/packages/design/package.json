@@ -15,7 +15,6 @@
     "directory": "packages/design"
   },
   "dependencies": {
-    "cross-env": "7.0.3",
     "styled-system": "^3.1.11"
   },
   "devDependencies": {
