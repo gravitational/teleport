@@ -158,7 +158,11 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		appProvider.usageReporter = usageReporter
 	}
 
-	processManager, err := vnet.SetupAndRun(ctx, appProvider)
+	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
+	processManager, err := vnet.SetupAndRun(ctx, &vnet.SetupAndRunConfig{
+		AppProvider:        appProvider,
+		ClusterConfigCache: s.clusterConfigCache,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,7 +197,6 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	s.processManager = processManager
 	s.usageReporter = appProvider.usageReporter
 	s.status = statusRunning
-	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
 	return &api.StartResponse{}, nil
 }
 

@@ -117,7 +117,7 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 		opt(r)
 	}
 	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
-	r.clusterConfigCache = NewClusterConfigCache(r.clock)
+	r.clusterConfigCache = cmp.Or(r.clusterConfigCache, NewClusterConfigCache(r.clock))
 	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
@@ -135,6 +135,13 @@ func withClock(clock clockwork.Clock) tcpAppResolverOption {
 func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.lookupTXT = lookupTXT
+	}
+}
+
+// WithClusterConfigCache is a functional option to override the cluster config cache.
+func WithClusterConfigCache(clusterConfigCache *ClusterConfigCache) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.clusterConfigCache = clusterConfigCache
 	}
 }
 
