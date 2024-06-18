@@ -143,6 +143,12 @@ endif
 # This test tag should never be used for builds/releases, only tests.
 PIV_TEST_TAG := pivtest
 
+# Enable libfido2 for testing?
+# Eagerly enable if we detect the package, we want to test as much as possible.
+ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
+LIBFIDO2_TEST_TAG := libfido2
+endif
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -462,7 +468,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG)" $(ADDFLAGS)
+	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG)" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
