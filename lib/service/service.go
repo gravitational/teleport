@@ -116,7 +116,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -4407,7 +4406,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					webHandler,
 					makeXForwardedForMiddleware(cfg),
 					limiter.MakeMiddleware(proxyLimiter),
-					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
 				),
 				// Note: read/write timeouts *should not* be set here because it
 				// will break some application access use-cases.
@@ -5167,7 +5165,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
-			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
+			Handler:           minimalProxyLimiter,
 			ReadTimeout:       apidefaults.DefaultIOTimeout,
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,

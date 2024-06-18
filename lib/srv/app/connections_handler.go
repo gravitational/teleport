@@ -678,7 +678,7 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
 		// break application access.
-		Handler:           httplib.MakeTracingHandler(c.authMiddleware, c.cfg.ServiceComponent),
+		Handler:           httplib.TracingMiddleware(c.cfg.ServiceComponent, "ConnectionsHandler/http.Server/Handler")(c.authMiddleware),
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(c.legacyLogger.Error, c.cfg.ServiceComponent),
