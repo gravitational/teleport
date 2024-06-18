@@ -19,6 +19,8 @@
 package servicecfg
 
 import (
+	"slices"
+
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
@@ -251,15 +253,18 @@ type GCPKMSConfig struct {
 	ProtectionLevel string
 }
 
+const (
+	GCPKMSProtectionLevelHSM      = "HSM"
+	GCPKMSProtectionLevelSoftware = "SOFTWARE"
+)
+
 // CheckAndSetDefaults checks that required parameters of the config are
 // properly set and sets defaults.
 func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
 	if cfg.KeyRing == "" {
 		return trace.BadParameter("must provide a valid KeyRing")
 	}
-	switch cfg.ProtectionLevel {
-	case "SOFTWARE", "HSM":
-	default:
+	if !slices.Contains([]string{GCPKMSProtectionLevelHSM, GCPKMSProtectionLevelSoftware}, cfg.ProtectionLevel) {
 		return trace.BadParameter("unsupported ProtectionLevel %s", cfg.ProtectionLevel)
 	}
 	return nil
