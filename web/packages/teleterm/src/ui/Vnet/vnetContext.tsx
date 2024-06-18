@@ -48,6 +48,8 @@ export type VnetContext = {
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
+  listDNSZones: () => Promise<[string[], Error]>;
+  listDNSZonesAttempt: Attempt<string[]>;
 };
 
 export type VnetStatus =
@@ -83,7 +85,7 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
       try {
-      await vnet.start({});
+        await vnet.start({});
       } catch (error) {
         if (!isTshdRpcError(error, 'ALREADY_EXISTS')) {
           throw error;
@@ -103,6 +105,13 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       });
       setAppState({ autoStart: false });
     }, [vnet, setAppState])
+  );
+
+  const [listDNSZonesAttempt, listDNSZones] = useAsync(
+    useCallback(
+      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
+      [vnet]
+    )
   );
 
   useEffect(() => {
@@ -158,6 +167,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         startAttempt,
         stop,
         stopAttempt,
+        listDNSZones,
+        listDNSZonesAttempt,
       }}
     >
       {props.children}
