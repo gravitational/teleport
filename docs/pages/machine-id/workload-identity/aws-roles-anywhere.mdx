@@ -18,7 +18,7 @@ in a few ways:
 - Requests to AWS are not proxied through Teleport, meaning reduced latency but
   also less visibility, as these requests will not be recorded in Teleport's
   audit log.
-- Workload ID works with any AWS client, including the commandline tool but also
+- Workload ID works with any AWS client, including the command-line tool but also
   their SDKs
 - Teleport Application Access for AWS does not work with Machine ID and
   therefore cannot be used when a machine needs to authenticate with AWS.
