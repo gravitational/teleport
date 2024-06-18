@@ -38,7 +38,7 @@ user to authenticate with using AWS Roles Anywhere.
 workloads which need to access Teleport Workload Identity will run. For more
 information, see the [deployment guides](../deployment.mdx).
 
-## Step 1/5. Decide on a SPIFFE ID structure
+### Deciding on a SPIFFE ID structure
 
 Within Teleport Workload Identity, all identities are represented using a
 SPIFFE ID. This is a URI that uniquely identifies the entity that the identity
@@ -58,7 +58,7 @@ allowed to assume. However, it often makes more sense to name the workload or
 person that will use the SPIFFE ID. See the
 [best practices guide](./best-practices.mdx) for further advice.
 
-## Step 2/5. Configure AWS Roles Anywhere
+## Step 1/4. Configure AWS Roles Anywhere
 
 Configuring AWS Roles Anywhere for the first time involves a few steps. Some
 of these may not be necessary if you have previously configured AWS Roles
@@ -156,7 +156,7 @@ Select the role you created in the previous step.
 
 Click "Create profile".
 
-## Step 3/5. Configure Teleport RBAC
+## Step 2/4. Configure Teleport RBAC
 
 Now we need to configure Teleport to allow a X.509 certificate to be issued
 containing the SPIFFE ID we have chosen.
@@ -192,7 +192,7 @@ this role to the bot:
 $ tctl bots update my-bot --add-roles my-workload-roles-anywhere
 ```
 
-## Step 4/5. Issue Workload ID certificates
+## Step 3/4. Issue Workload ID certificates
 
 ### For machines using `tbot`
 
@@ -231,7 +231,7 @@ TTL:
 $ tsh svid issue --output /opt/roles-anywhere-svid --svid-ttl 8h /svc/example-service
 ```
 
-## Step 5/5. Configure the AWS CLI and SDKs to use Roles Anywhere to authenticate
+## Step 4/4. Configure the AWS CLI and SDKs to use Roles Anywhere to authenticate
 
 In order for AWS to use the SVID for authentication, you must also install the
 AWS Roles Anywhere credential helper. This is a small utility that the AWS
