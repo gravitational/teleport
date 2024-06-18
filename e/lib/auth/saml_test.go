@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -69,11 +68,6 @@ func TestCreateSAMLUser(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -212,11 +206,6 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -313,11 +302,6 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Backend:                b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 
 	a, err := auth.NewServer(authConfig)

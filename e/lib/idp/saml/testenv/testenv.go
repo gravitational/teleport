@@ -15,7 +15,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -157,12 +156,7 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 
 	emitter := eventstest.NewChannelEmitter(1)
 
-	keyStore, err := keystore.NewManager(ctx, keystore.Config{
-		Software: keystore.SoftwareConfig{
-			RSAKeyPairSource: native.GenerateKeyPair,
-		},
-	})
-	require.NoError(t, err)
+	keyStore := keystore.NewSoftwareKeystoreForTests(t)
 
 	return TEnv{
 		ClusterService: clusterService,
