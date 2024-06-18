@@ -79,8 +79,10 @@ export function ServersideSearchPanel({
     <Flex
       as="form"
       onSubmit={onSubmitSearch}
+      alignItems="center"
+      justifyContent="space-between"
+      width="100%"
       style={disabled ? { pointerEvents: 'none', opacity: '0.5' } : {}}
-      flexDirection="column"
     >
       <InputSearch
         searchValue={searchString}

@@ -63,7 +63,7 @@ export default function useTable<T>({
         ? {
             paginatedData: paginateData(data, pagination.pageSize),
             currentPage: 0,
-            pagerPosition: pagination.pagerPosition || 'top',
+            pagerPosition: pagination.pagerPosition,
             pageSize: pagination.pageSize || 15,
             CustomTable: pagination.CustomTable,
           }
