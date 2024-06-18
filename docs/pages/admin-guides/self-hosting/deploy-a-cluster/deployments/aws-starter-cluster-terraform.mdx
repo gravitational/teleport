@@ -358,7 +358,7 @@ If ACM is enabled, Let's Encrypt will automatically be disabled regardless of th
 $ export TF_VAR_use_tls_routing="true"
 ```
 
-If set to the string `true`, Teleport will use [TLS routing](../../architecture/tls-routing.mdx) to multiplex all traffic over a single port.
+If set to the string `true`, Teleport will use [TLS routing](../../../../reference/architecture/tls-routing.mdx) to multiplex all traffic over a single port.
 This setting should always be used unless you have a specific need to use separate ports in your setup, as it simplifies deployment.
 
 When using this `starter-cluster` deployment, if ACM is enabled, TLS routing will automatically be enabled too.
@@ -377,7 +377,7 @@ The default is `local`.
 - Teleport Enterprise Edition supports `local`, `github`, `oidc`, or `saml`
 - Teleport Enterprise FIPS deployments have local authentication disabled, so should use `github`, `oidc`, or `saml`
 
-See the [Teleport authentication reference](../../reference/authentication.mdx) for more information.
+See the [Teleport authentication reference](../../../../reference/operations/authentication.mdx) for more information.
 
 ## Reference deployment defaults
 
@@ -396,7 +396,7 @@ table for cluster state will be the same as the cluster name configured in the [
 
 In our example, the DynamoDB table would be called `teleport-example`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../../reference/operations/backends.mdx).
 
 ### Audit event storage
 
@@ -406,7 +406,7 @@ with `-events` appended to the end.
 
 In our example, the DynamoDB table would be called `teleport-example-events`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../../reference/operations/backends.mdx).
 
 ### Recorded session storage
 
@@ -718,15 +718,15 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
 The easiest way to quickly join new resources to your cluster is to use the "Enroll New Resource" wizards in the Teleport web UI.
 
 Customers run many workloads within AWS and depending on how you work, there are many manual
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../../get-started/download-install/installation.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../installation.mdx)
-- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
-- [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
+- [Install the Teleport binary on the Server](../../../../get-started/download-install/installation.mdx)
+- [Run Teleport - we recommend using systemd](../../../common-operations/daemon.mdx)
+- [Set the correct settings in /etc/teleport.yaml](../../../../reference/config-references/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../agents/join-services-to-your-cluster.mdx)
+  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/overview.mdx)
 
 ## Troubleshooting
 

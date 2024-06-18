@@ -30,7 +30,7 @@ There are two components of the audit log:
 <Notice type="tip">
 
 You can use
-[Enhanced Session Recording with BPF](../server-access/guides/bpf-session-recording.mdx)
+[Enhanced Session Recording with BPF](../../../admin-guides/enroll-resources/server-access/guides/bpf-session-recording.mdx)
 to get even more comprehensive audit logs with advanced security.
 
 </Notice>
@@ -46,8 +46,8 @@ used, events are written to the filesystem in JSON format. The `dir` backend rot
 the event file approximately once every 24 hours, but never deletes captured events.
 
 For High Availability configurations, users can refer to our
-[Athena](./backends.mdx#athena), [DynamoDB](./backends.mdx#dynamodb) or
-[Firestore](./backends.mdx#firestore) chapters for information on how to
+[Athena](../../operations/backends.mdx), [DynamoDB](../../operations/backends.mdx) or
+[Firestore](../../operations/backends.mdx) chapters for information on how to
 configure the SSH events and recorded sessions to be stored on network storage.
 When these backends are in use, audit events will eventually expire and be
 removed from the log. The default retention period is 1 year, but this can be
@@ -56,7 +56,7 @@ overridden using the `retention_period` configuration parameter.
 It is even possible to store audit logs in multiple places at the same time. For
 more information on how to configure the audit log, refer to the `storage`
 section of the example configuration file in the
-[Teleport Configuration Reference](./config.mdx).
+[Teleport Configuration Reference](../../config-references/config.mdx).
 
 Let's examine the Teleport audit log using the `dir` backend. The event log is
 stored in Teleport's data dir under the `log` directory. This is usually
@@ -127,7 +127,7 @@ Below are some possible types of audit events.
 This list is not comprehensive. We recommend exporting audit events to a
 platform that automatically parses event payloads so you can group and filter
 them by their `event` key and discover trends. To set up audit event exporting,
-read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
+read [Exporting Teleport Audit Events](../../../index.mdx).
 
 </Notice>
 
@@ -159,13 +159,13 @@ For desktop sessions the recording includes the contents of the screen.
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
-Teleport can store the recorded sessions in an [AWS S3 bucket](./backends.mdx#s3)
+Teleport can store the recorded sessions in an [AWS S3 bucket](../../operations/backends.mdx)
 or in a local filesystem (including NFS).
 
 The recorded sessions are stored as raw bytes in the `sessions` directory under
 `log`. Each session is a protobuf-encoded stream of binary data.
 
-You can replay recorded sessions using the [`tsh play`](./cli/tsh.mdx#tsh-play)
+You can replay recorded sessions using the [`tsh play`](../../cli/tsh.mdx)
 command or the Web UI.
 
 For example, replay a session via CLI:
@@ -185,7 +185,7 @@ $ tsh play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 
 Teleport Enterprise Cloud automatically stores recorded sessions.
 
-You can replay recorded sessions using the [`tsh play`](./cli/tsh.mdx#tsh-play)
+You can replay recorded sessions using the [`tsh play`](../../cli/tsh.mdx)
 command or the Web UI.
 
 For example, replay a session via CLI:

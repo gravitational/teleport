@@ -12,7 +12,7 @@ This guide will help you set up the TAG service
 in a Kubernetes cluster using a Helm Chart,
 and enable the Access Graph feature in your Teleport cluster.
 
-The full listing of supported parameters can be found in the [`teleport-access-graph` Helm chart reference](../../reference/helm-reference/teleport-access-graph.mdx).
+The full listing of supported parameters can be found in the [`teleport-access-graph` Helm chart reference](../../reference/config-references/helm-reference/teleport-access-graph.mdx).
 
 Teleport Access Graph is a feature of the [Teleport
 Policy](https://goteleport.com/platform/policy/) product that is only available
@@ -24,7 +24,7 @@ to Teleport Enterprise customers.
 - Helm >= (=helm.version=)
 - A running Teleport Enterprise cluster v14.3.6 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
-    [using the `teleport-cluster` Helm chart](../../deploy-a-cluster/helm-deployments.mdx)
+    [using the `teleport-cluster` Helm chart](../../index.mdx)
     in the same Kubernetes cluster that will be used to deploy Teleport Access Graph.
 - An updated `license.pem` with Teleport Policy enabled.
 - A PostgreSQL database server v14 or later.
@@ -40,7 +40,7 @@ to Teleport Enterprise customers.
 
 ## Step 1/4. Add the Teleport Helm chart repository
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 ## Step 2/4. Set up the Teleport Access Graph service
 
@@ -153,7 +153,7 @@ the Auth Service configuration needs to be updated with:
 - The path to the CA which issued the TAG service TLS certificate.
   - This path must refer to a volume containing the CA, mounted on the Teleport pods.
   - Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
-    (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)),
+    (e.g. via the [`tls.existingCASecretName` option](../../reference/config-references/helm-reference/teleport-cluster.mdx)),
     or if the certificate was issued by a CA included in the [Mozilla CA Certificate List](https://wiki.mozilla.org/CA/Included_Certificates).
 
 Create a ConfigMap containing the CA certificate as follows:

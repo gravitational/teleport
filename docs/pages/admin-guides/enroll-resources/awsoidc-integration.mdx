@@ -7,10 +7,10 @@ This guide explains how to set up the Teleport AWS OIDC integration.
 
 With the AWS OIDC integration you will no longer need to deploy Teleport agents in AWS manually for most use cases.
 The following features use an AWS OIDC integration to interact with AWS:
-- [External Audit Storage](../../choose-an-edition/teleport-cloud/external-audit-storage.mdx)
+- [External Audit Storage](../common-operations/external-audit-storage.mdx)
 - RDS Auto Discovery
 - EC2 Auto Discovery
-- [Access Graph AWS Sync](../../access-controls/access-graph/aws-sync.mdx)
+- [Access Graph AWS Sync](../access-graph/aws-sync.mdx)
 
 It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
 
@@ -23,7 +23,7 @@ For this to work, the `openid-configuration` and public keys are exposed in a pu
 The integration requires no extra configuration or services to run.
 
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
-For example, when setting up [External Audit Storage](../../choose-an-edition/teleport-cloud/external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
+For example, when setting up [External Audit Storage](../common-operations/external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
 
 ## Prerequisites
 
@@ -104,7 +104,7 @@ https://<Var name="s3-bucket"/>.s3.amazonaws.com/<Var name="s3-prefix"/>
 ## Step 4/5. Create IAM role
 An IAM role must be created to assign the required policies to the integration <Var name="iam-role"/>.
 
-This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../../access-controls/access-graph/aws-sync.mdx).
+This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../access-graph/aws-sync.mdx).
 However, it must be configured to allow the Identity Provider to assume it.
 To achieve this, add the following Trust Relationship:
 ```json
@@ -162,5 +162,5 @@ After the set up is complete, you can now use the "Enroll New Resource" flow in 
 ## Next steps
 
 Now that you have an integration, you can use the following features:
-- [Access Graph AWS Sync](../../access-controls/access-graph/aws-sync.mdx)
-- [External Audit Storage](../../choose-an-edition/teleport-cloud/external-audit-storage.mdx)
+- [Access Graph AWS Sync](../access-graph/aws-sync.mdx)
+- [External Audit Storage](../common-operations/external-audit-storage.mdx)

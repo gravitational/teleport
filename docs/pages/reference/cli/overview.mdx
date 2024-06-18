@@ -5,10 +5,10 @@ description: Detailed guide and reference documentation for Teleport's command l
 
 Teleport is made up of four CLI tools.
 
-- [teleport](./cli/teleport.mdx): Supports the Teleport Access Platform by starting and configuring various Teleport services.
-- [tsh](./cli/tsh.mdx): Allows end users to authenticate to Teleport and access resources in a cluster.
-- [tctl](./cli/tctl.mdx): Used to configure the Teleport Auth Service.
-- [tbot](./cli/tbot.mdx): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
+- [teleport](./teleport.mdx): Supports the Teleport Access Platform by starting and configuring various Teleport services.
+- [tsh](./tsh.mdx): Allows end users to authenticate to Teleport and access resources in a cluster.
+- [tctl](./tctl.mdx): Used to configure the Teleport Auth Service.
+- [tbot](./tbot.mdx): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -51,7 +51,7 @@ desktops, and Kubernetes clusters using the `--search` and `--query` flags.
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
-The `--query` flag allows you to perform more sophisticated searches using a [predicate language](predicate-language.mdx#resource-filtering).
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](../config-references/predicate-language.mdx#resource-filtering).
 
 In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
 

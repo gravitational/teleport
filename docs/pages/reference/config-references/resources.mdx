@@ -5,7 +5,7 @@ description: Reference documentation for Teleport resources
 
 This reference guide lists dynamic resources you can manage with Teleport. For
 more information on dynamic resources, see our guide to [Using Dynamic
-Resources](../management/dynamic-resources.mdx).
+Resources](../../admin-guides/configure-teleport/dynamic-resources/overview.mdx).
 
 Examples of applying dynamic resources with `tctl`:
 
@@ -44,18 +44,18 @@ $ tctl get cluster_auth_preference
 
 ## List of dynamic resources
 
-Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
+Here's the list of resources currently exposed via [`tctl`](../cli/tctl.mdx):
 
 | Resource Kind | Description |
 | - | - |
 | [user](#user) | A user record in the internal Teleport user DB. |
 | [role](#role) | A role assumed by interactive and non-interactive users. |
-| connector | Authentication connectors for [Single Sign-On](../access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
+| connector | Authentication connectors for [Single Sign-On](../../admin-guides/authentication/sso/overview.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | windows_desktop | A registered Windows desktop. |
-| cluster | A trusted cluster. See [here](../management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
-| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../access-controls/login-rules.mdx) for more info. |
-| [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/device-trust/guide.mdx) for more info. |
+| cluster | A trusted cluster. See [here](../../admin-guides/access-controls/trustedclusters.mdx) for more details on connecting clusters together. |
+| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../../index.mdx) for more info. |
+| [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../../admin-guides/authentication/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service |
 | [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
 | [database_object_import_rule](#database-object-import-rule) | Database object import rules. |
@@ -109,12 +109,12 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 Versions 5, 6 and 7 of the Teleport role resource have different behaviors when
 accessing Kubernetes resources.
 {/*lint ignore messaging*/}
-Roles not [granting Kubernetes access](../kubernetes-access/introduction.mdx) are
+Roles not [granting Kubernetes access](../../admin-guides/enroll-resources/kubernetes-access/introduction.mdx) are
 equivalent in the three versions.
 
 Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
 Role v7 supports restricting all common resource kinds (
-see [the `kubernetes_resource` documentation](../kubernetes-access/controls.mdx#kubernetes_resources)
+see [the `kubernetes_resource` documentation](../agents/controls.mdx)
 for a complete list).
 
 When no `kubernetes_resource` is set:
@@ -191,7 +191,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 Database object import rule define the labels to be applied to database objects imported into Teleport. 
 
-See [Database Access Controls](../database-access/rbac.mdx) for more details.
+See [Database Access Controls](../../admin-guides/enroll-resources/database-access/rbac.mdx) for more details.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/database-object-import-rule-spec.mdx!)
 
@@ -306,6 +306,6 @@ version: v2
 Bot resources define a Machine ID Bot identity and its access.
 
 Find out more on the
-[Machine ID configuration reference](../machine-id/reference/configuration.mdx).
+[Machine ID configuration reference](../machine-id/configuration.mdx).
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)

@@ -66,7 +66,7 @@ $ ssh user@[server name].[cluster name]
 
 <Admonition type="note">
   Include the port number for OpenSSH servers, by default `22`, or you can experience an error.
-  See the [OpenSSH guide](../openssh.mdx) for more information.
+  See the [OpenSSH guide](../../../../index.mdx) for more information.
   Example connecting to a OpenSSH server:
 
   ```code
@@ -78,19 +78,19 @@ $ ssh user@[server name].[cluster name]
 
 After opening your IDE go to `Tools` -> `Deployment` -> `Browse Remote Host`.
 
-![Deployment](../../../img/jetbrains-sftp/deployment-main.png)
+![Deployment](../../../../../img/jetbrains-sftp/deployment-main.png)
 
 Then click the plus sign in the top-left corner to add a new server.
 
-![Add server](../../../img/jetbrains-sftp/add-server.png)
+![Add server](../../../../../img/jetbrains-sftp/add-server.png)
 
 Enter a name for your new server.
 
-![New Deployment](../../../img/jetbrains-sftp/deployment-added.png)
+![New Deployment](../../../../../img/jetbrains-sftp/deployment-added.png)
 
 Click the three dots next to `SSH configuration` as in the picture above.
 
-![SSH Configuration](../../../img/jetbrains-sftp/ssh-configurations.png)
+![SSH Configuration](../../../../../img/jetbrains-sftp/ssh-configurations.png)
 
 Create a new configuration by clicking the plus sign on the top left and providing:
 
@@ -101,13 +101,13 @@ Create a new configuration by clicking the plus sign on the top left and providi
 As an `Authentication type` pick `OpenSSH config and authentication agent`.
 Next, you can click `Test Connection`.
 
-![Successfully Connected](../../../img/jetbrains-sftp/successfully-connected.png)
+![Successfully Connected](../../../../../img/jetbrains-sftp/successfully-connected.png)
 
 ## Step 3/3. Browse a remote host
 
 After closing the SSH configuration window, you should see `Remote Host` menu in your IDE.
 
-![Browse window](../../../img/jetbrains-sftp/browse-window.png)
+![Browse window](../../../../../img/jetbrains-sftp/browse-window.png)
 
 <Admonition type="note">
   Teleport's certificates expire fairly quickly, after which SSH
@@ -128,7 +128,7 @@ After closing the SSH configuration window, you should see `Remote Host` menu in
 ### Using OpenSSH clients
 
 This guide makes use of `tsh config`; refer to the
-[dedicated guide](../openssh.mdx) for additional information.
+[dedicated guide](../../../../index.mdx) for additional information.
 
 ## Further reading
 - [JetBrains - Create a remote server configuration](https://www.jetbrains.com/help/idea/creating-a-remote-server-configuration.html#overload)

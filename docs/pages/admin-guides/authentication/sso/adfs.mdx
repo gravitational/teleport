@@ -36,27 +36,27 @@ incoming claims: `Name ID` and `Group`.
 - `Name ID` should be a mapping of the LDAP Attribute `E-Mail-Addresses` to
   `Name ID`.
 
-  ![Name ID Configuration](../../../img/adfs-1.png)
+  ![Name ID Configuration](../../../../img/adfs-1.png)
 
 - A group membership claim should be used to map users to roles (for example to
   separate normal users and admins).
 
-  ![Group Configuration](../../../img/adfs-2.png)
+  ![Group Configuration](../../../../img/adfs-2.png)
 
 - If you are using dynamic roles (see below), it may be useful to map the LDAP
   Attribute `SAM-Account-Name` to `Windows account name`:
 
-  ![WAN Configuration](../../../img/adfs-3.png)
+  ![WAN Configuration](../../../../img/adfs-3.png)
 
 - And create another mapping of `E-Mail-Addresses` to `UPN`:
 
-  ![UPN Configuration](../../../img/adfs-4.png)
+  ![UPN Configuration](../../../../img/adfs-4.png)
 
 You'll also need to create a Relying Party Trust. Use the below information to
 help guide you through the Wizard.
 
 - Create a Relaying Party Trust:
-  ![Add a Claims Provider Trust](../../../img/adfs-add-provider-trust.png)
+  ![Add a Claims Provider Trust](../../../../img/adfs-add-provider-trust.png)
 - Enter data about the relying party manually.
 - Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
@@ -176,7 +176,7 @@ $ tctl saml export adfs > saml.cer
 Copy `saml.cer`, to ADFS server, open the "Relying Party Trust" and add this
 file as one of the signature verification certificates:
 
-![adfs-add-teleport-cert.png](../../../img/adfs-add-teleport-cert.png)
+![adfs-add-teleport-cert.png](../../../../img/adfs-add-teleport-cert.png)
 
 The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
@@ -208,5 +208,5 @@ In the Teleport role we illustrated in this guide, `external` traits
 are replaced with values from the single sign-on provider that the user
 used to authenticate to Teleport. For full details on how traits
 work in Teleport roles, see the [Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+Reference](../../../reference/rbac/teleport-roles.mdx).
 

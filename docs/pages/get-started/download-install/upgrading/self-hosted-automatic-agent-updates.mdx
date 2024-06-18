@@ -10,10 +10,10 @@ clusters.
 Teleport agents run an **upgrader** that queries a **version server** to
 determine whether they are out of date. This guide describes how to set up your
 infrastructure to support automatic updates. If you are a Teleport Cloud user
-or run a version server already, return to the [Upgrading](../upgrading.mdx)
+or run a version server already, return to the [Upgrading](../../../index.mdx)
 menu for the appropriate next steps to upgrade Teleport.
 
-The [Automatic Update Architecture](../architecture/agent-update-management.mdx)
+The [Automatic Update Architecture](../../../reference/architecture/agent-update-management.mdx)
 guide explains how automatic agent upgrades work in more detail.
 
 <Admonition type="warning">
@@ -27,7 +27,7 @@ Teleport v13.3.2 forward, including future major releases.
 
 ## Prerequisites
 
-- Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
+- Familiarity with the [Upgrading Compatibility Overview](overview.mdx) guide,
   which describes the sequence in which to upgrade components of your cluster.
 - Self-hosted Teleport cluster running at least v14.3.7 or v15.1.3. 
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
@@ -307,5 +307,5 @@ Follow these instructions on each of your Teleport agents.
 While this guide showed you how to apply a `cluster_maintenance_config` resource
 using `tctl`, we recommend using infrastructure as code to maintain your
 Teleport resources. See the
-[`teleport_cluster_maintenance_config`](../reference/terraform-provider.mdx#teleport_cluster_maintenance_config)
+[`teleport_cluster_maintenance_config`](../../../reference/config-references/terraform-provider.mdx)
 for how to declare a cluster maintenance configuration with Terraform.

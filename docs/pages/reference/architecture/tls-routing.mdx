@@ -3,7 +3,7 @@ title: TLS Routing
 description: How Teleport implements a single-port setup with TLS routing
 ---
 
-In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
+In TLS routing mode [Teleport proxy](proxy.mdx) multiplexes all client
 connections on a single TLS port.
 
 With TLS routing, cluster administrators can simplify network configurations
@@ -56,7 +56,7 @@ these clients can connect to it.
 ### Diagram
 
 <Figure align="left" bordered caption="TLS routing">
-  ![TLS routing](../../img/architecture/tls-routing.png)
+  ![TLS routing](../../../img/architecture/tls-routing.png)
 </Figure>
 
 Let's take a look at how each protocol Teleport supports implements TLS routing.
@@ -77,7 +77,7 @@ which can be used as a `ProxyCommand`.
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
 proxy with `teleport-proxy-ssh` ALPN protocol, which `ssh` then connects over.
 
-See the [OpenSSH client](../server-access/openssh/openssh.mdx) guide for details on
+See the [OpenSSH client](../../admin-guides/enroll-resources/server-access/openssh/openssh.mdx) guide for details on
 how it's configured.
 
 ## Reverse tunnels
@@ -129,7 +129,7 @@ Teleport provides a `tsh proxy db` command to launch a local database proxy:
 $ tsh proxy db example-db
 ```
 
-See [GUI clients](../connect-your-client/gui-clients.mdx) guide for a usage
+See [GUI clients](../../connect-your-client/gui-clients.mdx) guide for a usage
 example.
 
 ## Web UI, apps and desktops
@@ -145,7 +145,7 @@ Starting from version `13.0`, TLS routing can now be enabled allowing the
 Teleport Proxy Service to serve a single port behind a layer 7 load balancer or
 reverse proxy.
 
-![Layer 7 load balancer setup](../../img/architecture/tls-routing-alb.svg)
+![Layer 7 load balancer setup](../../../img/architecture/tls-routing-alb.svg)
 
 It is expected that the layer 7 load balancer or reverse proxy will terminate
 TLS with a public certificate, such as using ACM for AWS ALB. This means that
@@ -162,7 +162,7 @@ uses the same connection upgrade principle as WebSockets. Starting from version
 15.1, Teleport clients will send native WebSocket upgrades to extend its
 compatibility with more load balancers and reverse proxies.
 
-![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
+![Connection upgrade](../../../img/architecture/tls-routing-connection-upgrade.svg)
 
 Non-Teleport clients should require local proxies that can perform the
 special connection upgrades.
@@ -278,6 +278,6 @@ behind layer 7 load balancers.
 
 ## Next steps
 
-- See [migration guide](../management/operations/tls-routing.mdx) to learn how to
+- See [migration guide](../../admin-guides/self-hosting/management/tls-routing.mdx) to learn how to
   upgrade an existing cluster to use TLS routing.
 - Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

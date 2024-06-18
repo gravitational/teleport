@@ -23,7 +23,7 @@ one-time passwords.
 
 Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
 Disabling local authentication is required for [FIPS/FedRAMP compliance
-](../access-controls/compliance-frameworks/fedramp.mdx).
+](compliance-frameworks/fedramp.mdx).
 
 ### Special case: Bots
 
@@ -33,10 +33,10 @@ Teleport by a user and a role resource and can be created via the
 `tctl bots add` command.
 
 Unlike human users, who use a password, MFA, or SSO, bot users join
-the cluster as Teleport services using [a join method](./join-methods.mdx). They
+the cluster as Teleport services using [a join method](join-methods.mdx). They
 can still join even if local auth is disabled. 
 
-See the [Machine ID introduction](../machine-id/introduction.mdx) for more information.
+See the [Machine ID introduction](../../admin-guides/enroll-resources/machine-id/introduction.mdx) for more information.
 
 ## SSO users
 
@@ -68,7 +68,7 @@ and automatically expire. The expiry is dynamically computed based on the IdP
 answer validity, the max session duration allowed by the user roles, and cannot
 exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-See the [SSO setup guides](../access-controls/sso.mdx) to learn how to setup an
+See the [SSO setup guides](../../admin-guides/authentication/sso/overview.mdx) to learn how to setup an
 authentication connector and allow user to log in via an IdP.
 
 ### Synced users

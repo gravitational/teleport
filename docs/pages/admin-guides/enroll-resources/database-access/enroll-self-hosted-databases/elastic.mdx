@@ -17,7 +17,7 @@ description: How to configure Teleport database access with Elasticsearch.
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../installation.mdx) for details.
+  See [Installation](../../../../get-started/download-install/installation.mdx) for details.
 
 - Optional: a certificate authority that issues certificates for
   your self-hosted database.
@@ -41,7 +41,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
 </TabItem>
@@ -75,7 +75,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 
 <Details title="Role Mapping with wildcards">
 
-In a scenario where Teleport is using [single sign-on](../../access-controls/sso.mdx) you may want to define a mapping for all users to a role:
+In a scenario where Teleport is using [single sign-on](../../../authentication/sso/overview.mdx) you may want to define a mapping for all users to a role:
 
 ```code
 $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
@@ -182,7 +182,7 @@ Use one of the following commands to connect to the database:
 
 Note the assigned port, and provide it to your GUI client:
 
-![ElasticVue](../../../img/database-access/guides/elasticvue.png)
+![ElasticVue](../../../../../img/database-access/guides/elasticvue.png)
 
 ## Next steps
 

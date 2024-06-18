@@ -18,7 +18,7 @@ available to Teleport Enterprise customers.
 After logging into the Teleport UI, go to the Management tab. If enabled, Access Graph options can be found
 under the Permission Management section.
 
-![Teleport Access Graph](../../img/access-graph/main-view.png)
+![Teleport Access Graph](../../../img/access-graph/main-view.png)
 
 ## Graph nodes
 
@@ -26,7 +26,7 @@ Teleport Access Graph divides your infrastructure into six main components:
 
 1. Identities
 
-![Identity Node](../../img/access-graph/identity-node.png)
+![Identity Node](../../../img/access-graph/identity-node.png)
 
 Identities are the actors that can access your infrastructure. They can be employees,
 contractors, machines or bots.
@@ -37,28 +37,28 @@ creating an access request.
 
 2. User Groups
 
-![Identity Group Node](../../img/access-graph/identity-group-node.png)
+![Identity Group Node](../../../img/access-graph/identity-group-node.png)
 
 Identity Groups are collections of identities. They can be used to organize users
 based on their role or team, and they can be nested.
 
 3. Actions
 
-![Action Node](../../img/access-graph/allow-action-node.png)
+![Action Node](../../../img/access-graph/allow-action-node.png)
 
 Actions are the things that identities can or cannot do. Actions are related to
 resources. For example, a user can SSH into a node.
 
 4. Deny Actions
 
-![Deny Action Node](../../img/access-graph/deny-action-node.png)
+![Deny Action Node](../../../img/access-graph/deny-action-node.png)
 
 Deny Actions are the things that identities cannot do. Deny Actions are related to
 resources. For example, a user cannot SSH into a node.
 
 5. Resource Groups
 
-![Resource Group Node](../../img/access-graph/resource-group-node.png)
+![Resource Group Node](../../../img/access-graph/resource-group-node.png)
 
 Resource Groups are collections of resources. They can be used to organize
 resources based on their role or team.
@@ -67,7 +67,7 @@ The number on the right hand side shows the number of resources that a resource 
 
 6. Resources
 
-![Resource Node](../../img/access-graph/resource-node.png)
+![Resource Node](../../../img/access-graph/resource-node.png)
 
 Resources are the things that users can or cannot access. They can be
 servers, databases, or Kubernetes clusters.
@@ -88,14 +88,14 @@ Paths can be divided into two categories:
 
 1. Allow paths
 
-![Allow Path](../../img/access-graph/allow-path.png)
+![Allow Path](../../../img/access-graph/allow-path.png)
 
 Allow paths connect identities to resources. They show what an identity can access
 and what actions they can perform.
 
 2. Deny paths
 
-![Deny Path](../../img/access-graph/deny-path.png)
+![Deny Path](../../../img/access-graph/deny-path.png)
 
 Deny paths connect identities to resources. They show what an identity cannot access
 and what actions they cannot perform. Deny paths take precedence over allow
@@ -107,15 +107,15 @@ Teleport Access Graph can help you to answer questions like:
 
 - Who can access a specific resource?
 
-![Show Access Path Resource](../../img/access-graph/show-access-path-resource.gif)
+![Show Access Path Resource](../../../img/access-graph/show-access-path-resource.gif)
 
 - What resources can a specific user access?
 
-![Show Access Path](../../img/access-graph/show-access-path.gif)
+![Show Access Path](../../../img/access-graph/show-access-path.gif)
 
 ## Navigation
 
-![Navigation](../../img/access-graph/sidebar.png)
+![Navigation](../../../img/access-graph/sidebar.png)
 
 The left hand side menu contains the main navigation options:
 
@@ -133,7 +133,7 @@ By default, an aggregated view of access paths grouped by identity is showed.
 
 To search for a graph node use the search bar at the top of the page or the search icon on the right hand side.
 
-![Search](../../img/access-graph/search.png)
+![Search](../../../img/access-graph/search.png)
 
 You can then search through all node types and all imported entities.
 
@@ -141,7 +141,7 @@ You can then search through all node types and all imported entities.
 
 Access Graph allows creating SQL like queries to explore the graph.
 
-![SQL Editor](../../img/access-graph/sql-editor.png)
+![SQL Editor](../../../img/access-graph/sql-editor.png)
 
 The query language allows to create different views of the graph, ex:
 
@@ -172,7 +172,7 @@ More actionable examples is available under ? icon.
 
 ## Integrations
 
-![Integrations](../../img/access-graph/integrations.png)
+![Integrations](../../../img/access-graph/integrations.png)
 
 Integrations page shows integrations that can be enabled or are already enabled in Access Graph.
 

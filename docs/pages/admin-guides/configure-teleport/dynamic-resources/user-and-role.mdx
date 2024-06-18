@@ -27,8 +27,8 @@ To follow this guide, you must have:
 <TabItem label="Kubernetes Operator">
 
 A running operator by following either:
-- [the guide to enable the operator in the `teleport-cluster` Helm chart](./teleport-operator-helm.mdx).
-- [the guide to setup a standalone operator](./teleport-operator-standalone.mdx).
+- [the guide to enable the operator in the `teleport-cluster` Helm chart](teleport-operator-helm.mdx).
+- [the guide to setup a standalone operator](teleport-operator-standalone.mdx).
 
 You must also set the namespace in which you deployed the operator as this is
 the namespace where you will deploy the CustomResources:
@@ -44,7 +44,7 @@ $ export OPERATOR_NAMESPACE="teleport-iac"
 </TabItem>
 <TabItem label="Terraform">
 
-A functional Teleport Terraform provider by following [the Terraform provider guide](./terraform-provider.mdx).
+A functional Teleport Terraform provider by following [the Terraform provider guide](terraform-provider.mdx).
 
 </TabItem>
 </Tabs>
@@ -192,7 +192,7 @@ We will create 2 users:
   Users created from manifests are local users, as opposed to users coming from
   an external SAML/OIDC/GitHub Identity Provider (IdP).
 
-  See [the user type reference](../../reference/user-types.mdx) for more details.
+  See [the user type reference](../../../reference/operations/user-types.mdx) for more details.
 </Admonition>
 
 <Tabs>
@@ -367,7 +367,7 @@ created and granted the correct roles.
 If you have UI access, connect to your Teleport cluster Web UI, open the
 management panel, and select the "Users" tab.
 
-![Screenshot of the web UI listing alice and bob users](../../../img/management/check-users-web-ui.png)
+![Screenshot of the web UI listing alice and bob users](../../../../img/management/check-users-web-ui.png)
 
 Two new users `alice` and `bob` should be present.
 
@@ -480,13 +480,13 @@ resource "teleport_user" "bob" {
 - Allow users with the `manager` role to grant access to production servers to
   some `engineers` via Access Lists. Manager will need to justify and review
   granted access periodically.
-  See [the AccessList documentation](../../access-controls/access-lists.mdx) for
+  See [the AccessList documentation](../../access-controls/just-in-time/access-lists.mdx) for
   a high-level explanation of the feature,
   and [the AccessList IaC guide](access-list.mdx) for a step by step IaC
   AccessList setup.
 - Allow users with the `engineer` role to request temporary access to
   production, and have users with the `manager` role validate the requests.
-  See [the Access Requests documentation](../../access-controls/access-requests.mdx)
+  See [the Access Requests documentation](../../access-controls/just-in-time/access-requests/overview.mdx)
 - You can see all supported fields in the references
-  of [the user resource](../../reference/resources.mdx#user)
-  and [the role resource](../../reference/resources.mdx#role).
+  of [the user resource](../../../reference/config-references/resources.mdx)
+  and [the role resource](../../../reference/config-references/resources.mdx).

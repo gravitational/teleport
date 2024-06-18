@@ -165,7 +165,7 @@ fallback to a weaker second factor, like OTP, using `tsh mfa add
 --mfa-mode=otp`.
 
 See the possible `--mfa-mode` values in the [Teleport CLI
-Reference](../../reference/cli/tsh.mdx#tsh-global-flags) page.
+Reference](../../reference/cli/tsh.mdx) page.
 </Admonition>
 
 ## Step 3/3. Log in using WebAuthn
@@ -231,7 +231,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](
-  ../../reference/authentication.mdx#local-no-authentication-connector).
+  ../../reference/operations/authentication.mdx#local-no-authentication-connector).
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
@@ -310,7 +310,7 @@ auth_service:
 
 ## Next steps
 
-- [Passwordless](./passwordless.mdx)
-- [Set up per-session MFA checks](./per-session-mfa.mdx)
-- [Require MFA for administrative actions](./mfa-for-admin-actions.mdx)
+- [Passwordless](passwordless.mdx)
+- [Set up per-session MFA checks](per-session-mfa.mdx)
+- [Require MFA for administrative actions](mfa-for-admin-actions.mdx)
 

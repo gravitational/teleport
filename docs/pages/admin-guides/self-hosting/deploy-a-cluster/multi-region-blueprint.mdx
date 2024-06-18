@@ -30,7 +30,7 @@ Before continuing, you must acknowledge the following warnings:
 For teams with limited bandwidth who need multi-region clusters, Teleport
 offers to host cross-region clusters. You can benefit from the
 setup described in this document without the operational costs and complexity,
-see [the Teleport Enterprise Cloud page](../choose-an-edition/teleport-cloud/introduction.mdx)
+see [the Teleport Enterprise Cloud page](../../../index.mdx)
 for more details.
 
 </Admonition>
@@ -39,14 +39,14 @@ for more details.
 
 A multi-region Teleport deployment is composed of several regional Teleport
 deployments. Teleport stores its state in a multi-region backend and uses
-[Proxy Peering](../architecture/proxy-peering.mdx) to connect users to resources
+[Proxy Peering](../../../reference/architecture/proxy-peering.mdx) to connect users to resources
 hosted in a different region.
 
 The recommended multi-region backend
-is [the CockroachDB backend](../reference/backends.mdx#cockroachdb)
-available in [Teleport Enterprise](../choose-an-edition/teleport-enterprise/introduction.mdx).
+is [the CockroachDB backend](../../../reference/operations/backends.mdx)
+available in [Teleport Enterprise](../introduction.mdx).
 
-![Architecture diagram](../../img/deploy-a-cluster/multi-region-blueprint.svg)
+![Architecture diagram](../../../../img/deploy-a-cluster/multi-region-blueprint.svg)
 
 To run a multi-region Teleport deployment, you must have:
 
@@ -70,7 +70,7 @@ This section describes this setup in more detail.
 - Create 3 peered regional VPCs (e.g., on AWS) or 1 global VPC (e.g., on GKE).
 - Create 1 Kubernetes cluster in each region, **Pod CIDRs must not overlap**.
 - Ensure pod mesh connectivity. Proxy pods must be able to dial each other
-  [on port 3021](../reference/networking.mdx#ports). The setup will vary
+  [on port 3021](../../../reference/operations/networking.mdx). The setup will vary
   based on your network and CNI plugin configuration:
   - If pods are using the native network layer (for example GKE, or AWS' vpc-cni addon)
     you can rely on pure VPC peering, routing, and firewall capabilities to
@@ -254,7 +254,7 @@ The CockroachDB performance depends on the storage type. Make sure to store
 CockroachDB's state on SSDs. When running on Kubernetes, the default storage
 class might not be the one offering the best latency and throughput.
 
-See the [Teleport scaling](../management/operations/scaling.mdx) page for more
+See the [Teleport scaling](../management/scaling.mdx) page for more
 details on how to size Teleport.
 
 Teleport load varies depending on the usage type (number of connected

@@ -42,13 +42,13 @@ you can review them later.
   instructions for Docker on [Docker's
   website](https://docs.docker.com/get-docker/). If you want to register servers
   in Teleport without using Docker, see the getting started guide for [server
-  access](../../server-access/getting-started.mdx).
+  access](../admin-guides/enroll-resources/server-access/getting-started.mdx).
 
 - The `tsh` client tool. 
   
   The `tsh` client tool is only required to access the server from a terminal.
   For installation instructions, see [Installation
-  Guide](../../installation.mdx).  If you don't install the `tsh` client tool,
+  Guide](download-install/installation.mdx).  If you don't install the `tsh` client tool,
   you can access the server in Teleport Enterprise using the Web UI through your
   browser.
 
@@ -86,14 +86,14 @@ To install the Teleport SSH Service on your server:
    
    The first time you sign in, you are prompted to add your first resource: 
    
-   ![Add your first resource](../img/cloud/getting-started/add-my-first-resource@2x.png)
+   ![Add your first resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
 
 1. Click **Add my first resource**, and you will see the option to enroll
    resources in your Teleport cluster.
 
 1. Type *server* in the search box to filter the list of resources:
    
-   ![Select resource type](../img/cloud/getting-started/choose-resource@2x.png)
+   ![Select resource type](../../img/cloud/getting-started/choose-resource@2x.png)
 
 1. Click *Ubuntu 14.04+* to register the server in the Docker container.
    
@@ -101,7 +101,7 @@ To install the Teleport SSH Service on your server:
    for your multi-factor authentication device, then displays a script to
    install and configure the Teleport SSH Service. For example:
    
-   ![Configure resource](../img/cloud/getting-started/paste-script@2x.png)
+   ![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
    
 1. The Teleport installation script uses `sudo`, which is not installed on your
    Docker container. Before copying the command to run the installation script,
@@ -120,18 +120,18 @@ into the container shell session.
    Leave the script running in the shell. After Teleport is installed on the server, 
    you'll see a message in the Web UI that your new Teleport instance was successfully detected:
    
-   ![Connected successfully](../img/cloud/getting-started/successfully-connected@2x.png)
+   ![Connected successfully](../../img/cloud/getting-started/successfully-connected@2x.png)
    
    To continue, click **Next**.
 
 1. Confirm that you want to authenticate as the `root` user and click **Next**:
    
-   ![Choose your user](../img/cloud/getting-started/set-up-access@2x.png)
+   ![Choose your user](../../img/cloud/getting-started/set-up-access@2x.png)
 
 1. Respond to the MFA prompt again, then click **Test Connection** to verify
    access to the server.
    
-   ![Start session](../img/cloud/getting-started/test-connection@2x.png)
+   ![Start session](../../img/cloud/getting-started/test-connection@2x.png)
 
 ## Step 3/5. Start a session
 
@@ -173,7 +173,7 @@ To play back a session in the Teleport Web UI:
    step listed.  For example:
    
    ![Session
-   recordings](../img/cloud/getting-started/session-recordings@2x.png)
+   recordings](../../img/cloud/getting-started/session-recordings@2x.png)
 
 1. Click **Play** to see a full recording of your session.
 
@@ -240,4 +240,4 @@ Role-based access control ensures that only authorized users are allowed access
 to those resources.
 
 To learn more information about deploying agents, see [Deploy Teleport Agents 
-with Terraform](../../agents/deploy-agents-terraform.mdx).
+with Terraform](../admin-guides/enroll-resources/agents/deploy-agents-terraform.mdx).

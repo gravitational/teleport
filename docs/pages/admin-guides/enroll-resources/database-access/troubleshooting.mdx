@@ -35,12 +35,12 @@ Service can reach the PostgreSQL server.
 Each database uses a different format. You can check your database guide for more
 details and examples:
 
-- [PostgreSQL](./enroll-self-hosted-databases/postgres-self-hosted.mdx#step-25-create-a-certificatekey-pair)
-- [MySQL/MariaDB](./enroll-self-hosted-databases/mysql-self-hosted.mdx#step-24-create-a-certificatekey-pair)
-- [MongoDB](./enroll-self-hosted-databases/mongodb-self-hosted.mdx#set-up-mutual-tls)
-- [CockroachDB](./enroll-self-hosted-databases/cockroachdb-self-hosted.mdx#set-up-mutual-tls)
-- [Redis](./enroll-self-hosted-databases/redis.mdx#step-45-set-up-mutual-tls)
-- [Redis Cluster](./enroll-self-hosted-databases/redis-cluster.mdx#step-46-set-up-mutual-tls)
+- [PostgreSQL](enroll-self-hosted-databases/postgres-self-hosted.mdx)
+- [MySQL/MariaDB](enroll-self-hosted-databases/mysql-self-hosted.mdx)
+- [MongoDB](enroll-self-hosted-databases/mongodb-self-hosted.mdx)
+- [CockroachDB](enroll-self-hosted-databases/cockroachdb-self-hosted.mdx)
+- [Redis](enroll-self-hosted-databases/redis.mdx)
+- [Redis Cluster](enroll-self-hosted-databases/redis-cluster.mdx)
 
 After the new certificate is issued, update your database to make it take effect.
 
@@ -103,7 +103,7 @@ spec:
 The `internal.db_users` and `internal.db_names` traits are
 replaced with values from the Teleport local user database. For full details on
 how traits work in Teleport roles, see the [Teleport Access
-Controls Reference](../access-controls/reference.mdx).
+Controls Reference](../../../reference/rbac/teleport-roles.mdx).
 
 Now suppose we want to grant Alice more permissive access.
 To keep this example simple, let's just assign Alice a different role.
@@ -145,19 +145,19 @@ Now Alice can connect to any database in the Teleport cluster using any database
 
 This example is intentionally simple; we could have configured Alice's permissions using more fine-grained control.
 For more detailed information about database access controls and how to restrict
-access see the [RBAC](../database-access/rbac.mdx) documentation.
+access see the [RBAC](rbac.mdx) documentation.
 
 ## Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
 
 When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
 
 One way to solve this issue is to [use the TLS Routing
-feature](../management/operations/tls-routing.mdx), where the Teleport Proxy
+feature](../../self-hosting/management/tls-routing.mdx), where the Teleport Proxy
 Service propagates the correct MySQL server version via TLS Routing extensions.
 
 If migration to TLS Routing is not possible, another way to bypass this error is
 to use the [Teleport local proxy
-command](../connect-your-client/gui-clients.mdx#get-connection-information),
+command](../../../connect-your-client/gui-clients.mdx),
 which allows you to establish a TLS Routing connection to the Teleport Proxy
 Service even if TLS Routing was not enabled on the Teleport cluster.
 

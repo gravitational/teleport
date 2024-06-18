@@ -13,10 +13,10 @@ If you want to configure Redis Standalone, please read [Database Access with Red
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
+![Teleport Database Access Redis Cluster Self-Hosted](../../../../../img/database-access/guides/rediscluster_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
-![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
+![Teleport Database Access Redis Cluster Cloud](../../../../../img/database-access/guides/rediscluster_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -59,7 +59,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379?mode=cluster" !)
 </TabItem>

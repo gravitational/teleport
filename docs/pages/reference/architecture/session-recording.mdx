@@ -20,7 +20,7 @@ Note that the design of session recording carries some security risks. Namely,
 users can conceal terminal commands by encoding them (e.g., using `base64`),
 running scripts from disk or the internet, or changing the terminal settings. If
 this presents an issue for your environment, consider using the BPF-based
-[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)
+[Enhanced Session Recording](../../admin-guides/enroll-resources/server-access/guides/bpf-session-recording.mdx)
 instead.
 
 ### Kubernetes sessions
@@ -64,7 +64,7 @@ Teleport cluster. It can be configured by setting `session_recording`
 in the `auth_service` section of your `teleport.yaml`, or dynamically using
 the `session_recording_config` resource. If you need to apply different
 recording configurations to different sets of resources, you can set up
-[trusted clusters](../management/admin/trustedclusters.mdx) with their own
+[trusted clusters](../../admin-guides/access-controls/trustedclusters.mdx) with their own
 recording configurations.
 
 <Admonition type="note">
@@ -84,7 +84,7 @@ By default, Teleport performs recording at the SSH node. This is because Telepor
 Proxy Server cannot see the SSH traffic to the node. It is encrypted end-to-end
 (from the SSH client to the SSH server):
 
-![session-recording-diagram](../../img/session-recording.svg)
+![session-recording-diagram](../../../img/session-recording.svg)
 
 ### Record at the Proxy Service
 
@@ -94,7 +94,7 @@ and then establishes its own SSH connection to the final destination server.
 This allows the Proxy Service to forward SSH session data to the auth server to
 be recorded, as shown below:
 
-![recording-proxy](../../img/recording-proxy.svg)
+![recording-proxy](../../../img/recording-proxy.svg)
 
 Recording Proxy Mode allows Teleport users to enable session recording for
 OpenSSH's servers running `sshd`, which is helpful when gradually transitioning
@@ -116,7 +116,7 @@ prevent sessions logs from reaching the Auth Service. With sessions recorded at
 the Proxy Service, users with root privileges on nodes have no way of disabling
 the audit.
 
-See the [reference](../reference/audit.mdx#recorded-sessions) to learn how to
+See the [reference](../monitoring/audit/audit.mdx) to learn how to
 turn on Recording Proxy Mode. Note that the recording mode is configured on the
 Auth Service.
 
@@ -162,7 +162,7 @@ environments where the connection to the auth server is unreliable or high-laten
 ## Storage
 
 Session recordings are stored in Teleport's audit sessions backend, which is
-specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../reference/config.mdx).
+specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../config-references/config.mdx).
 Teleport current supports the following session storage backends:
 
 - File: stores recordings on the local filesystem. Suitable for dev environments, demos,
@@ -188,7 +188,7 @@ should be noted that they are not TAR archives and cannot be read using the `tar
 ## Playback
 
 SSH and Kubernetes sessions can be played in Teleport's Web UI or by using
-the [`tsh play`](../reference/cli/tsh.mdx#tsh-play) command. Desktop session
+the [`tsh play`](../cli/tsh.mdx) command. Desktop session
 recordings can only be played back in the Web UI.
 
 In the Web UI, the session recordings page is populated by querying Teleport's
@@ -219,6 +219,6 @@ complete it.
 
 ## Related reading
 
-- [Recording Proxy Mode](../server-access/guides/recording-proxy-mode.mdx)
-- [SSH recording modes](../reference/audit.mdx#modes)
-- [Desktop Access recording](../desktop-access/reference/sessions.mdx)
+- [Recording Proxy Mode](../../admin-guides/enroll-resources/server-access/guides/recording-proxy-mode.mdx)
+- [SSH recording modes](../monitoring/audit/audit.mdx)
+- [Desktop Access recording](../../admin-guides/enroll-resources/desktop-access/sessions.mdx)

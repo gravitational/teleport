@@ -25,7 +25,7 @@ You can then connect your workloads to this endpoint to receive SPIFFE SVIDs.
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the host where the
   workloads which need to access Teleport Workload Identity will run. For more
-  information, see the [deployment guides](../deployment.mdx).
+  information, see the [deployment guides](../deployment/overview.mdx).
 
 ## Step 1/4. Configure RBAC
 
@@ -36,7 +36,7 @@ then granting this role to the Bot.
 Before proceeding, you'll want to determine the SPIFFE ID path that your
 workload will use. In our example, we'll use `/svc/foo`. We provide more
 guidance on choosing a SPIFFE ID structure in the
-[Best Practices](./best-practices.mdx) guide.
+[Best Practices](best-practices.mdx) guide.
 
 Create a new file named `spiffe-issuer-role.yaml`:
 
@@ -191,14 +191,14 @@ In cases where you have used the SPIFFE SDKs, you can configure the
 `SPIFFE_ENDPOINT_SOCKET` environment variable to point to the socket created by
 `tbot`.
 
-See the [Best Practices](./best-practices.mdx) guide for more information on
+See the [Best Practices](best-practices.mdx) guide for more information on
 integrating SPIFFE with your workloads.
 
 ## Next steps
 
-- [Workload Identity Overview](../workload-identity.mdx): Overview of Teleport
+- [Workload Identity Overview](overview.mdx): Overview of Teleport
 Workload Identity.
-- [Best Practices](./best-practices.mdx): Best practices for using Workload
+- [Best Practices](best-practices.mdx): Best practices for using Workload
 Identity in Production.
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../../reference/machine-id/configuration.mdx) to explore
 all the available configuration options.

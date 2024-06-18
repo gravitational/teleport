@@ -127,7 +127,7 @@ Windows Desktop Service by running the following command:
    ```
 
    If Teleport isn't installed on the Linux server, follow the appropriate [Installation
-instructions](../installation.mdx#linux) for your environment.
+instructions](../../../get-started/download-install/installation.mdx) for your environment.
 
 1. Configure the `/etc/teleport.yaml` file on the Linux server with settings similar to the
 following for the Windows Desktop Service:
@@ -211,7 +211,7 @@ following for the Windows Desktop Service:
    ```
 
    For more information about using labels and roles, see [Configure Windows-specific
-   role permissions](./rbac.mdx).
+   role permissions](../../../reference/agents/desktop-access.mdx).
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Windows Desktop Service"!)
 
@@ -246,7 +246,7 @@ To configure a role for desktop access:
 
    Depending on how you configure role-based access controls for Windows, Teleport can create local user logins
    automatically from the `windows_desktop_logins` you specify. For more information about enabling Teleport
-   to create local Windows logins, see [Logins](./rbac.mdx#logins).
+   to create local Windows logins, see [Logins](../../../reference/agents/desktop-access.mdx).
 
 1. Apply the new role to your cluster by running the following command:
 
@@ -275,12 +275,12 @@ To connect to a Windows desktop:
 1. Click **Connect** for the Windows desktop you want to access, then select the
 Windows login to use for the connection.
 
-   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/passwordless-desktop.png)
+   ![Connect to a Windows desktop from the Teleport Web UI](../../../../img/desktop-access/passwordless-desktop.png)
 
    Teleport opens a remote desktop connection and starts recording the desktop session. When you're
    finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
 
-   ![Disconnect from a Windows desktop ](../../img/desktop-access/desktop-disconnect.png)
+   ![Disconnect from a Windows desktop ](../../../../img/desktop-access/desktop-disconnect.png)
 
    To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
    in the Activity section.
@@ -288,6 +288,6 @@ Windows login to use for the connection.
 ## Next steps
 
 For more general information about how to create, assign, and update roles, see [Access Controls
-Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles).
+Getting Started](../../access-controls/access-controls-getting-started.mdx).
 For more specific information about configuring Windows-specific role permissions, see
-[Role-Based Access Control for Desktops](./rbac.mdx).
+[Role-Based Access Control for Desktops](../../../reference/agents/desktop-access.mdx).

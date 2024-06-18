@@ -19,10 +19,10 @@ resources:
 - The `tctl` client tool
 - Teleport Terraform provider
 - Teleport Kubernetes operator
-- [Custom API clients](../api/rbac.mdx)
+- [Custom API clients](../../admin-guides/configure-teleport/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../management/dynamic-resources.mdx) guide.
+Resources](../../admin-guides/configure-teleport/dynamic-resources/overview.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -65,12 +65,12 @@ user:
 | `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
+| `record_session` |Defines the [Session recording mode](../monitoring/audit/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
-| `create_db_user_mode` | Allow [database user auto provisioning](../database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
+| `create_db_user_mode` | Allow [database user auto provisioning](../../index.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles
 
@@ -90,7 +90,7 @@ There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/moderated-sessions.mdx).
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -100,7 +100,7 @@ Label              | `v3` Default   | `v4` and higher Default
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
 Role `v6` introduced a new field `kubernetes_resources` that allows
-fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/controls.mdx) for more details.
+fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../agents/controls.mdx) for more details.
 
 Version              |  `kubernetes_resources`
 ------------------ | --------------
@@ -112,7 +112,7 @@ Version              |  `kubernetes_resources`
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
-This works by [labeling resources](../management/admin/labels.mdx) and
+This works by [labeling resources](../../admin-guides/access-controls/labels/labels.mdx) and
 configuring allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -238,7 +238,7 @@ conditions:
 - `group_labels_expression`
 
 Check out our
-[predicate language](../reference/predicate-language.mdx#label-expressions)
+[predicate language](../config-references/predicate-language.mdx)
 guide for a more in depth explanation of the language.
 
 Typically you will only want to use one of `<kind>_labels` or
@@ -362,7 +362,7 @@ unexpected changes to the configuration or state of your cluster.
 ## RBAC for sessions
 
 It is possible to further limit access to
-[shared sessions](../connect-your-client/tsh.mdx#sharing-sessions) and
+[shared sessions](../../connect-your-client/tsh.mdx) and
 [session recordings](../architecture/session-recording.mdx).
 The examples below illustrate how to restrict session access only for the user
 who created the session.
@@ -493,7 +493,7 @@ sign-on provider.
 |`{{internal.kube_username}}`|Kubernetes usernames available to the user.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../admin-guides/access-controls/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
@@ -596,10 +596,10 @@ within this guide:
 | `user.metadata.name`       | The user's name                                   |
 
 Read the [predicate
-language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
+language](../config-references/predicate-language.mdx)
 guide for a more in depth explanation of the language.
 
 ## Second Factor - U2F
 
-Refer to the [Second Factor - WebAuthn](./guides/webauthn.mdx#u2f) guide if you
+Refer to the [Second Factor - WebAuthn](../../admin-guides/authentication/webauthn.mdx) guide if you
 have a cluster using the legacy U2F support.

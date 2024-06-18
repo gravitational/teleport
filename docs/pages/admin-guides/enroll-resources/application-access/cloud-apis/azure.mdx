@@ -33,7 +33,7 @@ In this guide, you will:
   pod-managed identities feature will be deprecated in September 2024.
 
   For running Teleport Application Service in AKS with Microsoft Entra Workload
-  ID, see [Azure CLI Access on AKS with Workload ID](./azure-aks-workload-id.mdx).
+  ID, see [Azure CLI Access on AKS with Workload ID](azure-aks-workload-id.mdx).
   </Admonition>
 
 - The ability to create a user-assigned Azure managed identity and attach it to
@@ -78,7 +78,7 @@ your VM belongs to.
 In the **Name** field, enter `teleport-azure`.
 
 ![Creating an Azure managed
-identity](../../../img/application-access/azure/create-identity.png)
+identity](../../../../../img/application-access/azure/create-identity.png)
 
 Click **Review + create**, then **Create**.
 
@@ -107,7 +107,7 @@ Within the **Add role assignment** screen, click **Reader**, a built-in role
 with view-only access to resources. 
 
 ![Add a role
-assignment](../../../img/application-access/azure/add-role-assignment.png)
+assignment](../../../../../img/application-access/azure/add-role-assignment.png)
 
 Scroll to the bottom of the screen and click **Next**.
 
@@ -119,7 +119,7 @@ On the right sidebar, find the **Managed identity** dropdown menu and select
 created earlier. 
 
 ![Select managed
-identities](../../../img/application-access/azure/select-managed-identities.png)
+identities](../../../../../img/application-access/azure/select-managed-identities.png)
 
 Click **Select**, then **Review + assign**.
 
@@ -145,13 +145,13 @@ On the right side panel, click the **Identity** tab, then within the
 the `teleport-azure` identity. Click **Add**.
 
 ![Add an identity to a
-VM](../../../img/application-access/azure/vm-identity.png)
+VM](../../../../../img/application-access/azure/vm-identity.png)
 
 Navigate back to **Identity** tab in the page for your Azure VM. You should see
 the new identity listed in the **User assigned** sub-tab:
 
 ![Verifying that you added the
-identity](../../../img/application-access/azure/verify-id.png)
+identity](../../../../../img/application-access/azure/verify-id.png)
 
 ## Step 2/4. Deploy the Teleport Application Service
 
@@ -223,8 +223,8 @@ Application Service host.
   your Teleport users can only manage Azure resources temporarily, with no
   longstanding admin roles for attackers to hijack. View our documentation on
   [Role Access
-  Requests](../../access-controls/access-requests/role-requests.mdx) and
-  [Access Request plugins](../../access-controls/access-request-plugins/index.mdx).
+  Requests](../../../access-controls/just-in-time/access-requests/role-requests.mdx) and
+  [Access Request plugins](../../../../index.mdx).
 - Consult the Azure documentation for information about [Azure managed
   identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   and how to [manage user-assigned managed
@@ -235,5 +235,5 @@ Application Service host.
 - For full details on how Teleport populates the `internal` and `external`
   traits we illustrated in the Teleport roles within this guide, see
   the [Teleport Access Controls
-  Reference](../../access-controls/reference.mdx).
+  Reference](../../../../reference/rbac/teleport-roles.mdx).
 

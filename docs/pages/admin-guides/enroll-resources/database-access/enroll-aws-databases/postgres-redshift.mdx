@@ -12,10 +12,10 @@ videoBanner: UFhT52d5bYg
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted.png)
+![Teleport Database Access Redshift Self-Hosted](../../../../../img/database-access/guides/redshift_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud.png)
+![Teleport Database Access Redshift Cloud](../../../../../img/database-access/guides/redshift_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -103,13 +103,13 @@ If you choose the second method, create the AWS IAM role to provide user access
 to the Redshift database. Go to IAM -> Access Management ->
 [Roles](https://console.aws.amazon.com/iamv2/home#/roles), and click "Create Role".
 
-![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step1.png)
+![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step1.png)
 
 Skip "Add permissions" for now, enter a role name, and press "Create role".
 
 Once the role is created, find the role, and add the following inline policy to
 the IAM role:
-![Create Role Step 1](../../../img/database-access/guides/create-redshift-iam-role-policy.png)
+![Create Role Step 1](../../../../../img/database-access/guides/create-redshift-iam-role-policy.png)
 
 Or in JSON format:
 ```json
@@ -229,5 +229,5 @@ $ tsh db logout my-redshift
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
-- Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+- Take a look at the YAML configuration [reference](../../../../reference/config-references/database-access.mdx).
 

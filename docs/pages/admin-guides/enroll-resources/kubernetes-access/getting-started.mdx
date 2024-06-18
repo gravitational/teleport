@@ -13,10 +13,10 @@ on Kubernetes and enrolls the Kubernetes cluster automatically. The following
 diagram provides a simplified overview of this deployment scenario with the
 Teleport Kubernetes Service running on the Kubernetes cluster:
 
-![Enroll a Kubernetes cluster](../../img/k8s/enroll-kubernetes.png)
+![Enroll a Kubernetes cluster](../../../../img/k8s/enroll-kubernetes.png)
 
 For information about other ways to enroll and discover Kubernetes clusters, see
-[Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
+[Registering Kubernetes Clusters with Teleport](../../../index.mdx).
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ For information about other ways to enroll and discover Kubernetes clusters, see
   ```
 
   You can download these tools by following the appropriate [Installation 
-  instructions](../installation.mdx#linux) for your environment.
+  instructions](../../../get-started/download-install/installation.mdx) for your environment.
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -207,8 +207,8 @@ This guide demonstrated how to enroll a Kubernetes cluster by running the
 Teleport Kubernetes Service within the Kubernetes cluster. 
 
 - For information about discovering Kubernetes clusters hosted on cloud providers, see 
-[Kubernetes Cluster Discovery](../auto-discovery/kubernetes.mdx). 
+[Kubernetes Cluster Discovery](../auto-discovery/kubernetes/overview.mdx). 
 - To learn about other ways you can register a Kubernetes cluster with Teleport, see 
-[Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
+[Registering Kubernetes Clusters with Teleport](../../../index.mdx).
 - For a complete list of the parameters you can configure in the `teleport-kube-agent` 
-helm chart, see the [Chart Reference](../reference/helm-reference/teleport-kube-agent.mdx).
+helm chart, see the [Chart Reference](../../../reference/config-references/helm-reference/teleport-kube-agent.mdx).

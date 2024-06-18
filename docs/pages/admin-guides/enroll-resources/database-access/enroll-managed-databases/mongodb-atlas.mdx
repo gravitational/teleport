@@ -17,10 +17,10 @@ forwards user traffic to MongoDB Atlas.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
+![Teleport Database Access MongoDB Self-Hosted](../../../../../img/database-access/guides/mongodbatlas_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodbatlas_cloud.png)
+![Teleport Database Access MongoDB Cloud](../../../../../img/database-access/guides/mongodbatlas_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -95,7 +95,7 @@ db_service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-See the full [YAML reference](../reference/configuration.mdx) for details.
+See the full [YAML reference](../../../../reference/config-references/database-access.mdx) for details.
 
 </TabItem>
 </Tabs>
@@ -106,12 +106,12 @@ See below for details on how to configure the Teleport Database Service.
 
 You will need to provide your Atlas cluster's connection endpoint for the `db_service.databases[*].uri` configuration option or `--uri` CLI flag. You can find this via the Connect dialog on the Database Deployments overview page:
 
-![Connect](../../../img/database-access/guides/atlas/atlas-connect-btn@2x.png)
+![Connect](../../../../../img/database-access/guides/atlas/atlas-connect-btn@2x.png)
 
 Go through the "Setup connection security" step and select "Connect with the
 MongoDB shell" to view the connection string:
 
-![Connection string](../../../img/database-access/guides/atlas/atlas-connect@2x.png)
+![Connection string](../../../../../img/database-access/guides/atlas/atlas-connect@2x.png)
 
 Use only the scheme and hostname parts of the connection string in the URI:
 
@@ -148,7 +148,7 @@ You can discard the other `mongo.crt` file.
 Go to the Security / Advanced configuration section of your Atlas cluster and
 toggle "Self-managed X.509 Authentication" on:
 
-![X.509](../../../img/database-access/guides/atlas/atlas-self-managed-x509@2x.png)
+![X.509](../../../../../img/database-access/guides/atlas/atlas-self-managed-x509@2x.png)
 
 Paste the contents of `mongo.cas` file in the Certificate Authority edit box and
 click Save.
@@ -159,7 +159,7 @@ click Save.
 On the Security / Database Access page add a new database user with Certificate
 authentication method:
 
-![Add user](../../../img/database-access/guides/atlas/atlas-add-user@2x.png)
+![Add user](../../../../../img/database-access/guides/atlas/atlas-add-user@2x.png)
 
 Make sure to specify the user as `CN=<user>` as shown above since MongoDB
 treats the entire certificate subject as a username. When connecting to a
@@ -216,7 +216,7 @@ the AWS ARN field with the ARN of the newly created IAM role. In the **Database
 User Privileges** section, give the user sufficient privileges to access the
 desired database data.
 
-![Create AWS IAM database user](../../../img/database-access/guides/atlas/atlas-add-aws-iam-user.png)
+![Create AWS IAM database user](../../../../../img/database-access/guides/atlas/atlas-add-aws-iam-user.png)
 
 Please note that Teleport does not support authentication using AWS IAM users;
 it exclusively supports authentication using AWS IAM roles.

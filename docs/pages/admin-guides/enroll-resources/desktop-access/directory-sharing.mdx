@@ -25,7 +25,7 @@ after the session ends.
 {/*lint ignore messaging to ignore the page title linked here*/}
 - The Teleport Desktop Service with at least one remote desktop registered in
   your cluster. If you have not yet configured Desktop Access, read [Getting
-  Started with Desktop Access](./getting-started.mdx) before beginning this
+  Started with Desktop Access](getting-started.mdx) before beginning this
   guide.
 
 - A browser on your local machine that supports the File System Access API,
@@ -50,7 +50,7 @@ connect to, and clicking "CONNECT".
 Once the session starts, click the three-dot menu on the top-right of the screen
 and click "Share Directory":
 
-![The "Share Desktop" button](../../img/desktop-access/share.png)
+![The "Share Desktop" button](../../../../img/desktop-access/share.png)
 
 ### Limitations on directories you can share
 
@@ -82,7 +82,7 @@ After you grant permissions, you will see a new directory in File Explorer on
 the remote desktop. The directory will have the same name as the directory on
 your local machine, but with "on teleport" appended to the name.
 
-![Shared directory in File Explorer](../../img/desktop-access/shared-dir.png)
+![Shared directory in File Explorer](../../../../img/desktop-access/shared-dir.png)
 
 You can only share a single directory at a time.
 
@@ -179,11 +179,11 @@ $ tctl create -f role.yaml
 Directory Sharing is a powerful tool for editing files on remote desktops, and
 you'll want to make sure you have a comprehensive audit trail so you can conduct
 a post-incident retrospective or investigate unintended usage. Learn how to set
-up [session recording for desktop access](./reference/sessions.mdx).
+up [session recording for desktop access](sessions.mdx).
 
 Aside from Directory Sharing, the Teleport Desktop Service also enables you to
 share the contents of your clipboard with a remote desktop. Learn how to use
-[Clipboard Sharing](./reference/clipboard.mdx).
+[Clipboard Sharing](clipboard.mdx).
 
 ### How Directory Sharing works
 

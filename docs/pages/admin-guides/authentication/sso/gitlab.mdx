@@ -39,12 +39,12 @@ to each of these groups.
    - Redirect URL: `https://<proxy url>/v1/webapi/oidc/callback`.
    - Check `Confidential`, `openid`, `profile`, and `email`.
 
-   ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
+   ![Create App](../../../../img/sso/gitlab/gitlab-oidc-0.png)
 
 1. Collect the `Application ID` and `Secret` in the Application. These will be
    used in the Teleport OIDC auth connector:
 
-   ![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
+   ![Collection Information](../../../../img/sso/gitlab/gitlab-oidc-1.png)
 
 1. Confirm the GitLab issuer address.
 
@@ -179,7 +179,7 @@ spec:
   The `email.local(external.trait)` function removes the `@domain` and preserves
   the username prefix. For full details on how variable expansion works in
   Teleport roles, see the [Teleport Access Controls
-  Reference](../../access-controls/reference.mdx).
+  Reference](../../../reference/rbac/teleport-roles.mdx).
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 

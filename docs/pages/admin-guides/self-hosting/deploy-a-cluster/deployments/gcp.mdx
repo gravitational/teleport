@@ -41,7 +41,7 @@ We recommend setting up Teleport in high availability mode.
 In high availability mode Firestore is used for cluster state and audit logs,
 and Google Cloud Storage is used for session recordings.
 
-![GCP Intro Image](../../../img/gcp/gcp-teleport.svg)
+![GCP Intro Image](../../../../../img/gcp/gcp-teleport.svg)
 
 Throughout this guide, we'll make use of the following placeholder variables.
 Please replace them with values appropriate for your environment.
@@ -65,7 +65,7 @@ GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/do
 this is helpful when adding new instances to an instance group.
 
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](../../management/admin/troubleshooting.mdx) for more information.
+see  [Admin Guide: Troubleshooting](../../../common-operations/troubleshooting.mdx) for more information.
 
 ### Storage: Cloud Firestore
 
@@ -203,7 +203,7 @@ $ gcloud projects add-iam-policy-binding Example_GCP_PROJECT \
 The credentials for this service account should be exported in JSON format
 and provided to Teleport throughout the remainder of this guide.
 
-![GCP Service Key](../../../img/gcp/gcp-service-key.png)
+![GCP Service Key](../../../../../img/gcp/gcp-service-key.png)
 
 ## GCP Quickstart
 
@@ -214,14 +214,14 @@ an infrastructure automation tool such as [Cloud Deployment Manager](https://clo
 
 ### 2. Install & Configure Teleport
 
-Follow install instructions from our [installation page](../../installation.mdx#linux).
+Follow install instructions from our [installation page](../../../../get-started/download-install/installation.mdx).
 
 We recommend configuring Teleport as per the below steps:
 
 <Tabs>
 	<TabItem label="Open Source" scope="oss">
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`,and start it
-using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../../common-operations/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -259,7 +259,7 @@ ssh_service:
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../../common-operations/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -353,6 +353,6 @@ proxy_service:
 
 **4. Add Users**
 
-Follow our [Local Users](../../management/admin/users.mdx) guide or integrate
-with [Google Workspace](../../access-controls/sso/google-workspace.mdx) to
+Follow our [Local Users](../../../../reference/operations/users.mdx) guide or integrate
+with [Google Workspace](../../../authentication/sso/google-workspace.mdx) to
 provide SSO access.

@@ -16,8 +16,8 @@ custom audit event queries, since you can access and efficiently query your
 audit events right where they are stored.
 
 External Audit Storage is based on Teleport's
-[Athena](../../reference/backends.mdx#athena) backend for audit events and the
-[S3](../../reference/backends.mdx#s3) backend for session recordings. It is only
+[Athena](../../reference/operations/backends.mdx) backend for audit events and the
+[S3](../../reference/operations/backends.mdx) backend for session recordings. It is only
 available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
 above.
 
@@ -154,7 +154,7 @@ recordings will be stored in your S3 bucket, and they will *not* be stored in
 the Teleport Cloud infrastructure.
 
 If you currently use the
-[Event Handler](../../management/export-audit-events.mdx) plugin to export
+[Event Handler](../../index.mdx) plugin to export
 events, it will follow the switch from the old to new backends and new events
 will continue to be exported. Only events emitted after the transition to
 External Audit Storage will be visible in the Teleport UI or accessible to

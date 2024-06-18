@@ -11,10 +11,10 @@ description: How to configure Teleport database access with Cassandra and Scylla
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Cassandra Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
+![Teleport Database Access Cassandra Self-Hosted](../../../../../img/database-access/guides/cassandra_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Cassandra Cloud](../../../img/database-access/guides/cassandra_cloud.png)
+![Teleport Database Access Cassandra Cloud](../../../../../img/database-access/guides/cassandra_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -46,7 +46,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="cassandra" dbProtocol="cassandra" databaseAddress="cassandra.example.com:9042" !)
 </TabItem>

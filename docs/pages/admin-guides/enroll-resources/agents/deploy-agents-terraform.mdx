@@ -13,7 +13,7 @@ machines by declaring it as code using Terraform.
 
 There are several methods you can use to join a Teleport agent to your cluster,
 which we discuss in the [Joining Services to your
-Cluster](join-services-to-your-cluster.mdx) guide. In this guide, we will use
+Cluster](join-services-to-your-cluster/overview.mdx) guide. In this guide, we will use
 the **join token** method, where the operator stores a secure token on the Auth
 Service, and an agent presents the token in order to join a cluster.
 
@@ -23,7 +23,7 @@ resources:
 - Compute instances to run Teleport services
 - A join token for each compute instance in the agent pool
 
-![A Teleport agent pool](../../img/tf-agent-diagram.png)
+![A Teleport agent pool](../../../../img/tf-agent-diagram.png)
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ We recommend following this guide on a fresh Teleport demo cluster so you can
 see how an agent pool works. After you are familiar with the setup, apply the
 lessons from this guide to protect your infrastructure. You can get started with
 a demo cluster using:
-- A demo deployment on a [Linux server](../index.mdx)
+- A demo deployment on a [Linux server](../../../index.mdx)
 - A [Teleport Enterprise Cloud trial](https://goteleport.com/signup)
 
 </Admonition>
@@ -56,7 +56,7 @@ a demo cluster using:
 
 - An identity file for the Teleport Terraform provider. Make sure you are
   familiar with [how to set up the Teleport Terraform
-  provider](../management/dynamic-resources/terraform-provider.mdx) before
+  provider](../../configure-teleport/dynamic-resources/terraform-provider.mdx) before
   following this guide.
 
 - (!docs/pages/includes/tctl.mdx!)
@@ -416,7 +416,7 @@ directory.
 The Teleport Terraform provider creates these on the Auth Service backend, and
 the relevant Teleport services query them in order to proxy user traffic. For a
 full list of supported resources and fields, see the [Terraform provider
-reference](../reference/terraform-provider.mdx).
+reference](../../../reference/config-references/terraform-provider.mdx).
 
 <Tabs>
 <TabItem label="Application">
@@ -477,7 +477,7 @@ each instance to add configuration settings to, for example, the
 To see how to configure each service, read its section of the documentation:
 
 - [SSH Service](../server-access/introduction.mdx)
-- [Database Service](../database-access/introduction.mdx)
+- [Database Service](../../../index.mdx)
 - [Kubernetes Service](../kubernetes-access/introduction.mdx)
 - [Windows Desktop Service](../desktop-access/introduction.mdx)
 - [Application Service](../application-access/introduction.mdx)

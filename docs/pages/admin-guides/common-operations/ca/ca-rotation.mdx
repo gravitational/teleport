@@ -14,7 +14,7 @@ description: How to rotate Teleport's certificate authority
 This section will show you how to rotate Teleport's certificate authority.
 
 If you are joining Teleport processes to a cluster via the Teleport Auth Service
-using a [join token](../../agents/join-services-to-your-cluster/join-token.mdx), each
+using a [join token](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx), each
 Teleport process will need a CA pin to trust the Auth Service. The CA pin will
 change after each `host` CA rotation. Make sure you use the *new* CA pin when adding
 Teleport services after `host` CA rotation.
@@ -29,7 +29,7 @@ Teleport signs self-hosted database host certificates with the `db` certificate
 authority and signs database client certificates with the `db_client` CA.
 If either of these CAs is rotated, then self-hosted databases must be
 reconfigured.
-Refer to [the Database CA Rotation Guide](./db-ca-rotation.mdx).
+Refer to [the Database CA Rotation Guide](db-ca-rotation.mdx).
 </Admonition>
 
 ### Rotation phases
@@ -340,4 +340,4 @@ authority is made active.
 
 ## Further reading
 
-How the [Teleport Certificate Authority](../../architecture/authentication.mdx) works.
+How the [Teleport Certificate Authority](../../../reference/architecture/authentication.mdx) works.

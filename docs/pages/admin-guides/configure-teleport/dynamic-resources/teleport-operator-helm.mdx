@@ -9,7 +9,7 @@ deployed via the `teleport-cluster` Helm chart.
 <Admonition type="warning">
 If your Teleport cluster is not deployed using the `teleport-cluster` Helm chart
 (Teleport Cloud, manually deployed, deployed via Terraform, ...), you need to follow
-[the standalone operator guide](./teleport-operator-standalone.mdx) instead.
+[the standalone operator guide](teleport-operator-standalone.mdx) instead.
 </Admonition>
 
 ## Prerequisites
@@ -37,7 +37,7 @@ $ kubectl cluster-info
 
 ## Step 1/2. Install teleport-cluster Helm chart with the operator
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 Install the Helm chart for the Teleport Cluster with `operator.enabled=true`
 in the <Var name="teleport-cluster"/> namespace:
@@ -98,13 +98,13 @@ $ kubectl get pods -n <Var name="teleport-cluster"/>
 
 ## Next steps
 
-Follow [the user and role IaC guide](./user-and-role.mdx) to use your newly
+Follow [the user and role IaC guide](user-and-role.mdx) to use your newly
 deployed Teleport Kubernetes Operator to create Teleport users and grant them
 roles.
 
-Helm Chart parameters are documented in the [`teleport-cluster` Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx).
+Helm Chart parameters are documented in the [`teleport-cluster` Helm chart reference](../../../reference/config-references/helm-reference/teleport-cluster.mdx).
 
-See the [Helm Deployment guides](../../deploy-a-cluster/helm-deployments.mdx) detailing specific setups like running Teleport on AWS or GCP.
+See the [Helm Deployment guides](../../../index.mdx) detailing specific setups like running Teleport on AWS or GCP.
 
 ## Troubleshooting
 

@@ -40,7 +40,7 @@ by the `device_trust_mode` authentication setting:
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
-works similarly to [`require_session_mfa`](../guides/per-session-mfa.mdx).
+works similarly to [`require_session_mfa`](../per-session-mfa.mdx).
 
 <Admonition type="warning" title="require-trusted-device role">
   The preset `require-trusted-device` role does not enforce the use of a trusted
@@ -155,7 +155,7 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 <Admonition type="tip" title="Trusted Clusters">
 It is possible to use [trusted
-clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
+clusters](../../access-controls/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce device trust on resources in
@@ -170,11 +170,11 @@ The Teleport App Service may enforce device trust via [role-based enforcement](
 To access apps protected by device trust using the Web UI (Teleport v16 or
 later), make sure your device is [registered and enrolled](
 ./device-management.mdx#register-a-trusted-device), install [Teleport Connect](
-../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+../../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
 follow the instructions during login.
 
 Alternatively, you may use [tsh proxy app](
-../../reference/cli/tsh.mdx#tsh-proxy-app) or the certificates issued by
+../../../reference/cli/tsh.mdx#tsh-proxy-app) or the certificates issued by
 `tsh app login`.
 
 As an example, to enforce device trust for all `env:production` apps, save the
@@ -222,9 +222,9 @@ The Teleport Desktop Service may enforce device trust via [role-based
 enforcement]( #role-based-trusted-device-enforcement).
 
 To access desktops protected by device trust make sure your device is
-[registered and enrolled](./device-management.mdx#register-a-trusted-device),
+[registered and enrolled](device-management.mdx),
 install [Teleport Connect](
-../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
+../../../connect-your-client/teleport-connect.mdx#installation--upgrade), and
 follow the instructions during login.
 
 As an example, to enforce device trust for all `env:production` desktops, save
@@ -270,7 +270,7 @@ device.
 
 ## Locking a device
 
-Similar to [session and identity locking](../guides/locking.mdx), a device can
+Similar to [session and identity locking](../../access-controls/locking.mdx), a device can
 be locked using `tctl lock`.
 
 Locking blocks certificate issuance and ongoing or future accesses originating
@@ -306,5 +306,5 @@ ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devi
 (!docs/pages/includes/device-trust/troubleshooting.mdx!)
 
 ## Next steps
-- [Device Management](./device-management.mdx)
-- [Jamf Pro Integration](./jamf-integration.mdx)
+- [Device Management](device-management.mdx)
+- [Jamf Pro Integration](jamf-integration.mdx)

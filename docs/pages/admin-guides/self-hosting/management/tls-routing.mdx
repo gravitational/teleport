@@ -42,7 +42,7 @@ $ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
 
 Download Teleport from the [downloads page](https://goteleport.com/download) or
 your enterprise portal and follow the standard [upgrade
-procedure](../../upgrading.mdx). Make sure to upgrade both root and leaf clusters
+procedure](../../../index.mdx). Make sure to upgrade both root and leaf clusters
 as well as `tsh` client.
 
 ## Step 2/7. Enable proxy multiplexing
@@ -106,7 +106,7 @@ to connect to nodes within your Teleport cluster, you need to regenerate the
 config.
 
 Run `tsh config` command again so it generates SSH config compatible with SSH
-routing setup. See our [OpenSSH guide](../../server-access/openssh/openssh.mdx)
+routing setup. See our [OpenSSH guide](../../enroll-resources/server-access/openssh/openssh.mdx)
 docs for reference.
 
 ## Step 7/7. Disable legacy listeners
@@ -144,4 +144,4 @@ To go back to the legacy separate listeners mode, perform the following steps:
 
 ## Next steps
 
-- Learn how TLS routing [works](../../architecture/tls-routing.mdx).
+- Learn how TLS routing [works](../../../reference/architecture/tls-routing.mdx).

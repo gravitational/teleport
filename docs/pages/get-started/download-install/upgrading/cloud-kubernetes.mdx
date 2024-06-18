@@ -10,7 +10,7 @@ upgrade them manually using the method you used to install Teleport.
 
 ## Prerequisites
 
-- Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
+- Familiarity with the [Upgrading Compatibility Overview](overview.mdx) guide,
   which describes the sequence in which to upgrade components of your cluster.
 
 - Teleport Enterprise Cloud. You can determine the current version of these
@@ -28,7 +28,7 @@ upgrade them manually using the method you used to install Teleport.
 
 Teleport supports automatic agent updates for the `teleport-kube-agent` Helm
 chart. The [Automatic Update Architecture
-](../architecture/agent-update-management.mdx) guide describes how agent
+](../../../reference/architecture/agent-update-management.mdx) guide describes how agent
 updating works. Automatic agent upgrades require:
 
 - A Teleport Cloud account that supports automatic updates. To determine if
@@ -187,7 +187,7 @@ Run the following commands to upgrade Teleport agents running on Kubernetes.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-kube-agent` chart:
 
-      (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+      (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the Helm release:
 

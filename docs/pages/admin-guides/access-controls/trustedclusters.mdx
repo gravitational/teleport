@@ -3,7 +3,7 @@ title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
 ---
 
-As you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
+As you learned in [Core Concepts](../../get-started/core-concepts.mdx), a Teleport cluster
 consists of the Teleport Auth Service, the Teleport Proxy Service, and the 
 Teleport services that manage access to resources in your infrastructure.
 With Teleport, you can also partition your infrastructure into multiple connected 
@@ -106,7 +106,7 @@ configured with a single sign-on identity provider that authenticates her identi
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../access-controls/sso).
+through an external identity provider, see [Configure Single Sign-on](../authentication/sso.mdx).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root 
@@ -159,11 +159,11 @@ To complete the steps in this guide, verify your environment meets the following
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  For more information about installing Teleport, see [Installation](../../installation.mdx).
+  For more information about installing Teleport, see [Installation](../../get-started/download-install/installation.mdx).
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 
-  [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx).
+  [Join Services to your Cluster](../enroll-resources/agents/join-services-to-your-cluster/overview.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -696,7 +696,7 @@ node_labels:
 
 For full details on how variable expansion works in Teleport roles, see the
 [Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+Reference](../../reference/rbac/teleport-roles.mdx).
 
 ### Update role mappings
 

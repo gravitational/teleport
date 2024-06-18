@@ -8,7 +8,7 @@ managed within Teleport. With Access Lists, administrators can regularly audit a
 traits, which then tie easily back into Teleport's existing RBAC system.
 
 In this guide, we'll follow up
-on [the IaC users and roles guide](./user-and-role.mdx) by allowing users with
+on [the IaC users and roles guide](user-and-role.mdx) by allowing users with
 the `manager` role to grant the `support-engineer` role to users meeting
 specific criteria.
 
@@ -24,7 +24,7 @@ ensures access grants are periodically reviewed.
 ## Prerequisites
 
 To follow this guide, you must follow
-first [the basic users and roles IaC guide](./user-and-role.mdx). We will reuse
+first [the basic users and roles IaC guide](user-and-role.mdx). We will reuse
 its users and roles for our Access List.
 
 ## Step 1/3 - Write manifests
@@ -269,7 +269,7 @@ Login as `alice` in the web UI, open the management panel and select the
 "Access Lists" tab. Your Access List should be displayed, open it, choose "Enroll
 members" and add `bob`.
 
-![Screenshot of the web UI showing the Access List and the "Enroll Member" button](../../../img/management/access-list-web-ui.png)
+![Screenshot of the web UI showing the Access List and the "Enroll Member" button](../../../../img/management/access-list-web-ui.png)
 
 </TabItem>
 <TabItem label="CLI">
@@ -297,4 +297,4 @@ Members of support-engineers:
 ## Next steps
 
 You can see all supported Access List fields
-[in the Access List reference](../../access-controls/access-lists/reference.mdx).
+[in the Access List reference](../../../reference/rbac/access-lists.mdx).

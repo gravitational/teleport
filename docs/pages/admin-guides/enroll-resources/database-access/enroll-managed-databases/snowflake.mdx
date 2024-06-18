@@ -15,10 +15,10 @@ forwards the user's requests to Snowflake as Teleport-authenticated messages.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-  ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
+  ![Teleport Database Access Snowflake Self-Hosted](../../../../../img/database-access/guides/snowflake_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-  ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
+  ![Teleport Database Access Snowflake Cloud](../../../../../img/database-access/guides/snowflake_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -33,7 +33,7 @@ forwards the user's requests to Snowflake as Teleport-authenticated messages.
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../installation.mdx) for details.
+  See [Installation](../../../../get-started/download-install/installation.mdx) for details.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -54,7 +54,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
 </TabItem>

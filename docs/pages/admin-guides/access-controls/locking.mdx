@@ -14,15 +14,15 @@ matching the lock's target.
 A lock can target the following objects or attributes:
 
 - a Teleport user by the user's name
-- a Teleport [RBAC](../reference.mdx) role by the role's name
+- a Teleport [RBAC](../../reference/rbac/teleport-roles.mdx) role by the role's name
 - a Teleport [trusted device](
-  ../device-trust/enforcing-device-trust.mdx#locking-a-device) by the device ID
+  ../authentication/device-trust/enforcing-device-trust.mdx#locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
 - a Teleport agent by the agent's server UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
-- an [Access Request](../access-requests.mdx) by UUID
+- an [Access Request](just-in-time/access-requests/overview.mdx) by UUID
 
 ## Prerequisites
 
@@ -159,7 +159,7 @@ spec:
 ```
 
 The `kind: lock` resources can also be created and updated using `tctl create`
-as per usual. See the [Admin Guide](../../reference/resources.mdx) for more
+as per usual. See the [Admin Guide](../../reference/config-references/resources.mdx) for more
 details.
 </Details>
 

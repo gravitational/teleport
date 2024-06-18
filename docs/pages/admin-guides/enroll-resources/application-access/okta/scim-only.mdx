@@ -42,7 +42,7 @@ Okta does not send SCIM updates to Teleport when a user is merely suspended. Eve
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-- [Authentication With Okta as an SSO Provider](../../access-controls/sso/okta.mdx)
+- [Authentication With Okta as an SSO Provider](../../../authentication/sso/okta.mdx)
 
 
 ## Step 1/2. Installing the Teleport SCIM integration
@@ -100,13 +100,13 @@ SCIM Bearer Token: 1234567891234567891234567890
 
 To leverage the Teleport SCIM integration, you need to enable SCIM provisioning in your Okta app,
 which will propagate user management changes to Teleport.
-For detailed instructions on configuring SCIM provisioning in the Okta app, see the [Okta Integration *Configuring SCIM provisioning*](./hosted-guide.mdx#configuring-scim-provisioning) guide.
+For detailed instructions on configuring SCIM provisioning in the Okta app, see the [Okta Integration *Configuring SCIM provisioning*](hosted-guide.mdx) guide.
 
 If your Okta app has assigned users *before* SCIM provisioning is enabled, you
 will need to trigger their provisioning explicitly. This can be done by
 selecting the *Provision Users* button on the Okta app Assignments page.
 
-![Provision Existing Users](../../../img/enterprise/plugins/okta/scim-provision-existing-users.png)
+![Provision Existing Users](../../../../../img/enterprise/plugins/okta/scim-provision-existing-users.png)
 
 <Admonition>
 We have seen some Okta instances that are missing the Provision Users button.

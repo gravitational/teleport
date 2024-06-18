@@ -68,10 +68,10 @@ The `installer` resource has the following templating options:
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
 connect to.
 - `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
-Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
+Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../get-started/download-install/installation.mdx) for more details.
 - `{{ .AutomaticUpgrades }}`: indicates whether Automatic Updates are enabled or disabled.
   Its value is either `true` or `false`. See
-  [self-hosted automatic agent updates](../../upgrading/self-hosted-automatic-agent-updates.mdx)
+  [self-hosted automatic agent updates](../../get-started/download-install/upgrading/self-hosted-automatic-agent-updates.mdx)
   for more information.
 - `{{ .TeleportPackage }}`: the Teleport package to use.
   Its value is either `teleport-ent` or `teleport` depending on whether the

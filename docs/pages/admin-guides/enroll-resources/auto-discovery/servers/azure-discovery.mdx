@@ -79,20 +79,20 @@ resources:
   page in your Azure portal and click *Create* to create a new user-assigned
   managed identity:
 
-  ![Managed identities](../../../img/azure/managed-identities@2x.png)
+  ![Managed identities](../../../../../img/azure/managed-identities@2x.png)
 
   Pick a name and resource group for the new identity and create it:
 
-  ![New identity](../../../img/server-access/guides/azure/new-identity@2x.png)
+  ![New identity](../../../../../img/server-access/guides/azure/new-identity@2x.png)
 
   Take note of the created identity's *Client ID*:
 
-  ![Created identity](../../../img/server-access/guides/azure/created-identity@2x.png)
+  ![Created identity](../../../../../img/server-access/guides/azure/created-identity@2x.png)
 
   Next, navigate to the Azure VM that will run your Discovery Service instance and
   add the identity you've just created to it:
 
-  ![VM identity](../../../img/server-access/guides/azure/vm-identity@2x.png)
+  ![VM identity](../../../../../img/server-access/guides/azure/vm-identity@2x.png)
 
   Attach this identity to all Azure VMs that will be running the Discovery
   Service.
@@ -108,18 +108,18 @@ resources:
   Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
   page of your Azure Active Directory and click on *New registration*:
 
-  ![App registrations](../../../img/azure/app-registrations@2x.png)
+  ![App registrations](../../../../../img/azure/app-registrations@2x.png)
 
   Pick a name (e.g. *DiscoveryService*) and register a new application. Once the
   app has been created, take note of its *Application (client) ID* and click on
   *Add a certificate or secret*:
 
-  ![Registered app](../../../img/server-access/guides/azure/registered-app@2x.png)
+  ![Registered app](../../../../../img/server-access/guides/azure/registered-app@2x.png)
 
   Create a new client secret that the Discovery Service agent will use to
   authenticate with the Azure API:
 
-  ![Registered app secrets](../../../img/azure/registered-app-secrets@2x.png)
+  ![Registered app secrets](../../../../../img/azure/registered-app-secrets@2x.png)
 
   The Teleport Discovery Service uses Azure SDK's default credential provider chain to
   look for credentials. Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
@@ -183,13 +183,13 @@ Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Bil
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
 <Figure align="left">
-![IAM custom role](../../../img/azure/add-custom-role@2x.png)
+![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
 </Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in `assignableScopes` with your own subscription id:
 <Figure align="left">
-![Create JSON role](../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
+![Create JSON role](../../../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
 </Figure>
 
 ### Create a role assignment for the Teleport Discovery Service principal
@@ -305,6 +305,6 @@ logs can be found on the targeted VM at
 - Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
-  config file reference documentation](../../reference/config.mdx).
+  config file reference documentation](../../../../reference/config-references/config.mdx).
 - The complete default installer can be found [with the Teleport source
 ](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

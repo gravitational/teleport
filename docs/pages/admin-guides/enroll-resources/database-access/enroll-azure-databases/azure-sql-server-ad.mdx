@@ -16,10 +16,10 @@ database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../img/database-access/guides/sqlserver/sql-aad.png)
+![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../../../img/database-access/guides/sqlserver/sql-aad.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
+![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
 </TabItem>
 
 </Tabs>
@@ -52,7 +52,7 @@ Select **Azure Active Directory** in the left-hand column.
 Select **Set Admin**, and choose an account that will be added as an admin
 login to SQL Server.
 
-![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
+![Azure SQL Server Azure Active Directory admin page](../../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
 ## Step 3/8. Configure IAM permissions for Teleport
 
@@ -107,13 +107,13 @@ page and select a subscription.
 Click on **Access control (IAM)** in the subscription and select **Add** >
 **Add custom role**:
 
-![IAM custom role](../../../img/azure/add-custom-role@2x.png)
+![IAM custom role](../../../../../img/azure/add-custom-role@2x.png)
 
 In the custom role creation page, click the **JSON** tab and click **Edit**,
 then paste the JSON example and replace the subscription in `assignableScopes`
 with your own subscription id:
 
-![Create JSON role](../../../img/database-access/guides/sqlserver/create-role-from-json.png)
+![Create JSON role](../../../../../img/database-access/guides/sqlserver/create-role-from-json.png)
 
 ## Step 4/8. Configure virtual machine identities
 
@@ -121,7 +121,7 @@ In the Teleport Database Service virtual machine's **Identity**
 section, enable the system assigned identity. This is used by Teleport to access
 Azure APIs.
 
-![System assigned identity page](../../../img/database-access/guides/sqlserver/system-managed-identity.png)
+![System assigned identity page](../../../../../img/database-access/guides/sqlserver/system-managed-identity.png)
 
 To grant Teleport permissions, the custom role you created must be assigned to
 the virtual machine system assigned identity. On the same page, click on the **Azure
@@ -147,13 +147,13 @@ To create a new user-assigned managed identity, go to the **Managed Identities**
 page in your [Azure Portal](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
 and click on *Create*. Choose a name and resource group for it and create:
 
-![Azure Create user managed identity page](../../../img/database-access/guides/sqlserver/azure-user-managed-identity.png)
+![Azure Create user managed identity page](../../../../../img/database-access/guides/sqlserver/azure-user-managed-identity.png)
 
 Next, go to the **Teleport Database Service virtual machine instance**,
 **Identity** section, select **User assigned**, and add the identity we just
 created:
 
-![Azure Virtual machine user managed identities page](../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
+![Azure Virtual machine user managed identities page](../../../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
 
 ## Step 5/8. Enable managed identities login on SQL Server
 

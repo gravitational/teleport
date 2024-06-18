@@ -5,7 +5,7 @@ description: Run a standalone operator against a remote Teleport cluster such as
 
 This guide explains how to run the Teleport Kubernetes Operator against any remote Teleport cluster.
 If your Teleport cluster is deployed using the `teleport-cluster` Helm chart, you might want to follow
-[the guide for Helm-deployed clusters](./teleport-operator-helm.mdx) instead.
+[the guide for Helm-deployed clusters](teleport-operator-helm.mdx) instead.
 
 ## Prerequisites
 
@@ -104,7 +104,7 @@ $ tctl bots add operator --token operator-bot --roles operator
 
 At this point, you can configure and run the operator:
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Recover the version of your Teleport cluster
    ```code
@@ -130,11 +130,11 @@ At this point, you can configure and run the operator:
    
 ## Next steps
 
-Follow [the user and role IaC guide](./user-and-role.mdx) to use your newly
+Follow [the user and role IaC guide](user-and-role.mdx) to use your newly
 deployed Teleport Kubernetes Operator to create Teleport users and grant them
 roles.
 
-Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../reference/helm-reference/teleport-operator.mdx).
+Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../../reference/config-references/helm-reference/teleport-operator.mdx).
 
 ## Troubleshooting
 

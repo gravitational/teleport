@@ -115,7 +115,7 @@ under "Cluster privileges", enter `manage_index_templates`, `manage_ilm`, and
 Under "Index privileges", define an entry with `audit-events-*` in the "Indices"
 field and `write` and `manage` in the "Privileges" field. Click "Create role".
 
-![Creating an Elasticsearch role](../../../img/enterprise/plugins/elasticsearch/create-role.png)
+![Creating an Elasticsearch role](../../../../img/enterprise/plugins/elasticsearch/create-role.png)
 
 ### Create an Elasticsearch user for the Event Handler
 
@@ -420,7 +420,7 @@ For the "Name" field, use "Teleport Audit Events". In "Index pattern", use
 `audit-events-*` to select all indices created by our Logstash pipeline. In
 "Timestamp field", choose `time`, which Teleport adds to its audit events.
 
-![Creating a data view](../../../img/enterprise/plugins/elasticsearch/data-view-create.png)
+![Creating a data view](../../../../img/enterprise/plugins/elasticsearch/data-view-create.png)
 
 To use your data view, find the search box at the top of the Elastic Stack UI
 and enter "Discover". On the upper left of the screen, click the dropdown menu
@@ -428,12 +428,12 @@ and select "Teleport Audit Events". You can now search and filter your Teleport
 audit events in order to get a better understanding how users are interacting
 with your Teleport cluster.
 
-![Creating a data view](../../../img/enterprise/plugins/elasticsearch/data-view-explore.png)
+![Creating a data view](../../../../img/enterprise/plugins/elasticsearch/data-view-explore.png)
 
 For example, we can click the `event` field on the left sidebar and visualize
 the event types for your Teleport audit events over time:
 
-![Creating a visualization](../../../img/enterprise/plugins/elasticsearch/lens.png)
+![Creating a visualization](../../../../img/enterprise/plugins/elasticsearch/lens.png)
 
 ## Troubleshooting connection issues
 
@@ -450,10 +450,10 @@ Teleport Cluster, ensure that:
 ## Next steps
 
 Now that you are exporting your audit events to the Elastic Stack, consult our
-[audit event reference](../../reference/audit.mdx#event-types) so you can plan
+[audit event reference](../../../reference/monitoring/audit/audit.mdx) so you can plan
 visualizations and alerts.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
+more reliable renewals. Read [our guide](../../enroll-resources/machine-id/getting-started.mdx)
 to getting started with Machine ID.
