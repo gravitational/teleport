@@ -5687,7 +5687,7 @@ func TestGenerateHostCert(t *testing.T) {
 // the first available identity.
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
