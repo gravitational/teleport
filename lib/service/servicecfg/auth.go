@@ -225,8 +225,8 @@ type PKCS11Config struct {
 	SlotNumber *int
 	// TokenLabel is the label of the PKCS11 token to use.
 	TokenLabel string
-	// Pin is the PKCS11 pin for the given token.
-	Pin string
+	// PIN is the PKCS11 PIN for the given token.
+	PIN string
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
