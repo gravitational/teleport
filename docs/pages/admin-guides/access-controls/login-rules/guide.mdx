@@ -17,7 +17,7 @@ cluster on version `11.3.1` or greater.
 
 Login Rules only operate on SSO logins, so make sure you have
 configured an OIDC, SAML, or GitHub connector before you begin.
-Check the [Single Sign-On](../sso.mdx) docs to learn how to set this up.
+Check the [Single Sign-On](../../authentication/sso.mdx) docs to learn how to set this up.
 
 ## Step 1/5. Configure RBAC
 
@@ -155,7 +155,7 @@ $ tctl get --format json users/<Var name="username"/> | jq '{traits: first.spec.
 
 ## Troubleshooting
 
-The [`tctl sso test`](../../reference/cli/tctl.mdx#tctl-sso-test) command can be used to
+The [`tctl sso test`](../../../reference/cli/tctl.mdx) command can be used to
 debug SSO logins and see exactly which traits are being sent by your SSO
 provider and how they are being mapped by your Login Rules.
 
@@ -170,10 +170,10 @@ $ tctl get connector/<Var name="SSO connector name"/> --with-secrets | tctl sso 
 ## Next steps
 
 To learn more about the Login Rule expression syntax, check out the
-[Login Rule Reference](./reference.mdx) page.
+[Login Rule Reference](../../../reference/rbac/login-rules.mdx) page.
 
 Learn about the `tctl login_rule test` command by running the help command or
-checking the [reference page](../../reference/cli/tctl.mdx#tctl-login_rule-test).
+checking the [reference page](../../../reference/cli/tctl.mdx).
 ```code
 $ tctl help login_rule test
 ```

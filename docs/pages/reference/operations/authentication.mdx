@@ -10,7 +10,7 @@ provider via **authentication connectors**.
 
 Local authentication is used to authenticate against a local Teleport user
 database. This database is managed by the [`tctl
-users`](./cli/tctl.mdx#tctl-users-add) command. Teleport also supports
+users`](../cli/tctl.mdx) command. Teleport also supports
 multi-factor authentication (MFA) for the local connector. There are several
 possible values (types) of MFA:
 
@@ -20,7 +20,7 @@ possible values (types) of MFA:
   second factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
-  See our [Second Factor - WebAuthn](../access-controls/guides/webauthn.mdx) guide for detailed
+  See our [Second Factor - WebAuthn](../../admin-guides/authentication/webauthn.mdx) guide for detailed
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 - `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
@@ -183,7 +183,7 @@ spec:
 version: v2
 ```
 
-See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../admin-guides/authentication/sso/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -231,7 +231,7 @@ auth_service:
     type: github
 ```
 
-See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../admin-guides/authentication/sso/github-sso.mdx) for details on how to configure it.
 
 ### SAML
 
@@ -273,7 +273,7 @@ auth_service:
     type: github
 ```
 
-See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
+See [GitHub OAuth 2.0](../../admin-guides/authentication/sso/github-sso.mdx) for details on how to configure it.
 
 </TabItem>
 </Tabs>

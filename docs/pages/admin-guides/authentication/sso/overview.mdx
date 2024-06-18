@@ -397,9 +397,9 @@ flow. These provider-specific changes can be enabled by setting the
 values to match your identity provider:
 
 - `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
-  to the full [ADFS guide](./sso/adfs.mdx#step-23-create-teleport-roles) for details.
+  to the full [ADFS guide](adfs.mdx) for details.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
-  the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
+  the [OIDC guide](oidc.mdx) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
   PingOne and PingFederate).
 - `okta` (OIDC): Required when using Okta as an OIDC provider.
@@ -451,7 +451,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources Reference](../reference/resources.mdx).
+as described in the [Resources Reference](../../../reference/config-references/resources.mdx).
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -467,10 +467,10 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-- [SSH Authentication with Okta](./sso/okta.mdx)
-- [SSH Authentication with OneLogin](./sso/one-login.mdx)
-- [SSH Authentication with ADFS](./sso/adfs.mdx)
-- [SSH Authentication with OAuth2 / OpenID Connect](./sso/oidc.mdx)
+- [SSH Authentication with Okta](okta.mdx)
+- [SSH Authentication with OneLogin](one-login.mdx)
+- [SSH Authentication with ADFS](adfs.mdx)
+- [SSH Authentication with OAuth2 / OpenID Connect](oidc.mdx)
 
 ## SSO customization
 
@@ -479,11 +479,11 @@ of SSO buttons in the Teleport Web UI.
 
 | Provider | YAML | Example |
 | - | - | - |
-| GitHub | `display: GitHub` | ![github](../../../img/teleport-sso/github@2x.png) |
-| Microsoft | `display: Microsoft` | ![microsoft](../../../img/teleport-sso/microsoft@2x.png) |
-| Google | `display: Google` | ![google](../../../img/teleport-sso/google@2x.png) |
-| BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket@2x.png) |
-| OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId@2x.png) |
+| GitHub | `display: GitHub` | ![github](../../../../img/teleport-sso/github@2x.png) |
+| Microsoft | `display: Microsoft` | ![microsoft](../../../../img/teleport-sso/microsoft@2x.png) |
+| Google | `display: Google` | ![google](../../../../img/teleport-sso/google@2x.png) |
+| BitBucket | `display: Bitbucket` | ![bitbucket](../../../../img/teleport-sso/bitbucket@2x.png) |
+| OpenID | `display: Okta` | ![Okta](../../../../img/teleport-sso/openId@2x.png) |
 
 ## Troubleshooting
 
@@ -511,7 +511,7 @@ If something is not working, we recommend to:
 If you get "access denied" or other login errors, the number one place to check is the Audit
 Log. You can access it in the **Activity** tab of the Teleport Web UI.
 
-![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
+![Audit Log Entry for SSO Login error](../../../../img/sso/teleportauditlogssofailed.png)
 
 Example of a user being denied because the role `clusteradmin` wasn't set up:
 
@@ -556,5 +556,5 @@ The roles we illustrated in this guide use `external` traits,
 which Teleport replaces with values from the single sign-on provider that the
 user used to authenticate with Teleport. For full details on how variable
 expansion works in Teleport roles, see the  [Teleport Access Controls
-Reference](../access-controls/reference.mdx).
+Reference](../../../reference/rbac/teleport-roles.mdx).
 

@@ -11,10 +11,10 @@ description: How to configure Teleport database access for Vitess (MySQL protoco
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Vitess Self-Hosted](../../../img/database-access/guides/vitess_selfhosted.png)
+![Teleport Database Access Vitess Self-Hosted](../../../../../img/database-access/guides/vitess_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Vitess Cloud](../../../img/database-access/guides/vitess_cloud.png)
+![Teleport Database Access Vitess Cloud](../../../../../img/database-access/guides/vitess_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -143,7 +143,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="example-vitess" dbProtocol="mysql" databaseAddress="db.example.com:3306" !)
 

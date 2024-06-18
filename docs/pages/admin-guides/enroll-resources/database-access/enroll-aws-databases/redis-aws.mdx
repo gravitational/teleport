@@ -23,10 +23,10 @@ AWS-hosted Redis database can take one of two forms:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/redis_elasticache_selfhosted.png)
+![Teleport Database Access RDS Self-Hosted](../../../../../img/database-access/guides/redis_elasticache_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
-![Teleport Database Access RDS Cloud](../../../img/database-access/guides/redis_elasticache_cloud.png)
+![Teleport Database Access RDS Cloud](../../../../../img/database-access/guides/redis_elasticache_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -182,7 +182,7 @@ $ aws elasticache modify-replication-group \
 Once the ElastiCache user has been created, verify that the user is configured
 to satisfy the requirements for IAM authentication:
 
-![ElastiCache IAM-enabled User](../../../img/database-access/guides/redis/redis-aws-iam-user@2x.png)
+![ElastiCache IAM-enabled User](../../../../../img/database-access/guides/redis/redis-aws-iam-user@2x.png)
 
 </TabItem>
 
@@ -236,7 +236,7 @@ MemoryDB](https://docs.aws.amazon.com/memorydb/latest/devguide/clusters.acls.htm
 Once an ElastiCache or MemoryDB user is created with the desired access, add an
 AWS resource tag `teleport.dev/managed` with the value `true` to this user:
 
-![Managed User Tag](../../../img/database-access/guides/redis/redis-aws-managed-user-tag.png)
+![Managed User Tag](../../../../../img/database-access/guides/redis/redis-aws-managed-user-tag.png)
 
 The Database Service will automatically discover this user if it is associated
 with a registered database. Keep in mind that it may take the Database Service

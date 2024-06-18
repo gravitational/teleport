@@ -11,10 +11,10 @@ description: How to configure Teleport database access with self-hosted Cockroac
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
+![Teleport Database Access CockroachDB Self-Hosted](../../../../../img/database-access/guides/cockroachdb_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access CockroachDB Cloud](../../../img/database-access/guides/cockroachdb_cloud.png)
+![Teleport Database Access CockroachDB Cloud](../../../../../img/database-access/guides/cockroachdb_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -52,7 +52,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/db-helm-install.mdx dbName="roach" dbProtocol="cockroachdb" databaseAddress="roach.example.com:26257" !)
 </TabItem>

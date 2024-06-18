@@ -111,7 +111,7 @@ Teleport roles.
 <Tabs>
 <TabItem label="SAML">
 
-Follow our [SAML Okta Guide](./sso/okta.mdx) to
+Follow our [SAML Okta Guide](../authentication/sso/okta.mdx) to
 create a SAML application.
 
 Save the file below as `okta.yaml` and update the `acs` field.
@@ -140,7 +140,7 @@ $ tctl create okta.yaml
 </TabItem>
 <TabItem label="OIDC">
 
-Follow our [OIDC guides](./sso/oidc.mdx#identity-providers) to
+Follow our [OIDC guides](../authentication/sso/oidc.mdx) to
 create an OIDC application.
 
 Copy the YAML below to a file called `oidc.yaml` and edit the information to
@@ -255,6 +255,6 @@ $ tctl get roles --format text
 
 ## Next steps
 
-- [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
-- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx)
+- [Mapping SSO and local users traits with role templates](role-templates.mdx)
+- [Create certs for CI/CD using impersonation](impersonation.mdx)
 

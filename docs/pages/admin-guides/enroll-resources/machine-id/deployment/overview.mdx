@@ -43,9 +43,9 @@ to your cluster. Choose a guide based on the platform where you intend to run
 Machine ID.
 
 If a specific guide does not exist for your platform, the [Linux
-guide](./deployment/linux.mdx) is compatible with most platforms. For
-custom approaches, you can also read the [Machine ID Reference](./reference.mdx)
-and [Architecture](./architecture.mdx) to plan your deployment.
+guide](linux.mdx) is compatible with most platforms. For
+custom approaches, you can also read the [Machine ID Reference](../../../../index.mdx)
+and [Architecture](../../../../reference/architecture/machine-id.mdx) to plan your deployment.
 
 ### Self-hosted infrastructure
 
@@ -54,12 +54,12 @@ on-prem infrastructure.
 
 | Platform                                  | Installation method                             | Join method                                         |
 |-------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| [Linux](./deployment/linux.mdx)           | Package manager or TAR archive                  | Static join token                                   |
-| [Linux (TPM)](./deployment/linux-tpm.mdx) | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
-| [GCP](./deployment/gcp.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
-| [AWS](./deployment/aws.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
-| [Azure](./deployment/azure.mdx)           | Package manager or TAR archive                  | Identity document signed by Azure                   |
-| [Kubernetes](./deployment/kubernetes.mdx) | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
+| [Linux](linux.mdx)           | Package manager or TAR archive                  | Static join token                                   |
+| [Linux (TPM)](linux-tpm.mdx) | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
+| [GCP](gcp.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
+| [AWS](aws.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
+| [Azure](azure.mdx)           | Package manager or TAR archive                  | Identity document signed by Azure                   |
+| [Kubernetes](kubernetes.mdx) | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
 
 ### CI/CD
 
@@ -68,8 +68,8 @@ integration and continuous deployment platform
 
 | Platform                                          | Installation method                                           | Join method                        |
 |---------------------------------------------------|---------------------------------------------------------------|------------------------------------|
-| [CircleCI](./deployment/circleci.mdx)             | TAR archive                                                   | CircleCI-signed identity document  |
-| [GitLab](./deployment/gitlab.mdx)                 | TAR archive                                                   | GitLab-signed identity document    |
-| [GitHub Actions](./deployment/github-actions.mdx) | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.   |
-| [Jenkins](./deployment/jenkins.mdx)               | Package manager or TAR archive                                | Static join token                  |
-| [Spacelift](./deployment/spacelift.mdx)           | Docker Image                                                  | Spacelift-signed identity document |
+| [CircleCI](circleci.mdx)             | TAR archive                                                   | CircleCI-signed identity document  |
+| [GitLab](gitlab.mdx)                 | TAR archive                                                   | GitLab-signed identity document    |
+| [GitHub Actions](github-actions.mdx) | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.   |
+| [Jenkins](jenkins.mdx)               | Package manager or TAR archive                                | Static join token                  |
+| [Spacelift](spacelift.mdx)           | Docker Image                                                  | Spacelift-signed identity document |

@@ -24,7 +24,7 @@ removing devices that are no longer in use.
 </Admonition>
 
 <Admonition type="tip" title="Sync with Jamf Pro">
-Teleport supports device synchronization with [Jamf Pro](./jamf-integration.mdx). Once configured, devices
+Teleport supports device synchronization with [Jamf Pro](jamf-integration.mdx). Once configured, devices
 are automatically updated in Teleport's device inventory.
 </Admonition>
 
@@ -140,7 +140,7 @@ enrolls the user's device in their next Teleport (`tsh`) login.
 For auto-enrollment to work, the following conditions must be met:
 - A device must be registered. Registration may be
 [manual](#register-a-trusted-device) or performed using an
-integration, like the [Jamf Pro integration](./jamf-integration.mdx).
+integration, like the [Jamf Pro integration](jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
@@ -354,5 +354,5 @@ auth_service:
 
 ## Next steps
 
-- [Device Trust Enforcement](./enforcing-device-trust.mdx)
-- [Jamf Pro Integration](./jamf-integration.mdx)
+- [Device Trust Enforcement](enforcing-device-trust.mdx)
+- [Jamf Pro Integration](jamf-integration.mdx)

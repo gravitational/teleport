@@ -459,7 +459,7 @@ Application Service:
        uri: "https://console.aws.amazon.com/ec2/v2/home"
    ```
 
-1. (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
@@ -558,13 +558,13 @@ to AWS, users can access AWS resources through Teleport.
 1. Click the **Launch** button for the AWS Console application, then click on
    the role you would like to assume when signing in to the AWS Console:
 
-   ![IAM role selector](../../../img/application-access/iam-role-selector.png)
+   ![IAM role selector](../../../../../img/application-access/iam-role-selector.png)
 
 1. You will get redirected to the AWS Management Console, signed in with the
    selected role. You should see your Teleport user name as a federated login
    assigned to `ExampleReadOnlyRole` in the top-right corner of the AWS Console:
 
-   ![Federated login](../../../img/application-access/federated-login@2x.png)
+   ![Federated login](../../../../../img/application-access/federated-login@2x.png)
 
 ### Access the AWS CLI
 
@@ -666,7 +666,7 @@ To view CloudTrail events for your federated sessions, navigate to the CloudTrai
 Each Teleport federated login session uses a Teleport username as the federated
 username which you can search for to get the events history:
 
-![CloudTrail](../../../img/application-access/cloud-trail.png)
+![CloudTrail](../../../../../img/application-access/cloud-trail.png)
 
 ## Troubleshooting
 
@@ -793,7 +793,7 @@ user's permitted ARNs based on data from the IdP:
 ```
 
 See the [Teleport Access Controls
-Reference](../../access-controls/reference.mdx#template-expressions-for-access-to-infrastructure-resources)
+Reference](../../../../reference/rbac/teleport-roles.mdx)
 for all of the variables and functions you can use in the `aws_role_arns` field.
 
 ### Register the AWS application dynamically
@@ -808,7 +808,7 @@ applications](../guides/dynamic-registration.mdx).
 This guide shows you how to use the **join token method** to enroll the Teleport
 Application Service in your cluster. This is one of several available methods,
 and we recommend reading the [Join Services to your Teleport
-Cluster](../../agents/join-services-to-your-cluster.mdx) guide to configure the
+Cluster](../../agents/join-services-to-your-cluster/overview.mdx) guide to configure the
 most appropriate method for your environment.
 
 ## Further reading

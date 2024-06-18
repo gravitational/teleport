@@ -5,7 +5,7 @@ description: Reference documentation for Teleport resources
 
 This reference guide lists dynamic resources you can manage with Teleport. For
 more information on dynamic resources, see our guide to [Using Dynamic
-Resources](../management/dynamic-resources.mdx).
+Resources](../../admin-guides/configure-teleport/dynamic-resources/overview.mdx).
 
 Examples of applying dynamic resources with `tctl`:
 
@@ -44,7 +44,7 @@ $ tctl get cluster_auth_preference
 
 ## List of dynamic resources
 
-Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
+Here's the list of resources currently exposed via [`tctl`](../cli/tctl.mdx):
 
 | Resource Kind | Description |
 | - | - |
@@ -110,12 +110,12 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 Versions 5, 6 and 7 of the Teleport role resource have different behaviors when
 accessing Kubernetes resources.
 {/*lint ignore messaging*/}
-Roles not [granting Kubernetes access](../kubernetes-access/introduction.mdx) are
+Roles not [granting Kubernetes access](../../admin-guides/enroll-resources/kubernetes-access/introduction.mdx) are
 equivalent in the three versions.
 
 Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
 Role v7 supports restricting all common resource kinds (
-see [the `kubernetes_resource` documentation](../kubernetes-access/controls.mdx#kubernetes_resources)
+see [the `kubernetes_resource` documentation](../agents/controls.mdx)
 for a complete list).
 
 When no `kubernetes_resource` is set:
@@ -192,7 +192,7 @@ Login rules contain logic to transform SSO user traits during login.
 
 Database object import rule define the labels to be applied to database objects imported into Teleport. 
 
-See [Database Access Controls](../database-access/rbac.mdx) for more details.
+See [Database Access Controls](../../admin-guides/enroll-resources/database-access/rbac.mdx) for more details.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/database-object-import-rule-spec.mdx!)
 
@@ -331,6 +331,6 @@ version: v2
 Bot resources define a Machine ID Bot identity and its access.
 
 Find out more on the
-[Machine ID configuration reference](../machine-id/reference/configuration.mdx).
+[Machine ID configuration reference](../machine-id/configuration.mdx).
 
 (!docs/pages/includes/machine-id/bot-spec.mdx!)

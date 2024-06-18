@@ -33,7 +33,7 @@ External user accounts authenticate with a third-party identity provider using S
 Let's review the example Alice who is authenticating using SSO provider of her organization
 with Teleport:
 
-![Role mapping](../../img/architecture/role-mapping@1.5x.svg)
+![Role mapping](../../../img/architecture/role-mapping@1.5x.svg)
 
 <Notice type="tip">
 Every time SSO user logs in, Teleport creates a temporary user account record
@@ -45,14 +45,14 @@ Teleport creates this record to avoid name collisions with local users.
 #### External users from other clusters
 
 A user could be external to the Teleport cluster, if another cluster or certificate authority issues a certificate
-that this cluster trusts. In this case, Teleport activates [trusted cluster mapping logic](./trustedclusters.mdx#role-mapping).
+that this cluster trusts. In this case, Teleport activates [trusted cluster mapping logic](trustedclusters.mdx).
 
 #### Local interactive users
 
 Local interactive users have a record in Teleport's backend with credentials.
 
 A cluster administrator have to create account entries for every Teleport user with
-[`tctl users add`](../reference/cli.mdx) or API call.
+[`tctl users add`](../cli.mdx) or API call.
 
 Every local Teleport User must be associated with a list of one or more roles.
 This list is called "role mappings".
@@ -76,7 +76,7 @@ of non-interactive users:
   caption="Machine-ID certs"
   >
 
-![Certificates for services](../../img/architecture/certs-machine-id@1.8x.svg)
+![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)
 </Figure>
 
 #### External non-interactive users
@@ -85,7 +85,7 @@ External non-interactive users behave just like local ones, but it is another
 cluster or certificate authority that issues certificates for them.
 
 They do not have local user records in Teleport backend. Teleport activates
-[trusted cluster mapping logic](./trustedclusters.mdx#role-mapping) to support this use case.
+[trusted cluster mapping logic](trustedclusters.mdx) to support this use case.
 
 ## Role Based Access Control
 
@@ -250,7 +250,7 @@ You can use predicate language function calls in templates, e.g. `{{email.local(
 
 For full details on how variable expansion works in Teleport roles, see the
 [Teleport Access Controls
-Reference](../access-controls/reference.mdx).
+Reference](../rbac/teleport-roles.mdx).
 
 **How role templates are evaluated**
 
@@ -324,7 +324,7 @@ spec:
 ```
 
 <Notice type="tip">
-You can use `where` fields in all resource rules. Check out [the full role reference](../access-controls/reference.mdx) contains full role spec for details.
+You can use `where` fields in all resource rules. Check out [the full role reference](../rbac/teleport-roles.mdx) contains full role spec for details.
 </Notice>
 
 ### Role options
@@ -392,10 +392,10 @@ spec:
 
 ## Next steps
 
-- [Access Control Reference](../access-controls/reference.mdx).
-- [Teleport Predicate Language](../reference/predicate-language.mdx).
-- [Access Requests Guides](../access-controls/access-requests.mdx)
-- [Architecture Overview](../core-concepts.mdx)
+- [Access Control Reference](../rbac/teleport-roles.mdx).
+- [Teleport Predicate Language](../config-references/predicate-language.mdx).
+- [Access Requests Guides](../../admin-guides/access-controls/just-in-time/access-requests/overview.mdx)
+- [Architecture Overview](../../get-started/core-concepts.mdx)
 - [Teleport Auth](authentication.mdx)
 - [Teleport Agents](agents.mdx)
 - [Teleport Proxy](proxy.mdx)

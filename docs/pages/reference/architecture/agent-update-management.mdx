@@ -4,7 +4,7 @@ description: This chapter explains how Teleport agent automatic update is workin
 ---
 
 While many Teleport resources [support agentless
-mode](../faq.mdx#can-teleport-be-deployed-in-agentless-mode), agent deployments
+mode](../faq/faq.mdx), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
@@ -56,7 +56,7 @@ The agent version is subject to the following constraints:
 
 The best practice is to always align the agent version with the Proxy and Auth
 ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
-](../upgrading.mdx).
+](../../index.mdx).
 
 For this reason, all updaters must subscribe to a release channel targeting
 versions that are compatible with their Teleport cluster. Teleport Cloud users
@@ -91,4 +91,4 @@ Self-hosted users must first [set up self-hosted automatic agent upgrades
 ](../upgrading/automatic-agent-updates.mdx).
 
 After that, you can set enroll agents in automatic updates as part of the
-[upgrading procedure](../upgrading.mdx).
+[upgrading procedure](../../index.mdx).

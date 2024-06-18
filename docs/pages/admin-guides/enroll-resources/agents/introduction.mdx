@@ -19,14 +19,14 @@ To protect infrastructure resources with Teleport, you deploy Teleport Agents
 and configure them to proxy traffic to and from the resources.
 
 We recommend getting started with [Teleport
-Auto-Discovery](../auto-discovery/introduction.mdx), in which the Teleport
+Auto-Discovery](../../../index.mdx), in which the Teleport
 Discovery Service registers infrastructure resources with your cluster by
 polling service discovery endpoints. For information on enrolling a specific
 type of infrastructure resource, read the following sections of the
 documentation:
 
 - [Servers](../server-access/introduction.mdx)
-- [Databases](../database-access/introduction.mdx)
+- [Databases](../../../index.mdx)
 - [Kubernetes clusters](../kubernetes-access/introduction.mdx)
 - [Windows desktops](../desktop-access/introduction.mdx)
 - [Applications](../application-access/introduction.mdx)
@@ -35,14 +35,14 @@ documentation:
 
 This section provides a brief outline of how Teleport Agents run in a Teleport
 cluster. For more information on the architecture of Teleport Agents, read
-[Teleport Agent Architecture](../architecture/agents.mdx).
+[Teleport Agent Architecture](../../../reference/architecture/agents.mdx).
 
 ### Services
 
 Each Teleport process can run one or more **services**. A Teleport instance runs
 a service if it is enabled within the instance's configuration file. See the
 [Teleport Configuration
-Reference](../reference/config.mdx#enabling-teleport-services) for which
+Reference](../../../reference/config-references/config.mdx) for which
 services are enabled by default and how to enable a particular service.
 
 ### Agent pools
@@ -59,7 +59,7 @@ The Teleport Proxy Service uses these reverse tunnels to forward traffic in
 Teleport's supported protocols to an available Agent. Agents apply RBAC
 rules and forward the traffic to resources in your infrastructure.
 
-![Diagram showing the architecture of an Agent pool](../../img/agent-pool-diagram.png)
+![Diagram showing the architecture of an Agent pool](../../../../img/agent-pool-diagram.png)
 
 Read our guide for how to use Terraform to [deploy a pool of
 Agents](deploy-agents-terraform.mdx). 
@@ -78,7 +78,7 @@ Teleport Agents need to establish trust with the Teleport Auth Service in order
 to join a cluster. There are several ways to join an Agent to your Teleport
 cluster, making it possible to automate the join process for your environment.
 Read about the available join methods in our [Join Services to your
-Cluster](./join-services-to-your-cluster.mdx) guides.
+Cluster](join-services-to-your-cluster/overview.mdx) guides.
 
 When a Teleport process first runs, it checks its configuration file to
 determine which services are enabled. Each service then connects separately to
@@ -109,7 +109,7 @@ Service instead of reading existing credentials.
 Finally, restart the Agent.
 
 We recommend deploying Teleport Agents via infrastructure-as-code approaches,
-e.g., [using a Terraform module](./deploy-agents-terraform.mdx). To modify the
+e.g., [using a Terraform module](deploy-agents-terraform.mdx). To modify the
 services that an Agent runs, you can edit the configuration of your Agents
 within your infrastructure-as-code project, then redeploy the Agents.
 

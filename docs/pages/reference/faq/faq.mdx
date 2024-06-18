@@ -29,12 +29,12 @@ functionality without a net addition of an agent on your system.
 ## Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH Guide](./server-access/openssh/openssh.mdx).
+look at [Using OpenSSH Guide](../../admin-guides/enroll-resources/server-access/openssh/openssh.mdx).
 
 ## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](./management/admin/trustedclusters.mdx).
+behind-firewall clusters, see [Configure Trusted Clusters](../../admin-guides/access-controls/trustedclusters.mdx).
 
 ## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
 (!docs/pages/includes/ent-vs-community-faq.mdx!)
@@ -45,7 +45,7 @@ Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](./agents/join-services-to-your-cluster/join-token.mdx).
+Cluster](../../admin-guides/enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -56,7 +56,7 @@ multiplexing with that configuration.
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+Yes, Teleport supports [Headless WebAuthn authentication](../../admin-guides/authentication/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
@@ -115,20 +115,20 @@ Yes. You can copy and paste using a mouse.
 
 ## What TCP ports does Teleport use?
 
-Please refer to our [Networking](./reference/networking.mdx) guide.
+Please refer to our [Networking](../operations/networking.mdx) guide.
 
 ## Does Teleport support authentication via OIDC, SAML, or Active Directory?
 
-Teleport offers this feature for the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx) and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions of Teleport.
+Teleport offers this feature for the [Enterprise Cloud](../../index.mdx) and [Enterprise](../../admin-guides/self-hosting/introduction.mdx) versions of Teleport.
 
 ## Does Teleport support provisioning users via SCIM?
 
 Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
-hosted Okta integration, available in the [Enterprise Cloud](choose-an-edition/teleport-cloud/introduction.mdx)
-and [Enterprise](choose-an-edition/teleport-enterprise/introduction.mdx) versions
+hosted Okta integration, available in the [Enterprise Cloud](../../index.mdx)
+and [Enterprise](../../admin-guides/self-hosting/introduction.mdx) versions
 of Teleport.
 
-Refer to the [hosted Okta integration guide](./application-access/okta/hosted-guide.mdx)
+Refer to the [hosted Okta integration guide](../../admin-guides/enroll-resources/application-access/okta/hosted-guide.mdx)
 for details on setting up and configuring SCIM support.
 
 ## Why do I see an alert that some agents are out of date?
@@ -155,7 +155,7 @@ you need its ID. You can get a listing of all alerts and their IDs with the
 `tctl alerts list` command.
 
 For detailed information on this family of commands, see the
-[CLI Reference](./reference/cli/tctl.mdx#tctl-alerts-list).
+[CLI Reference](../cli/tctl.mdx).
 
 ## Does Teleport send any data back to the cloud?
 
@@ -182,7 +182,7 @@ The code that aggregates and anonymizes this data can be found [in our
 repository on
 GitHub](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
-For more details, see the [Usage Reporting and Billing](./usage-billing.mdx)
+For more details, see the [Usage Reporting and Billing](../../get-started/essential-references/usage-billing.mdx)
 guide.
 
 Reach out to `sales@goteleport.com` if you have questions about the commercial
@@ -192,4 +192,4 @@ editions of Teleport.
 
 (!docs/pages/includes/teleport-connect-telemetry.mdx!)
 
-If you no longer want to send usage data, see [disabling telemetry](./connect-your-client/teleport-connect.mdx#disabling-telemetry).
+If you no longer want to send usage data, see [disabling telemetry](../../connect-your-client/teleport-connect.mdx).

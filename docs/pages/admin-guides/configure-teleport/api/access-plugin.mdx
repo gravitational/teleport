@@ -3,7 +3,7 @@ title: How to Build an Access Request Plugin
 description: Manage Access Requests using custom workflows with the Teleport API
 ---
 
-With Teleport [Access Requests](../access-controls/access-requests.mdx), you can
+With Teleport [Access Requests](../../access-controls/just-in-time/access-requests/overview.mdx), you can
 assign Teleport users to less privileged roles by default and allow them to
 temporarily escalate their privileges. Reviewers can grant or deny Access
 Requests within your organization's existing communication workflows (e.g.,
@@ -18,7 +18,7 @@ showing you how to write a plugin that lets you manage Access Requests via
 Google Sheets. The plugin lists new Access Requests in a Google Sheets
 spreadsheet, with links to allow or deny each request. 
 
-![The result of the plugin](../../img/api/google-sheets.png)
+![The result of the plugin](../../../../img/api/google-sheets.png)
 
 <Notice type="danger">
 
@@ -467,6 +467,6 @@ management.
 In this example, we used the `tctl auth sign` command to fetch credentials for
 the plugin. For production usage, we recommend provisioning short-lived
 credentials via Machine ID, which reduces the risk of these credentials becoming
-stolen. View our [Machine ID documentation](../machine-id/introduction.mdx) to
+stolen. View our [Machine ID documentation](../../enroll-resources/machine-id/introduction.mdx) to
 learn more.
 

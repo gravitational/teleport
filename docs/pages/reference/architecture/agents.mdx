@@ -40,17 +40,17 @@ listed above can then proxy resources enrolled by the Discovery Service.
 
 ## Components
 
-![Components of a Teleport agent deployment](../../img/architecture/agent-architecture.png)
+![Components of a Teleport agent deployment](../../../img/architecture/agent-architecture.png)
 
 A Teleport cluster where an administrator has enrolled resources involves the
 following components:
 
-- **[Teleport Proxy Service](../architecture/proxy.mdx):** A stateless service
+- **[Teleport Proxy Service](proxy.mdx):** A stateless service
   that performs the function of an authentication gateway, serves the Web UI,
   and accepts client connections. On managed Teleport Enterprise accounts, this
   service is accessible at your Teleport account URL, e.g.,
   `example.teleport.sh`.
-- **[Teleport Auth Service](../architecture/authentication.mdx):** Serves as the
+- **[Teleport Auth Service](authentication.mdx):** Serves as the
   cluster's certificate authority, handles user authentication/authorization and
   issues short-lived client certificates.
 - **Teleport agents:** Agents perform authentication against infrastructure
@@ -69,7 +69,7 @@ following components:
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
-Services to your Teleport Cluster](../agents/join-services-to-your-cluster.mdx)
+Services to your Teleport Cluster](../../admin-guides/enroll-resources/agents/join-services-to-your-cluster/overview.mdx)
 for the available methods you can use to join an agent to your Teleport cluster.
 
 All agents in a Teleport cluster keep the Auth Service updated on their status
@@ -79,7 +79,7 @@ in their cluster via the Auth Service API or CLI.
 An agent's identity is represented by SSH host certificate it receives after
 registering withing the cluster:
 
-![Host certificate](../../img/architecture/ssh-host-cert@1.2x.svg)
+![Host certificate](../../../img/architecture/ssh-host-cert@1.2x.svg)
 
 This certificate contains information about the agent, including:
 
@@ -106,7 +106,7 @@ connectivity to agents or the resources they are connected to. As long as an
 agent can dial back to the cluster's Proxy Service, it can be located behind a
 firewall.
 
-![Tunnel Mode](../../img/architecture/k8s-tunnel.png)
+![Tunnel Mode](../../../img/architecture/k8s-tunnel.png)
 
 When an agent establishes a reverse SSH tunnel to the Proxy Service, the Proxy
 Service identifies the agent based on its certificate. The certificate encodes
@@ -119,7 +119,7 @@ agent.
 <Details title="Connecting to agents without reverse tunnels">
 
 It is possible to join Teleport agents to a cluster [through the Teleport Auth
-Service](../agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+Service](../../admin-guides/enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 Once an agent joins a cluster through the Teleport Auth Service, the Teleport
 Proxy Service dials the agent directly, without creating a reverse tunnel. This
 mode supports the following services:
@@ -133,7 +133,7 @@ In direct mode, SSH Service instances act like OpenSSH servers that only accept
 client SSH certificates. Users can connect to SSH servers through the Teleport
 Proxy Service as a jump-host or directly:
 
-![Standard Mode](../../img/architecture/ssh-direct-mode@1.2x.svg)
+![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.svg)
 
 Direct mode is designed for legacy use cases and only supports self-hosted
 Teleport clusters. We recommend joining agents through the Teleport Proxy
@@ -172,13 +172,13 @@ To learn more about the mechanism an agent uses to authenticate to an
 infrastructure resource, read the guide to enrolling that resource in your
 Teleport cluster:
 
-- [Applications](../application-access/guides.mdx)
-- [Cloud provider APIs](../application-access/cloud-apis.mdx)
-- [Databases](../database-access/guides.mdx)
-- [Kubernetes clusters](../kubernetes-access/register-clusters.mdx)
-- [Linux hosts with Teleport](../server-access/getting-started.mdx)
-- [OpenSSH servers](../server-access/openssh.mdx)
-- [Windows desktops](../desktop-access/getting-started.mdx)
+- [Applications](../../index.mdx)
+- [Cloud provider APIs](../../index.mdx)
+- [Databases](../../index.mdx)
+- [Kubernetes clusters](../../index.mdx)
+- [Linux hosts with Teleport](../../admin-guides/enroll-resources/server-access/getting-started.mdx)
+- [OpenSSH servers](../../index.mdx)
+- [Windows desktops](../../admin-guides/enroll-resources/desktop-access/getting-started.mdx)
 
 ## Clients to agents
 
@@ -192,7 +192,7 @@ resource through the agent.
 
 When a user logs into the cluster with the `tsh login` command, the Teleport
 Auth Service uses the `user` certificate authority to sign the certificate. See
-[Issuing User Certificates](../architecture/authentication.mdx) for more details
+[Issuing User Certificates](authentication.mdx) for more details
 on how it works. If the user authenticates via the Teleport Web UI, the browser
 retrieves a session cookie, which corresponds to a user certificate stored by
 the Proxy Service on behalf of that user.
@@ -215,7 +215,7 @@ In most cases, users will receive certificates from the Auth Service via a
 connection to the Teleport Proxy Service. The Auth Service and Proxy Service
 connect to each other using mutual TLS.
 
-[Teleport Connect](../connect-your-client/teleport-connect.mdx) runs `tshd`, a
+[Teleport Connect](../../connect-your-client/teleport-connect.mdx) runs `tshd`, a
 `tsh` daemon that manages user certificates and kubeconfigs for the graphical
 client.
 
@@ -224,14 +224,14 @@ client.
 Teleport makes several client tools available for accessing infrastructure
 resources through agents:
 
-- [The `tsh` CLI](../connect-your-client/tsh.mdx)
-- [Teleport Connect](../connect-your-client/teleport-connect.mdx)
-- [Teleport Web UI](../connect-your-client/web-ui.mdx)
+- [The `tsh` CLI](../../connect-your-client/tsh.mdx)
+- [Teleport Connect](../../connect-your-client/teleport-connect.mdx)
+- [Teleport Web UI](../../connect-your-client/web-ui.mdx)
 
 After retrieving [client credentials](#credentials-for-teleport-clients), these
 tools are authenticated to the Teleport Proxy Service and can send traffic
 through it to Teleport agents. The protocol that a client uses depends on the
-upstream resource. See [TLS Routing](./tls-routing.mdx) for how client tools
+upstream resource. See [TLS Routing](tls-routing.mdx) for how client tools
 perform protocol negotiation with the Teleport Proxy Service.
 
 Depending on the upstream infrastructure resource a user wants to connect to,
@@ -248,13 +248,13 @@ CLI:
 
 |`tsh` command|Upstream infrastructure resource|
 |---|---|
-|`tsh proxy app`|HTTP and [TCP](../application-access/guides/tcp.mdx) applications|
-|`tsh proxy aws`|[AWS SDK applications](../application-access/cloud-apis/aws-console.mdx)|
-|`tsh proxy azure`|[Azure SDK applications](../application-access/cloud-apis/azure.mdx)|
-|`tsh proxy gcloud`|[Google Cloud SDK applications](../application-access/cloud-apis/google-cloud.mdx)|
-|`tsh proxy ssh`|[OpenSSH client traffic](../server-access/openssh/openssh.mdx)|
-|`tsh proxy db`|[Native database clients](../connect-your-client/gui-clients.mdx)|
-|`tsh proxy kube`|[Kubernetes clusters behind L7 load balancers](tls-routing.mdx#kubernetes)|
+|`tsh proxy app`|HTTP and [TCP](../../admin-guides/enroll-resources/application-access/guides/tcp.mdx) applications|
+|`tsh proxy aws`|[AWS SDK applications](../../admin-guides/enroll-resources/application-access/cloud-apis/aws-console.mdx)|
+|`tsh proxy azure`|[Azure SDK applications](../../admin-guides/enroll-resources/application-access/cloud-apis/azure.mdx)|
+|`tsh proxy gcloud`|[Google Cloud SDK applications](../../admin-guides/enroll-resources/application-access/cloud-apis/google-cloud.mdx)|
+|`tsh proxy ssh`|[OpenSSH client traffic](../../admin-guides/enroll-resources/server-access/openssh/openssh.mdx)|
+|`tsh proxy db`|[Native database clients](../../connect-your-client/gui-clients.mdx)|
+|`tsh proxy kube`|[Kubernetes clusters behind L7 load balancers](tls-routing.mdx)|
 
 </Details>
 
@@ -271,9 +271,9 @@ interacts with a resource, and signs out. Agents interpret the wire protocol
 messages they forward to infrastructure resources in order to detect events.
 
 Learn more about the Teleport audit events in the [Audit Event
-Reference](../reference/audit.mdx).
+Reference](../monitoring/audit/audit.mdx).
 
 ## Further reading
 
 - For instructions on deploying agents, see the [Teleport agent
-  guides](../agents/introduction.mdx).
+  guides](../../admin-guides/enroll-resources/agents/introduction.mdx).

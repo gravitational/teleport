@@ -61,13 +61,13 @@ infrastructure-as-code and GitOps approaches.
 
 You can get started with `tctl`, the Terraform Provider, and the Kubernetes
 Operator by following: 
-- the ["Managing Users and Roles with IaC" guide](./dynamic-resources/user-and-role.mdx)
-- the ["Creating Access Lists with IaC" guide](./dynamic-resources/access-list.mdx)
-- the ["Registering Agentless OpenSSH Servers with IaC" guide](./dynamic-resources/agentless-ssh-servers.mdx)
+- the ["Managing Users and Roles with IaC" guide](user-and-role.mdx)
+- the ["Creating Access Lists with IaC" guide](access-list.mdx)
+- the ["Registering Agentless OpenSSH Servers with IaC" guide](agentless-ssh-servers.mdx)
 
 For more information on Teleport roles, including the `internal.logins`
 trait we use in these example roles, see the [Teleport Access
-Controls Reference](../access-controls/reference.mdx).
+Controls Reference](../../../reference/rbac/teleport-roles.mdx).
 
 ### YAML documents with `tctl`
 
@@ -89,7 +89,7 @@ spec:
 
 Since `tctl` works from the local filesystem, you can write commands that apply
 all configuration documents in a directory tree. See the [CLI
-reference](../reference/cli/tctl.mdx) for more information on `tctl`.
+reference](../../../reference/cli/tctl.mdx) for more information on `tctl`.
 
 ### Teleport Terraform provider
 
@@ -118,7 +118,7 @@ resource "teleport_role" "developer" {
 ```
 
 [Get started with the Terraform
-provider](./dynamic-resources/terraform-provider.mdx).
+provider](terraform-provider.mdx).
 
 ### Teleport Kubernetes Operator
 
@@ -139,7 +139,7 @@ spec:
       'env': 'test'
 ```
 
-[Get started with the Kubernetes Operator](dynamic-resources/teleport-operator.mdx).
+[Get started with the Kubernetes Operator](teleport-operator.mdx).
 
 ## Reconciling the configuration file with dynamic resources
 
@@ -252,16 +252,16 @@ configuration resources with the `teleport.dev/origin=config-file` label.
 ### Configuration references
 
 - For a comprehensive reference of Teleport's static configuration options, read
-  the [Configuration Reference](../reference/config.mdx).
+  the [Configuration Reference](../../../reference/config-references/config.mdx).
 - To see the dynamic configuration resources available to apply, read the
-  [Configuration Resource Reference](../reference/resources.mdx). There are also
+  [Configuration Resource Reference](../../../reference/config-references/resources.mdx). There are also
   dedicated configuration resource references for
-  [applications](../application-access/reference.mdx#application-resource) and
-  [databases](../database-access/reference/configuration.mdx#database-resource).
+  [applications](../../../reference/agents/application-access.mdx) and
+  [databases](../../../reference/config-references/database-access.mdx).
 
 ### Other ways to use the Teleport API
 
 The Teleport Kubernetes Operator, Terraform provider, and `tctl` are all clients
 of the Teleport Auth Service's gRPC API. To build your own API client to extend
 Teleport for your organization's needs, read our [API
-guides](../api/introduction.mdx).
+guides](../../../index.mdx).

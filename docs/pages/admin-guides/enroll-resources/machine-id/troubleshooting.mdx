@@ -206,7 +206,7 @@ $ pkill -sigusr1 tbot
 
 ### Symptoms
 
-When requesting [Database Access](../database-access/introduction.mdx)
+When requesting [Database Access](../../../index.mdx)
 certificates, the certificate request fails with an error like the following:
 
 ```text
@@ -226,13 +226,13 @@ example                [alice]       env=dev
 ### Explanation
 
 Unlike regular Teleport users, Machine ID bot users are granted only minimal
-Teleport [RBAC permissions](../access-controls/reference.mdx) and are not
+Teleport [RBAC permissions](../../../reference/rbac/teleport-roles.mdx) and are not
 allowed to view or list databases by default unless granted permission via one
 or more roles.
 
 ### Resolution
 
-Per the [Machine ID Database Access Guide](./access-guides/databases.mdx), ensure at
+Per the [Machine ID Database Access Guide](access-guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
 output listed in the error.
 

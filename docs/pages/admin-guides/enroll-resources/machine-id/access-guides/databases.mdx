@@ -12,7 +12,7 @@ In this guide, you will configure `tbot` to produce credentials that can be
 used to access a database configured in Teleport.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
-![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-access.svg)
+![Machine ID and Database Access Deployment](../../../../../img/machine-id/machine-id-database-access.svg)
 </Figure>
 
 ## Prerequisites
@@ -23,15 +23,15 @@ used to access a database configured in Teleport.
   follow the [database access getting started guide](../../database-access/getting-started.mdx).
   The Teleport Database Service supports databases like PostgreSQL, MongoDB,
   Redis, and much more. See our [database access
-  guides](../../database-access/guides.mdx) for a complete list.
+  guides](../../../../index.mdx) for a complete list.
 - (!docs/pages/includes/tctl.mdx!)
 - The `tsh` binary must be installed on the machine that will access the
   database. Depending on how `tbot` was installed, this may already be
-  installed. If it is not, see [Installation](../../installation.mdx) for
+  installed. If it is not, see [Installation](../../../../get-started/download-install/installation.mdx) for
   details.
 - `tbot` must already be installed and configured on the machine that will
   access the database. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/overview.mdx).
 
 ## Step 1/4. Configure RBAC
 
@@ -261,5 +261,5 @@ access controls.
 
 ## Next steps
 
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

@@ -11,7 +11,7 @@ how to forward Teleport audit events to Panther using Fluentd.
 The Teleport Event Handler is designed to communicate with Fluentd using mTLS
 to establish a secure channel. In this setup, the Event Handler sends events to Fluentd, which forwards them to S3 to be ingested by Panther.
 
-![Architecture of the setup shown in this guide](../../../img/management/fluentd-diagram.png)
+![Architecture of the setup shown in this guide](../../../../img/management/fluentd-diagram.png)
 
 ## Prerequisites
 
@@ -220,7 +220,7 @@ Once logs are being sent to S3, you can configure Panther to ingest them. Follow
 the [Panther documentation](https://docs.panther.com/data-onboarding/supported-logs/teleport) to set
 up the S3 bucket as a data source.
 
-![Panther Dashboard Example](../../../img/management/panther-ingest.png)
+![Panther Dashboard Example](../../../../img/management/panther-ingest.png)
 
 ## Troubleshooting connection issues
 
@@ -239,9 +239,9 @@ Teleport Cluster, ensure that:
 ## Next steps
 
 - Read more about
-[impersonation](../../access-controls/guides/impersonation.mdx)
+[impersonation](../../access-controls/impersonation.mdx)
 here.
 - Learn more about the [Panther Detections, Alerts and Notifications](https://panther.com/integrations/logs/teleport/).
 - To see all of the options you can set in the values file for the
 `teleport-plugin-event-handler` Helm chart, consult our [reference
-guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).
+guide](../../../reference/config-references/helm-reference/teleport-plugin-event-handler.mdx).

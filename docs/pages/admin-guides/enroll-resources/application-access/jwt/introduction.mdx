@@ -77,7 +77,7 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJ
 
 ## Inject JWT
 
-You can inject a JWT token into any header using [headers passthrough](../guides/connecting-apps.mdx#headers-passthrough)
+You can inject a JWT token into any header using [headers passthrough](../guides/connecting-apps.mdx)
 configuration and the `{{internal.jwt}}` template variable. This variable will
 be replaced with JWT token signed by Teleport JWT CA containing user identity
 information like described above.
@@ -122,4 +122,4 @@ Many existing web applications and APIs support JWT authentication.
 
 The following guides are currently available showing how to configure it:
 
-- [ElasticSearch](./elasticsearch.mdx)
+- [ElasticSearch](elasticsearch.mdx)

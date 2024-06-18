@@ -135,7 +135,7 @@ Splunk UI and navigating to **Settings** > **Indexes**. Click **New Index**.
 Name your index `teleport-audit-logs` and assign the **Index Data Type** field
 to "Events".
 
-![Creating an Index](../../../../docs/img/enterprise/plugins/splunk/new-index.png)
+![Creating an Index](../../../../img/enterprise/plugins/splunk/new-index.png)
 
 The values of the remaining fields, **Max raw data size** and **Searchable
 retention (days)** depend on your organization's resources and practices for log
@@ -153,7 +153,7 @@ click **Add new**
 Enter a name you can use to recognize the token later so you can
 manage it, e.g., `Teleport Audit Events`. Click **Next**.
 
-![Create a Token](../../../../docs/img/enterprise/plugins/splunk/new-token.png)
+![Create a Token](../../../../img/enterprise/plugins/splunk/new-token.png)
 
 In the **Input Settings** view (above), next to the **Source type** field, click
 **Select**. In the **Select Source Type** dropdown menu, click **Structured**,
@@ -373,7 +373,7 @@ Once you click **Add to Dashboard** you will see a count of Teleport event types
 over time, which gives you a general sense of how users are interacting with
 Teleport:
 
-![Event Types over Time](../../../../docs/img/enterprise/plugins/splunk/splunk-dashboard.png)
+![Event Types over Time](../../../../img/enterprise/plugins/splunk/splunk-dashboard.png)
 
 ## Troubleshooting connection issues
 
@@ -390,15 +390,15 @@ Teleport Cluster, ensure that:
 ## Next steps
 
 Now that you are exporting your audit logs to Splunk, consult our [audit log
-reference](../../reference/audit.mdx#event-types) so you can plan visualizations
+reference](../../../reference/monitoring/audit/audit.mdx) so you can plan visualizations
 and alerts.
 
 In this guide, we made use of impersonation to supply credentials to the
 Teleport Event Handler to communicate with your Teleport cluster. To learn more
 about impersonation, read [our
-guide](../../access-controls/guides/impersonation.mdx).
+guide](../../access-controls/impersonation.mdx).
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-id/getting-started.mdx)
+more reliable renewals. Read [our guide](../../enroll-resources/machine-id/getting-started.mdx)
 to getting started with Machine ID.

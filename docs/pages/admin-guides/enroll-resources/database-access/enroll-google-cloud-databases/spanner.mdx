@@ -12,11 +12,11 @@ description: How to configure Teleport database access with GCP's Cloud Spanner.
 <Tabs>
 
 <TabItem label="Self-Hosted">
-![Self-Hosted Teleport Architecture for Cloud Spanner Access](../../../img/database-access/guides/spanner_selfhosted.png)
+![Self-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_selfhosted.png)
 </TabItem>
 
 <TabItem label="Cloud-Hosted">
-![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](../../../img/database-access/guides/spanner_cloud.png)
+![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -52,7 +52,7 @@ Teleport users, but for this guide we will just create one.
 Go to the IAM & Admin [Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
 page and create a new service account named "spanner-user":
 
-![Create Service Account](../../../img/database-access/guides/spanner/create-spanner-user@2x.png)
+![Create Service Account](../../../../../img/database-access/guides/spanner/create-spanner-user@2x.png)
 
 Ignore the optional steps - just click "Done".
 Rather than granting access at the project level, we will grant this service
@@ -64,12 +64,12 @@ Navigate to the
 [Spanner instance overview page](https://console.cloud.google.com/spanner/instances)
 and check the box of your Spanner instance, then click "Permissions".
 
-![Open Cloud Spanner Instance Permissions](../../../img/database-access/guides/spanner/select-instance@2x.png)
+![Open Cloud Spanner Instance Permissions](../../../../../img/database-access/guides/spanner/select-instance@2x.png)
 
 In the permissions blade, click "Add Principal" then add the "spanner-user" service
 account as a principal and assign it the "Cloud Spanner Database User" role:
 
-![Grant Cloud Spanner Database User to Service Account](../../../img/database-access/guides/spanner/grant-service-account-access-to-instance@2x.png)
+![Grant Cloud Spanner Database User to Service Account](../../../../../img/database-access/guides/spanner/grant-service-account-access-to-instance@2x.png)
 
 Click "Save".
 
@@ -87,12 +87,12 @@ The Teleport Database Service must be able to impersonate this service account.
 Navigate to the "spanner-user" service account overview page and select the
 "permissions" tab:
 
-![Select Service Account Permissions Tab](../../../img/database-access/guides/spanner/service-account-permissions-tab@2x.png)
+![Select Service Account Permissions Tab](../../../../../img/database-access/guides/spanner/service-account-permissions-tab@2x.png)
 
 Click "Grant Access" and add the "teleport-db-service" principal ID.
 Select the "Service Account Token Creator" role and save the change:
 
-![Grant Service Account Token Creator to Database Service](../../../img/database-access/guides/spanner/grant-token-creator@2x.png)
+![Grant Service Account Token Creator to Database Service](../../../../../img/database-access/guides/spanner/grant-token-creator@2x.png)
 
 <Admonition type="note" title="Service account permissions">
   The "Service Account Token Creator" IAM role includes more permissions than
@@ -212,7 +212,7 @@ $ tsh db logout
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
-- Learn how to [connect with a GUI client](../../connect-your-client/gui-clients.mdx#cloud-spanner-datagrip).
+- Learn how to [connect with a GUI client](../../../../connect-your-client/gui-clients.mdx).
 - Learn more about [authenticating as a service
   account](https://cloud.google.com/docs/authentication#service-accounts) in
   Google Cloud.

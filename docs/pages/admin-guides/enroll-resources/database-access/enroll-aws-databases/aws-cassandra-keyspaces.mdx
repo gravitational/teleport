@@ -11,10 +11,10 @@ description: How to configure Teleport database access with Amazon Keyspaces (Ap
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
+![Teleport Database Access Redis Self-Hosted](../../../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Redis Cloud](../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
+![Teleport Database Access Redis Cloud](../../../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -90,7 +90,7 @@ Create an AWS IAM Role that will be used as your Keyspaces user.
 Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
 Press Create Role.
 
-![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step1.png)
+![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step1.png)
 AWS provides the `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesFullAccess` IAM policies that you can incorporate into your Keyspaces user's role.
 You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Keyspaces or `AmazonKeyspacesFullAccess` for full access.
 
@@ -101,9 +101,9 @@ You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Ke
   You can also create your own custom Amazon Keyspaces Permissions Policies: [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
 </Admonition>
 
-![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step2.png)
+![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step2.png)
 Enter a role name and press "Create role".
-![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step3.png)
+![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step3.png)
 
 ## Step 4/5. Give Teleport permissions to assume roles
 

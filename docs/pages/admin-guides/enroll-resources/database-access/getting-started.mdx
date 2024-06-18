@@ -7,10 +7,10 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Self-Hosted](../../img/database-access/guides/rds_selfhosted.png)
+![Teleport Database Access RDS Self-Hosted](../../../../img/database-access/guides/rds_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access RDS Cloud](../../img/database-access/guides/rds_cloud.png)
+![Teleport Database Access RDS Cloud](../../../../img/database-access/guides/rds_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -83,7 +83,7 @@ GRANT rds_iam TO alice;
 For more information about connecting to the PostgreSQL instance directly,
 see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html).
 
-See the [Automatic User Provisioning](./rbac.mdx) guide for how to configure Teleport to create accounts for your PostgreSQL users on demand.
+See the [Automatic User Provisioning](rbac.mdx) guide for how to configure Teleport to create accounts for your PostgreSQL users on demand.
 
 ## Step 2/5. Configure the Teleport Database Service
 
@@ -239,8 +239,8 @@ $ tsh db connect --db-user=alice --db-name postgres aurora
 For the next steps, dive deeper into the topics relevant to your Database
 Access use-case, for example:
 
-- Check out configuration [guides](./guides.mdx).
-- Learn how to configure [GUI clients](../connect-your-client/gui-clients.mdx).
-- Learn about database access [role-based access control](./rbac.mdx).
-- See [frequently asked questions](./faq.mdx).
+- Check out configuration [guides](../../../index.mdx).
+- Learn how to configure [GUI clients](../../../connect-your-client/gui-clients.mdx).
+- Learn about database access [role-based access control](rbac.mdx).
+- See [frequently asked questions](../../../reference/faq/database-access.mdx).
 

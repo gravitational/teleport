@@ -1,16 +1,16 @@
 ### "binary missing signature or entitlements" on `tsh device enroll`
 
 A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
-device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
+device. [Download the macOS tsh installer](../../get-started/download-install/installation.mdx) to fix
 the problem.
 
 ### "unauthorized device" errors using a trusted device
 
 A trusted device needs to be registered and enrolled before it is recognized by
 Teleport as such. Follow the [registration](
-../../access-controls/device-trust/device-management.mdx#register-a-trusted-device) and
+../../admin-guides/authentication/device-trust/device-management.mdx#register-a-trusted-device) and
 [enrollment](
-../../access-controls/device-trust/device-management.mdx#enroll-a-trusted-device) steps
+../../admin-guides/authentication/device-trust/device-management.mdx#enroll-a-trusted-device) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
 
 ### "Failed to open the TPM device" on Linux
@@ -31,7 +31,7 @@ Follow the instructions in the [Web UI troubleshooting section](
 
 Alternatively, you may use one of the tsh commands described by
 [App Access support](
-../../access-controls/device-trust/enforcing-device-trust.mdx#app-access-support).
+../../admin-guides/authentication/device-trust/enforcing-device-trust.mdx#app-access-support).
 For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
 open http://localhost:8888 in your browser.
 
@@ -52,7 +52,7 @@ login. If you are not asked to authenticate your device immediately after login,
 follow the steps below:
 
 1. Make sure your device is [registered and enrolled](
-   ../../access-controls/device-trust/device-management.mdx#register-a-trusted-device)
+   ../../admin-guides/authentication/device-trust/device-management.mdx#register-a-trusted-device)
 2. Install [Teleport Connect](
    ../../connect-your-client/teleport-connect.mdx#installation--upgrade).
    Use the DEB or RPM packages on Linux (the tarball doesn't register the custom

@@ -17,7 +17,7 @@ provides the following key features:
 - Enables system administrators to use TLS routing feature to compress all ports for all protocols 
   to one TLS port using TLS routing feature.
 
-![Proxy service](../../img/architecture/proxy.png)
+![Proxy service](../../../img/architecture/proxy.png)
 
 <Notice type="tip">
 To create a minimal Teleport cluster, you have run two services:
@@ -30,7 +30,7 @@ you can run both services as a one binary and process.
 In Web UI, Teleport Proxy implements WSS - secure web sockets - to proxy a
 target resource, for example SSH server or Desktop:
 
-![Teleport Proxy Web](../../img/architecture/proxy-web-to-resource@1.2x.png)
+![Teleport Proxy Web](../../../img/architecture/proxy-web-to-resource@1.2x.png)
 
 <Admonition
   type="note"
@@ -43,7 +43,7 @@ target resource, for example SSH server or Desktop:
 
 In IAP mode, users initiate the SSO or login flow to sign public keys on their client machines:
 
-![Teleport Proxy IAP](../../img/architecture/proxy-iap-to-resource@1.2x.png)
+![Teleport Proxy IAP](../../../img/architecture/proxy-iap-to-resource@1.2x.png)
 
 <Admonition
   type="note"
@@ -61,7 +61,7 @@ Proxies will forward client's connections to target resources via those tunnels.
 
 In the example below, Alice connects to kubernetes cluster behind firewall via two tunnels:
 
-![Teleport Proxy Tunnel](../../img/architecture/proxy-tunnel@1.2x.png)
+![Teleport Proxy Tunnel](../../../img/architecture/proxy-tunnel@1.2x.png)
 
 <Notice type="tip">
 All modes above are turned on by default in Proxies. No special configuration is necessary, unless you
@@ -71,7 +71,7 @@ want to turn some of those modes off.
 ## More concepts
 
 - [TLS Routing](tls-routing.mdx)
-- [Architecture Overview](../core-concepts.mdx)
+- [Architecture Overview](../../get-started/core-concepts.mdx)
 - [Teleport Authentication](authentication.mdx)
 - [Teleport Authorization](authorization.mdx)
 - [Teleport Proxy](proxy.mdx)

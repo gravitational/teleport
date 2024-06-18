@@ -77,7 +77,7 @@ discover instances.
   - `iam.serviceAccounts.get`
   - `iam.serviceAccounts.list`
 
-  ![Custom role](../../../img/server-access/guides/gcp/custom-role@2x.png)
+  ![Custom role](../../../../../img/server-access/guides/gcp/custom-role@2x.png)
 
   Click *Create*.
 
@@ -86,13 +86,13 @@ discover instances.
   (e.g. `teleport-discovery`) and copy its email address to your clipboard.
   Click *Create and Continue*.
 
-  ![Service account](../../../img/server-access/guides/gcp/create-service-account@2x.png)
+  ![Service account](../../../../../img/server-access/guides/gcp/create-service-account@2x.png)
 
   Go to [IAM](https://console.cloud.google.com/iam-admin/iam) and click *Grant Access*.
   Paste the service account's email into the *New principals* field and select
   your custom role. Click *Save*.
 
-  ![Role assignment](../../../img/server-access/guides/gcp/assign-role-to-service-account@2x.png)
+  ![Role assignment](../../../../../img/server-access/guides/gcp/assign-role-to-service-account@2x.png)
 </TabItem>
 <TabItem label="gcloud">
   Copy the following and paste it into a file called `teleport-discovery-role.yaml`:
@@ -275,6 +275,6 @@ for details on alternate methods.
 - Read [Joining Services via GCP](../../agents/join-services-to-your-cluster/gcp.mdx)
   for more information on GCP tokens.
 - Full documentation on GCP discovery configuration can be found through the [
-  config file reference documentation](../../reference/config.mdx).
+  config file reference documentation](../../../../reference/config-references/config.mdx).
 - The complete default installer can be found [with the Teleport source
 ](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

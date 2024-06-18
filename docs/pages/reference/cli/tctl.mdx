@@ -46,7 +46,7 @@ file, then the configuration file is ignored.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../access-controls/introduction.mdx) and ensure that
+  [Access Controls](../../index.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -327,7 +327,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-id/introduction.mdx) is a more secure alternative that
+[Machine ID](../../admin-guides/enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -504,7 +504,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../config-references/resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -1216,7 +1216,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/authentication/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags

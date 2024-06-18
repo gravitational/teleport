@@ -329,7 +329,7 @@ We recommend using ACM if possible as it will simplify certificate management fo
 $ export TF_VAR_use_tls_routing="true"
 ```
 
-If set to the string `true`, Teleport will use [TLS routing](../../architecture/tls-routing.mdx) to multiplex all traffic over a single port.
+If set to the string `true`, Teleport will use [TLS routing](../../../../reference/architecture/tls-routing.mdx) to multiplex all traffic over a single port.
 This setting should always be used unless you have a specific need to use separate ports in your setup, as it simplifies deployment.
 
 For the simplest, cheapest deployment, enable both ACM and TLS routing to funnel all traffic through a single Application Load Balancer with an AWS-managed certificate.
@@ -348,7 +348,7 @@ The default is `local`.
 - Teleport Enterprise Edition supports `local`, `github`, `oidc`, or `saml`
 - Teleport Enterprise FIPS deployments have local authentication disabled, so should use `github`, `oidc`, or `saml`
 
-See the [Teleport authentication reference](../../reference/authentication.mdx) for more information.
+See the [Teleport authentication reference](../../../../reference/operations/authentication.mdx) for more information.
 
 ## Reference deployment defaults
 
@@ -376,7 +376,7 @@ table for cluster state will be the same as the cluster name configured in the [
 
 In our example, the DynamoDB table would be called `teleport-example`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../../reference/operations/backends.mdx).
 
 ### Audit event storage
 
@@ -386,7 +386,7 @@ with `-events` appended to the end.
 
 In our example, the DynamoDB table would be called `teleport-example-events`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../../reference/operations/backends.mdx).
 
 ### Recorded session storage
 
@@ -786,15 +786,15 @@ $ journalctl -u teleport-node.service
 ## Adding agents to your Teleport cluster
 
 Customers run many workloads within AWS and depending on how you work, there are many
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../../get-started/download-install/installation.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../installation.mdx)
-- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
-- [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
+- [Install the Teleport binary on the Server](../../../../get-started/download-install/installation.mdx)
+- [Run Teleport - we recommend using systemd](../../../common-operations/daemon.mdx)
+- [Set the correct settings in /etc/teleport.yaml](../../../../reference/config-references/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../agents/join-services-to-your-cluster.mdx)
+  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/overview.mdx)
 
 ### Getting the SSH Service join token
 
@@ -806,13 +806,13 @@ $ aws ssm get-parameter --region <Var name="us-west-2" /> --name "/teleport/${CL
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../agents/join-services-to-your-cluster/join-token.mdx).
+You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 ### Joining agents to the cluster
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport agents to your cluster, you will need [a join token](../../agents/join-services-to-your-cluster/join-token.mdx).
+To manually join Teleport agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.
@@ -834,7 +834,7 @@ spec:
 ```
 
 You can generate a token for adding the trusted cluster using `tctl tokens add --type=trusted_cluster` after connecting
-to a Teleport Auth Service instance. Follow the instructions in our [Trusted Clusters guide](../../management/admin/trustedclusters.mdx).
+to a Teleport Auth Service instance. Follow the instructions in our [Trusted Clusters guide](../../../access-controls/trustedclusters.mdx).
 
 ## Script to quickly connect to instances
 

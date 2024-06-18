@@ -55,7 +55,7 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx)
 to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
@@ -272,13 +272,13 @@ admin user through Teleport.
 ## Next steps
 
 - Connect using your [GUI database
-  client](../../connect-your-client/gui-clients.mdx).
+  client](../../../../connect-your-client/gui-clients.mdx).
 - Learn about [role
-  templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
+  templating](../../../access-controls/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
 - Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 - The `internal.db_roles` traits we illustrated in this guide
   are replaced with values from the Teleport local user database. For full
   details on how variable expansion works in Teleport roles, see the [Teleport
-  Access Controls Reference](../../access-controls/reference.mdx).
+  Access Controls Reference](../../../../reference/rbac/teleport-roles.mdx).
 

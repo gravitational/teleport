@@ -11,10 +11,10 @@ description: How to configure Teleport database access with Oracle.
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
-![Teleport Database Access Self-hosted Oracle](../../../img/database-access/guides/oracle_selfhosted.png)
+![Teleport Database Access Self-hosted Oracle](../../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Oracle Cloud](../../../img/database-access/guides/oracle_selfhosted_cloud.png)
+![Teleport Database Access Oracle Cloud](../../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -34,7 +34,7 @@ description: How to configure Teleport database access with Oracle.
 
 <Admonition type="tip">
 
-To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../../database-access/rbac.mdx)
+To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../rbac.mdx)
 
 </Admonition>
 
@@ -59,7 +59,7 @@ $ tctl users add \
 </Admonition>
 
 For more detailed information about database access controls and how to restrict
-access see [RBAC](../../database-access/rbac.mdx) documentation.
+access see [RBAC](../rbac.mdx) documentation.
 
 ## Step 2/6. Create a certificate/key pair and Teleport Oracle Wallet
 
@@ -164,7 +164,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+  (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
   (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" !)
 

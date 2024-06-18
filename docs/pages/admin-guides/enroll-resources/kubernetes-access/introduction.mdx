@@ -15,20 +15,20 @@ Teleport provides secure access to Kubernetes clusters:
 The guides in this section show you how to protect Kubernetes clusters with
 Teleport. For instructions on self-hosting Teleport Community Edition or
 Teleport Enterprise on Kubernetes, see the [Kubernetes Deployment
-Guides](../deploy-a-cluster/helm-deployments.mdx).
+Guides](../../../index.mdx).
 
 Here is an example of using Teleport to access a Kubernetes cluster, execute
 commands, and view your `kubectl`  activity in Teleport's audit log:
 
-![Kubernetes access architecture](../../img/k8s/architecture-diagram.png)
+![Kubernetes access architecture](../../../../img/k8s/architecture-diagram.png)
 
 You can set up the Teleport Discovery Service to protect Kubernetes clusters
 with your Teleport automatically. Read more about [Teleport
-auto-discovery](../auto-discovery/kubernetes.mdx).
+auto-discovery](../auto-discovery/kubernetes/overview.mdx).
 
 Teleport protects Kubernetes clusters through the Teleport Kubernetes Service,
 which is a Teleport agent service. For more information on agent services, read
-[Teleport Agent Architecture](../architecture/agents.mdx). You can also learn
+[Teleport Agent Architecture](../../../reference/architecture/agents.mdx). You can also learn
 how to deploy a [pool of Teleport agents](../agents/introduction.mdx) to run
 multiple agent services.
 
@@ -45,13 +45,13 @@ In some cases, you will want to register a Kubernetes cluster with Teleport
 manually when you create the cluster. There are a few ways to do this:
 
 - [Deploy the Teleport Kubernetes
-  Service with IAM Joining](./register-clusters/iam-joining.mdx) on your cluster of
+  Service with IAM Joining](register-clusters/iam-joining.mdx) on your cluster of
   choice.
 - Deploy the Teleport Kubernetes Service outside your Kubernetes cluster (e.g.,
   directly on a virtual machine) and [give it access to a
-  kubeconfig](./register-clusters/static-kubeconfig.mdx).
+  kubeconfig](register-clusters/static-kubeconfig.mdx).
 - Deploy the Teleport Kubernetes Service outside of Kubernetes  and [use dynamic
-  configuration resources](./register-clusters/dynamic-registration.mdx) to
+  configuration resources](register-clusters/dynamic-registration.mdx) to
   register your clusters.
 
 ## Configure access to Kubernetes clusters
@@ -59,10 +59,10 @@ manually when you create the cluster. There are a few ways to do this:
 Once you register a Kubernetes cluster with Teleport, you can apply fine-grained
 access controls to manage the way users access your cluster.
 
-Read our [Kubernetes RBAC guide](./manage-access.mdx) for step-by-step
+Read our [Kubernetes RBAC guide](manage-access.mdx) for step-by-step
 instructions on giving your users the correct access to Kubernetes clusters,
 groups, users, and resources.
 
 For a comprehensive reference to configuring access controls in your
 Teleport-registered Kubernetes clusters, see our [Access Controls
-Reference](./controls.mdx).
+Reference](../../../reference/agents/controls.mdx).

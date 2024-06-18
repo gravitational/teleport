@@ -12,7 +12,7 @@ of the following values:
 | - | - |
 | `cloud`   | database resources created by auto-discovery. |
 | `config`  | database resources manually defined in the `database_service.databases` section of `teleport.yaml`. |
-| `dynamic` | database resources created through [dynamic registration](../guides/dynamic-registration.mdx) like `tcl create` command. |
+| `dynamic` | database resources created through [dynamic registration](../../admin-guides/enroll-resources/database-access/guides/dynamic-registration.mdx) like `tcl create` command. |
 
 ## Auto-discovery
 
@@ -65,11 +65,11 @@ The following values are used to indicate the type of the database endpoint:
 
 Static labels and dynamic labels can be specified in `labels` and
 `dynamic_labels` fields respectively in database definition. See
-[Configuration](./configuration.mdx) for reference.
+[Configuration](../config-references/database-access.mdx) for reference.
 
 ## Database Service on Amazon EC2
 
 All registered databases can inherit the labels converted from the tags of the
 EC2 instance running the Teleport Database Service. Labels created this way
 will have the `aws/` prefix. See [Sync EC2
-Tags](../../management/guides/ec2-tags.mdx) for more details.
+Tags](../../admin-guides/access-controls/labels/ec2-tags.mdx) for more details.

@@ -26,7 +26,7 @@ The main changes in version 12 of the `teleport-cluster` chart are:
 - The values `standalone.*` that were previously deprecated in favor of `persistence`
   have been removed.
 - The chart can now be scaled up in `standalone` mode. Proxy replication requires
-  a TLS certificate; Auth replication requires using [HA storage backends](../../reference/backends.mdx).
+  a TLS certificate; Auth replication requires using [HA storage backends](../../../../reference/operations/backends.mdx).
 
 <Admonition type="warning" title="Version compatibility">
 The chart has always been versioned with Teleport but was often compatible with
@@ -37,7 +37,7 @@ v12 requires at least Teleport v12.
 ## How to upgrade
 
 If you are running Kubernetes 1.23 and above, follow our
-[Kubernetes 1.25 PSP removal guide](./migration-kubernetes-1-25-psp.mdx).
+[Kubernetes 1.25 PSP removal guide](migration-kubernetes-1-25-psp.mdx).
 
 Then, the upgrade path mainly depends on the `chartMode` used. If you used a "managed"
 mode like `aws`, `gcp` or `standalone` it should be relatively straightforward.
@@ -45,7 +45,7 @@ If you relied on the `custom` chart mode, you will have to perform configuration
 
 Before upgrading, always:
 
-- [backup the cluster content](../../management/operations/backup-restore.mdx),
+- [backup the cluster content](../../../common-operations/backup-restore.mdx),
 - test the upgrade in a non-production environment.
 
 <Admonition type="warning">

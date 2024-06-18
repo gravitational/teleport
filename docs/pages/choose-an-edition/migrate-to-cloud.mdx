@@ -31,10 +31,10 @@ Enterprise cluster:
 - An existing Teleport Enterprise (self-hosted) cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](../management/dynamic-resources/terraform-provider.mdx) and
+  Terraform provider](../admin-guides/configure-teleport/dynamic-resources/terraform-provider.mdx) and
   [Kubernetes
-  operator](../management/dynamic-resources/teleport-operator-standalone.mdx), in
-  addition to custom scripts that use the [Teleport API](../api/introduction.mdx)
+  operator](../admin-guides/configure-teleport/dynamic-resources/teleport-operator-standalone.mdx), in
+  addition to custom scripts that use the [Teleport API](../index.mdx)
   to manage the Teleport Auth Service backend.
 - An account with no trusted clusters enrolled. Trusted clusters are not
   supported in cloud-hosted Teleport Enterprise accounts. You will not be able
@@ -109,7 +109,7 @@ cluster uses a separate Auth Service backend from your cloud-hosted cluster, you
 must retrieve the resources on the first backend, then re-apply them against the
 second backend.
 
-Review the [dynamic resources](../reference/resources.mdx)
+Review the [dynamic resources](../reference/config-references/resources.mdx)
 list to see if any other resources need to be migrated. Some common dynamic
 resources includes:
 
@@ -173,7 +173,7 @@ To migrate Teleport agents:
 
 1. For each agent and Machine ID bot, obtain a valid join token. We recommend
    using a [delegated join
-   method](../reference/join-methods.mdx#delegated-join-methods).
+   method](../reference/operations/join-methods.mdx).
 
 1. If using ephemeral tokens, ensure you specify the appropriate token type to
    match the Teleport services. Token types can include `node`, `app`, `kube`,
@@ -257,7 +257,7 @@ In general, you can migrate a Machine ID bot using the following steps:
 1. Restart `tbot`.
 
 To learn how to restart and configure a Machine ID bot in your infrastructure,
-read the [full documentation](../machine-id/deployment.mdx) on deploying a
+read the [full documentation](../admin-guides/enroll-resources/machine-id/deployment/overview.mdx) on deploying a
 Machine ID Bot.
 
 ### Access Request plugins and the Event Handler
@@ -344,4 +344,4 @@ your new Teleport cluster, ensure that the setup is complete.
 
 For more information on using cloud-hosted Teleport Enterprise, refer to our
 documentation on [signing up for a cloud-hosted Teleport Enterprise
-account](./teleport-cloud/introduction.mdx).
+account](../index.mdx).

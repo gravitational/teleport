@@ -9,7 +9,7 @@ metadata of the database servers, generating IAM authentication tokens, and
 assuming IAM roles.
 
 You can generate IAM permissions with the [`teleport db configure aws
-print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure-aws-print-iam)
+print-iam`](../cli/database-commands.mdx)
 command. For example, the following command would generate and print the IAM
 policies:
 
@@ -281,7 +281,7 @@ performs auto-discovery:
 
 ### Redshift access
 As mentioned in the [Redshift
-guide](../enroll-aws-databases/postgres-redshift.mdx#step-36-create-an-iam-role-for-user-access-optional),
+guide](../../admin-guides/enroll-resources/database-access/enroll-aws-databases/postgres-redshift.mdx),
 Teleport supports IAM authentication as either an existing database user or an IAM
 role for Redshift.
 

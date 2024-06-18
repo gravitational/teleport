@@ -123,7 +123,7 @@ $ helm install example-grafana grafana/grafana \
 
 <Tabs>
 <TabItem label="Docker">
-Select a Teleport edition, then follow the [Installation](../installation.mdx) instructions 
+Select a Teleport edition, then follow the [Installation](../../../get-started/download-install/installation.mdx) instructions 
 for your environment.
 
 To install on Linux:
@@ -154,7 +154,7 @@ access to a different web application.
 </TabItem>
 <TabItem label="Kubernetes cluster">
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 Install the `teleport-kube-agent` Helm chart into your Kubernetes cluster to proxy Grafana
 with a command similar to the following:
@@ -222,8 +222,8 @@ You are prompted to sign in if you haven't already been authenticated.
 
 Learn more about protecting applications with Teleport in the following topics:
 
-- [Connecting applications](./guides/connecting-apps.mdx).
-- Integrating with [JWT tokens](./jwt/introduction.mdx).
-- Accessing applications with [RESTful APIs](./guides/api-access.mdx).
-- Setting configuration options AND running CLI commands in the [Application Access reference](./reference.mdx).
+- [Connecting applications](guides/connecting-apps.mdx).
+- Integrating with [JWT tokens](jwt/introduction.mdx).
+- Accessing applications with [RESTful APIs](guides/api-access.mdx).
+- Setting configuration options AND running CLI commands in the [Application Access reference](../../../reference/agents/application-access.mdx).
 - Using the Let's Encrypt [ACME protocol](https://letsencrypt.org/how-it-works/).
