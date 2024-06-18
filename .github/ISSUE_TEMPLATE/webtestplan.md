@@ -994,10 +994,10 @@ Add the following to enable read access to trusted clusters
     yet.
   - Verify that VNet works for TCP apps within:
     - [ ] a root cluster
-    - [ ] a custom DNS zone of a root cluster
+    - [ ] [a custom DNS zone](https://goteleport.com/docs/application-access/guides/vnet/) of a root cluster
     - [ ] a leaf cluster
     - [ ] a custom DNS zone of a leaf cluster
-  - [ ] Verify that setting a custom IPv4 CIDR range works.
+  - [ ] Verify that setting [a custom IPv4 CIDR range](https://goteleport.com/docs/application-access/guides/vnet/#configuring-ipv4-cidr-range) works.
   - [ ] Verify that Connect asks for relogin when attempting to connect to an app after cert expires.
     - Be mindful that you need to connect to the app at least once before the cert expires for
       Connect to properly recognize it as a TCP app.
