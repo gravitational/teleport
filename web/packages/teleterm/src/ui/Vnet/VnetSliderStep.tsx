@@ -21,6 +21,7 @@ import { StepComponentProps } from 'design/StepSlider';
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { useRefAutoFocus } from 'shared/hooks';
+import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
@@ -112,7 +113,11 @@ const ErrorText = (props: PropsWithChildren) => (
  * optimistically displays previously fetched results while fetching new list.
  */
 const DnsZones = () => {
-  const { listDNSZones, listDNSZonesAttempt } = useVnetContext();
+  const { listDNSZones, listDNSZonesAttempt: eagerListDNSZonesAttempt } =
+    useVnetContext();
+  const listDNSZonesAttempt = useDelayedRepeatedAttempt(
+    eagerListDNSZonesAttempt
+  );
   const dnsZonesRefreshRequestedRef = useRef(false);
 
   useEffect(function refreshListOnOpen() {
