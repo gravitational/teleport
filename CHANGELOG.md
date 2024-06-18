@@ -19,8 +19,7 @@ Teleport Assist chat has been removed from Teleport 16.
 #### DynamoDB permission requirements have changed
 
 Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
-permission. For a full list of all required permissions see the dynamo backend iam
-policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
+permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/backends.mdx#dynamodb).
 
 #### Disabling second factor authentication_type
 
