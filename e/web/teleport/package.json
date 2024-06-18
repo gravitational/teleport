@@ -15,8 +15,7 @@
   "//": "when adding e-only depenedencies, do not update this file. Add them to web/packages/e-imports/package.json.",
   "dependencies": {
     "@gravitational/e-imports": "^1.0.0",
-    "@gravitational/teleport": "^1.0.0",
-    "cross-env": "5.0.5"
+    "@gravitational/teleport": "^1.0.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0"
