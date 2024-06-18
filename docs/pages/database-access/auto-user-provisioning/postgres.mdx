@@ -259,10 +259,15 @@ be replicated. Consequently, Amazon RDS will enter the "Replication degraded"
 state when a DDL change is detected.
 
 It is recommended to disable database auto-user provisioning before starting
-the Blue/Green deployment. For example, you can temporarily remove the
-`teleport.dev/db-admin` resource tag from the auto-discovered RDS databases.
-Once Teleport detects the change and disables auto-user provisioning, you can
-still connect as the database admin user through Teleport.
+the Blue/Green deployment.
+
+If the database is auto-discovered by Teleport, you can temporarily remove the
+`teleport.dev/db-admin` AWS resource tag. For a database registered using
+either static config or a dynamic `db` resource, you can temporarily remove the
+`admin_user` setting.
+
+Once auto-user provisioning is disabled, you can still connect as the database
+admin user through Teleport.
 
 ## Next steps
 
