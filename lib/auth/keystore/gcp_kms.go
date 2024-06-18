@@ -56,8 +56,8 @@ type pendingRetryTag struct{}
 
 var (
 	gcpKMSProtectionLevels = map[string]kmspb.ProtectionLevel{
-		"SOFTWARE": kmspb.ProtectionLevel_SOFTWARE,
-		"HSM":      kmspb.ProtectionLevel_HSM,
+		servicecfg.GCPKMSProtectionLevelHSM:      kmspb.ProtectionLevel_HSM,
+		servicecfg.GCPKMSProtectionLevelSoftware: kmspb.ProtectionLevel_SOFTWARE,
 	}
 )
 
