@@ -63,7 +63,7 @@ export function Logins(props: LoginsProps) {
           type="submit"
           size="large"
           disabled={
-            !loginInput.length || props.selectedResources['login'][loginInput]
+            !loginInput.length || !!props.selectedResources['login'][loginInput]
           }
         >
           + Add Login
