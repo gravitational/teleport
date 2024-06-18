@@ -69,7 +69,7 @@ func yubiHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       yubiHSMPath,
 			SlotNumber: &slotNumber,
-			Pin:        yubiHSMPin,
+			PIN:        yubiHSMPin,
 		},
 	}, true
 }
@@ -83,7 +83,7 @@ func cloudHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 			TokenLabel: "cavium",
-			Pin:        cloudHSMPin,
+			PIN:        cloudHSMPin,
 		},
 	}, true
 }
@@ -183,7 +183,7 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       path,
 			TokenLabel: tokenLabel,
-			Pin:        "password",
+			PIN:        "password",
 		},
 	}
 	return *cachedSoftHSMConfig, true

@@ -53,7 +53,7 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 		Path:       config.Path,
 		TokenLabel: config.TokenLabel,
 		SlotNumber: config.SlotNumber,
-		Pin:        config.Pin,
+		Pin:        config.PIN,
 	}
 
 	ctx, err := crypto11.Configure(cryptoConfig)
