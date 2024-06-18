@@ -15,9 +15,9 @@ using one of our delegated join methods.
 This implementation differs from using Teleport's Application Access to protect
 AWS APIs in a few ways:
 
-- Requests to AWS are not proxied through Teleport, meaning reduced latency but
-  also less visibility, as these requests will not be recorded in Teleport's
-  audit log.
+- Requests to AWS are not proxied through the Teleport Proxy Service, meaning
+  reduced latency but also less visibility, as these requests will not be
+  recorded in Teleport's audit log.
 - Workload ID works with any AWS client, including the command-line tool but also
   their SDKs
 - Using Teleport Application Access to access AWS does not work with Machine ID
