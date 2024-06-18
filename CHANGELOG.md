@@ -12,10 +12,9 @@ Opsgenie plugin users, role annotations must now contain
 See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
 for setup instructions.
 
-#### Teleport Assist chat has been removed
+#### Teleport Assist has been removed
 
-Teleport Assist chat has been removed from Teleport 16. Assist is still available
-in the SSH Web Terminal and Audit Monitoring.
+Teleport Assist chat has been removed from Teleport 16.
 
 #### DynamoDB permission requirements have changed
 
@@ -129,7 +128,7 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
 1. Remote Session Environment > Limit maximum color depth
 
 Detailed instructions are available in the
-[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
 A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`

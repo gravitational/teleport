@@ -196,7 +196,7 @@ export function LockCheckout({
       `}
     >
       <Dimmer className={transitionState} />
-      <SidePanel state={transitionState} className={transitionState}>
+      <SidePanel className={transitionState}>
         {attempt.status === 'success' ? (
           <Box>
             <Box mt={2} mb={7} textAlign="center">

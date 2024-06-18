@@ -27,13 +27,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -53,35 +52,102 @@ func (rt contextRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 
 type metadataGetter func(ctx context.Context, path string) (string, error)
 
+// InstanceRequest contains parameters for making a request to a specific instance.
+type InstanceRequest struct {
+	// ProjectID is the ID of the VM's project.
+	ProjectID string
+	// Zone is the instance's zone.
+	Zone string
+	// Name is the instance's name.
+	Name string
+	// ID is the instance's ID.
+	ID uint64
+	// WithoutHostKeys indicates that the client should not request the instance's
+	// host keys.
+	WithoutHostKeys bool
+}
+
+func (req *InstanceRequest) CheckAndSetDefaults() error {
+	if req.ProjectID == "" {
+		return trace.BadParameter("projectID must be set")
+	}
+	if req.Zone == "" {
+		return trace.BadParameter("zone must be set")
+	}
+	if req.Name == "" {
+		return trace.BadParameter("name must be set")
+	}
+	return nil
+}
+
+// Instance represents a GCP VM.
+type Instance struct {
+	// Name is the instance's name.
+	Name string
+	// Zone is the instance's zone.
+	Zone string
+	// ProjectID is the ID of the project the VM is in.
+	ProjectID string
+	// ServiceAccount is the email address of the VM's service account, if any.
+	ServiceAccount string
+	// Labels is the instance's labels.
+	Labels map[string]string
+	// InternalIPAddress is the instance's private ip.
+	InternalIPAddress string
+	// ExternalIPAddress is the instance's public ip.
+	ExternalIPAddress string
+	// HostKeys contain any public keys associated with the instance.
+	HostKeys []ssh.PublicKey
+	// Fingerprint is generated server-side and used to enforce optimistic
+	// locking. It must be unaltered and provided to any update requests to
+	// prevent requests being rejected.
+	Fingerprint string
+	// MetadataItems are key value pairs associated with the instance.
+	MetadataItems map[string]string
+}
+
+// InstanceGetter provides a mechanism to retrieve information about a
+// particular instannce.
+type InstanceGetter interface {
+	// GetInstance gets a GCP VM.
+	GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error)
+	// GetInstanceTags gets the GCP tags for the instance.
+	GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error)
+}
+
 // InstanceMetadataClient is a client for GCP instance metadata.
 type InstanceMetadataClient struct {
-	instancesClient gcp.InstancesClient
-	getMetadata     metadataGetter
-
-	labelPermissionErrorOnce sync.Once
-	tagPermissionErrorOnce   sync.Once
+	getMetadata    metadataGetter
+	instanceGetter InstanceGetter
 }
 
 // NewInstanceMetadataClient creates a new instance metadata client.
-func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, error) {
-	instancesClient, err := gcp.NewInstancesClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewInstanceMetadataClient(getter InstanceGetter) (*InstanceMetadataClient, error) {
 	return &InstanceMetadataClient{
-		instancesClient: instancesClient,
-		getMetadata:     getMetadata,
+		getMetadata:    getMetadata,
+		instanceGetter: getter,
 	}, nil
 }
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	instanceData, err := client.getMetadata(ctx, "instance")
-	return err == nil && instanceData != ""
+	_, err := client.getNumericID(ctx)
+	return err == nil
 }
 
-// GetTags gets all of the GCP instance's labels (note: these are separate from
-// its tags, which we do not use).
+func (client *InstanceMetadataClient) getNumericID(ctx context.Context) (uint64, error) {
+	idStr, err := client.GetID(ctx)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		return 0, trace.BadParameter("Invalid instance ID %q", idStr)
+	}
+	return id, nil
+}
+
+// GetTags gets all the GCP instance's labels and tags.
 func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
 	// Get a bunch of info from instance metadata.
 	projectID, err := client.GetProjectID(ctx)
@@ -96,16 +162,12 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	idStr, err := client.GetID(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	id, err := client.getNumericID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req := &gcp.InstanceRequest{
+	req := &InstanceRequest{
 		ProjectID:       projectID,
 		Zone:            zone,
 		Name:            name,
@@ -114,23 +176,20 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	}
 	// Get labels.
 	var gcpLabels map[string]string
-	inst, err := client.instancesClient.GetInstance(ctx, req)
+	inst, err := client.instanceGetter.GetInstance(ctx, req)
 	if err == nil {
 		gcpLabels = inst.Labels
 	} else if trace.IsAccessDenied(err) {
-		client.labelPermissionErrorOnce.Do(func() {
-			slog.WarnContext(ctx, "Access denied to instance labels, does the instance have compute.instances.get permission?")
-		})
+		slog.WarnContext(ctx, "Access denied to instance labels, does the instance have compute.instances.get permission?")
+
 	} else {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get tags.
-	gcpTags, err := client.instancesClient.GetInstanceTags(ctx, req)
+	gcpTags, err := client.instanceGetter.GetInstanceTags(ctx, req)
 	if trace.IsAccessDenied(err) {
-		client.tagPermissionErrorOnce.Do(func() {
-			slog.WarnContext(ctx, "Access denied to resource management tags, does the instance have compute.instances.listEffectiveTags permission?")
-		})
+		slog.WarnContext(ctx, "Access denied to resource management tags, does the instance have compute.instances.listEffectiveTags permission?")
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}

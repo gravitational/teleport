@@ -205,8 +205,13 @@ func testDatabaseLogin(t *testing.T) {
 				}, {
 					Name:         "mssql",
 					Protocol:     defaults.ProtocolSQLServer,
-					URI:          "localhost:1433",
+					URI:          "sqlserver.example.com:1433",
 					StaticLabels: map[string]string{"env": "dev"},
+					AD: servicecfg.DatabaseAD{
+						KeytabFile: "/etc/keytab",
+						Domain:     "EXAMPLE.COM",
+						SPN:        "MSSQLSvc/sqlserver.example.com:1433",
+					},
 				}, {
 					Name:         "dynamodb",
 					Protocol:     defaults.ProtocolDynamoDB,

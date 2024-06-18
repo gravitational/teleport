@@ -24,7 +24,6 @@ import (
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -175,8 +174,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
+	// Holds any messages withheld while issuing certs.
+	var withheld []tdp.Message
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
-	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq)
+	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq, &withheld)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -222,11 +223,15 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	for _, msg := range h.withheldMessages {
+	for _, msg := range withheld {
+		log.Debugf("Sending withheld message: %v", msg)
 		if err := tdpConn.WriteMessage(msg); err != nil {
 			return sendTDPError(err)
 		}
 	}
+	// nil out the slice so we don't hang on to these messages
+	// for the rest of the connection
+	withheld = nil
 
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
@@ -314,9 +319,10 @@ func (h *Handler) issueCerts(
 	sctx *SessionContext,
 	mfaRequired bool,
 	certsReq *proto.UserCertsRequest,
+	withheld *[]tdp.Message,
 ) (certs *proto.Certs, err error) {
 	if mfaRequired {
-		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq)
+		certs, err = h.performMFACeremony(ctx, ws, sctx, certsReq, withheld)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -363,6 +369,7 @@ func (h *Handler) performMFACeremony(
 	ws *websocket.Conn,
 	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
+	withheld *[]tdp.Message,
 ) (_ *proto.Certs, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performMFACeremony")
 	defer func() {
@@ -413,7 +420,7 @@ func (h *Handler) performMFACeremony(
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				h.withheldMessages = append(h.withheldMessages, msg)
+				*withheld = append(*withheld, msg)
 				continue
 			}
 
@@ -657,27 +664,6 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
-// createCertificateBlob creates Certificate BLOB
-// It has following structure:
-//
-//	CertificateBlob {
-//		PropertyID: u32, little endian,
-//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
-//		Length: u32, little endian
-//		Value: certificate data
-//	}
-func createCertificateBlob(certData []byte) []byte {
-	buf := new(bytes.Buffer)
-	buf.Grow(len(certData) + 12)
-	// PropertyID for certificate is 32
-	binary.Write(buf, binary.LittleEndian, int32(32))
-	binary.Write(buf, binary.LittleEndian, int32(1))
-	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
-	buf.Write(certData)
-
-	return buf.Bytes()
-}
-
 // Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
 // TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -740,7 +726,7 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
 		"caCertPEM":          string(keyPair.Cert),
 		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
 		"provisionToken":     tokenStr,
 		"internalResourceID": internalResourceID,

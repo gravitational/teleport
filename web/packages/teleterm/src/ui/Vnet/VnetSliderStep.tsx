@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import { PropsWithChildren, useCallback } from 'react';
 import { StepComponentProps } from 'design/StepSlider';
 import { Box, Flex, Text } from 'design';
 import { mergeRefs } from 'shared/libs/mergeRefs';
@@ -24,6 +24,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import * as whatwg from 'whatwg-url';
 
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { useVnetContext } from './vnetContext';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
@@ -42,7 +43,9 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     'clustersService',
     useCallback(state => state.clusters, [])
   );
-  const rootClusters = [...clusters.values()].filter(cluster => !cluster.leaf);
+  const rootClusters = [...clusters.values()].filter(
+    cluster => !cluster.leaf && cluster.connected
+  );
   const rootProxyHostnames = rootClusters.map(
     cluster => new whatwg.URL(`https://${cluster.proxyHost}`).hostname
   );
@@ -62,7 +65,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
       <VnetSliderStepHeader goBack={props.prev} />
       <Flex
         p={textSpacing}
-        gap={1}
+        gap={3}
         flexDirection="column"
         css={`
           &:empty {
@@ -71,24 +74,31 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         `}
       >
         {startAttempt.status === 'error' && (
-          <Text>Could not start VNet: {startAttempt.statusText}</Text>
+          <ErrorText>Could not start VNet: {startAttempt.statusText}</ErrorText>
         )}
         {stopAttempt.status === 'error' && (
-          <Text>Could not stop VNet: {stopAttempt.statusText}</Text>
+          <ErrorText>Could not stop VNet: {stopAttempt.statusText}</ErrorText>
         )}
 
         {status.value === 'stopped' &&
           (status.reason.value === 'unexpected-shutdown' ? (
-            <Text>
+            <ErrorText>
               VNet unexpectedly shut down:{' '}
               {status.reason.errorMessage ||
                 'no direct reason was given, please check logs'}
               .
-            </Text>
+            </ErrorText>
           ) : (
-            <Text>
-              VNet automatically authenticates connections to TCP apps.
-            </Text>
+            <Flex flexDirection="column" gap={1}>
+              <Text>
+                VNet enables any program to connect to TCP applications
+                protected by Teleport.
+              </Text>
+              <Text>
+                Start VNet and connect to any TCP app over its public address –
+                VNet authenticates the connection for you under the hood.
+              </Text>
+            </Flex>
           ))}
       </Flex>
 
@@ -102,7 +112,8 @@ export const VnetSliderStep = (props: StepComponentProps) => {
             {/* TODO(ravicious): Add leaf clusters and custom DNS zones when support for them
                 lands in VNet. */}
             <Text p={textSpacing}>
-              Proxying TCP connections to {rootProxyHostnames.join(', ')}
+              <ConnectionStatusIndicator status="on" inline mr={1} /> Proxying
+              TCP connections to {rootProxyHostnames.join(', ')}
             </Text>
           </>
         ))}
@@ -111,3 +122,10 @@ export const VnetSliderStep = (props: StepComponentProps) => {
 };
 
 const textSpacing = 1;
+
+const ErrorText = (props: PropsWithChildren) => (
+  <Text>
+    <ConnectionStatusIndicator status="error" inline mr={2} />
+    {props.children}
+  </Text>
+);

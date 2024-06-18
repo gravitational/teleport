@@ -319,7 +319,7 @@ export function DiscoveryConfigSsm() {
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

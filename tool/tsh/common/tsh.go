@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -82,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -909,6 +911,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.Labels)
+	dbList.Alias(dbListHelp)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
@@ -1568,18 +1571,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	return trace.Wrap(err)
 }
 
-// cloudAutomaticSamplingRate is the sampling rate at which traces are captured
-// when tracing is automatically enabled for invocations of some tsh commands
-// when performed against a cloud tenant.
-const cloudAutomaticSamplingRate = 0.25
-
-// isCloudTenant determines if the proxy address provided
-// belongs to a cloud tenant. It currently returns true if
-// the tenant is a production tenant.
-func isCloudTenant(proxyAddress string) bool {
-	return strings.HasSuffix(proxyAddress, ".teleport.sh:443")
-}
-
 func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
@@ -1596,14 +1587,11 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
-	// The list of commands that are automatically traced and forward to Cloud.
-	autoForwardedToCloud := []string{"ssh"}
-
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
-	samplingRate := 1.0
+	const samplingRate = 1.0
 
 	switch {
 	// kubectl is a special case because it is the only command that we re-execute
@@ -1641,7 +1629,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
-	case !cf.SampleTraces && !slices.Contains(autoForwardedToCloud, cf.command):
+	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
 	}
@@ -1652,18 +1640,6 @@ func initializeTracing(cf *CLIConf) func() {
 	if err != nil {
 		log.WithError(err).Debug("failed to set up span forwarding.")
 		return func() {}
-	}
-
-	if !cf.SampleTraces {
-		// Automatically enable and forward spans to Cloud if the following conditions are met:
-		// 1) The proxy address resembles that of a Cloud tenant
-		// 2) The command being executed is tsh ssh
-		// 3) The user has not already explicitly provided the --trace flag.
-		if isCloudTenant(tc.WebProxyAddr) {
-			samplingRate = cloudAutomaticSamplingRate
-		} else {
-			return func() {}
-		}
 	}
 
 	var provider *tracing.Provider
@@ -3000,6 +2976,8 @@ func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, a
 		rows:    rows,
 		verbose: verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, w, len(rows))
 }
 
 func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
@@ -3020,6 +2998,8 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 		showProxyAndCluster: true,
 		verbose:             cf.Verbose,
 	})
+
+	maybeShowListDatabasesHint(cf, cf.Stdout(), len(rows))
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
@@ -3396,28 +3376,29 @@ func retryWithAccessRequest(
 }
 
 func promptUserForAccessRequestDetails(cf *CLIConf, req types.AccessRequest) error {
-	if cf.RequestMode != accessRequestModeRole {
-		return nil
-	}
-	// If this is a role access request, ensure that it only has one role.
-	switch len(req.GetRoles()) {
-	case 0:
-		return trace.AccessDenied("no roles to request that would grant access")
-	case 1:
-		return nil
-	default:
-		selectedRole, err := prompt.PickOne(
-			cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
-			"Choose role to request",
-			req.GetRoles())
-		if err != nil {
-			return trace.Wrap(err)
+	if cf.RequestMode == accessRequestModeRole {
+		// If this is a role access request, ensure that it only has one role.
+		switch len(req.GetRoles()) {
+		case 0:
+			return trace.AccessDenied("no roles to request that would grant access")
+		case 1:
+			// No need to choose a role, just set request reason.
+		default:
+			selectedRole, err := prompt.PickOne(
+				cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
+				"Choose role to request",
+				req.GetRoles())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			req.SetRoles([]string{selectedRole})
 		}
-		req.SetRoles([]string{selectedRole})
 	}
+
 	if err := setAccessRequestReason(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -3510,6 +3491,31 @@ func onSSHLatency(cf *CLIConf) error {
 	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
+// Executes the given command on the client machine (localhost). If no command is given,
+// executes shell
+func runLocalCommand(hostLogin string, command []string) error {
+	if len(command) == 0 {
+		if hostLogin == "" {
+			user, err := apiutils.CurrentUser()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
+		}
+		shell, err := shell.GetLoginShell(hostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		command = []string{shell}
+	}
+
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -3522,7 +3528,13 @@ func onSSH(cf *CLIConf) error {
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
+
+			var opts []func(*client.SSHOptions)
+			if cf.LocalExec {
+				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {

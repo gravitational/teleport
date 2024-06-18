@@ -33,7 +33,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -304,15 +303,6 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
-
-	// OpenAIConfig contains the optional OpenAI client configuration used by
-	// auth and proxy. When it's not set (the default, we don't offer a way to
-	// set it when executing the regular Teleport binary) we use the default
-	// configuration with auth tokens passed from Auth.AssistAPIKey or
-	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
-	// the real OpenAI API.
-	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
-	OpenAIConfig *openai.ClientConfig
 }
 
 // AccessGraphConfig represents TAG server config

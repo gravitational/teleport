@@ -23,15 +23,17 @@ type Status = 'on' | 'off' | 'error';
 
 export const ConnectionStatusIndicator = (props: {
   status: Status;
+  inline?: boolean;
   [key: string]: any;
 }) => {
-  const { status, ...styles } = props;
+  const { status, inline, ...styles } = props;
 
-  return <StyledStatus {...styles} $status={status} />;
+  return <StyledStatus {...styles} $status={status} $inline={inline} />;
 };
 
 const StyledStatus = styled(Box)`
   position: relative;
+  ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -60,11 +62,13 @@ const StyledStatus = styled(Box)`
           color: ${theme.colors.error.main};
           &:after {
             content: '𐄂';
-            position: absolute;
+            font-size: 19px;
+
+            ${!props.$inline &&
+            `position: absolute;
             top: -3px;
             left: -1px;
-            line-height: 8px;
-            font-size: 19px;
+            line-height: 8px;`}
           }
         `;
       }

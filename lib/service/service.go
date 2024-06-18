@@ -79,11 +79,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
@@ -104,6 +101,11 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	"github.com/gravitational/teleport/lib/cloud/imds/azure"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -285,15 +287,6 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
-)
-
-const (
-	// embeddingInitialDelay is the time to wait before the first embedding
-	// routine is started.
-	embeddingInitialDelay = 10 * time.Second
-	// embeddingPeriod is the time between two embedding routines.
-	// A seventh jitter is applied on the period.
-	embeddingPeriod = 20 * time.Minute
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -966,9 +959,34 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// Check if we're on a cloud instance, and if we should override the node's hostname.
 	imClient := cfg.InstanceMetadataClient
 	if imClient == nil {
-		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+		providers := []func(ctx context.Context) (imds.Client, error){
+			func(ctx context.Context) (imds.Client, error) {
+				clt, err := awsimds.NewInstanceMetadataClient(ctx)
+				return clt, trace.Wrap(err)
+			},
+			func(ctx context.Context) (imds.Client, error) {
+				return azure.NewInstanceMetadataClient(), nil
+			},
+			func(ctx context.Context) (imds.Client, error) {
+				instancesClient, err := gcp.NewInstancesClient(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
+				return clt, trace.Wrap(err)
+			},
+		}
+
+		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext(), providers)
+		if err == nil {
+			cfg.Logger.InfoContext(supervisor.ExitContext(),
+				"Found an instance metadata service. Teleport will import labels from this cloud instance.",
+				"type", imClient.GetType())
+		} else if !trace.IsNotFound(err) {
+			cfg.Logger.ErrorContext(supervisor.ExitContext(), "Error looking for cloud instance metadata", "error", err)
+			// Keep going. Not being able to fetch labels isn't necessarily an error (e.g. the user doesn't need imported
+			// labels and hasn't configured their cloud instance for it).
 		}
 	}
 
@@ -977,15 +995,16 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err == nil {
 			cloudHostname = strings.ReplaceAll(cloudHostname, " ", "_")
 			if utils.IsValidHostname(cloudHostname) {
-				cfg.Logger.InfoContext(supervisor.ExitContext(), "Overriding hostname with value from cloud tag TeleportHostname.", "hostname", cloudHostname)
+				cfg.Logger.InfoContext(supervisor.ExitContext(), "Overriding hostname with value from cloud tag TeleportHostname", "hostname", cloudHostname)
 				cfg.Hostname = cloudHostname
 
 				// cloudHostname exists but is not a valid hostname.
 			} else if cloudHostname != "" {
-				cfg.Logger.InfoContext(supervisor.ExitContext(), "Found invalid hostname in cloud tag TeleportHostname.", "hostname", cloudHostname)
+				cfg.Logger.InfoContext(supervisor.ExitContext(), "Found invalid hostname in cloud tag TeleportHostname", "hostname", cloudHostname)
 			}
 		} else if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			cfg.Logger.ErrorContext(supervisor.ExitContext(), "Error looking for hostname tag", "error", err)
+			// Keep going.
 		}
 
 		cloudLabels, err = labels.NewCloudImporter(supervisor.ExitContext(), &labels.CloudConfig{
@@ -993,7 +1012,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			cfg.Logger.ErrorContext(supervisor.ExitContext(), "Cloud labels will not be imported", "error", err)
+			// Keep going.
 		}
 	}
 
@@ -1870,19 +1890,6 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	var embedderClient embedding.Embedder
-	if cfg.Auth.AssistAPIKey != "" {
-		// cfg.Testing.OpenAIConfig is set in tests to change the OpenAI API endpoint
-		// Like for proxy, if a custom OpenAIConfig is passed, the token from
-		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
-		if cfg.Testing.OpenAIConfig != nil {
-			embedderClient = ai.NewClientFromConfig(*cfg.Testing.OpenAIConfig)
-		} else {
-			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
-		}
-	}
-
-	embeddingsRetriever := ai.NewSimpleRetriever()
 	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
@@ -1961,8 +1968,6 @@ func (process *TeleportProcess) initAuthService() error {
 			AccessMonitoringEnabled: cfg.Auth.IsAccessMonitoringEnabled(),
 			Clock:                   cfg.Clock,
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-			EmbeddingRetriever:      embeddingsRetriever,
-			EmbeddingClient:         embedderClient,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			CloudClients:            cloudClients,
 		}, func(as *auth.Server) error {
@@ -2051,40 +2056,6 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	authServer.SetGlobalNotificationCache(globalNotificationCache)
-
-	if embedderClient != nil {
-		logger.DebugContext(process.ExitContext(), "Starting embedding watcher")
-		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:            embedderClient,
-			EmbeddingsRetriever: embeddingsRetriever,
-			EmbeddingSrv:        authServer,
-			NodeSrv:             authServer.UnifiedResourceCache,
-			Log:                 process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
-			Jitter:              retryutils.NewFullJitter(),
-		})
-
-		process.RegisterFunc("ai.embedding-processor", func() error {
-			// We check the Assist feature flag here rather than on creation of TeleportProcess,
-			// as when running Enterprise and the feature source is Cloud,
-			// features may be loaded at two different times:
-			// 1. When Cloud is reachable, features will be fetched from Cloud
-			//    before constructing TeleportProcess
-			// 2. When Cloud is not reachable, we will attempt to load cached features
-			//    from the Teleport backend.
-			// In the second case, we don't know the final value of Features().Assist
-			// when constructing the process.
-			// Services in the supervisor will only start after either 1 or 2 has succeeded,
-			// so we can make the decision here.
-			//
-			// Ref: e/tool/teleport/process/process.go
-			if !modules.GetModules().Features().Assist {
-				logger.DebugContext(process.ExitContext(), "Skipping start of embedding processor: Assist feature not enabled for license")
-				return nil
-			}
-			logger.DebugContext(process.ExitContext(), "Starting embedding processor")
-			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
-		})
-	}
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
@@ -3086,10 +3057,11 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:     uploaderClient,
-		ScanDir:      uploadsDir,
-		CorruptedDir: corruptedDir,
-		EventsC:      process.Config.Testing.UploadEventsC,
+		Streamer:         uploaderClient,
+		ScanDir:          uploadsDir,
+		CorruptedDir:     corruptedDir,
+		EventsC:          process.Config.Testing.UploadEventsC,
+		InitialScanDelay: 15 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4399,7 +4371,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:               proxySigner,
-			OpenAIConfig:              cfg.Testing.OpenAIConfig,
 			NodeWatcher:               nodeWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,

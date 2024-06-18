@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -37,6 +36,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -73,7 +73,8 @@ func TestConvertAPIError(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.True(t, trace.IsAccessDenied(convertAPIError(tc.err)))
+			err := convertAPIError(tc.err)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error of type %T: %v", tc.err, err)
 			require.Contains(t, tc.err.Error(), "abcd1234")
 		})
 	}
@@ -90,7 +91,7 @@ type mockInstance struct {
 	sshServer     *sshutils.Server
 	execCount     int
 
-	instance *Instance
+	instance *gcpimds.Instance
 }
 
 func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener) *mockInstance {
@@ -158,19 +159,19 @@ func (m *mockInstance) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	return nil, trace.AccessDenied("unknown public key for user %q", conn.User())
 }
 
-func (m *mockInstance) ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error) {
-	return []*Instance{m.instance}, nil
+func (m *mockInstance) ListInstances(ctx context.Context, projectID, location string) ([]*gcpimds.Instance, error) {
+	return []*gcpimds.Instance{m.instance}, nil
 }
 
-func (m *mockInstance) StreamInstances(ctx context.Context, projectID, location string) stream.Stream[*Instance] {
+func (m *mockInstance) StreamInstances(ctx context.Context, projectID, location string) stream.Stream[*gcpimds.Instance] {
 	return stream.Once(m.instance)
 }
 
-func (m *mockInstance) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
+func (m *mockInstance) GetInstance(ctx context.Context, req *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
 	return m.instance, nil
 }
 
-func (m *mockInstance) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
+func (m *mockInstance) GetInstanceTags(ctx context.Context, req *gcpimds.InstanceRequest) (map[string]string, error) {
 	return nil, nil
 }
 
@@ -184,8 +185,8 @@ func (m *mockInstance) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) err
 	return nil
 }
 
-func (m *mockInstance) setInstance(inst *Instance) {
-	inst.hostKeys = m.hostKeys
+func (m *mockInstance) setInstance(inst *gcpimds.Instance) {
+	inst.HostKeys = m.hostKeys
 	m.instance = inst
 }
 
@@ -229,18 +230,18 @@ func TestRunCommand(t *testing.T) {
 	t.Cleanup(mock.Stop)
 	mock.hostKeys = []ssh.PublicKey{publicKey}
 
-	inst := &Instance{
+	inst := &gcpimds.Instance{
 		Name:              "my-instance",
 		Zone:              "my-zone",
 		ProjectID:         "my-project-id",
-		internalIPAddress: "test.example.com",
-		metadata:          &computepb.Metadata{},
+		InternalIPAddress: "test.example.com",
+		MetadataItems:     map[string]string{},
 	}
 	mock.setInstance(inst)
 
 	require.NoError(t, RunCommand(ctx, &RunCommandRequest{
 		Client: mock,
-		InstanceRequest: InstanceRequest{
+		InstanceRequest: gcpimds.InstanceRequest{
 			ProjectID: "my-project-id",
 			Zone:      "my-zone",
 			Name:      "my-instance",

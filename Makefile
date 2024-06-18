@@ -115,12 +115,21 @@ ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
-# Do not build RDP client on ARM or 386.
+is_fips_on_arm64 := no
+ifneq ("$(FIPS)","")
+ifeq ("$(ARCH)","arm64")
+is_fips_on_arm64 := yes
+endif
+endif
+
+# Do not build RDP client on 32-bit ARM or 386, or for FIPS builds on arm64.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
+ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -246,9 +255,15 @@ endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 # Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags -Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
 endif
 endif # OS == linux
+
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+# Temporary link flags due to changes in Apple's linker
+# https://github.com/golang/go/issues/67854
+GO_LDFLAGS += -extldflags=-ld_classic
+endif
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
@@ -904,7 +919,7 @@ FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG)
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \

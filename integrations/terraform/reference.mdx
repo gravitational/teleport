@@ -695,8 +695,7 @@ Metadata is resource metadata
 Spec is a ClusterNetworkingConfig specification
 
 |               Name               |   Type   | Required |                                                                                               Description                                                                                               |
-|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| assist_command_execution_workers | number   |          | AssistCommandExecutionWorkers determines the number of workers that will execute arbitrary Assist commands on servers in parallel                                                                       |
+|----------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| |
 | case_insensitive_routing         | bool     |          | CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.                                                                                                                        |
 | client_idle_timeout              | duration |          | ClientIdleTimeout sets global cluster default setting for client idle timeouts.                                                                                                                         |
 | idle_timeout_message             | string   |          | ClientIdleTimeoutMessage is the message sent to the user when a connection times out.                                                                                                                   |
@@ -1092,7 +1091,7 @@ resource "teleport_github_connector" "github" {
        example = "yes"
      }
   }
-  
+
   spec = {
     client_id = "client"
     client_secret = var.github_secret
@@ -1229,7 +1228,7 @@ Example:
 
 ```
 # Teleport OIDC connector
-# 
+#
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/oidc/
 
@@ -1614,7 +1613,7 @@ resource "teleport_provision_token" "example" {
     description = "Example token"
 
     labels = {
-      example = "yes" 
+      example = "yes"
       "teleport.dev/origin" = "dynamic" // This label is added on Teleport side by default
     }
   }
@@ -2107,10 +2106,10 @@ resource "teleport_role" "example" {
     description = "Example Teleport Role"
     expires     = "2022-10-12T07:20:51Z"
     labels = {
-      example  = "yes"      
+      example  = "yes"
     }
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
@@ -2226,12 +2225,12 @@ Example:
 
 ```
 # Teleport SAML connector
-# 
+#
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
 # https://goteleport.com/docs/enterprise/sso/okta/
 
 resource "teleport_saml_connector" "example" {
-  # This block will tell Terraform to never update private key from our side if a keys are managed 
+  # This block will tell Terraform to never update private key from our side if a keys are managed
   # from an outside of Terraform.
 
   # lifecycle {
