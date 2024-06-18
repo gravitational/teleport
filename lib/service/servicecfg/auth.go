@@ -254,7 +254,9 @@ type GCPKMSConfig struct {
 }
 
 const (
-	GCPKMSProtectionLevelHSM      = "HSM"
+	// GCPKMSProtectionLevelHSM represents the HSM protection level in GCP KMS.
+	GCPKMSProtectionLevelHSM = "HSM"
+	// GCPKMSProtectionLevelSoftware represents the SOFTWARE protection level in GCP KMS.
 	GCPKMSProtectionLevelSoftware = "SOFTWARE"
 )
 
