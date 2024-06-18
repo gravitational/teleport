@@ -198,7 +198,6 @@ func TestHardwareKeySSH(t *testing.T) {
 	testServer := testserver.MakeTestServer(t,
 		testserver.WithBootstrap(connector, alice, aliceRole),
 		testserver.WithClusterName(t, "my-cluster"),
-		testserver.WithoutSessionRecording(),
 		func(o *testserver.TestServersOpts) {
 			o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
 				// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
