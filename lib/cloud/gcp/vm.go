@@ -178,7 +178,7 @@ func toInstance(origInstance *computepb.Instance, projectID string) *gcpimds.Ins
 		Labels:            origInstance.GetLabels(),
 		InternalIPAddress: internalIP,
 		ExternalIPAddress: externalIP,
-		Fingerprint:       origInstance.GetFingerprint(),
+		Fingerprint:       origInstance.GetMetadata().GetFingerprint(),
 		MetadataItems:     items,
 	}
 	// GCP VMs can have at most one service account.
