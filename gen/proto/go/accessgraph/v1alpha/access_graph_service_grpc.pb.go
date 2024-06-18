@@ -39,6 +39,7 @@ const (
 	AccessGraphService_Query_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/Query"
 	AccessGraphService_GetFile_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/GetFile"
 	AccessGraphService_EventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_EventsStreamV2_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
 	AccessGraphService_Register_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Register"
 	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
 	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
@@ -62,6 +63,10 @@ type AccessGraphServiceClient interface {
 	// Once Teleport finishes syncing the current state, it sends a sync command
 	// to the access graph service and resumes sending events.
 	EventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EventsStreamClient, error)
+	// EventsStreamV2 is a stream of commands to the access graph service.
+	// This stream works the same way as EventsStream, but it returns a stream of events
+	// instead of a single response.
+	EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EventsStreamV2Client, error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -70,7 +75,7 @@ type AccessGraphServiceClient interface {
 	// rather than the Teleport cluster's Host CA.
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	// ReplaceCAs is a request to completely replace the set of Host CAs that authenticate this tenant with the given set.
-	// This accomodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
+	// This accommodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
 	// the client is expected to call the RPC as follows:
 	// 1. Authenticate via existing authority A and call ReplaceCAs([A, B]) -- introduce the incoming CA
 	// 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
@@ -147,6 +152,37 @@ func (x *accessGraphServiceEventsStreamClient) CloseAndRecv() (*EventsStreamResp
 	return m, nil
 }
 
+func (c *accessGraphServiceClient) EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EventsStreamV2Client, error) {
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[1], AccessGraphService_EventsStreamV2_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &accessGraphServiceEventsStreamV2Client{stream}
+	return x, nil
+}
+
+type AccessGraphService_EventsStreamV2Client interface {
+	Send(*EventsStreamV2Request) error
+	Recv() (*EventsStreamV2Response, error)
+	grpc.ClientStream
+}
+
+type accessGraphServiceEventsStreamV2Client struct {
+	grpc.ClientStream
+}
+
+func (x *accessGraphServiceEventsStreamV2Client) Send(m *EventsStreamV2Request) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEventsStreamV2Client) Recv() (*EventsStreamV2Response, error) {
+	m := new(EventsStreamV2Response)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *accessGraphServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
 	out := new(RegisterResponse)
 	err := c.cc.Invoke(ctx, AccessGraphService_Register_FullMethodName, in, out, opts...)
@@ -166,7 +202,7 @@ func (c *accessGraphServiceClient) ReplaceCAs(ctx context.Context, in *ReplaceCA
 }
 
 func (c *accessGraphServiceClient) AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[1], AccessGraphService_AWSEventsStream_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_AWSEventsStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +236,7 @@ func (x *accessGraphServiceAWSEventsStreamClient) CloseAndRecv() (*AWSEventsStre
 }
 
 func (c *accessGraphServiceClient) GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_GitlabEventsStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_GitlabEventsStream_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_GitlabEventsStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +267,7 @@ func (x *accessGraphServiceGitlabEventsStreamClient) Recv() (*GitlabEventsStream
 }
 
 func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_EntraEventsStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_EntraEventsStream_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_EntraEventsStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -277,6 +313,10 @@ type AccessGraphServiceServer interface {
 	// Once Teleport finishes syncing the current state, it sends a sync command
 	// to the access graph service and resumes sending events.
 	EventsStream(AccessGraphService_EventsStreamServer) error
+	// EventsStreamV2 is a stream of commands to the access graph service.
+	// This stream works the same way as EventsStream, but it returns a stream of events
+	// instead of a single response.
+	EventsStreamV2(AccessGraphService_EventsStreamV2Server) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -285,7 +325,7 @@ type AccessGraphServiceServer interface {
 	// rather than the Teleport cluster's Host CA.
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	// ReplaceCAs is a request to completely replace the set of Host CAs that authenticate this tenant with the given set.
-	// This accomodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
+	// This accommodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
 	// the client is expected to call the RPC as follows:
 	// 1. Authenticate via existing authority A and call ReplaceCAs([A, B]) -- introduce the incoming CA
 	// 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
@@ -315,6 +355,9 @@ func (UnimplementedAccessGraphServiceServer) GetFile(context.Context, *GetFileRe
 }
 func (UnimplementedAccessGraphServiceServer) EventsStream(AccessGraphService_EventsStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method EventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) EventsStreamV2(AccessGraphService_EventsStreamV2Server) error {
+	return status.Errorf(codes.Unimplemented, "method EventsStreamV2 not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
@@ -400,6 +443,32 @@ func (x *accessGraphServiceEventsStreamServer) SendAndClose(m *EventsStreamRespo
 
 func (x *accessGraphServiceEventsStreamServer) Recv() (*EventsStreamRequest, error) {
 	m := new(EventsStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _AccessGraphService_EventsStreamV2_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).EventsStreamV2(&accessGraphServiceEventsStreamV2Server{stream})
+}
+
+type AccessGraphService_EventsStreamV2Server interface {
+	Send(*EventsStreamV2Response) error
+	Recv() (*EventsStreamV2Request, error)
+	grpc.ServerStream
+}
+
+type accessGraphServiceEventsStreamV2Server struct {
+	grpc.ServerStream
+}
+
+func (x *accessGraphServiceEventsStreamV2Server) Send(m *EventsStreamV2Response) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceEventsStreamV2Server) Recv() (*EventsStreamV2Request, error) {
+	m := new(EventsStreamV2Request)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -548,6 +617,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EventsStream",
 			Handler:       _AccessGraphService_EventsStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "EventsStreamV2",
+			Handler:       _AccessGraphService_EventsStreamV2_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{

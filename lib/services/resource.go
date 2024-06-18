@@ -240,6 +240,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessMonitoringRule, nil
 	case types.KindDatabaseObject, "database_object":
 		return types.KindDatabaseObject, nil
+	case types.KindCrownJewel, "crown_jewels":
+		return types.KindCrownJewel, nil
 	case types.KindAccessRequest, types.KindAccessRequest + "s", "accessrequest", "accessrequests":
 		return types.KindAccessRequest, nil
 	case types.KindPlugin, types.KindPlugin + "s":

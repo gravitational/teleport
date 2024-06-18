@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var allAdminStates = map[authz.AdminActionAuthState]string{
@@ -70,29 +71,6 @@ func callMethod(t *testing.T, service *DatabaseObjectService, method string) err
 	}
 	require.FailNow(t, "method %v not found", method)
 	panic("this line should never be reached: FailNow() should interrupt the test")
-}
-
-// allCombinations yields all unique subslices of the input slice.
-func allCombinations(verbs []string) [][]string {
-	var result [][]string
-	length := len(verbs)
-
-	for i := 0; i < (1 << length); i++ {
-		subslice := make([]string, 0)
-		for j := 0; j < length; j++ {
-			if i&(1<<j) != 0 {
-				subslice = append(subslice, verbs[j])
-			}
-		}
-		result = append(result, subslice)
-	}
-
-	return result
-}
-
-func TestAllCombinations(t *testing.T) {
-	require.Len(t, allCombinations([]string{"a", "b", "c"}), 8)
-	require.Len(t, allCombinations(make([]string, 5)), 32)
 }
 
 func TestServiceAccess(t *testing.T) {
@@ -147,7 +125,7 @@ func TestServiceAccess(t *testing.T) {
 			t.Run("allowed admin states", func(t *testing.T) {
 				for _, state := range tt.allowedStates {
 					t.Run(stateToString(state), func(t *testing.T) {
-						for _, verbs := range allCombinations(tt.allowedVerbs) {
+						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
 								service := newService(t, state, fakeChecker{allowedVerbs: verbs})
 								err := callMethod(t, service, tt.name)

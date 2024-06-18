@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
@@ -64,6 +65,7 @@ import (
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -4892,8 +4894,16 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
+// CrownJewelServiceClient returns a CrownJewel client.
+// Clients connecting to older Teleport versions, still get a CrownJewel client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
+	return crownjewelapi.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
+}
+
 // UserLoginStateClient returns a user login state client.
-// Clients connecting to  older Teleport versions, still get a user login state client
+// Clients connecting to older Teleport versions, still get a user login state client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
 func (c *Client) UserLoginStateClient() *userloginstate.Client {

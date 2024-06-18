@@ -55,6 +55,7 @@ type Services interface {
 	UserLoginStateClient() UserLoginStates
 	DiscoveryConfigClient() DiscoveryConfigs
 	SecReportsClient() *secreport.Client
+	CrownJewelClient() CrownJewels
 }
 
 // RotationGetter returns the rotation state.
