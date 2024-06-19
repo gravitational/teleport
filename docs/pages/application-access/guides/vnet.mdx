@@ -170,20 +170,27 @@ cluster and the DNS TXT record needs to contain the name of the leaf cluster.
 ### Accessing web apps through VNet
 
 VNet does not officially support [web apps](connecting-apps.mdx) yet. However, technically any web
-app is [a TCP app](tcp.mdx), so it is possible to make those accessible over VNet as well. You'll
-need to change `uri` of your application in the Application Service configuration file to use
-`tcp://` instead of `http://`. There's also a couple of caveats:
+app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. You'll need to change
+`uri` of your application in the Application Service configuration file to use `tcp://` instead of
+`http://`. There's also a couple of caveats:
 
-- VNet does not terminate TLS when proxying connections to TCP apps. The application itself needs to
-  handle TLS connections.
-- Because the Teleport Web UI uses [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security),
-  the application will not be accessible in browsers over plain HTTP, even with VNet running. Since
-  the application needs to be accessible over HTTPS, it must return [a valid cert](connecting-apps.mdx#tls-requirements)
-  for the domain it is served on.
+- The Teleport Web UI uses [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security).
+  If the application is going to be served from a subdomain of a Proxy Service, it means that the
+  application will not be accessible in browsers over plain HTTP, even with VNet running. It's
+  possible to work around this by setting a custom `public_addr` as explained above in this guide.
+- If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
+  cert](connecting-apps.mdx#tls-requirements) for the domain it is served on.
 - [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#header-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
   chunks](../../architecture/session-recording.mdx#app-sessions) are not captured.
+
+When accessing an HTTP API through VNet, the same caveats apply as above, with one main exception.
+Since API clients don't need to respect HSTS, the API itself does not need to be served over HTTPS.
+
+The important thing to understand is that VNet doesn't do anything extra with a connection, other
+than passing it through a Teleport Proxy Service. Which application layer protocol is going to be
+used depends solely on the app itself and its clients.
 
 ### Further reading
 
