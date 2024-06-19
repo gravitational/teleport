@@ -17,7 +17,7 @@ Terminology:
 
 - Bot: An identity within Teleport intended for use by machines as opposed to
   humans. Many individual machines may act as this shared identity.
-- `tbot`: The Teleport binary that acts as aBot and generates credentials for
+- `tbot`: The Teleport binary that acts as a Bot and generates credentials for
   consumption by client applications.
 - Bot instance: A single instance of `tbot` running on a host.
 
@@ -41,13 +41,13 @@ on-prem is more challenging.
 
 The following burdens currently exist:
 
-- When using the `token` join method, a Bot must be created for each host. This
+- When using the `token` join method, a Bot must be created for each Bot instance. This
   means that the privileges of many distinct Bots need to be synchronised where
   those hosts are performing the same function.
 - When using the `token` join method, a token can only be used once. This means
   creating hundreds of join tokens and managing securely distributing these to
   hosts.
-- When managing a large fleet of `tbot` deployments, there is no way to
+- When managing a large fleet of Bot instances, there is no way to
   track these within Teleport. This makes it more difficult to identify hosts
   which may need updating.
 
@@ -506,7 +506,7 @@ this right when we can expect contention over a single bot instance resource.
 simply clear out any artifacts within the `tbot` storage directory.
 
 In addition, if the bot detects a change in join token or join method, it should
-automatically rotate it's keypair. This will ensure it presents as a fresh
+automatically rotate its keypair. This will ensure it presents as a fresh
 BotInstance to the AuthServer.
 
 A log message should be output that identifies the linked BotInstance at
