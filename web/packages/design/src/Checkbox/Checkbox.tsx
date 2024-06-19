@@ -166,7 +166,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:hover,
     .teleport-checkbox__force-hover & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0]};
+        props.theme.colors.interactive.tonal.neutral[0].background};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -182,7 +182,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:focus-visible,
     .teleport-checkbox__force-focus-visible & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0]};
+        props.theme.colors.interactive.tonal.neutral[0].background};
       border-color: ${props => props.theme.colors.buttons.primary.default};
       outline: none;
       border-width: 2px;
@@ -200,7 +200,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:active,
     .teleport-checkbox__force-active & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1]};
+        props.theme.colors.interactive.tonal.neutral[1].background};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -212,7 +212,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
 
   &:disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0]};
+      props.theme.colors.interactive.tonal.neutral[0].background};
     border-color: transparent;
   }
 

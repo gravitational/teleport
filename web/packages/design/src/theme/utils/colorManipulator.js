@@ -133,9 +133,9 @@ export function decomposeColor(color) {
 /**
  * Converts a color object with type and values to a string.
  *
- * @param {object} color - Decomposed color
- * @param {string} color.type - One of: 'rgb', 'rgba', 'hsl', 'hsla'
- * @param {array} color.values - [n,n,n] or [n,n,n,n]
+ * @param {object} bgColor - Decomposed color
+ * @param {string} bgColor.type - One of: 'rgb', 'rgba', 'hsl', 'hsla'
+ * @param {array} bgColor.values - [n,n,n] or [n,n,n,n]
  * @returns {string} A CSS color string
  */
 export function recomposeColor(color) {

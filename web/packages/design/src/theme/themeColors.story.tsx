@@ -33,7 +33,7 @@ const ColorsComponent = () => {
   return (
     <Flex flexDirection="column" p="4">
       <Flex flexDirection="column">
-        <Text mb="2" typography="h4">
+        <Text mb="2" typography="h3">
           Levels
         </Text>
         <Text mb="2">
@@ -54,50 +54,73 @@ const ColorsComponent = () => {
           </Link>
         </Text>
         <ColorsBox mb="4" colors={theme.colors.levels} themeType="levels" />
-        <Text mb="1" typography="h4">
-          Spot Backgrounds
+        <Text mb="2" typography="h3">
+          Interactive Colors
         </Text>
         <Text mb="2">
-          Spot backgrounds are used as highlights or accents. They are not solid
-          colours, instead, they are a slightly transparent mask that highlights
-          the colour behind it. This makes them quite versatile and they can be
-          used to accentuate or highlight components on any background.
-          <br />
-          They may be used for things such as indicating a hover or active state
-          for an item in a menu, or for minor accents such as dividers. <br />
+          <p>
+            Interactive colors are used for hover states, indicators, etc. An
+            example of this in use currently would be unified resource cards in
+            the Pinned and Pinned (Hovered) states.
+          </p>
+          <p>
+            All interactive colors have separate fields for background and text.
+          </p>
         </Text>
-        <Flex>
-          <SingleColorBox
-            mb="4"
-            mr={0}
-            color={theme.colors.spotBackground[0]}
-            themeType="levels"
-            path="theme.colors.spotBackground[0]"
-          />
-          <SingleColorBox
-            mb="4"
-            mr={0}
-            color={theme.colors.spotBackground[1]}
-            themeType="levels"
-            path="theme.colors.spotBackground[1]"
-          />
-          <SingleColorBox
-            mb="4"
-            mr={0}
-            color={theme.colors.spotBackground[2]}
-            themeType="levels"
-            path="theme.colors.spotBackground[2]"
-          />
+        <Flex flexDirection="column" gap={4}>
+          {Object.entries(theme.colors.interactive.solid).map(
+            ([intent, colorGroup]) => (
+              <Flex gap={4}>
+                {Object.entries(colorGroup).map(
+                  ([state, { background, text }]) => (
+                    <SingleColorBox
+                      mb="2"
+                      path={`theme.colors.interactive.solid.${intent}.${state}`}
+                      bg={background}
+                      color={text}
+                    />
+                  )
+                )}
+              </Flex>
+            )
+          )}
         </Flex>
-        <Text mb="2" typography="h4">
+        <Text mb="1" typography="h4">
+          Tonal color variants
+        </Text>
+        <Text mb="2">
+          Tonal color variants are used as highlights or accents. They are not
+          solid colours, instead, they are a slightly transparent mask that
+          highlights the colour behind it. This makes them quite versatile and
+          they can be used to accentuate or highlight components on any
+          background.
+        </Text>
+        <Flex flexDirection="column" gap={4}>
+          {Object.entries(theme.colors.interactive.tonal).map(
+            ([intent, colorGroup]) => (
+              <Flex gap={4}>
+                {colorGroup.map(({ background, text }, i) => (
+                  <SingleColorBox
+                    mb="2"
+                    path={`theme.colors.interactive.tonal.${intent}[${i}]`}
+                    bg={background}
+                    color={text}
+                  />
+                ))}
+              </Flex>
+            )
+          )}
+        </Flex>
+        <Text mb="2" typography="h3">
           Brand
         </Text>
         <SingleColorBox
           mb="4"
           path="theme.colors.brand"
-          color={theme.colors.brand}
+          bg={theme.colors.brand}
+          color={theme.colors.text.primaryInverse}
         />
-        <Text mb="2" typography="h4">
+        <Text mb="2" typography="h3">
           Shadows
         </Text>
         <Flex>
@@ -153,7 +176,7 @@ const ColorsComponent = () => {
             <Text>theme.boxShadow[2]</Text>
           </Box>
         </Flex>
-        <Text mb="2" typography="h4">
+        <Text mb="2" typography="h3">
           Text Colors
         </Text>
         <Flex width="fit-content" flexDirection="row" mb={4}>
@@ -291,31 +314,6 @@ const ColorsComponent = () => {
             </Text>
           </Flex>
         </Flex>
-        <Text mb="2" typography="h3">
-          Interactive Colors
-        </Text>
-        <Text mb="2">
-          Interactive colors are used for hover states, indicators, etc. An
-          example of this in use currently would be unified resource cards in
-          the Pinned and Pinned(Hovered) states.
-        </Text>
-        <Flex gap={4}>
-          <SingleColorBox
-            mb="2"
-            path="theme.colors.interactive.tonal.primary[0]"
-            color={theme.colors.interactive.tonal.primary[0]}
-          />
-          <SingleColorBox
-            mb="2"
-            path="theme.colors.interactive.tonal.primary[1]"
-            color={theme.colors.interactive.tonal.primary[1]}
-          />
-          <SingleColorBox
-            mb="2"
-            path="theme.colors.interactive.tonal.primary[2]"
-            color={theme.colors.interactive.tonal.primary[2]}
-          />
-        </Flex>
       </Flex>
     </Flex>
   );
@@ -357,17 +355,20 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
   );
 }
 
-function SingleColorBox({ color, path, ...styles }) {
+function SingleColorBox({ bg, color, path, ...styles }) {
   return (
-    <Flex flexWrap="wrap" key={path} width="260px" mb={3}>
-      <Box
-        css={`
-          color: ${props => props.theme.colors.text.slightlyMuted};
-        `}
-      >
-        {path}
-      </Box>
-      <Box width="100%" height="50px" p={3} mr={3} bg={color} {...styles} />
-    </Flex>
+    <Box width="150px" height="150px" p={3} mr={3} bg={bg} {...styles}>
+      <Text color={color} css={``}>
+        {/* Path, potentially broken along the periods. */}
+        {path.split('.').map((word, i, arr) => (
+          <>
+            {word}
+            {i < arr.length - 1 ? '.' : ''}
+            {/*potential line break*/}
+            <wbr />
+          </>
+        ))}
+      </Text>
+    </Box>
   );
 }
