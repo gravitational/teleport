@@ -55,6 +55,7 @@ import (
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
@@ -2612,7 +2613,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 
-		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
+		privateKeyPEM, err := keys.MarshalPrivateKey(privateKey.(crypto.Signer))
 		require.NoError(t, err)
 
 		clientCert, err := tls.X509KeyPair(userCerts.TLS, privateKeyPEM)
@@ -4855,7 +4856,7 @@ func TestGRPCServer_DeleteToken(t *testing.T) {
 func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -4889,7 +4890,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token, issuer string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue

@@ -42,11 +42,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestServeConfigureError(t *testing.T) {
@@ -72,7 +72,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
 		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
 		require.NoError(t, err)
-		_, key, err = utils.MarshalPrivateKey(caKey)
+		key, err = keys.MarshalPrivateKey(caKey)
 		require.NoError(t, err)
 		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 			Type:        types.HostCA,
