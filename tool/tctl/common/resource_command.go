@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -157,6 +158,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:           rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
+		types.KindCrownJewel:               rc.createCrownJewel,
 		types.KindPlugin:                   rc.createPlugin,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
@@ -169,6 +171,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterAuthPreference:   rc.updateAuthPreference,
 		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
 		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
+		types.KindCrownJewel:              rc.updateCrownJewel,
 		types.KindPlugin:                  rc.updatePlugin,
 	}
 	rc.config = config
@@ -931,6 +934,40 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	return nil
 }
 
+func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.CrownJewelsClient()
+	if rc.force {
+		if _, err := c.UpsertCrownJewel(ctx, crownJewel); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateCrownJewel(ctx, crownJewel); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalCrownJewel(resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.CrownJewelsClient().UpdateCrownJewel(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -1541,6 +1578,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	case types.KindCrownJewel:
+		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktopService:
 		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2243,6 +2285,24 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
+	case types.KindCrownJewel:
+		cjClient := client.CrownJewelsClient()
+		var rules []*crownjewelv1.CrownJewel
+		nextToken := ""
+		for {
+			resp, token, err := cjClient.ListCrownJewels(ctx, 0 /* default size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			rules = append(rules, resp...)
+
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &crownJewelCollection{items: rules}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {
