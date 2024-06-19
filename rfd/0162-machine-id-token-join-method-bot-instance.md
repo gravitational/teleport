@@ -36,8 +36,8 @@ The improvements will focus on three points:
 ## Why
 
 Whilst deploying a large fleet of Bots is fairly trivial when using the
-delegated join methods, the experience when managing a fleet of bot hosts
-on-prem is more challenging.
+delegated and TPM join methods, the experience when managing a fleet of bot
+hosts on-prem is more challenging.
 
 The following burdens currently exist:
 
@@ -198,6 +198,11 @@ This technique does have some downsides:
   presented by a joining bot to ensure that particular keypair has been issued
   an identity already. Clients can provide any public key they like, including
   that of an existing bot.
+
+Given these downsides, we'll prefer to implement UUID instance identifiers.
+Most of the technical challenge lies in adapting the join process to accept
+client certificate authentication for re-joins, at which point adding a new
+certificate field is trivial.
 
 ### BotInstance Resource
 
@@ -407,6 +412,8 @@ Cons:
 - Adds Bot specific behaviour to RPCs that are also used for Node joining.
 - Heartbeats are limited to the interval of renewal.
 
+Given these cons, we'll opt introduce the new heartbeat RPC.
+
 #### API
 
 Additional RPCs will be added to the BotInstance service to allow these to
@@ -577,6 +584,10 @@ that the `tbot` needs to be upgraded.
 An audit event should be added for the deletion of a BotInstance. The
 name of the BotInstance should be added to the existing join, renewal and
 certificate generation audit events.
+
+Additionally, we should ensure bot instance identifiers are present in existing
+audit events to ensure actions taken by bots can be traced back to specific
+instances.
 
 ### Resistance to collision/pre-image attacks
 
