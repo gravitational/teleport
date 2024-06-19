@@ -1504,8 +1504,8 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Active Directory (Manual)",
-          "slug": "/desktop-access/active-directory-manual/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
         },
         {
           "title": "Access Controls",
@@ -1944,7 +1944,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.4.0",
+      "version": "15.4.4",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2021,6 +2021,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/desktop-access/active-directory/",
+      "permanent": true
+    },
     {
       "source": "/aws-terraform/",
       "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
