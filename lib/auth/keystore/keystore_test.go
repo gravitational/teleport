@@ -419,7 +419,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	softwareConfig := Config{Software: SoftwareConfig{
 		RSAKeyPairSource: native.GenerateKeyPair,
 	}}
-	softwareBackend := newSoftwareKeyStore(&softwareConfig.Software, logger)
+	softwareBackend := newSoftwareKeyStore(&softwareConfig.Software)
 	backends = append(backends, &backendDesc{
 		name:                "software",
 		config:              softwareConfig,
