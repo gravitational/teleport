@@ -12,7 +12,7 @@ on:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
-      - '**/*.md*'      
+      - '**/*.md*'
 
 jobs:
   build:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Run make
         run: |
-          make binaries
+          make binaries FIDO2=static
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3
