@@ -5,10 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/stats"
 
 	"github.com/gravitational/teleport/api/metadata"
 )
@@ -34,13 +38,27 @@ type ClientCredentials struct {
 
 // NewAccessGraphClient returns a new access graph service client.
 func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config, creds)
+	credsOpt, err := grpcCredentials(config, creds)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conn, err := dial(ctx, config.Addr, append(opts, opt)...)
-	return conn, trace.Wrap(err)
 
+	//nolint:staticcheck // interceptors are deprecated in favor of StatsHandler,
+	//  however we want to avoid tracing stream RPCs as they produce overly long traces,
+	//  and there is no functionality to filter streams out when using StatsHandler.
+	//  https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4575
+	otelOpt := grpc.WithStatsHandler(otelgrpc.NewClientHandler(
+		otelgrpc.WithFilter(filters.All(
+			filters.Not(filters.HealthCheck()),
+			func(i *stats.RPCTagInfo) bool {
+				return !strings.Contains(i.FullMethodName, "Stream")
+			},
+		)),
+	))
+
+	opts = append([]grpc.DialOption{credsOpt, otelOpt}, opts...)
+	conn, err := dial(ctx, config.Addr, opts...)
+	return conn, trace.Wrap(err)
 }
 
 func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
