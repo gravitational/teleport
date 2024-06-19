@@ -24,7 +24,6 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -45,7 +44,7 @@ func TestHandover(t *testing.T) {
 	sshServer := discardingSSHServer(t)
 	hostID := uuid.NewString()
 	// unix domain socket names have a very tight length limit
-	dataDir := shortTempDir(t)
+	dataDir := t.TempDir()
 
 	s1 := NewSSHServerWrapper(SSHServerWrapperConfig{
 		SSHServer: sshServer,
@@ -121,25 +120,12 @@ func TestHandover(t *testing.T) {
 	require.ErrorIs(clt.Wait(), net.ErrClosed)
 }
 
-func shortTempDir(t *testing.T) string {
-	t.Helper()
-	base := ""
-	if runtime.GOOS == "darwin" {
-		base = "/tmp"
-	}
-	d, err := os.MkdirTemp(base, "")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(d)) })
-	return d
-}
-
 func TestHandoverCleanup(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
 	hostID := uuid.NewString()
-	// unix domain socket names have a very tight length limit
-	dataDir := shortTempDir(t)
+	dataDir := t.TempDir()
 
 	var tok resumptionToken
 	binary.NativeEndian.PutUint64(tok[:8], rand.Uint64())
@@ -161,7 +147,7 @@ func TestHandoverCleanup(t *testing.T) {
 	require.NoError(err)
 	require.Empty(d)
 
-	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: sockPath(dataDir, tok)})
+	l, err := uds.ListenUnix(context.Background(), "unix", sockPath(dataDir, tok))
 	require.NoError(err)
 	l.SetUnlinkOnClose(false)
 	defer l.Close()

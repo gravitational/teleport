@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // SupportedProfiles list of supported pprof profiles that can be collected.
@@ -55,8 +56,8 @@ func NewClient(socketPath string) *Client {
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return uds.DialUnix(ctx, "unix", socketPath)
 				},
 			},
 		},
