@@ -182,12 +182,12 @@ func TestSlogJSONHandler(t *testing.T) {
 	require.NoError(t, slogtest.TestHandler(h, results))
 }
 
-func TestSlogJSONHandlerSourceOverride(t *testing.T) {
+func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
 	ctx := context.Background()
 	var buf bytes.Buffer
 	logger := slog.New(NewSlogJSONHandler(&buf, SlogJSONHandlerConfig{Level: slog.LevelDebug}))
 
-	logger.DebugContext(ctx, "Must not panic", "source", "not a slog.Source type", "time", "not a time.Time type", "level", true, "msg", 123)
+	logger.DebugContext(ctx, "Must not panic", "source", "not a slog.Source type", "time", "not a time.Time type", "level", true, "msg", 123) //nolint:sloglint // testing possible panics when using reserved keys
 
 	logRecordMap := make(map[string]any)
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &logRecordMap))
