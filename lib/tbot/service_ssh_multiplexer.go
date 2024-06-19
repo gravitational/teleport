@@ -558,8 +558,7 @@ func (s *SSHMultiplexerService) handleConn(
 		b := make([]byte, 1)
 		fds := make([]*os.File, 1)
 
-		// TODO(espadolini): get rid of [uds.Conn]
-		n, fdn, err := (&uds.Conn{UnixConn: un}).ReadWithFDs(b, fds)
+		n, fdn, err := uds.ReadWithFDs(un, b, fds)
 		if err != nil {
 			return trace.Wrap(err, "reading request")
 		}
