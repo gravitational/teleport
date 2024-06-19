@@ -1166,7 +1166,7 @@ func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.T
 		}
 		defer remoteFD.Close()
 
-		_, _, err = dialerConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		_, _, err = uds.WriteWithFDs(dialerConn, []byte(addr), []*os.File{remoteFD})
 		if err != nil {
 			local.Close()
 			return nil, trace.Wrap(err)

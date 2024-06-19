@@ -683,7 +683,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	var buf [1024]byte
 	var fbuf [1]*os.File
 	for {
-		n, fn, err := conn.ReadWithFDs(buf[:], fbuf[:])
+		n, fn, err := uds.ReadWithFDs(conn, buf[:], fbuf[:])
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return errorWriter, teleport.RemoteCommandSuccess, nil
