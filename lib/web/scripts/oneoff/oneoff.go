@@ -41,7 +41,13 @@ const (
 
 	// binMktemp is the default binary name for creating temporary directories.
 	binMktemp = "mktemp"
+
+	// PrefixSUDO is a Teleport Command Prefix that executes with higher privileges
+	// Use with caution.
+	PrefixSUDO = "sudo"
 )
+
+var allowedCommandPrefix = []string{PrefixSUDO}
 
 var (
 	//go:embed oneoff.sh
@@ -53,6 +59,10 @@ var (
 
 // OneOffScriptParams contains the required params to create a script that downloads and executes teleport binary.
 type OneOffScriptParams struct {
+	// TeleportCommandPrefix is a prefix command to use when calling teleport command.
+	// Acceptable values are: "sudo"
+	TeleportCommandPrefix string
+
 	// TeleportArgs is the arguments to pass to the teleport binary.
 	// Eg, 'version'
 	TeleportArgs string
@@ -116,6 +126,12 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	if p.SuccessMessage == "" {
 		p.SuccessMessage = "Completed successfully."
+	}
+
+	if p.TeleportCommandPrefix != "" {
+		if !slices.Contains(allowedCommandPrefix, p.TeleportCommandPrefix) {
+			return trace.BadParameter("invalid command prefix, only %v are supported", allowedCommandPrefix)
+		}
 	}
 
 	return nil
