@@ -16,7 +16,6 @@ package utils
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -30,9 +29,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -42,11 +41,11 @@ func ParseKeyStorePEM(keyPEM, certPEM string) (*KeyStore, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := ParsePrivateKeyPEM([]byte(keyPEM))
+	key, err := keys.ParsePrivateKey([]byte(keyPEM))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rsaKey, ok := key.(*rsa.PrivateKey)
+	rsaKey, ok := key.Signer.(*rsa.PrivateKey)
 	if !ok {
 		return nil, trace.BadParameter("key of type %T is not supported, only RSA keys are supported", key)
 	}
@@ -105,37 +104,10 @@ func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time
 	return keyPEM, certPEM, nil
 }
 
-// ParsePrivateKeyPEM parses PEM-encoded private key
+// ParsePrivateKeyPEM parses PEM-encoded private key.
+// Prefer [keys.ParsePrivateKey], this will be deleted after references are removed from teleport.e.
 func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
-		return nil, trace.BadParameter("expected PEM-encoded block")
-	}
-	return ParsePrivateKeyDER(block.Bytes)
-}
-
-// ParsePrivateKeyDER parses unencrypted DER-encoded private key
-func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
-	generalKey, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		generalKey, err = x509.ParsePKCS1PrivateKey(der)
-		if err != nil {
-			generalKey, err = x509.ParseECPrivateKey(der)
-			if err != nil {
-				logrus.Errorf("Failed to parse key: %v.", err)
-				return nil, trace.BadParameter("failed parsing private key")
-			}
-		}
-	}
-
-	switch k := generalKey.(type) {
-	case *rsa.PrivateKey:
-		return k, nil
-	case *ecdsa.PrivateKey:
-		return k, nil
-	}
-
-	return nil, trace.BadParameter("unsupported private key type")
+	return keys.ParsePrivateKey(bytes)
 }
 
 // VerifyCertificateExpiry checks the certificate's expiration status.
