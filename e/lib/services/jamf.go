@@ -111,6 +111,11 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 
 	// Broadcast that we are ready and start.
 	process.BroadcastEvent(service.Event{Name: JamfReadyEvent})
+	// The Jamf service doesn't have heartbeats so we cannot use them to check health.
+	// For now, we just mark ourselves ready all the time on startup.
+	// If we don't, a process only running the Jamf service will never report ready.
+	process.OnHeartbeat(ent.ComponentJamf)(nil /* err */)
+
 	err = s.Run(ctx)
 	// err returned below.
 
