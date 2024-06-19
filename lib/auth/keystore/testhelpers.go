@@ -69,7 +69,7 @@ func yubiHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       yubiHSMPath,
 			SlotNumber: &slotNumber,
-			Pin:        yubiHSMPin,
+			PIN:        yubiHSMPin,
 		},
 	}, true
 }
@@ -83,7 +83,7 @@ func cloudHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
 			TokenLabel: "cavium",
-			Pin:        cloudHSMPin,
+			PIN:        cloudHSMPin,
 		},
 	}, true
 }
@@ -96,7 +96,6 @@ func awsKMSTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	}
 	return servicecfg.KeystoreConfig{
 		AWSKMS: servicecfg.AWSKMSConfig{
-			Cluster:    "test-cluster",
 			AWSAccount: awsKMSAccount,
 			AWSRegion:  awsKMSRegion,
 		},
@@ -184,7 +183,7 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		PKCS11: servicecfg.PKCS11Config{
 			Path:       path,
 			TokenLabel: tokenLabel,
-			Pin:        "password",
+			PIN:        "password",
 		},
 	}
 	return *cachedSoftHSMConfig, true
@@ -209,7 +208,7 @@ func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Mana
 	for _, opt := range opts {
 		opt(&options)
 	}
-	softwareBackend := newSoftwareKeyStore(&SoftwareConfig{RSAKeyPairSource: options.rsaKeyPairSource})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{rsaKeyPairSource: options.rsaKeyPairSource})
 	return &Manager{
 		backendForNewKeys:     softwareBackend,
 		usableSigningBackends: []backend{softwareBackend},
