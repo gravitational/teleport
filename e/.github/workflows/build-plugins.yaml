@@ -103,16 +103,68 @@ jobs:
           mkdir -pv "$ARTIFACT_DIRECTORY"
           find . -name '*.tar.gz' -type f -exec cp {} "$ARTIFACT_DIRECTORY" \;
 
-      - name: Generate checksum files for built files
-        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
-        run: |
-          shopt -s nullglob
-          for tarball in *.tar.gz; do
-            sha256sum "$(basename "$tarball")" > "${tarball}.sha256"
-          done
-          echo "Artifacts:"
-          ls -lh
+      # Manifest generation for release server
+      - name: Assume AWS ECR pull role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
+          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          role-session-name: "pull-relcli-build-plugins-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+  
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
+      - name: Generate release server manifests
+        working-directory: ${{ env.ARTIFACT_DIRECTORY }}
+        env:
+          RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
+        run: |
+          docker pull "${RELCLI_IMAGE}"
+
+          ls -lah
+
+          shopt -s nullglob
+          for file in *; do
+            # Don't treat existing manifest files as artifacts.
+            [[ "${file##*.}" == manifest ]] && continue
+            # Skip files if a manifest for them already exists.
+            [[ -f "${file}.manifest" ]] && continue
+            
+            # Trim parts off the filename to get the plugin name
+            # File names are typically written as:
+            # teleport-access-<plugin name>-<tag>-<os>-<arch>-bin.tar.gz
+            # or
+            # teleport-event-handler-<tag>-<os>-<arch>-bin.tar.gz
+            PLUGIN_NAME="${file#teleport-}"
+            PLUGIN_NAME="${PLUGIN_NAME#access-}" # This is a noop for event-handler
+            PLUGIN_NAME="${PLUGIN_NAME%-v*}"
+            PLUGIN_NAME="${PLUGIN_NAME%-teleport*}" # This is a noop for everything but the Terraform provider
+
+            # Clean up the plugin name for the description
+            case "${PLUGIN_NAME}" in
+              msteams) PLUGIN_NAME="Microsoft Teams" ;;
+              pagerduty) PLUGIN_NAME="PagerDuty" ;;
+              *)
+                PLUGIN_NAME="${PLUGIN_NAME^}" # Make first letter uppercase
+                PLUGIN_NAME="${PLUGIN_NAME/-/ }" # Replace '-' with ' '
+              ;;
+            esac
+
+            # Get the plugin arch and OS by slicing the file name up 
+            PLUGIN_ARCH="$(echo "${file}" | rev | cut -d'-' -f2 | rev)"
+            PLUGIN_OS="$(echo "${file}" | rev | cut -d'-' -f3 | rev)"
+
+            docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
+              "${RELCLI_IMAGE}" generate-manifest \
+              --path "/assets/$file" --os "${PLUGIN_OS}" --architecture "${PLUGIN_ARCH}" \
+                --description "${PLUGIN_NAME} plugin for Teleport"
+          done
+
+          ls -laht
+
+      # Upload artifacts
       - name: Assume AWS role for uploading the artifacts
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
