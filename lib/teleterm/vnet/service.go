@@ -25,10 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
@@ -55,11 +57,12 @@ const (
 type Service struct {
 	api.UnimplementedVnetServiceServer
 
-	cfg            Config
-	mu             sync.Mutex
-	status         status
-	processManager *vnet.ProcessManager
-	usageReporter  usageReporter
+	cfg                Config
+	mu                 sync.Mutex
+	status             status
+	usageReporter      usageReporter
+	processManager     *vnet.ProcessManager
+	clusterConfigCache *vnet.ClusterConfigCache
 }
 
 // New creates an instance of Service.
@@ -85,6 +88,7 @@ type Config struct {
 	// InstallationID is a unique ID of this particular Connect installation, used for usage
 	// reporting.
 	InstallationID string
+	Clock          clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -101,6 +105,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing InstallationID")
 	}
 
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
 	return nil
 }
 
@@ -113,7 +121,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	if s.status == statusRunning {
-		return &api.StartResponse{}, nil
+		return nil, trace.AlreadyExists("VNet is already running")
 	}
 
 	appProvider := &appProvider{
@@ -150,7 +158,11 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		appProvider.usageReporter = usageReporter
 	}
 
-	processManager, err := vnet.SetupAndRun(ctx, appProvider)
+	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
+	processManager, err := vnet.SetupAndRun(ctx, &vnet.SetupAndRunConfig{
+		AppProvider:        appProvider,
+		ClusterConfigCache: s.clusterConfigCache,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -199,6 +211,81 @@ func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResp
 	}
 
 	return &api.StopResponse{}, nil
+}
+
+// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
+// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+//
+// This is fetched independently of what the Electron app thinks the current state of the cluster
+// looks like, since the VNet admin process also fetches this data independently of the Electron
+// app.
+//
+// Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
+// (due to e.g., a network error or an expired cert).
+func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest) (*api.ListDNSZonesResponse, error) {
+	// Acquire the lock just to check the status of the service. We don't want the actual process of
+	// listing DNS zones to block the user from performing other operations.
+	s.mu.Lock()
+
+	if s.status != statusRunning {
+		return nil, trace.CompareFailed("VNet is not running")
+	}
+
+	defer s.mu.Unlock()
+
+	profileNames, err := s.cfg.DaemonService.ListProfileNames()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dnsZones := []string{}
+
+	for _, profileName := range profileNames {
+		rootClusterURI := uri.NewClusterURI(profileName)
+		cLog := log.With("cluster", rootClusterURI)
+
+		rootClient, err := s.cfg.DaemonService.GetCachedClient(ctx, rootClusterURI)
+		if err != nil {
+			cLog.WarnContext(ctx, "Failed to create root cluster client, profile may be expired, skipping DNS zones of this cluster", "error", err)
+			continue
+		}
+		clusterConfig, err := s.clusterConfigCache.GetClusterConfig(ctx, rootClient)
+		if err != nil {
+			cLog.WarnContext(ctx, "Failed to load VNet configuration, profile may be expired, skipping DNS zones of this cluster", "error", err)
+			continue
+		}
+
+		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+
+		leafClusters, err := s.cfg.DaemonService.ListLeafClusters(ctx, rootClusterURI.String())
+		if err != nil {
+			cLog.WarnContext(ctx, "Failed to list leaf clusters, profile may be expired, skipping DNS zones from leaf clusters of this cluster", "error", err)
+			continue
+		}
+
+		for _, leafCluster := range leafClusters {
+			cLog := log.With("cluster", leafCluster.URI.String())
+
+			clusterClient, err := s.cfg.DaemonService.GetCachedClient(ctx, leafCluster.URI)
+			if err != nil {
+				cLog.WarnContext(ctx, "Failed to create leaf cluster client, skipping DNS zones for this leaf cluster", "error", err)
+				continue
+			}
+			clusterConfig, err := s.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+			if err != nil {
+				cLog.WarnContext(ctx, "Failed to load VNet configuration, skipping DNS zones for this leaf cluster", "error", err)
+				continue
+			}
+
+			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+		}
+	}
+
+	dnsZones = utils.Deduplicate(dnsZones)
+
+	return &api.ListDNSZonesResponse{
+		DnsZones: dnsZones,
+	}, nil
 }
 
 func (s *Service) stopLocked() error {
