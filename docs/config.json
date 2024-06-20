@@ -1767,8 +1767,8 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Active Directory (Manual)",
-          "slug": "/desktop-access/active-directory-manual/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
         },
         {
           "title": "Access Controls",
@@ -2303,6 +2303,11 @@
     {
       "source": "/enterprise/ssh_sso/",
       "destination": "/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/desktop-access/active-directory/",
       "permanent": true
     },
     {
