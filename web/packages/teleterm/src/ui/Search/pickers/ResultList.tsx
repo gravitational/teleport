@@ -173,7 +173,7 @@ export const NonInteractiveItem = styled.div`
   color: ${props => props.theme.colors.text.main};
 `;
 
-const InteractiveItem = styled(NonInteractiveItem)`
+const InteractiveItem = styled(NonInteractiveItem)<{ active?: boolean }>`
   cursor: pointer;
 
   &:hover,

@@ -873,6 +873,10 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
+          "title": "Using VNet",
+          "slug": "/connect-your-client/vnet/"
+        },
+        {
           "title": "Using PuTTY and WinSCP",
           "slug": "/connect-your-client/putty-winscp/"
         },
@@ -1268,7 +1272,7 @@
           "slug": "/database-access/auto-user-provisioning/",
           "entries": [
             {
-              "title": "AWS Redshift",
+              "title": "Amazon Redshift",
               "slug": "/database-access/auto-user-provisioning/aws-redshift/"
             },
             {
@@ -1500,8 +1504,8 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Active Directory (Manual)",
-          "slug": "/desktop-access/active-directory-manual/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
         },
         {
           "title": "Access Controls",
@@ -1940,7 +1944,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.4.0",
+      "version": "15.4.4",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2017,6 +2021,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/desktop-access/active-directory/",
+      "permanent": true
+    },
     {
       "source": "/aws-terraform/",
       "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
@@ -2553,16 +2562,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/get-started/",
       "destination": "/",
       "permanent": true
@@ -2614,7 +2613,7 @@
     },
     {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/",
+      "destination": "/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -2650,11 +2649,6 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {

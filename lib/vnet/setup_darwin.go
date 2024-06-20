@@ -74,7 +74,7 @@ do shell script quoted form of executableName & `+
 		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
 		`" >/var/log/vnet.log 2>&1" `+
-		`with prompt "VNet wants to set up a virtual network device" with administrator privileges`,
+		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
 		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the

@@ -6582,6 +6582,11 @@ func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *p
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
 }
 
+func (a *ServerWithRoles) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
+	// No sensitive information is returned in the bootstrap script.
+	return a.authServer.GetDesktopBootstrapScript(ctx)
+}
+
 // GetConnectionDiagnostic returns the connection diagnostic with the matching name
 func (a *ServerWithRoles) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
 	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbRead); err != nil {

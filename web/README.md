@@ -243,6 +243,12 @@ proxy_service:
 
 Then start the dev server like `PROXY_TARGET=https://proxy.127.0.0.1.nip.io:3080 yarn start-teleport` and access it at https://proxy.127.0.0.1.nip.io:8080.
 
+Alternatively, if you have entries for your cluster in `/etc/hosts` and your cluster is configured
+to use something like `teleport.test:3080` as the public address of the proxy service, you can
+just set a proxy target to that public address. Then instead of accessing the Vite proxy at
+`localhost:8080`, you can access it at `teleport.test:8080`. MFA will work fine since RP ID will
+still be `teleport.test`.
+
 ### Adding Packages/Dependencies
 
 We use Yarn Workspaces to manage dependencies.
