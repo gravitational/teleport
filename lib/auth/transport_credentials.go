@@ -179,8 +179,11 @@ func newTimeoutConn(conn net.Conn, clock clockwork.Clock, expires time.Time) (ne
 	}
 
 	return &timeoutConn{
-		Conn:  conn,
-		timer: clock.AfterFunc(expires.Sub(clock.Now()), func() { conn.Close() }),
+		Conn: conn,
+		timer: clock.AfterFunc(expires.Sub(clock.Now()), func() {
+			log.Debug("Closing gRPC connection due to certificate expiry")
+			conn.Close()
+		}),
 	}, nil
 }
 
@@ -231,7 +234,9 @@ func (c *TransportCredentials) validateIdentity(conn net.Conn, tlsInfo *credenti
 	}
 
 	if authPreference, err := c.getAuthPreference(ctx); err == nil {
+		log.Warnf("Got auth preference: %v", authPreference.GetDisconnectExpiredCert())
 		expiry := authCtx.GetDisconnectCertExpiry(authPreference)
+		log.Warnf("Creating timeout connection with expiry: %v", expiry)
 		conn, err = newTimeoutConn(conn, c.clock, expiry)
 		if err != nil {
 			return nil, IdentityInfo{}, trace.Wrap(err)
