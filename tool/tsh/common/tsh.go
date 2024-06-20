@@ -78,6 +78,8 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -525,6 +527,11 @@ type CLIConf struct {
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
 
+	// DTAutoEnroll allows tests to override the default device
+	// auto-enroll function.
+	// Defaults to [dtenroll.AutoEnroll].
+	DTAutoEnroll client.DTAutoEnrollFunc
+
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
@@ -683,8 +690,10 @@ func initLogger(cf *CLIConf) {
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
-		Context:         ctx,
-		TracingProvider: tracing.NoopProvider(),
+		Context:            ctx,
+		TracingProvider:    tracing.NoopProvider(),
+		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
+		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -4069,6 +4078,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+	c.DTAutoEnroll = cf.DTAutoEnroll
 	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
