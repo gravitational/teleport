@@ -18,6 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
+import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
@@ -154,5 +155,7 @@ message Event {
     teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
     // AccessMonitoringRule is an access monitoring rule resource.
     teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
+    // CrownJewel is a Crown Jewel resource.
+    teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
   }
 }

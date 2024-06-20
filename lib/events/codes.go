@@ -605,6 +605,9 @@ const (
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
 	SessionRecordingConfigUpdateCode = "TCREC003I"
 
+	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
+	AccessGraphAccessPathChangedCode = "TAG001I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
