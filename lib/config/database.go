@@ -364,9 +364,10 @@ db_service:
     {{- if .StaticDatabaseURI }}
     uri: "{{ .StaticDatabaseURI }}"
     {{- end}}
-    {{- if .DatabaseCACertFile }}
+    {{- if or .DatabaseCACertFile .DatabaseTrustSystemCertPool}}
     tls:
       ca_cert_file: "{{ .DatabaseCACertFile }}"
+      trust_system_cert_pool: {{ .DatabaseTrustSystemCertPool }}
     {{- end }}
     {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
@@ -658,6 +659,9 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	DatabaseTrustSystemCertPool bool
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
