@@ -14,7 +14,10 @@ for setup instructions.
 
 #### Teleport Assist has been removed
 
-Teleport Assist chat has been removed from Teleport 16.
+Teleport Assist chat has been removed from Teleport 16. `auth_service.assist` and `proxy_service.assist`
+options have been removed from the configuration. Teleport will not start if these options are present.
+
+During the migration from v15 to v16, the options mentioned above should be removed from the configuration.
 
 #### DynamoDB permission requirements have changed
 
