@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.0-dev
+VERSION=17.0.0-dev-tross-tbot
 
 DOCKER_IMAGE ?= teleport
 
@@ -45,8 +45,10 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -277,6 +279,7 @@ $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
@@ -349,7 +352,7 @@ $(BUILDDIR)/tsh:
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
