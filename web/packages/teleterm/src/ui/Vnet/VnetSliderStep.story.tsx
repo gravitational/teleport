@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { useEffect } from 'react';
 import { Box } from 'design';
 
 import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
@@ -23,7 +24,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
-import { VnetContextProvider } from './vnetContext';
+import { useVnetContext, VnetContextProvider } from './vnetContext';
 import { VnetSliderStep } from './VnetSliderStep';
 
 export default {
@@ -81,6 +82,47 @@ export function UpdatingDnsZones() {
     </MockAppContextProvider>
   );
 }
+
+export function UpdatingDnsZonesWithPreviousResults() {
+  const appContext = new MockAppContext();
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  const promise = usePromiseRejectedOnUnmount();
+  let firstCall = true;
+  appContext.vnet.listDNSZones = () => {
+    if (firstCall) {
+      firstCall = false;
+      return new MockedUnaryCall({ dnsZones });
+    }
+    return promise;
+  };
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <VnetContextProvider>
+        <RerequestDNSZones />
+        <Component />
+      </VnetContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+const RerequestDNSZones = () => {
+  const { listDNSZones, listDNSZonesAttempt } = useVnetContext();
+
+  useEffect(() => {
+    if (listDNSZonesAttempt.status === 'success') {
+      listDNSZones();
+    }
+  }, [listDNSZonesAttempt, listDNSZones]);
+
+  return null;
+};
 
 export function DnsZonesError() {
   const appContext = new MockAppContext();

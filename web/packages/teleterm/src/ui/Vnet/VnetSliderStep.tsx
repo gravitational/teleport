@@ -152,7 +152,7 @@ const DnsZones = () => {
     return (
       <Text p={textSpacing}>
         <ConnectionStatusIndicator status="processing" inline mr={2} />
-        Updating list of DNS zones.
+        Updating the list of DNS zones…
       </Text>
     );
   }
@@ -165,7 +165,7 @@ const DnsZones = () => {
         status={listDNSZonesAttempt.status === 'success' ? 'on' : 'processing'}
         title={
           listDNSZonesAttempt.status === 'processing'
-            ? 'Updating list of DNS zones'
+            ? 'Updating the list of DNS zones…'
             : undefined
         }
         inline
