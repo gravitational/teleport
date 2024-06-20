@@ -67,6 +67,11 @@ message BotInstanceStatusHeartbeat {
   string join_method = 6;
   // Indicates whether `tbot` is running in one-shot mode.
   bool one_shot = 7;
+  // The architecture of the host that `tbot` is running on, determined by
+  // runtime.GOARCH.
+  string architecture = 8;
+  // The OS of the host that `tbot` is running on, determined by runtime.GOOS.
+  string os = 9;
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
   // outputs.
