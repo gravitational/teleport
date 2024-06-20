@@ -548,6 +548,32 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		Required().
 		Short('c').
 		StringVar(&ccf.ConfigFile)
+	backendCloneCmd.Alias(`
+Examples:
+
+  When cloning a backend you must specify a clone configuration file:
+
+  > teleport backend clone --config clone.yaml
+
+  The following example configuration will clone Teleport's backend
+  data from sqlite to dynamodb:
+
+  # src is the configuration for the backend where data is cloned from.
+  src: 
+    type: sqlite
+    path: /var/lib/teleport_data
+  # dst is the configuration for the backend where data is cloned to.
+  dst:
+    type: dynamodb
+    region: us-east-1
+    table: teleport_backend
+  # parallel is the amount of backend data cloned in parallel.
+  # If a clone operation is taking too long consider increasing this value.
+  parallel: 100
+  # force, if set to true, will continue cloning data to a destination
+  # regardless of whether data is already present. By default this is false
+  # to protect against overwriting the data of an existing Teleport cluster.
+  force: false`)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
