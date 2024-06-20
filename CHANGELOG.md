@@ -186,6 +186,13 @@ consistent with other access request plugins: a role must now contain the
 
 Detailed setup instructions are available in the [documentation](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/access-controls/access-request-plugins/opsgenie.mdx).
 
+#### Teleport Assist has been removed
+
+Teleport Assist chat has been removed from Teleport 16. `auth_service.assist` and `proxy_service.assist`
+options have been removed from the configuration. Teleport will not start if these options are present.
+
+During the migration from v15 to v16, the options mentioned above should be removed from the configuration.
+
 #### New required permissions for DynamoDB
 
 Teleport clusters using the DynamoDB backend on AWS now require the
