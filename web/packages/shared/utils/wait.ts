@@ -63,7 +63,7 @@ export const usePromiseRejectedOnUnmount = () => {
     return () => {
       abortControllerRef.current.abort();
     };
-  });
+  }, []);
 
   const promiseRef = useRef<Promise<unknown>>();
   if (!promiseRef.current) {
