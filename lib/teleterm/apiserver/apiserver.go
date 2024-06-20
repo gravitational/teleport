@@ -56,6 +56,7 @@ func New(cfg Config) (*APIServer, error) {
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		ClusterIDCache:     cfg.ClusterIDCache,
 		InstallationID:     cfg.InstallationID,
+		Clock:              cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
