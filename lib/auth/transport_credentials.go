@@ -234,9 +234,7 @@ func (c *TransportCredentials) validateIdentity(conn net.Conn, tlsInfo *credenti
 	}
 
 	if authPreference, err := c.getAuthPreference(ctx); err == nil {
-		log.Warnf("Got auth preference: %v", authPreference.GetDisconnectExpiredCert())
 		expiry := authCtx.GetDisconnectCertExpiry(authPreference)
-		log.Warnf("Creating timeout connection with expiry: %v", expiry)
 		conn, err = newTimeoutConn(conn, c.clock, expiry)
 		if err != nil {
 			return nil, IdentityInfo{}, trace.Wrap(err)
