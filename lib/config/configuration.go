@@ -971,6 +971,10 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.Auth.Assist != nil {
+		log.Warn("auth_service.assist config option is deprecated and will be removed in a future release. Teleport Assist has been removed.")
+	}
+
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
@@ -1218,6 +1222,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		default:
 			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
 		}
+	}
+
+	if fc.Proxy.Assist != nil {
+		log.Warn("proxy_service.assist config option is deprecated and will be removed in a future release. Teleport Assist has been removed.")
 	}
 
 	if fc.Proxy.MySQLServerVersion != "" {
