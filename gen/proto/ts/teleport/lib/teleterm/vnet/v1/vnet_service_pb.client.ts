@@ -58,8 +58,8 @@ export interface IVnetServiceClient {
      * looks like, since the VNet admin process also fetches this data independently of the Electron
      * app.
      *
-     * Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
-     * (due to e.g., a network error or an expired cert).
+     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+     * be fetched (due to e.g., a network error or an expired cert).
      *
      * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
      */
@@ -102,8 +102,8 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
      * looks like, since the VNet admin process also fetches this data independently of the Electron
      * app.
      *
-     * Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
-     * (due to e.g., a network error or an expired cert).
+     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+     * be fetched (due to e.g., a network error or an expired cert).
      *
      * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
      */

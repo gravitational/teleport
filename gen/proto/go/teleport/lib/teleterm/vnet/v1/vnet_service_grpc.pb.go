@@ -57,8 +57,8 @@ type VnetServiceClient interface {
 	// looks like, since the VNet admin process also fetches this data independently of the Electron
 	// app.
 	//
-	// Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
-	// (due to e.g., a network error or an expired cert).
+	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
 }
 
@@ -117,8 +117,8 @@ type VnetServiceServer interface {
 	// looks like, since the VNet admin process also fetches this data independently of the Electron
 	// app.
 	//
-	// Just like the admin process, it skips root and leaf clusters for which DNS couldn't be fetched
-	// (due to e.g., a network error or an expired cert).
+	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+	// be fetched (due to e.g., a network error or an expired cert).
 	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
