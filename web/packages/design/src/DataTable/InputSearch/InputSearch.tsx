@@ -19,7 +19,14 @@
 import React, { JSX, SetStateAction } from 'react';
 import styled from 'styled-components';
 
-import { height, space, color } from 'design/system';
+import {
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  color,
+  ColorProps,
+} from 'design/system';
 
 export default function InputSearch({
   searchValue,
@@ -90,7 +97,9 @@ const WrapperBackground = styled.div`
   margin-bottom: 12px;
 `;
 
-const StyledInput = styled.input`
+interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {}
+
+const StyledInput = styled.input<StyledInputProps>`
   border: none;
   outline: none;
   box-sizing: border-box;

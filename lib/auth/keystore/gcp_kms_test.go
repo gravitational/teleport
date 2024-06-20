@@ -48,7 +48,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -343,6 +345,10 @@ func newTestGCPKMSClient(t *testing.T, dialer contextDialer) *kms.KeyManagementC
 // TestGCPKMSKeystore tests GCP KMS keystore operation in the presence of
 // delays, timeouts, and errors specific to GCP KMS.
 func TestGCPKMSKeystore(t *testing.T) {
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "test-cluster",
+	})
+	require.NoError(t, err)
 	for _, tc := range []struct {
 		desc                  string
 		initialKeyState       kmspb.CryptoKeyVersion_CryptoKeyVersionState
@@ -404,14 +410,17 @@ func TestGCPKMSKeystore(t *testing.T) {
 				withInitialKeyState(tc.initialKeyState),
 			)
 			kmsClient := newTestGCPKMSClient(t, dialer)
-			manager, err := NewManager(testCtx, Config{
-				GCPKMS: GCPKMSConfig{
-					HostUUID:          "test-host-id",
-					ProtectionLevel:   "HSM",
-					KeyRing:           "test-keyring",
-					kmsClientOverride: kmsClient,
-					clockOverride:     clock,
+			manager, err := NewManager(testCtx, &servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
+					ProtectionLevel: "HSM",
+					KeyRing:         "test-keyring",
 				},
+			}, &Options{
+				ClusterName:      clusterName,
+				HostUUID:         "test-host-id",
+				CloudClients:     &cloud.TestCloudClients{},
+				kmsClient:        kmsClient,
+				faketimeOverride: clock,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")
 
@@ -492,7 +501,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			// select them and we can test the public API.
 			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 				Type:        types.HostCA,
-				ClusterName: "test-cluster",
+				ClusterName: clusterName.GetClusterName(),
 				ActiveKeys: types.CAKeySet{
 					SSH: []*types.SSHKeyPair{sshKeyPair},
 					TLS: []*types.TLSKeyPair{tlsKeyPair},
@@ -599,6 +608,11 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "test-cluster",
+	})
+	require.NoError(t, err)
+
 	const (
 		localHostID  = "local-host-id"
 		otherHostID  = "other-host-id"
@@ -675,13 +689,16 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			fakeKMSServer, dialer := newTestGCPKMSService(t)
 			kmsClient := newTestGCPKMSClient(t, dialer)
-			manager, err := NewManager(ctx, Config{
-				GCPKMS: GCPKMSConfig{
-					ProtectionLevel:   "HSM",
-					HostUUID:          localHostID,
-					KeyRing:           localKeyring,
-					kmsClientOverride: kmsClient,
+			manager, err := NewManager(ctx, &servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
+					ProtectionLevel: "HSM",
+					KeyRing:         localKeyring,
 				},
+			}, &Options{
+				ClusterName:  clusterName,
+				HostUUID:     localHostID,
+				CloudClients: &cloud.TestCloudClients{},
+				kmsClient:    kmsClient,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")
 

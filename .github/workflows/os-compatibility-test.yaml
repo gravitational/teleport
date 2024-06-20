@@ -50,7 +50,7 @@ jobs:
 
       - name: Run make
         run: |
-          make -j"$(nproc)" binaries
+          make -j"$(nproc)" binaries FIDO2=static
 
       - name: Upload binaries
         uses: actions/upload-artifact@v3

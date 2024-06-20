@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -54,13 +55,17 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const sshMuxSocketName = "v1.sock"
+const (
+	sshMuxSocketName = "v1.sock"
+	agentSocketName  = "agent.sock"
+)
 
 var (
 	muxReqsStartedCounter = prometheus.NewCounter(
@@ -102,23 +107,48 @@ type SSHMultiplexerService struct {
 
 	// Fields below here are initialized by the service itself on startup.
 	identity *identity.Facade
+
+	agentMu sync.Mutex
+	agent   agent.ExtendedAgent
+}
+
+// writeIfChanged reads the artifact first to determine if it has changed
+// before writing to it. This avoids truncating the file during another
+// processes read.
+//
+// TODO(noah): Replace this with proper atomic writing.
+// https://github.com/gravitational/teleport/issues/25462
+func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger, path string, data []byte) error {
+	existingData, err := dest.Read(ctx, path)
+	if err != nil {
+		log.DebugContext(
+			ctx,
+			"Error occurred reading artifact for change-check, will write",
+			"path", path,
+			"error", err,
+		)
+		return dest.Write(ctx, path, data)
+	}
+
+	if bytes.Equal(existingData, data) {
+		log.DebugContext(
+			ctx,
+			"Artifact unchanged, not writing",
+			"path", path,
+		)
+		return nil
+	}
+	log.DebugContext(
+		ctx,
+		"Artifact changed, will write",
+		"path", path,
+	)
+
+	return dest.Write(ctx, path, data)
 }
 
 func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
-
-	// TODO(noah): identity.SaveIdentity outputs artifacts we don't necessarily
-	// want. For now, I've just manually output them here but we may want to
-	// revisit how this is implemented.
-	if err := dest.Write(ctx, identity.SSHCertKey, id.CertBytes); err != nil {
-		return trace.Wrap(err, "writing %s", identity.SSHCertKey)
-	}
-	if err := dest.Write(ctx, identity.PrivateKeyKey, id.PrivateKeyBytes); err != nil {
-		return trace.Wrap(err, "writing %s", identity.PrivateKeyKey)
-	}
-	if err := dest.Write(ctx, identity.PublicKeyKey, id.PublicKeyBytes); err != nil {
-		return trace.Wrap(err, "writing %s", identity.PublicKeyKey)
-	}
 
 	// Generate known hosts
 	knownHosts, err := ssh.GenerateKnownHosts(
@@ -130,7 +160,9 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	if err != nil {
 		return trace.Wrap(err, "generating known hosts")
 	}
-	if err := dest.Write(ctx, ssh.KnownHostsName, []byte(knownHosts)); err != nil {
+	if err := writeIfChanged(
+		ctx, dest, s.log, ssh.KnownHostsName, []byte(knownHosts),
+	); err != nil {
 		return trace.Wrap(err, "writing %s", ssh.KnownHostsName)
 	}
 
@@ -154,23 +186,22 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 
 	var sshConfigBuilder strings.Builder
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
-	err = sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-		AppName:             openssh.TbotApp,
-		ClusterNames:        []string{id.ClusterName},
-		KnownHostsPath:      filepath.Join(absPath, ssh.KnownHostsName),
-		IdentityFilePath:    filepath.Join(absPath, identity.PrivateKeyKey),
-		CertificateFilePath: filepath.Join(absPath, identity.SSHCertKey),
-		ProxyHost:           proxyHost,
-
-		TBotMux:             true,
-		TBotMuxProxyCommand: proxyCommand,
-		TBotMuxData:         `%h:%p`,
-		TBotMuxSocketPath:   filepath.Join(absPath, sshMuxSocketName),
+	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
+		AppName:         openssh.TbotApp,
+		ClusterNames:    []string{id.ClusterName},
+		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),
+		ProxyCommand:    proxyCommand,
+		Data:            `%h:%p`,
+		MuxSocketPath:   filepath.Join(absPath, sshMuxSocketName),
+		AgentSocketPath: filepath.Join(absPath, agentSocketName),
 	})
 	if err != nil {
 		return trace.Wrap(err, "generating SSH config")
 	}
-	if err := dest.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	sshConfBytes := []byte(sshConfigBuilder.String())
+	if err := writeIfChanged(
+		ctx, dest, s.log, ssh.ConfigName, sshConfBytes,
+	); err != nil {
 		return trace.Wrap(err, "writing %s", ssh.ConfigName)
 	}
 
@@ -205,6 +236,18 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		tshConfig, err = libclient.LoadTSHConfig(s.cfg.ProxyTemplatesPath)
 		if err != nil {
 			return nil, nil, "", nil, trace.Wrap(err, "loading proxy templates")
+		}
+		for _, t := range tshConfig.ProxyTemplates {
+			s.log.DebugContext(
+				ctx,
+				"Loaded proxy template",
+				"template", t.Template,
+				"proxy", t.Proxy,
+				"host", t.Host,
+				"cluster", t.Cluster,
+				"query", t.Query,
+				"search", t.Search,
+			)
 		}
 	}
 
@@ -288,7 +331,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		return nil, trace.Wrap(err, "fetching default roles")
 	}
 
-	ident, err := generateIdentity(
+	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
@@ -296,7 +339,24 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botCfg.CertificateTTL,
 		nil,
 	)
-	return ident, err
+	if err != nil {
+		return nil, trace.Wrap(err, "generating identity")
+	}
+
+	newAgent := agent.NewKeyring()
+	err = newAgent.Add(agent.AddedKey{
+		PrivateKey:   id.PrivateKey,
+		Certificate:  id.SSHCert,
+		LifetimeSecs: 0,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "adding identity to agent")
+	}
+	s.agentMu.Lock()
+	s.agent = newAgent.(agent.ExtendedAgent)
+	s.agentMu.Unlock()
+
+	return id, nil
 }
 
 func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHost string) error {
@@ -388,22 +448,34 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err, "determining absolute path for destination")
 	}
-	listenerURL := url.URL{Scheme: "unix", Path: filepath.Join(absPath, sshMuxSocketName)}
-	l, err := createListener(
+	muxListenerAddr := url.URL{Scheme: "unix", Path: filepath.Join(absPath, sshMuxSocketName)}
+	muxListener, err := createListener(
 		ctx,
 		s.log,
-		listenerURL.String(),
+		muxListenerAddr.String(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer l.Close()
+	defer muxListener.Close()
+
+	agentListenerAddr := url.URL{Scheme: "unix", Path: filepath.Join(absPath, agentSocketName)}
+	agentListener, err := createListener(
+		ctx,
+		s.log,
+		agentListenerAddr.String(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer agentListener.Close()
 
 	eg, egCtx := errgroup.WithContext(ctx)
+	// Handle main mux listener
 	eg.Go(func() error {
-		defer context.AfterFunc(egCtx, func() { _ = l.Close() })()
+		defer context.AfterFunc(egCtx, func() { _ = muxListener.Close() })()
 		for {
-			downstream, err := l.Accept()
+			downstream, err := muxListener.Accept()
 			if err != nil {
 				if utils.IsUseOfClosedNetworkError(err) {
 					return nil
@@ -411,12 +483,12 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 
 				s.log.WarnContext(
 					egCtx,
-					"Error encountered accepting connection, sleeping and continuing",
+					"Error encountered accepting mux connection, sleeping and continuing",
 					"error",
 					err,
 				)
 				select {
-				case <-ctx.Done():
+				case <-egCtx.Done():
 					return nil
 				case <-time.After(50 * time.Millisecond):
 				}
@@ -435,14 +507,9 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 
 				var status string
 				switch {
-				case utils.IsOKNetworkError(err):
-					// We reduce the verbosity here since these are to be
-					// expected and are not usually indicative of a problem.
-					status = "OK_NETWORK_ERROR"
-					s.log.DebugContext(egCtx, "Handler exited with a network error", "error", err)
 				case err != nil && !errors.Is(err, context.Canceled):
 					status = "ERROR"
-					s.log.WarnContext(egCtx, "Handler exited with error", "error", err)
+					s.log.WarnContext(egCtx, "Mux handler exited with error", "error", err)
 				default:
 					status = "OK"
 				}
@@ -450,6 +517,52 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 			}()
 		}
 	})
+	// Handle agent listener
+	eg.Go(func() error {
+		defer context.AfterFunc(egCtx, func() { _ = agentListener.Close() })()
+		for {
+			conn, err := agentListener.Accept()
+			if err != nil {
+				if utils.IsUseOfClosedNetworkError(err) {
+					return nil
+				}
+
+				s.log.WarnContext(
+					egCtx,
+					"Error encountered accepting agent connection, sleeping and continuing",
+					"error",
+					err,
+				)
+				select {
+				case <-egCtx.Done():
+					return nil
+				case <-time.After(50 * time.Millisecond):
+				}
+
+				continue
+			}
+
+			go func() {
+				defer context.AfterFunc(egCtx, func() { _ = conn.Close() })()
+				s.agentMu.Lock()
+				currentAgent := s.agent
+				s.agentMu.Unlock()
+
+				s.log.DebugContext(egCtx, "Serving agent connection")
+				err := agent.ServeAgent(currentAgent, conn)
+				if err != nil && !utils.IsOKNetworkError(err) {
+					s.log.WarnContext(
+						egCtx,
+						"Error encountered serving agent connection",
+						"error",
+						err,
+					)
+				}
+			}()
+
+		}
+	})
+	// Handle identity renewal
 	eg.Go(func() error {
 		return s.identityRenewalLoop(egCtx, proxyHost)
 	})
@@ -472,7 +585,7 @@ func (s *SSHMultiplexerService) handleConn(
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 	defer func() {
-		if err := downstream.Close(); err != nil {
+		if err := downstream.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			s.log.DebugContext(ctx, "Error closing downstream connection", "error", err)
 		}
 	}()
@@ -537,7 +650,12 @@ func (s *SSHMultiplexerService) handleConn(
 		target = net.JoinHostPort(node.GetName(), "0")
 	}
 
-	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, nil)
+	// We need the agent to support proxy recording mode.
+	s.agentMu.Lock()
+	currentAgent := s.agent
+	s.agentMu.Unlock()
+
+	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, currentAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -550,7 +668,8 @@ func (s *SSHMultiplexerService) handleConn(
 			func(ctx context.Context, hostID string) (net.Conn, error) {
 				log.DebugContext(ctx, "Resuming connection")
 				// if the connection is being resumed, it means that
-				// we didn't need the agent in the first place
+				// we didn't need the agent in the first place as proxy
+				// recording mode does not require it.
 				var noAgent agent.ExtendedAgent
 				conn, _, err := hostDialer.DialHost(
 					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
@@ -562,7 +681,7 @@ func (s *SSHMultiplexerService) handleConn(
 		}
 	}
 	defer func() {
-		if err := upstream.Close(); err != nil {
+		if err := upstream.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			s.log.DebugContext(ctx, "Error closing upstream connection", "error", err)
 		}
 	}()
@@ -590,7 +709,10 @@ func (s *SSHMultiplexerService) handleConn(
 			errCh <- trace.Wrap(err, "draining request buffer upstream")
 			return
 		}
-		_, err = io.Copy(upstream, downstream)
+		_, err := io.Copy(upstream, downstream)
+		if utils.IsOKNetworkError(err) {
+			err = nil
+		}
 		errCh <- trace.Wrap(err, "downstream->upstream")
 	}()
 
@@ -598,6 +720,9 @@ func (s *SSHMultiplexerService) handleConn(
 		defer upstream.Close()
 		defer downstream.Close()
 		_, err := io.Copy(downstream, upstream)
+		if utils.IsOKNetworkError(err) {
+			err = nil
+		}
 		errCh <- trace.Wrap(err, "upstream->downstream")
 	}()
 

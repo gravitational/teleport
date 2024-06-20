@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -317,3 +318,31 @@ func InitCertLeaf(cert *tls.Certificate) error {
 }
 
 const pemBlockCertificate = "CERTIFICATE"
+
+// CreateCertificateBLOB creates Certificate BLOB
+// It has following structure:
+//
+//	CertificateBlob {
+//		PropertyID: u32, little endian,
+//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
+//		Length: u32, little endian
+//		Value: certificate data
+//	}
+//
+// Documentation on this structure is a little thin, but one with the structure
+// exists in [MS-GPEF]. This doesn't list the `PropertyID` we use below, however
+// some references can be found scattered about the internet such as [here].
+//
+// [MS-GPEF]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpef/e051aba9-c9df-4f82-a42a-c13012c9d381
+// [here]: https://github.com/diyinfosec/010-Editor/blob/master/WINDOWS_CERTIFICATE_BLOB.bt
+func CreateCertificateBLOB(certData []byte) []byte {
+	buf := new(bytes.Buffer)
+	buf.Grow(len(certData) + 12)
+	// PropertyID for certificate is 32
+	binary.Write(buf, binary.LittleEndian, int32(32))
+	binary.Write(buf, binary.LittleEndian, int32(1))
+	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
+	buf.Write(certData)
+
+	return buf.Bytes()
+}

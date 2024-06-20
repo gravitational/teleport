@@ -20,7 +20,10 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
 
-export const IntegrationTile = styled(Flex)`
+export const IntegrationTile = styled(Flex)<{
+  disabled?: boolean;
+  $exists?: boolean;
+}>`
   color: inherit;
   text-decoration: none;
   flex-direction: column;
