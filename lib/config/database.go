@@ -366,8 +366,12 @@ db_service:
     {{- end}}
     {{- if or .DatabaseCACertFile .DatabaseTrustSystemCertPool}}
     tls:
+      {{- if .DatabaseCACertFile }}
       ca_cert_file: "{{ .DatabaseCACertFile }}"
+      {{- end }}
+      {{- if .DatabaseTrustSystemCertPool }}
       trust_system_cert_pool: {{ .DatabaseTrustSystemCertPool }}
+      {{- end }}
     {{- end }}
     {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
