@@ -199,6 +199,14 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtram
 endif
 endif
 
+ifeq ("$(OS)","darwin")
+# Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
+# clamped to the value for builds of that architecture
+MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
+MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG) CGO_LDFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+endif
+
 CGOFLAG_TSH ?= $(CGOFLAG)
 
 # All build Enterprise version of teleport binaries and copy
@@ -270,19 +278,20 @@ else
 bpf-bytecode-e:
 endif
 
-ifeq ("$(with_rdpclient)", "yes")
+ifeq ("$(OS)-$(with_rdpclient)", "darwin-yes")
+# Set the minimum version linker flag for the rust build of rdpclient (and only rdpclient,
+# as the flag is invalid for building ironrdp to wasm in the web UI). Also set an env
+# var so any C libraries built by this build also target the correct min version.
+rdpclient: export RUSTFLAGS = -C link-arg=$(MACOSX_VERSION_MIN_FLAG)
+rdpclient: export MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
+endif
+
 .PHONY: rdpclient
 rdpclient:
-ifneq ("$(FIPS)","")
-	cargo build -p rdp-client --features=fips --release --locked $(CARGO_TARGET)
-else
-	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
-endif
+ifeq ("$(with_rdpclient)", "yes")
+	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
 	cbindgen --quiet --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
-else
-.PHONY: rdpclient
-rdpclient:
 endif
 
 # If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
