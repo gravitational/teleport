@@ -23,7 +23,6 @@ Enterprise cluster:
 1. Set up a separate cloud-hosted Teleport account.
 1. Retrieve dynamic Teleport resources from the Auth Service backend on the
    self-hosted cluster and apply them against the Auth Service backend on the
-
    cloud-hosted cluster.
 1. Reconfigure Teleport agents and plugins to connect to the cloud-hosted
    Teleport cluster.
@@ -34,10 +33,10 @@ Enterprise cluster:
 - An existing Teleport Enterprise (self-hosted) cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](./management/dynamic-resources/terraform-provider.mdx) and
+  Terraform provider](../management/dynamic-resources/terraform-provider.mdx) and
   [Kubernetes
-  operator](./management/dynamic-resources/teleport-operator-standalone.mdx), in
-  addition to custom scripts that use the [Teleport API](./api/introduction.mdx)
+  operator](../management/dynamic-resources/teleport-operator-standalone.mdx), in
+  addition to custom scripts that use the [Teleport API](../api/introduction.mdx)
   to manage the Teleport Auth Service backend.
 - An account with no trusted clusters enrolled. Trusted clusters are not
   supported in cloud-hosted Teleport Enterprise accounts. You will not be able
@@ -112,7 +111,7 @@ cluster uses a separate Auth Service backend from your cloud-hosted cluster, you
 must retrieve the resources on the first backend, then re-apply them against the
 second backend.
 
-Review the [dynamic resources](https://goteleport.com/docs/reference/resources/)
+Review the [dynamic resources](../reference/resources.mdx)
 list to see if any other resources need to be migrated. Some common dynamic
 resources includes:
 
@@ -177,7 +176,7 @@ To migrate Teleport agents:
 
 1. For each agent and Machine ID bot, obtain a valid join token. We recommend
    using a [delegated join
-   method](https://goteleport.com/docs/reference/join-methods/#delegated-join-methods).
+   method](../reference/join-methods.mdx#delegated-join-methods).
 
 1. If using ephemeral tokens, ensure you specify the appropriate token type to
    match the Teleport services. Token types can include `node`, `app`, `kube`,
@@ -210,7 +209,7 @@ To migrate Teleport agents:
       proxy_server: example.teleport.sh:443
    ```
 
-   If your agent configuration does _not_ include a `teleport.proxy_server`
+   If your agent configuration does *not* include a `teleport.proxy_server`
    field, and instead has a `teleport.auth_server` or `teleport.auth_servers`
    field, we recommend migrating your configuration to `version: v3` and using
    `teleport.proxy_server`. 
@@ -253,7 +252,7 @@ In general, you can migrate a Machine ID bot using the following steps:
 1. Restart `tbot`.
 
 To learn how to restart and configure a Machine ID bot in your infrastructure,
-read the [full documentation](./machine-id/deployment.mdx) on deploying a
+read the [full documentation](../machine-id/deployment.mdx) on deploying a
 Machine ID Bot.
 
 ### Access Request plugins and the Event Handler
@@ -275,8 +274,8 @@ In general, you can migrate Teleport plugins using the following steps:
 
 For specific plugins running in your infrastructure, read the full documentation
 on:
-- [Access Request plugins](./access-controls/access-request-plugins.mdx)
-- The [Teleport Event Handler](./management/export-audit-events.mdx)
+- [Access Request plugins](../access-controls/access-request-plugins/index.mdx)
+- The [Teleport Event Handler](../management/export-audit-events.mdx)
 
 ## Step 4/4. Verify end user access and performance
 
@@ -325,7 +324,7 @@ your new Teleport cluster, ensure that the setup is complete.
 1. Ensure that end users have the expected SSO access to your infrastructure.
 
 1. Establish break-glass access procedures to ensure access to infrastructure in
-   case your cloud-hosted Teleport Enterprise cluster becomes unavailabile.
+   case your cloud-hosted Teleport Enterprise cluster becomes unavailable.
 
    For example, you can run OpenSSH with a limited key following our best
    practices on [How to SSH
