@@ -159,11 +159,16 @@ export async function connectToAppWithVnet(
     // prompt, the Electron app throws an error about clipboard write permission being denied.
     if (error['name'] === 'NotAllowedError') {
       console.error(error);
+      ctx.notificationsService.notifyInfo(
+        `Connect via VNet by using ${addrToCopy}.`
+      );
       return;
     }
     throw error;
   }
-  ctx.notificationsService.notifyInfo(`Copied ${addrToCopy} to clipboard`);
+  ctx.notificationsService.notifyInfo(
+    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
+  );
 }
 
 /**

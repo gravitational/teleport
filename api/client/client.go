@@ -3442,6 +3442,14 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetDesktopBootstrapScript(ctx, &emptypb.Empty{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.GetScript(), nil
+}
+
 // GetWindowsDesktops returns all registered windows desktop hosts.
 func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter)

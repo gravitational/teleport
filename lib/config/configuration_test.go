@@ -837,7 +837,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.PIN)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -3041,7 +3041,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						Pin:        "pin",
+						PIN:        "pin",
 					},
 				},
 			},
@@ -3049,7 +3049,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "pin",
+					PIN:        "pin",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3062,7 +3062,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						PinPath:    securePinFilePath,
+						PINPath:    securePinFilePath,
 					},
 				},
 			},
@@ -3070,7 +3070,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "secure-pin-file",
+					PIN:        "secure-pin-file",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3080,8 +3080,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						Pin:     "oops",
-						PinPath: securePinFilePath,
+						PIN:     "oops",
+						PINPath: securePinFilePath,
 					},
 				},
 			},
@@ -3106,7 +3106,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						PinPath: worldReadablePinFilePath,
+						PINPath: worldReadablePinFilePath,
 					},
 				},
 			},
