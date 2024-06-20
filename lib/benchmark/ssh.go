@@ -65,7 +65,7 @@ func (s SSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClien
 			opts = append(opts, client.WithHostAddress(chooseRandomHost(resources)))
 		}
 
-		return tc.SSH(ctx, s.Command, false, opts...)
+		return tc.SSH(ctx, s.Command, opts...)
 	}, nil
 }
 
