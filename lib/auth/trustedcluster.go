@@ -509,6 +509,13 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	originLabel, ok := tokenLabels[types.OriginLabel]
+	if ok && originLabel == types.OriginConfigFile {
+		// static tokens have an OriginLabel of OriginConfigFile and we don't want
+		// to propegate that to the trusted cluster
+		delete(tokenLabels, types.OriginLabel)
+	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
 		meta.Labels = utils.CopyStringsMap(tokenLabels)

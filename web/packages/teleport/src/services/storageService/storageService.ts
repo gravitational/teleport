@@ -40,7 +40,6 @@ import type { RecommendFeature } from 'teleport/types';
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
-  KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,

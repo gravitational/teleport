@@ -100,7 +100,6 @@ exports[`snapshot tests 1`] = `
   >
     <label
       class="c1"
-      font-size="0"
     >
       errorMsg
       <span
@@ -124,7 +123,6 @@ exports[`snapshot tests 1`] = `
   >
     <label
       class="c1"
-      font-size="0"
     >
       errorMsg
       <input
@@ -143,7 +141,6 @@ exports[`snapshot tests 1`] = `
   >
     <label
       class="c1"
-      font-size="0"
     >
       <span
         class="c4"
@@ -193,7 +190,6 @@ exports[`snapshot tests 1`] = `
   >
     <label
       class="c1"
-      font-size="0"
     >
       <span
         class="c4"

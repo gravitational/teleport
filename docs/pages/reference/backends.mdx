@@ -12,10 +12,10 @@ read/write ratio, mutability, etc.).
 
 | Data type | Description | Supported storage backends |
 | - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, AWS DynamoDB, GCP Firestore |
+| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB |
 | audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, PostgreSQL, AWS DynamoDB, GCP Firestore |
 | session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage |
-| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
+| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory, Kubernetes Secret |
 
 ## Cluster state
 
@@ -386,6 +386,62 @@ Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
+
+### Google Cloud IAM authentication
+
+If you are running Teleport on Google Cloud, Teleport can make use of [IAM
+Authentication](https://cloud.google.com/sql/docs/postgres/iam-authentication)
+to connect to an GCP Cloud SQL for PostgreSQL without having to manage any
+secrets:
+```yaml
+teleport:
+  storage:
+    type: postgresql
+    auth_mode: gcp-cloudsql
+
+    # GCP connection name has the format <project>:<location>:<instance>.
+    gcp_connection_name: <Var name="project:location:instance"/>
+
+    # The type of IP address to use for connecting to the Cloud SQL instance. Valid options are:
+    # - "" (default to "public")
+    # - "public"
+    # - "private"
+    # - "psc" (for Private Service Connect)
+    gcp_ip_type: <Var name="public"/>
+
+    # Leave host and port empty as they are not required.
+    conn_string: postgresql://<Var name="service-account@project.iam"/>@/teleport_backend
+
+    audit_events_uri:
+      - postgresql://<Var name="service-account@project.iam"/>@/teleport_audit#auth_mode=gcp-cloudsql&gcp_connection_name=<Var name="project:location:instance"/>&gcp_ip_type=<Var name="public"/>
+```
+
+To enable IAM authentication and logical replication for Cloud SQL, make sure
+flags `cloudsql.iam_authentication` and `cloudsql.logical_decoding` are set to
+`on` for the Cloud SQL instance. The database user must also have the
+`REPLICATION` role attribute for using the logical decoding features. See [set
+up logical replication and
+decoding](https://cloud.google.com/sql/docs/postgres/replication/configure-logical-replication)
+for more details.
+
+In order for Teleport to use the [Cloud SQL Go
+Connector](https://cloud.google.com/sql/docs/mysql/connect-connectors) with IAM
+authentication, the service account of the target database user must have "Cloud
+SQL Client"/`roles/cloudsql.client` and "Cloud SQL Instance
+User"/`roles/cloudsql.instanceUser` roles assigned to the service account.
+
+Teleport will make use of the credentials specified through the
+[`GOOGLE_APPLICATION_CREDENTIALS` environment
+variable](https://cloud.google.com/docs/authentication/application-default-credentials#GAC),
+[Workload Identity
+Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+with service account impersonation, or service account credentials attached to
+VMs.
+
+If the service account used in the PostgreSQL connection string is different
+from the service account of the default credentials, Teleport will impersonate
+the service account used in the connection string as a Service Account Token
+Creator using the default credentials.
 
 ### Development
 

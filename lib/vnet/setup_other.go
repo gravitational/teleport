@@ -22,6 +22,7 @@ package vnet
 import (
 	"context"
 	"net"
+	"os"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -37,7 +38,7 @@ func createUnixSocket() (*net.UnixListener, string, error) {
 	return nil, "", trace.Wrap(ErrVnetNotImplemented)
 }
 
-func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
+func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
 	return trace.Wrap(ErrVnetNotImplemented)
 }
 

@@ -42,6 +42,10 @@ func TestOneOffScript(t *testing.T) {
 	teleportVersionOutput := "Teleport v13.1.0 git:api/v13.1.0-0-gd83ec74 go1.20.4"
 	scriptName := "oneoff.sh"
 
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+	homeDir = homeDir + "/"
+
 	unameMock, err := bintest.NewMock("uname")
 	require.NoError(t, err)
 	defer func() {
@@ -96,14 +100,14 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.NoError(t, err, string(out))
@@ -112,9 +116,70 @@ func TestOneOffScript(t *testing.T) {
 		require.True(t, mktempMock.Check(t))
 		require.True(t, teleportMock.Check(t))
 
-		require.Contains(t, string(out), "> ./bin/teleport version")
+		require.Contains(t, string(out), "teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 		require.Contains(t, string(out), "Test was a success.")
+
+		// Script should remove the temporary directory.
+		require.NoDirExists(t, testWorkingDir)
+	})
+
+	t.Run("command can be executed with extra arguments", func(t *testing.T) {
+		teleportHelpStart := "Use teleport start --config teleport.yaml"
+		// set up
+		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
+		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		defer func() {
+			assert.NoError(t, teleportMock.Close())
+		}()
+
+		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		require.NoError(t, err)
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
+			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+		}))
+		defer func() { testServer.Close() }()
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportArgs:    "help",
+			TeleportVersion: "v13.1.0",
+			SuccessMessage:  "Test was a success.",
+		})
+		require.NoError(t, err)
+
+		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		unameMock.Expect("-m").AndWriteToStdout("x86_64")
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
+		teleportMock.Expect("help", "start").AndWriteToStdout(teleportHelpStart)
+
+		err = os.WriteFile(scriptLocation, []byte(script), 0700)
+		require.NoError(t, err)
+
+		// execute script
+		out, err := exec.Command("bash", scriptLocation, "start").CombinedOutput()
+
+		// validate
+		require.NoError(t, err, string(out))
+
+		require.True(t, unameMock.Check(t))
+		require.True(t, mktempMock.Check(t))
+		require.True(t, teleportMock.Check(t))
+
+		require.Contains(t, string(out), "/bin/teleport help start")
+		require.Contains(t, string(out), teleportHelpStart)
+		require.Contains(t, string(out), "Test was a success.")
+
+		// Script should remove the temporary directory.
+		require.NoDirExists(t, testWorkingDir)
 	})
 
 	t.Run("invalid OS", func(t *testing.T) {
@@ -124,13 +189,13 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Windows")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -144,13 +209,13 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("apple-silicon")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -206,14 +271,14 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.NoError(t, err, string(out))
@@ -222,7 +287,7 @@ func TestOneOffScript(t *testing.T) {
 		require.True(t, mktempMock.Check(t))
 		require.True(t, teleportMock.Check(t))
 
-		require.Contains(t, string(out), "> ./bin/teleport version")
+		require.Contains(t, string(out), "/bin/teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 		require.Contains(t, string(out), "Test was a success.")
 	})

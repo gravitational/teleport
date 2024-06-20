@@ -736,9 +736,9 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authentication issues device event (any outcomes)
   - [ ] Device web authentication issues "Device Web Token Created" and "Device
         Web Authentication Confirmed" events
-  - [ ] Device web authentication events have web_session_id set.
+  - [ ] Device web authentication events have web_authentication_id set.
         Corresponding "Device Authenticated" events have both
-        web_authentication=true and web_session_id set.
+        web_authentication=true and web_authentication_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -962,11 +962,15 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
+Some tests are marked with "coverved by E2E test" and automatically completed
+by default. In cases the E2E test is flaky or disabled, deselect the task for
+manualy testing.
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -976,6 +980,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
@@ -987,7 +992,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1020,7 +1025,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1035,9 +1040,12 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [ ] AWS RDS Postgres.
-  - [ ] AWS RDS MySQL.
+  - [x] AWS RDS Postgres. (covered by E2E test)
+  - [x] AWS RDS MySQL. (coverved by E2E test)
   - [ ] AWS RDS MariaDB.
+  - [x] AWS Redshift (coverved by E2E test).
+- [ ] Verify Database Access Control
+  - [ ] Postgres (tables)
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1060,13 +1068,14 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
-      - [ ] Can detect and register RDS instances.
-        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
+      - [x] Can detect and register RDS instances. (covered by E2E test)
+        - [x] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
-      - [ ] Can detect and register Redshift clusters.
-      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
+      - [x] Can detect and register Redshift clusters. (covered by E2E test)
+      - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
@@ -1083,8 +1092,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
-- [ ] Other
-  - [ ] MySQL server version reported by Teleport is correct.
+- [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
 
 ## TLS Routing
 
@@ -1523,23 +1531,6 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] You can access Desktop service on root cluster
   - [ ] You can access Desktop service on leaf cluster
   - [ ] If you change your IP you no longer can access Desktop services.
-
-## Assist
-
-Assist is not supported by `tsh` and WebUI is the only way to use it.
-Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
-
-- Configuration
-  - [ ] Assist is disabled by default (OSS, Enterprise)
-  - [ ] Assist can be enabled in the configuration file.
-  - [ ] Assist is disabled in the Cloud.
-  - [ ] Assist is enabled by default in the Cloud Team plan.
-  - [ ] Assist is always disabled when etcd is used as a backend.
-
-- SSH integration
-  - [ ] Assist icon is visible in WebUI's Terminal
-  - [ ] A Bash command can be generated in the above window.
-  - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
 
 ## IGS:
 - [ ] Access Monitoring
