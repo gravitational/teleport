@@ -30,6 +30,12 @@ RUN make build/tbot
 FROM $BASE_IMAGE
 # https://github.com/spacelift-io/runner-terraform/blob/main/Dockerfile
 
+# Switch to root so we can invoke chmod
+USER root
+
 # Copy in `tbot`
 COPY --from=builder /workspace/build/tbot /usr/local/bin
 RUN chmod 755 /usr/local/bin/tbot
+
+# Switch back to the default spacelift user.
+USER spacelift
