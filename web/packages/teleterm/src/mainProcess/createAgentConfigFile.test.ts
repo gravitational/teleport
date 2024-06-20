@@ -91,8 +91,7 @@ test('teleport configure is called with proper arguments', async () => {
     // It'd be nice to make childProcess.execFile return certain output and then verify that this
     // argument includes that output + disableDebugServiceStanza. Alas, the promisified version of
     // execFile isn't easily mockable – stdout in tests is just "undefined" for some reason.
-    expect.stringContaining(disableDebugServiceStanza),
-    expect.any(Object)
+    expect.stringContaining(disableDebugServiceStanza)
   );
 });
 
