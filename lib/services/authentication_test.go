@@ -118,15 +118,15 @@ func TestSignatureAlgorithmSuiteRoundtrip(t *testing.T) {
 			err := prefs.CheckAndSetDefaults()
 			require.NoError(t, err)
 
-			marshalled, err := services.MarshalAuthPreference(prefs)
+			marshaled, err := services.MarshalAuthPreference(prefs)
 			require.NoError(t, err)
 
-			require.Contains(t, string(marshalled), tc.str)
+			require.Contains(t, string(marshaled), tc.str)
 
-			unmarshalled, err := services.UnmarshalAuthPreference(marshalled)
+			unmarshaled, err := services.UnmarshalAuthPreference(marshaled)
 			require.NoError(t, err)
 
-			require.Equal(t, tc.enum, unmarshalled.GetSignatureAlgorithmSuite())
+			require.Equal(t, tc.enum, unmarshaled.GetSignatureAlgorithmSuite())
 		})
 	}
 
