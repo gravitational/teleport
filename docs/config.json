@@ -3160,16 +3160,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/get-started/",
       "destination": "/",
       "permanent": true
@@ -3221,7 +3211,7 @@
     },
     {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/",
+      "destination": "/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -3257,11 +3247,6 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {
