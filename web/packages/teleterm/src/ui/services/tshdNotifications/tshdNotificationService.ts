@@ -75,21 +75,20 @@ export class TshdNotificationsService {
 
         return {
           title: `Cannot connect to ${targetDesc} (${clusterName})`,
-          description: `Connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
+          description: `A connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
         };
       }
       case 'cannotProxyVnetConnection': {
         if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
           return;
         }
-        const { targetUri, error } = subject.cannotProxyVnetConnection;
+        const { publicAddr, targetUri, error } =
+          subject.cannotProxyVnetConnection;
         const clusterName = routing.parseClusterName(targetUri);
-        const appName = routing.parseAppUri(targetUri)?.params['appId'];
-        const targetDesc = appName ? appName : targetUri;
 
         return {
-          title: `Cannot connect to ${targetDesc} (${clusterName})`,
-          description: `Connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
+          title: `Cannot connect to ${publicAddr}`,
+          description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
         };
       }
       default: {

@@ -32,61 +32,106 @@ Issues with Cross-Site Request Forgery (CSRF) or Cross-Origin Resource Sharing (
 result in a loss of application functionality, errors in the application itself indicating that
 traffic isn't being permitted, or application logs that indicate CORS or CSRF errors.
 
-### Solution
-
 In most cases, you can fix these types of issues by adding explicit `rewrite` settings for the Origin and Host headers
-in the Teleport configuration file for each application.
+in the Teleport configuration for each application.
 
-To fix CSRF or CORS issues:
+### Solution 1: Application Service configuration file
+
+To fix CSRF or CORS issues if you use statically configured apps in `/etc/teleport.yaml`:
 
 1. Open the `/etc/teleport.yaml` file that contains the application configuration in a text editor.
 
-1. Add a `rewrite.headers` section similar to the following `grafana` example:
+{/*lint ignore ordered-list-marker-value*/}
+2. Add a `rewrite.headers` section similar to the following `grafana` example:
 
-   ```yaml
-   app_service:
-     enabled: true
-     apps:
-     - name: grafana
-       uri: http://localhost:3000
-       public_addr: grafana.teleport.example.com
-       rewrite:
-         headers:
-         - "Origin: https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
-         - "Host: grafana.teleport.example.com" # Teleport application subdomain itself
-   ```
+  ```yaml
+  app_service:
+    enabled: true
+    apps:
+    - name: grafana
+      uri: http://localhost:3000
+      public_addr: grafana.teleport.example.com
+      rewrite:
+        headers:
+        - "Origin: https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
+        - "Host: grafana.teleport.example.com" # Teleport application subdomain itself
+  ```
 
-1. Save your changes and restart the Teleport service.
+3. Save your changes and restart the Teleport service.
+
+### Solution 2: `teleport-kube-agent` values file
 
 To fix CSRF or CORS issues if you deploy applications using Kubernetes and `teleport-kube-agent`:
 
 1. Open the `teleport/examples/chart/teleport-kube-agent/values.yaml` file that contains the application
-   configuration in a text editor.
+  configuration in a text editor.
 
-1. Locate the `apps` section in the `values.yaml` file.
+{/*lint ignore ordered-list-marker-value*/}
+2. Locate the `apps` section in the `values.yaml` file.
 
-   ```yaml
-   # Details of at least one app to be proxied. Example:
-   # apps:
-   #  - name: grafana
-   #    uri: http://localhost:3000
-   apps: []
-   ```
+  ```yaml
+  # Details of at least one app to be proxied. Example:
+  # apps:
+  #  - name: grafana
+  #    uri: http://localhost:3000
+  apps: []
+  ```
 
-1. Add a `rewrite.headers` section similar to the following `grafana` example:
+3. Add a `rewrite.headers` section similar to the following `grafana` example:
 
-   ```yaml
-   app_service:
-     enabled: true
-     apps:
-     - name: grafana
-       uri: http://localhost:3000
-       public_addr: grafana.teleport.example.com
-       rewrite:
-         headers:
-         - "Origin: https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
-         - "Host: grafana.teleport.example.com" # Teleport application subdomain itself
-   ```
+  ```yaml
+  apps:
+  - name: grafana
+    uri: http://localhost:3000
+    public_addr: grafana.teleport.example.com
+    rewrite:
+      headers:
+      - "Origin: https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
+      - "Host: grafana.teleport.example.com" # Teleport application subdomain itself
+  ```
+
+### Solution 3: Dynamic app configuration
+
+To fix CSRF or CORS issues if you deploy applications with dynamic configuration:
+
+1. Edit your dynamic app configuration to include the `rewrite.headers` section:
+
+  ```yaml
+  kind: app
+  version: v3
+  metadata:
+    name: grafana
+    labels:
+      env: dev
+  spec:
+    uri: http://localhost:3000
+    public_addr: grafana.teleport.example.com
+    rewrite:
+      headers:
+      - name: "Origin"
+        value: "https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
+      - name: "Host"
+        value: "grafana.teleport.example.com" # Teleport application subdomain itself
+  ```
+
+### Solution 4: Kubernetes app autodiscovery
+
+To fix CSRF or CORS issues if you deploy applications using Kubernetes autodiscovery:
+
+1. Edit your Kubernetes `Service` configuration to include the `rewrite.headers` section:
+
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      teleport.dev/app-rewrite: |
+        headers:
+        - name: "Origin"
+          value: "https://grafana.teleport.example.com" # Teleport application subdomain prepended with "https://"
+        - name: "Host"
+          value: "grafana.teleport.example.com" # Teleport application subdomain itself
+  ```
 
 ## Untrusted certificate errors
 

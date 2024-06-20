@@ -43,7 +43,7 @@ export const FileTransferRequests = ({
 
   if (requests.length > 0) {
     return (
-      <Container show={requests.length > 0}>
+      <Container>
         <Flex justifyContent="space-between" alignItems="baseline">
           <Text fontSize={3} bold>
             File Transfer Requests
@@ -154,7 +154,7 @@ const getPendingText = (request: FileTransferRequest) => {
   return `${request.requester} wants to upload ${request.filename} to ${request.location}`;
 };
 
-const Container = styled.div`
+const Container = styled.div<{ backgroundColor?: string }>`
   background: ${props =>
     props.backgroundColor || props.theme.colors.levels.surface};
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
