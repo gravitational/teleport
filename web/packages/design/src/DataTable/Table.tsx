@@ -273,12 +273,12 @@ function PagedTable<T>({
 
   return (
     <>
-      {(showTopPager || showBothPager) && (
-        <StyledPanel>
-          <InputSearch
-            searchValue={searchValue}
-            setSearchValue={setSearchValue}
-          />
+      <StyledPanel>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+        {(showTopPager || showBothPager) && (
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -286,8 +286,8 @@ function PagedTable<T>({
             {...fetching}
             {...pagination}
           />
-        </StyledPanel>
-      )}
+        )}
+      </StyledPanel>
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
