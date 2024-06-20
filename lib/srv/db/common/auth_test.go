@@ -174,8 +174,8 @@ func TestAuthGetTLSConfig(t *testing.T) {
 		},
 		{
 			name:                     "self-hosted with trust_system_cert_pool",
-			sessionDatabase:          newSelfHostedDatabaseWithTrustSytemCertPool(t, "localhost:8888"),
-			expectServerName:         "localhost",
+			sessionDatabase:          newSelfHostedDatabaseWithTrustSytemCertPool(t, "postgres.dev.example.com:8888"),
+			expectServerName:         "postgres.dev.example.com",
 			expectRootCAs:            systemCertPoolWithCA,
 			expectClientCertificates: true,
 		},
