@@ -51,12 +51,14 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 		name                    string
 		expires                 time.Time
 		previousIdentityExpires time.Time
+		checker                 services.AccessChecker
 		mfaVerified             bool
 		disconnectExpiredCert   bool
 		expected                time.Time
 	}{
 		{
 			name:                    "mfa overrides expires when set",
+			checker:                 &fakeCtxChecker{},
 			expires:                 now,
 			previousIdentityExpires: inAnHour,
 			mfaVerified:             true,
@@ -65,6 +67,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 		},
 		{
 			name:                  "expires returned when mfa unset",
+			checker:               &fakeCtxChecker{},
 			expires:               now,
 			mfaVerified:           false,
 			disconnectExpiredCert: true,
@@ -72,10 +75,27 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 		},
 		{
 			name:                    "unset when disconnectExpiredCert is false",
+			checker:                 &fakeCtxChecker{},
 			expires:                 now,
 			previousIdentityExpires: inAnHour,
 			mfaVerified:             true,
 			disconnectExpiredCert:   false,
+		},
+		{
+			name:                  "no expiry returned when checker nil and disconnectExpiredCert false",
+			checker:               nil,
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: false,
+			expected:              time.Time{},
+		},
+		{
+			name:                  "expiry returned when checker nil and disconnectExpiredCert true",
+			checker:               nil,
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: true,
+			expected:              now,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -92,7 +112,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 			authPref := types.DefaultAuthPreference()
 			authPref.SetDisconnectExpiredCert(test.disconnectExpiredCert)
 
-			ctx := Context{Checker: &fakeCtxChecker{}, Identity: WrapIdentity(identity)}
+			ctx := Context{Checker: test.checker, Identity: WrapIdentity(identity)}
 
 			got := ctx.GetDisconnectCertExpiry(authPref)
 			require.Equal(t, test.expected, got)

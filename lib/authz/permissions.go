@@ -265,7 +265,12 @@ func (c *Context) GetDisconnectCertExpiry(authPref types.AuthPreference) time.Ti
 	// See https://github.com/gravitational/teleport/issues/18544
 
 	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if c.Checker != nil && !c.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	disconnectExpiredCert := authPref.GetDisconnectExpiredCert()
+	if c.Checker != nil {
+		disconnectExpiredCert = c.Checker.AdjustDisconnectExpiredCert(disconnectExpiredCert)
+	}
+
+	if !disconnectExpiredCert {
 		return time.Time{}
 	}
 
