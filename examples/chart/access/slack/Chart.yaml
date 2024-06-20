@@ -1,4 +1,4 @@
-.version: &version "17.0.0-dev-tross-tbot.3"
+.version: &version "17.0.0-dev-tross-tbot.4"
 
 apiVersion: v2
 name: teleport-plugin-slack
