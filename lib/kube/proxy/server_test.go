@@ -23,11 +23,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -66,7 +64,7 @@ func TestMTLSClientCAs(t *testing.T) {
 		cas: make(map[string]types.CertAuthority),
 	}
 	// Reuse the same CA private key for performance.
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
@@ -105,9 +103,8 @@ func TestMTLSClientCAs(t *testing.T) {
 			DNSNames:  sans,
 		})
 		require.NoError(t, err)
-		keyRaw, err := x509.MarshalECPrivateKey(userHostKey)
+		keyPEM, err := keys.MarshalPrivateKey(userHostKey)
 		require.NoError(t, err)
-		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 		cert, err := tls.X509KeyPair(certRaw, keyPEM)
 		require.NoError(t, err)
 		return cert
