@@ -5544,7 +5544,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
 	// listener.
 	creds, err := NewTransportCredentials(TransportCredentialsConfig{
-		Authorizer:           cfg.Authorizer,
 		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
 		UserGetter:           cfg.Middleware,
 		GetAuthPreference:    cfg.AuthServer.Cache.GetAuthPreference,
