@@ -483,8 +483,11 @@ func UpsertAuthPrefAndWaitForCache(
 	_, err := srv.UpsertAuthPreference(ctx, pref)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		p, err := srv.GetAuthPreference(ctx)
+		// we need to wait for the in-memory copy of auth pref to be updated, which
+		// takes a bit longer than standard cache propagation.
+		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
+		p := rp.Clone()
 		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }
