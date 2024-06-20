@@ -14,3 +14,6 @@ ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport/teleport.pid
 LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target

@@ -29,7 +29,7 @@
   "dependencies": {
     "@types/tar-fs": "^2.0.1",
     "emittery": "^1.0.1",
-    "node-pty": "1.1.0-beta12",
+    "node-pty": "1.1.0-beta14",
     "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.3"
   },
@@ -42,7 +42,7 @@
     "@types/whatwg-url": "^11.0.1",
     "clean-webpack-plugin": "4.0.0",
     "cross-env": "5.0.5",
-    "electron": "30.0.3",
+    "electron": "31.0.1",
     "electron-notarize": "^1.2.1",
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",

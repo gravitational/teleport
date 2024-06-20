@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { rest, setupWorker } from 'msw';
-import { addDecorator, addParameters } from '@storybook/react';
+import { addParameters } from '@storybook/react';
 import {
   darkTheme,
   lightTheme,
@@ -46,7 +46,7 @@ if (typeof global.process === 'undefined') {
 history.init();
 
 // wrap each story with theme provider
-const ThemeDecorator = (storyFn, meta) => {
+const ThemeDecorator = (Story, meta) => {
   let ThemeProvider;
   let theme;
 
@@ -73,27 +73,29 @@ const ThemeDecorator = (storyFn, meta) => {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box p={3}>{storyFn()}</Box>
+      <Box p={3}>
+        <Story />
+      </Box>
     </ThemeProvider>
   );
 };
 
 // wrap stories with an argument of {userContext: true} with user context provider
-const UserDecorator = (storyFn, meta) => {
+const UserDecorator = (Story, meta) => {
   if (meta.args.userContext) {
     const UserProvider = UserContextProvider;
     return (
       <UserProvider>
-        <Box p={3}>{storyFn()}</Box>
+        <Story />
       </UserProvider>
     );
   }
 
-  return <Box p={3}>{storyFn()}</Box>;
+  return <Story />;
 };
 
-addDecorator(UserDecorator);
-addDecorator(ThemeDecorator);
+export const decorators = [UserDecorator, ThemeDecorator];
+
 addParameters({
   options: {
     showPanel: false,

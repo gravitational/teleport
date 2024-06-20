@@ -4271,10 +4271,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/node@*", "@types/node@>=12.12.47", "@types/node@>=13.7.0", "@types/node@^20.12.11", "@types/node@^20.9.0":
-  version "20.12.11"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.12.11.tgz#c4ef00d3507000d17690643278a60dc55a9dc9be"
-  integrity sha512-vDg9PZ/zi+Nqp6boSOT7plNuthRugEKixDv5sFTIpkE89MmNtEArAShI4mxuX2+UrLEe9pxC1vm2cjm9YlWbJw==
+"@types/node@*", "@types/node@>=12.12.47", "@types/node@>=13.7.0", "@types/node@^20.14.2", "@types/node@^20.9.0":
+  version "20.14.2"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.14.2.tgz#a5f4d2bcb4b6a87bffcaa717718c5a0f208f4a18"
+  integrity sha512-xyu6WAMVwv6AKFLB+e/7ySZVr/0zLCzOa7rSpq6jNwpqOrUbcACDWC+53d4n2QHOnDou0fbIsg8wZu/sxrnI4Q==
   dependencies:
     undici-types "~5.26.4"
 
@@ -7634,10 +7634,10 @@ electron-to-chromium@^1.4.668:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.772.tgz#7a1efabf86b20e5709736ce64dbc2ce13cb68936"
   integrity sha512-jFfEbxR/abTTJA3ci+2ok1NTuOBBtB4jH+UT6PUmRN+DY3WSD4FFRsgoVQ+QNIJ0T7wrXwzsWCI2WKC46b++2A==
 
-electron@30.0.3:
-  version "30.0.3"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-30.0.3.tgz#7c25ddb12ba89fd117991d010f1b274b1bafcb73"
-  integrity sha512-h+suwx6e0fnv/9wi0/cmCMtG+4LrPzJZa+3DEEpxcPcP+pcWnBI70t8QspxgMNIh2wzXLMD9XVqrLkEbiBAInw==
+electron@31.0.1:
+  version "31.0.1"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-31.0.1.tgz#0039524f8f38c24da802c3b18a42c3951acb5897"
+  integrity sha512-2eBcp4iqLkTsml6mMq+iqrS5u3kJ/2mpOLP7Mj7lo0uNK3OyfNqRS9z1ArsHjBF2/HV250Te/O9nKrwQRTX/+g==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^20.9.0"
@@ -12532,10 +12532,10 @@ node-modules-regexp@^1.0.0:
   resolved "https://registry.yarnpkg.com/node-modules-regexp/-/node-modules-regexp-1.0.0.tgz#8d9dbe28964a4ac5712e9131642107c71e90ec40"
   integrity sha1-jZ2+KJZKSsVxLpExZCEHxx6Q7EA=
 
-node-pty@1.1.0-beta12:
-  version "1.1.0-beta12"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta12.tgz#702f8c05ac1d175dcbc17901f1c66ee5d67b27cd"
-  integrity sha512-xhWrczF9AN+TnIZoHcSiclt4dkD1IcncUOzcdgx3by0jwctt54ZgWEp68O0lE0D8ydxa/bk3nA9sWEDhDNJuwg==
+node-pty@1.1.0-beta14:
+  version "1.1.0-beta14"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta14.tgz#e6e9eeb3ac7186144d17902977f9da011e513563"
+  integrity sha512-w/o/q6UL95azHQhrKvMnIojs1AGiqxnjNgcH3138H/RIRkIpE8S5GvT4dpvQT+ZVbTJxoBFt/DnaBAT1PAN7WQ==
   dependencies:
     node-addon-api "^7.1.0"
 
