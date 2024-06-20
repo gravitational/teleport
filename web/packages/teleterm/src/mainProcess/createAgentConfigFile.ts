@@ -70,8 +70,6 @@ export async function createAgentConfigFile(
 
   try {
     await fs.mkdir(path.dirname(configFile), {
-      // Directories must be rwx, not just rw-.
-      mode: 0o744,
       // Create the agents dir too if it doesn't already exist.
       recursive: true,
     });
@@ -82,9 +80,7 @@ export async function createAgentConfigFile(
     }
   }
 
-  await fs.writeFile(configFile, stdout + disableDebugServiceStanza, {
-    mode: 0o644,
-  });
+  await fs.writeFile(configFile, stdout + disableDebugServiceStanza);
 }
 
 // The debug service is enabled by default. It starts when the teleport agent is launched and it
