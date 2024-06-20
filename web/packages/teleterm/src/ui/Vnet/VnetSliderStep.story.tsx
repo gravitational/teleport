@@ -71,10 +71,7 @@ export function UpdatingDnsZones() {
     draft.isInitialized = true;
   });
   const promise = usePromiseRejectedOnUnmount();
-  appContext.vnet.listDNSZones = async () => {
-    await promise;
-    return new MockedUnaryCall({ dnsZones: [] });
-  };
+  appContext.vnet.listDNSZones = () => promise;
 
   return (
     <MockAppContextProvider appContext={appContext}>
