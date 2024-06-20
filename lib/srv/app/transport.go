@@ -258,11 +258,17 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 			return trace.Wrap(err)
 		}
 
-		// If the redirect location is one of the hosts specified in the list of
-		// redirects, rewrite the header.
-		if slices.Contains(t.app.GetRewrite().Redirect, host(u.Host)) {
-			u.Scheme = "https"
-			u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
+		// Check if the redirect location matches any entry in the rewrite list.
+		for _, rewriteHost := range t.app.GetRewrite().Redirect {
+			if strings.Contains(u.String(), rewriteHost) {
+				// Replace occurrences of the rewrite host in the URL.
+				u.Scheme = "https"
+				u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
+				u.Path = strings.Replace(u.Path, rewriteHost, t.app.GetPublicAddr(), -1)
+				u.RawQuery = strings.Replace(u.RawQuery, rewriteHost, t.app.GetPublicAddr(), -1)
+				u.Fragment = strings.Replace(u.Fragment, rewriteHost, t.app.GetPublicAddr(), -1)
+				break
+			}
 		}
 		resp.Header.Set("Location", u.String())
 	}
