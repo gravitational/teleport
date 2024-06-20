@@ -1,5 +1,22 @@
 # Changelog
 
+## 13.4.27 (06/20/24)
+
+* Enforce limits when reading events from Firestore to prevent OOM events. [#42969](https://github.com/gravitational/teleport/pull/42969)
+* Fixed errors caused by `dynamoevents` query `StartKey` not being within the [From, To] window. [#42913](https://github.com/gravitational/teleport/pull/42913)
+* Fixed listing available db users in Teleport Connect for databases from leaf clusters obtained through access requests. [#42682](https://github.com/gravitational/teleport/pull/42682)
+* Fix not being able to logout from the web UI when session invalidation errors. [#42655](https://github.com/gravitational/teleport/pull/42655)
+* Updated OpenSSL to 3.0.14. [#42644](https://github.com/gravitational/teleport/pull/42644)
+* Teleport Connect binaries for Windows are now signed. [#42471](https://github.com/gravitational/teleport/pull/42471)
+* Fix web UI notification dropdown menu height from growing too long from many notifications. [#42339](https://github.com/gravitational/teleport/pull/42339)
+* Fixed an issue where removing an app could make teleport app agents incorrectly report as unhealthy for a short time. [#42268](https://github.com/gravitational/teleport/pull/42268)
+* Fixed a panic in the DynamoDB audit log backend when the cursor fell outside of the [From,To] interval. [#42265](https://github.com/gravitational/teleport/pull/42265)
+* Fixed an issue where mix-and-match of join tokens could interfere with some services appearing correctly in heartbeats. [#42187](https://github.com/gravitational/teleport/pull/42187)
+* Fixed the `allowed_https_hostnames` field in the Teleport Operator resources: SAML, OIDC, and GitHub Connector. [#42057](https://github.com/gravitational/teleport/pull/42057)
+
+### Enterprise-Only Changes:
+* Ensure graceful restart of teleport.service after an upgrade.
+
 ## 13.4.26 (05/25/24)
 
 This release contains fixes for several high-severity security issues, as well
