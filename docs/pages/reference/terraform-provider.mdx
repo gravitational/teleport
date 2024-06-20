@@ -1413,15 +1413,6 @@ GitLab allows the configuration of options specific to the "gitlab" join method.
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|      Name       |  Type  | Required |                                                                                    Description                                                                                     |
-|-----------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| environment     | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                             |
-| namespace_path  | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`                                                                                    |
-| pipeline_source | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                       |
-| project_path    | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`                                                                       |
-| ref             | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.                                                         |
-| ref_type        | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                       |
-| sub             | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name} |
 
 #### spec.kubernetes
 
