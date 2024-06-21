@@ -663,8 +663,8 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
-	// TrustSystemCertPool allows Teleport to trust certificate authorities
-	// available on the host system.
+	// DatabaseTrustSystemCertPool allows Teleport to trust certificate
+	// authorities available on the host system.
 	DatabaseTrustSystemCertPool bool
 }
 
