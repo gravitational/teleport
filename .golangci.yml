@@ -66,6 +66,39 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+      # Prevent importing internal packages in client tools or packages containing
+      # common interfaces consumed by them that are known to bloat binaries or break builds
+      # because they only support a single platform.
+      client-tools:
+        files:
+          # Tests can do anything
+          - "!$test"
+          - '**/tool/tbot/**'
+          - '**/lib/tbot/**'
+          - '**/tool/tctl/**'
+          - '**/tool/tsh/**'
+          - '**/lib/client/**'
+          - '**/lib/services/**'
+          - '**/lib/service/servicecfg/**'
+          - '**/lib/reversetunnelclient/**'
+          - '**/lib/auth/authclient/**'
+          - '**/lib/cloud/imds/**'
+        allow:
+          - github.com/gravitational/teleport/lib/cloud/imds
+        deny:
+          - pkg: github.com/gravitational/teleport/lib/auth$
+            desc: 'lib/auth should not be imported to prevent increasing binary size, prefer lib/auth/authclient instead'
+          - pkg: github.com/gravitational/teleport/lib/cloud
+            desc: 'lib/cloud should not be imported to prevent increasing binary size'
+          - pkg: github.com/gravitational/teleport/lib/srv$
+            desc: 'lib/srv prevents client tools from build on non-linux platforms'
+          - pkg: github.com/gravitational/teleport/lib/web$
+            desc: 'lib/web should not be imported to prevent increasing binary size'
+        list-mode: lax
+  errorlint:
+    comparison: true
+    asserts: true
+    errorf: true
   gci:
     sections:
       - standard # Standard section: captures all standard packages.

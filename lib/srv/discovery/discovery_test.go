@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -2519,22 +2520,22 @@ func TestAzureVMDiscovery(t *testing.T) {
 }
 
 type mockGCPClient struct {
-	vms []*gcp.Instance
+	vms []*gcpimds.Instance
 }
 
-func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcp.Instance, error) {
+func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcpimds.Instance, error) {
 	return m.vms, nil
 }
 
-func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcp.Instance] {
+func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcpimds.Instance] {
 	return stream.Slice(m.vms)
 }
 
-func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (*gcp.Instance, error) {
+func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
 	return nil, trace.NotFound("disabled for test")
 }
 
-func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcp.InstanceRequest) (map[string]string, error) {
+func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcpimds.InstanceRequest) (map[string]string, error) {
 	return nil, nil
 }
 
@@ -2599,7 +2600,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 	tests := []struct {
 		name                   string
 		presentVMs             []types.Server
-		foundGCPVMs            []*gcp.Instance
+		foundGCPVMs            []*gcpimds.Instance
 		discoveryConfig        *discoveryconfig.DiscoveryConfig
 		staticMatchers         Matchers
 		wantInstalledInstances []string
@@ -2607,7 +2608,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2637,7 +2638,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2665,7 +2666,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2680,7 +2681,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found usind dynamic matchers",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
