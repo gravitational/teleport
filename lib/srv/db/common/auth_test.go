@@ -225,7 +225,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			tlsConfig, err := auth.GetTLSConfig(context.TODO(),
-				time.Hour,
+				time.Now().Add(time.Hour),
 				test.sessionDatabase,
 				"defaultUser",
 				"defaultDatabase",
