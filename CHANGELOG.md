@@ -1,5 +1,17 @@
 # Changelog
 
+## 16.0.2 (06/20/24)
+
+* Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs. [#43257](https://github.com/gravitational/teleport/pull/43257)
+* Patched timing variability in curve25519-dalek. [#43246](https://github.com/gravitational/teleport/pull/43246)
+* Fixed setting request reason for automatic ssh access requests. [#43178](https://github.com/gravitational/teleport/pull/43178)
+* Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs. [#43161](https://github.com/gravitational/teleport/pull/43161)
+* Added `tctl desktop bootstrap` for bootstrapping AD environments to work with Desktop Access. [#43150](https://github.com/gravitational/teleport/pull/43150)
+
+### Enterprise only changes
+
+* Fixed sync error in Okta SCIM integration.
+
 ## 16.0.1 (06/17/24)
 
 * `tctl` now ignores any configuration file if the auth_service section is disabled, and prefer loading credentials from a given identity file or tsh profile instead. [#43115](https://github.com/gravitational/teleport/pull/43115)
@@ -185,6 +197,13 @@ consistent with other access request plugins: a role must now contain the
 `teleport.dev/schedules` to check for auto-approval.
 
 Detailed setup instructions are available in the [documentation](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/access-controls/access-request-plugins/opsgenie.mdx).
+
+#### Teleport Assist has been removed
+
+Teleport Assist chat has been removed from Teleport 16. `auth_service.assist` and `proxy_service.assist`
+options have been removed from the configuration. Teleport will not start if these options are present.
+
+During the migration from v15 to v16, the options mentioned above should be removed from the configuration.
 
 #### New required permissions for DynamoDB
 
@@ -1046,9 +1065,9 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
    designed for Windows Server 2008 R2 SP1
 1. Remote Session Environment > Limit maximum color depth
 
-Detailed instructions are available in the [setup
-guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx). A
-reboot may be required for these changes to take effect.
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 

@@ -97,6 +97,10 @@
           "title": "Introduction",
           "slug": "/choose-an-edition/introduction/"
         },
+	{
+	  "title": "Migrate to Cloud-Hosted Enterprise",
+	  "slug": "/choose-an-edition/migrate-to-cloud/"
+	},
         {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
@@ -1767,8 +1771,8 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Active Directory (Manual)",
-          "slug": "/desktop-access/active-directory-manual/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
         },
         {
           "title": "Access Controls",
@@ -2303,6 +2307,11 @@
     {
       "source": "/enterprise/ssh_sso/",
       "destination": "/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/desktop-access/active-directory/",
       "permanent": true
     },
     {
@@ -3156,16 +3165,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/get-started/",
       "destination": "/",
       "permanent": true
@@ -3217,7 +3216,7 @@
     },
     {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/",
+      "destination": "/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -3253,11 +3252,6 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {
