@@ -317,7 +317,7 @@
                     "timeout": "10s",
                     "batch": 20,
                     "window-size": "12h",
-                    "debugLogging": false
+                    "debug": false
                 }
             ],
             "required": [
@@ -349,8 +349,8 @@
                     "type": "string",
                     "default": "24h"
                 },
-                "debugLogging": {
-                    "$id": "#/properties/eventHandler/properties/debugLogging",
+                "debug": {
+                    "$id": "#/properties/eventHandler/properties/debug",
                     "type": "boolean",
                     "default": false,
                     "examples": [
