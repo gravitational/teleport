@@ -168,8 +168,8 @@ To make a [leaf cluster](../../management/admin/trustedclusters.mdx) app accessi
 $ tsh login --proxy=<Var name="leaf.example.com" /> --user=<Var name="email@example.com" />
 ```
 
-`public_addr` needs to be set in the Application Service configuration file belonging to the leaf
-cluster and the DNS TXT record needs to contain the name of the leaf cluster.
+The DNS TXT record of the domain provided as `suffix` needs to contain the name of the leaf cluster.
+A single domain can have multiple TXT records if you want to use it in multiple clusters.
 
 ### Accessing web apps through VNet
 
