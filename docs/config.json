@@ -46,23 +46,23 @@
     },
     {
       "icon": "connect",
-      "title": "Connect your Client",
+      "title": "User Guides",
       "entries": [
         {
           "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
+          "slug": "/user-guides/web-ui/"
         },
         {
           "title": "Teleport Desktop App",
-          "slug": "/connect-your-client/teleport-connect/"
+          "slug": "/user-guides/teleport-connect/"
         },
         {
           "title": "Teleport CLI",
-          "slug": "/connect-your-client/tsh/"
+          "slug": "/user-guides/tsh/"
         },
 	{
 	   "title": "All Topics",
-	   "slug": "/connect-your-client/"
+	   "slug": "/user-guides/"
 	}
       ]
     },
