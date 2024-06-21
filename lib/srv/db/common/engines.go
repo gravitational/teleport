@@ -60,7 +60,7 @@ func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conf.Auth = newReportingSessionAuth(db, conf.Auth)
+	conf.Auth = newReportingAuth(db, conf.Auth)
 	enginesMu.RLock()
 	name := db.GetProtocol()
 	engineFn := engines[name]
@@ -97,8 +97,8 @@ func CheckEngines(names ...string) error {
 
 // EngineConfig is the common configuration every database engine uses.
 type EngineConfig struct {
-	// SessionAuth handles database access authentication.
-	Auth SessionAuth
+	// Auth handles database access authentication.
+	Auth Auth
 	// Audit emits database access audit events.
 	Audit Audit
 	// AuthClient is the cluster auth server client.
