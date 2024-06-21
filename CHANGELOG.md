@@ -6,6 +6,11 @@
 * Patched timing variability in curve25519-dalek. [#43246](https://github.com/gravitational/teleport/pull/43246)
 * Fixed setting request reason for automatic ssh access requests. [#43178](https://github.com/gravitational/teleport/pull/43178)
 * Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs. [#43161](https://github.com/gravitational/teleport/pull/43161)
+* Added `tctl desktop bootstrap` for bootstrapping AD environments to work with Desktop Access. [#43150](https://github.com/gravitational/teleport/pull/43150)
+
+### Enterprise only changes
+
+* Fixed sync error in Okta SCIM integration.
 
 ## 16.0.1 (06/17/24)
 
