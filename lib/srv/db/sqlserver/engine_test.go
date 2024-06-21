@@ -392,7 +392,7 @@ func (o *mockConn) Close() error {
 }
 
 type mockDBAuth struct {
-	common.Auth
+	common.SessionAuth
 	// GetAzureIdentityResourceID mocks.
 	azureIdentityResourceID    string
 	azureIdentityResourceIDErr error
