@@ -179,8 +179,11 @@ func newTimeoutConn(conn net.Conn, clock clockwork.Clock, expires time.Time) (ne
 	}
 
 	return &timeoutConn{
-		Conn:  conn,
-		timer: clock.AfterFunc(expires.Sub(clock.Now()), func() { conn.Close() }),
+		Conn: conn,
+		timer: clock.AfterFunc(expires.Sub(clock.Now()), func() {
+			log.Debug("Closing gRPC connection due to certificate expiry")
+			conn.Close()
+		}),
 	}, nil
 }
 
