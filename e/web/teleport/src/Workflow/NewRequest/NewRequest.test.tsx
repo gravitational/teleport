@@ -414,7 +414,7 @@ test('created requests specifiable fields are respected on checkout (not overwri
 
   // Type a reason.
   const textbox = screen.getByPlaceholderText(/describe your request/i);
-  userEvent.type(textbox, 'some reason');
+  await userEvent.type(textbox, 'some reason');
   await waitFor(() => {
     expect(textbox).toHaveValue('some reason');
   });
