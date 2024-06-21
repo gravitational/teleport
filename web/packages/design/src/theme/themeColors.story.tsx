@@ -358,7 +358,7 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
 function SingleColorBox({ bg, color, path, ...styles }) {
   return (
     <Box width="150px" height="150px" p={3} mr={3} bg={bg} {...styles}>
-      <Text color={color} css={``}>
+      <Text color={color}>
         {/* Path, potentially broken along the periods. */}
         {path.split('.').map((word, i, arr) => (
           <>
