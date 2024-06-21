@@ -151,7 +151,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 			}
 
 			engine := NewEngine(common.EngineConfig{
-				Auth:       common.NewSessionAuth(&fakeAuth{}, clockwork.NewRealClock(), sessionCtx),
+				Auth:       &fakeAuth{},
 				AuthClient: authClient,
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),

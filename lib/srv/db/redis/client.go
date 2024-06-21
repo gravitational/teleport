@@ -192,7 +192,7 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 }
 
 // managedUserCredFetchFunc fetches user password on the fly.
-func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.SessionAuth, users common.Users) fetchCredentialsFunc {
+func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, users common.Users) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
@@ -205,10 +205,10 @@ func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.SessionAut
 }
 
 // azureAccessKeyFetchFunc Azure access key for the "default" user.
-func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.SessionAuth) fetchCredentialsFunc {
+func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for Azure Cache for Redis. Use default user.
-		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
+		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx.Database)
 		if err != nil {
 			return "", "", trace.AccessDenied("failed to get Azure access key: %v", err)
 		}
@@ -218,10 +218,10 @@ func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.SessionAuth
 }
 
 // elasticacheIAMTokenFetchFunc fetches an AWS ElastiCache IAM auth token.
-func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.SessionAuth) fetchCredentialsFunc {
+func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for AWS IAM ElastiCache.
-		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS ElastiCache IAM auth token for %v: %v",
@@ -232,9 +232,9 @@ func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Sessio
 }
 
 // memorydbIAMTokenFetchFunc fetches an AWS MemoryDB IAM auth token.
-func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.SessionAuth) fetchCredentialsFunc {
+func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
-		password, err := auth.GetMemoryDBToken(ctx, sessionCtx)
+		password, err := auth.GetMemoryDBToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS MemoryDB IAM auth token for %v: %v",
@@ -244,7 +244,7 @@ func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.SessionAu
 	}
 }
 
-func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.SessionAuth) (fetchCredentialsFunc, error) {
+func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCredentialsFunc, error) {
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeElastiCache:
 		return elasticacheIAMTokenFetchFunc(sessionCtx, auth), nil

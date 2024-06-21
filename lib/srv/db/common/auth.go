@@ -91,7 +91,7 @@ type Auth interface {
 	// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
 	GetAzureCacheForRedisToken(ctx context.Context, database types.Database) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
-	GetTLSConfig(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error)
+	GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	// GetAzureIdentityResourceID returns the Azure identity resource ID
@@ -182,6 +182,16 @@ func NewAuth(config AuthConfig) (Auth, error) {
 		cfg:                      config,
 		azureVirtualMachineCache: azureVirtualMachineCache,
 	}, nil
+}
+
+// NewAuthForSession returns a copy of Auth with session-specific logging.
+func NewAuthForSession(auth Auth, sessionCtx *Session) Auth {
+	return auth.WithLogger(func(logger logrus.FieldLogger) logrus.FieldLogger {
+		return logger.WithFields(logrus.Fields{
+			"session_id": sessionCtx.ID,
+			"database":   sessionCtx.Database.GetName(),
+		})
+	})
 }
 
 // WithLogger returns a new instance of Auth with updated logger.
@@ -693,23 +703,23 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
 // authority. For on-prem we generate a client certificate signed by the host
 // CA used to authenticate.
-func (a *dbAuth) GetTLSConfig(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (a *dbAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
 	dbTLSConfig := database.GetTLS()
 
 	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
 	switch dbTLSConfig.Mode {
 	case types.DatabaseTLSMode_INSECURE:
-		return a.getTLSConfigInsecure(ctx, certTTL, database, databaseUser, databaseName)
+		return a.getTLSConfigInsecure(ctx, expiry, database, databaseUser, databaseName)
 	case types.DatabaseTLSMode_VERIFY_CA:
-		return a.getTLSConfigVerifyCA(ctx, certTTL, database, databaseUser, databaseName)
+		return a.getTLSConfigVerifyCA(ctx, expiry, database, databaseUser, databaseName)
 	default:
-		return a.getTLSConfigVerifyFull(ctx, certTTL, database, databaseUser, databaseName)
+		return a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
 	}
 }
 
 // getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
 // Config also includes database specific adjustment.
-func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 
 	// Add CA certificate to the trusted pool if it's present, e.g. when
@@ -769,13 +779,13 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, certTTL time.Durati
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
-	return a.appendClientCert(ctx, certTTL, database, databaseUser, databaseName, tlsConfig)
+	return a.appendClientCert(ctx, expiry, database, databaseUser, databaseName, tlsConfig)
 }
 
 // getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
 // Generated configuration will accept any certificate provided by database.
-func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, certTTL, database, databaseUser, databaseName)
+func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -791,8 +801,8 @@ func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, certTTL time.Duration
 // getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
 // Generated configuration is the same as 'verify-full' except the server name
 // verification is disabled.
-func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, certTTL, database, databaseUser, databaseName)
+func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -809,8 +819,8 @@ func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, certTTL time.Duration
 }
 
 // appendClientCert generates a client certificate and appends it to the provided tlsConfig.
-func (a *dbAuth) appendClientCert(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string, tlsConfig *tls.Config) (*tls.Config, error) {
-	cert, cas, err := a.getClientCert(ctx, certTTL, database, databaseUser, databaseName)
+func (a *dbAuth) appendClientCert(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string, tlsConfig *tls.Config) (*tls.Config, error) {
+	cert, cas, err := a.getClientCert(ctx, expiry, database, databaseUser, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -970,7 +980,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
-func (a *dbAuth) getClientCert(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (cert *tls.Certificate, cas [][]byte, err error) {
+func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (cert *tls.Certificate, cas [][]byte, err error) {
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -989,9 +999,10 @@ func (a *dbAuth) getClientCert(ctx context.Context, certTTL time.Duration, datab
 		WithField("database_user", databaseUser).
 		WithField("database_name", databaseName).
 		Debug("Generating client certificate")
+
 	resp, err := a.cfg.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: csr,
-		TTL: proto.Duration(certTTL),
+		TTL: proto.Duration(expiry.Sub(a.cfg.Clock.Now())),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1281,4 +1292,24 @@ func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 		return nil, err
 	}
 	return req, nil
+}
+
+type reportingAuth struct {
+	Auth
+	component string
+	db        types.Database
+}
+
+// newReportingAuth returns a reporting version of Auth, wrapping the original Auth instance.
+func newReportingAuth(db types.Database, auth Auth) Auth {
+	return &reportingAuth{
+		Auth:      auth,
+		component: "db:auth",
+		db:        db,
+	}
+}
+
+func (r *reportingAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+	defer methodCallMetrics("GetTLSConfig", r.component, r.db)()
+	return r.Auth.GetTLSConfig(ctx, expiry, database, databaseUser, databaseName)
 }

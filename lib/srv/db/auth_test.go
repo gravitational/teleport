@@ -390,8 +390,8 @@ func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, database type
 	return azureRedisToken, nil
 }
 
-func (a *testAuth) GetTLSConfig(ctx context.Context, certTTL time.Duration, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	return a.realAuth.GetTLSConfig(ctx, certTTL, database, databaseUser, databaseName)
+func (a *testAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+	return a.realAuth.GetTLSConfig(ctx, expiry, database, databaseUser, databaseName)
 }
 
 func (a *testAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
