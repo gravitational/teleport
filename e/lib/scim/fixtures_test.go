@@ -50,6 +50,10 @@ func (tf *testFixture) AssertExpectations(t *testing.T) {
 }
 
 func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
+	if tf.shim == nil {
+		tf.shim = &mockProviderShim{}
+	}
+
 	if tf.clock == nil {
 		tf.clock = clockwork.NewFakeClock()
 	}
@@ -82,7 +86,6 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture)
 
 	// patch the services shim factory map to return our mock shim when asked to
 	// create one for the test plugin type
-	fix.shim = &mockProviderShim{}
 	t.Cleanup(func() {
 		// No sense in cluttering the output with missed expectations if the
 		// test has already failed.

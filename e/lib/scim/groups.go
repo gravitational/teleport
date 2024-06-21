@@ -47,6 +47,14 @@ var _ resourceHandler = (*groupHandler)(nil)
 // If no such AccessList exists, this method will create the access list, along
 // with a default roles grant and other prerequisite resources.
 func (gh *groupHandler) create(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
+	// We should not trust any ID given to us from the client, as it can be
+	// crafted by an attacker to overwrite existing Access Lists and Roles.
+	if r.Id != "" {
+		// Offering us an ID to use when creating a new Access Lists is actually
+		// suspicious enough behavior to reject the request outright.
+		return nil, trace.BadParameter("ID must not be set in creation request")
+	}
+
 	newACL, newMembers, err := gh.resourceToAccessList(r, shim)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing group resource")
@@ -202,13 +210,13 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 	}
 	reviewerRole.SetStaticLabels(shim.getResourceLabels())
 
-	gh.log.Debugf("Upserting access role %q", accessRole.GetName())
-	if _, err := gh.roles.UpsertRole(ctx, accessRole); err != nil {
+	gh.log.Debugf("Creating access role %q", accessRole.GetName())
+	if _, err := gh.roles.CreateRole(ctx, accessRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating access role %q", accessRole.GetName())
 	}
 
-	gh.log.Debugf("Upserting reviewer role %q", reviewerRole.GetName())
-	if _, err := gh.roles.UpsertRole(ctx, reviewerRole); err != nil {
+	gh.log.Debugf("Creating reviewer role %q", reviewerRole.GetName())
+	if _, err := gh.roles.CreateRole(ctx, reviewerRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating reviewer role %q", reviewerRole.GetName())
 	}
 
@@ -493,7 +501,7 @@ func (gh *groupHandler) delete(ctx context.Context, shim providerShim, id string
 
 	// Check that the target Access List exists and belongs to this provider
 	log.Debug("Checking Access List existence and provenance")
-	_, err := gh.loadAccessList(ctx, shim, id)
+	acl, err := gh.loadAccessList(ctx, shim, id)
 	if err != nil {
 		return trace.Wrap(err, "loading existing access list")
 	}
@@ -501,6 +509,27 @@ func (gh *groupHandler) delete(ctx context.Context, shim providerShim, id string
 	log.Debug("Deleting AccessList")
 	if err := gh.accessLists.DeleteAccessList(ctx, id); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Delete the owner- and member-granted roles associated with the ACL. Teleport
+	// prevents users from modifying Okta-derived Access Lists to add other
+	// roles, so it should be safe to delete these. They can't be anything other
+	// than the roles that were created along with the Access List itself.
+	//
+	// WARNING: This is a reasonable assumption while Okta is the only IdP using
+	//          this SCIM service - it may need revisiting when we add more IdPs
+	//          that may have different ACL modification rules.
+	//
+	roles := append(acl.Spec.Grants.Roles, acl.Spec.OwnerGrants.Roles...)
+	for _, roleName := range roles {
+		// make a best-effort attempt to delete the associated roles. Okta sync
+		// will clean up any leftovers on its next synchronization pass
+		if err := gh.roles.DeleteRole(ctx, roleName); err != nil {
+			log.WithFields(logrus.Fields{
+				"role_name": roleName,
+				"error":     err.Error(),
+			}).Error("Access List Role deletion failed")
+		}
 	}
 
 	return nil

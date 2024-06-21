@@ -229,12 +229,20 @@ type mockRoleService struct {
 	mock.Mock
 }
 
-func (m *mockRoleService) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+func (m *mockRoleService) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	result := m.Called(ctx, role)
 	if fn, ok := result.Get(0).(func(context.Context, types.Role) (types.Role, error)); ok {
 		return fn(ctx, role)
 	}
 	return getResultAs[types.Role](result, 0), result.Error(1)
+}
+
+func (m *mockRoleService) DeleteRole(ctx context.Context, roleName string) error {
+	result := m.Called(ctx, roleName)
+	if fn, ok := result.Get(0).(func(ctx context.Context, roleName string) error); ok {
+		return fn(ctx, roleName)
+	}
+	return result.Error(0)
 }
 
 type mockAccessListService struct {

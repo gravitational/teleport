@@ -311,44 +311,69 @@ func TestGroupCreate(t *testing.T) {
 	users := mkTestUserList(t, 10, 1)
 
 	testCases := []struct {
-		name                   string
-		makeResource           func(t *testing.T) *scimpb.Resource
-		aclLookupResult        []*accesslist.AccessList
-		expectACLMemberListing bool
-		expectedUserLookups    []*types.UserV2
-		expectCreateAccessList bool
-		expectedAccessListID   string
-		expectedDisplayName    string
-		expectedMemberLookups  []*types.UserV2
-		expectedMembers        []*types.UserV2
-		expectedRoles          []string
-		expectError            require.ErrorAssertionFunc
-		expectValue            require.ValueAssertionFunc
+		name                          string
+		makeResource                  func(t *testing.T) *scimpb.Resource
+		expectACLLookup               bool
+		aclLookupResult               []*accesslist.AccessList
+		expectACLMemberListing        bool
+		expectedUserLookups           []*types.UserV2
+		expectCreatingAccessListEvent bool
+		expectCreateAccessList        bool
+		expectedAccessListID          string
+		expectedDisplayName           string
+		expectedMemberLookups         []*types.UserV2
+		expectedMembers               []*types.UserV2
+		expectedRoles                 map[string][]any
+		expectError                   require.ErrorAssertionFunc
+		expectValue                   require.ValueAssertionFunc
 	}{
 		// Simplest test case; create an empty access list from an empty
 		// group.
 		{
-			name:                   "empty",
-			makeResource:           mkGroup(newACLDisplayName, 0),
-			expectCreateAccessList: true,
-			expectedAccessListID:   newACLID,
-			expectedDisplayName:    newACLDisplayName,
-			expectedRoles:          []string{newACLID, newACLID + "-reviewer"},
-			expectError:            require.NoError,
-			expectedMembers:        []*types.UserV2{},
+			name:                          "empty",
+			makeResource:                  mkGroup(newACLDisplayName, 0),
+			expectACLLookup:               true,
+			expectCreatingAccessListEvent: true,
+			expectCreateAccessList:        true,
+			expectedAccessListID:          newACLID,
+			expectedDisplayName:           newACLDisplayName,
+			expectedRoles: map[string][]any{
+				newACLID:               {passThrough[types.Role]},
+				newACLID + "-reviewer": {passThrough[types.Role]},
+			},
+			expectError:     require.NoError,
+			expectedMembers: []*types.UserV2{},
+		},
+
+		// The Resource ID must be ignored when creating an access list, and a
+		// Teleport-supplied one must be used instead
+		{
+			name: "ID must be ignored",
+			makeResource: func(t *testing.T) *scimpb.Resource {
+				r := mkGroup(newACLDisplayName, 0)(t)
+				r.Id = "DO NOT TRUST THIS VALUE"
+				return r
+			},
+			expectACLLookup: false,
+			expectError:     requireBadParameter,
 		},
 
 		// Most common case; create a new AccessList with some members
 		{
-			name:                   "with members",
-			makeResource:           mkGroup(newACLDisplayName, 5),
-			expectCreateAccessList: true,
-			expectedAccessListID:   newACLID,
-			expectedDisplayName:    newACLDisplayName,
-			expectedMemberLookups:  users[0:5],
-			expectedMembers:        users[0:5],
-			expectedRoles:          []string{newACLID, newACLID + "-reviewer"},
-			expectError:            require.NoError,
+			name:                          "with members",
+			makeResource:                  mkGroup(newACLDisplayName, 5),
+			expectACLLookup:               true,
+			expectCreatingAccessListEvent: true,
+			expectCreateAccessList:        true,
+			expectedAccessListID:          newACLID,
+			expectedDisplayName:           newACLDisplayName,
+			expectedMemberLookups:         users[0:5],
+			expectedMembers:               users[0:5],
+			expectedRoles: map[string][]any{
+				newACLID:               {passThrough[types.Role]},
+				newACLID + "-reviewer": {passThrough[types.Role]},
+			},
+			expectError: require.NoError,
 		},
 
 		// In some cases, the SCIM client can "adopt" an existing AccessList. This
@@ -357,6 +382,7 @@ func TestGroupCreate(t *testing.T) {
 		{
 			name:                   "adoption",
 			makeResource:           mkGroup("Access List #0", 6),
+			expectACLLookup:        true,
 			aclLookupResult:        mkTestAccessLists(t, 2, 2),
 			expectedAccessListID:   "Access-List-000",
 			expectedDisplayName:    "Access List #0",
@@ -375,14 +401,46 @@ func TestGroupCreate(t *testing.T) {
 		// This test asserts that an adoption failure caused by multiple
 		// candidate AccessLists is handled correctly.
 		{
-			name:         "adoption fails with multiple candidates",
-			makeResource: mkGroup("Access List #0", 6),
+			name:            "adoption fails with multiple candidates",
+			makeResource:    mkGroup("Access List #0", 6),
+			expectACLLookup: true,
 			aclLookupResult: []*accesslist.AccessList{
 				mkTestAccessList(t, 0, true),
 				mkTestAccessList(t, 0, true),
 			},
 			expectError: requireAlreadyExists,
 			expectValue: require.Nil,
+		},
+
+		// An access list will not be created if creating its access role would
+		// overwrite an existing role
+		{
+			name:                          "access role overwrite is an error",
+			makeResource:                  mkGroup("Access List #0", 6),
+			expectACLLookup:               true,
+			expectCreatingAccessListEvent: true,
+			expectedRoles: map[string][]any{
+				newACLID: {nil, trace.AlreadyExists("That role already exists")},
+			},
+			expectCreateAccessList: false,
+			expectError:            requireAlreadyExists,
+			expectValue:            require.Nil,
+		},
+
+		// An access list will not be created if creating its reviewer role would
+		// overwrite an existing role
+		{
+			name:                          "reviewer role overwrite is an error",
+			makeResource:                  mkGroup("Access List #0", 6),
+			expectACLLookup:               true,
+			expectCreatingAccessListEvent: true,
+			expectedRoles: map[string][]any{
+				newACLID:               {passThrough[types.Role]},
+				newACLID + "-reviewer": {nil, trace.AlreadyExists("That role already exists")},
+			},
+			expectCreateAccessList: false,
+			expectError:            requireAlreadyExists,
+			expectValue:            require.Nil,
 		},
 	}
 
@@ -393,20 +451,26 @@ func TestGroupCreate(t *testing.T) {
 
 			// Configure the AccessLists service with the AccessLists it should
 			// return when the group handler is searching for groups to adopt.
-			fix.accesslists.
-				On("ListAccessLists", anyContext, 0, "").
-				Return(tt.aclLookupResult, "", nil)
+			if tt.expectACLLookup {
+				fix.accesslists.
+					On("ListAccessLists", anyContext, 0, "").
+					Return(tt.aclLookupResult, "", nil)
+			}
 
-			if tt.expectCreateAccessList {
+			if tt.expectCreatingAccessListEvent {
 				fix.shim.
 					On("onCreatingAccessList", anyContext, anyAccessList).
 					Run(func(args mock.Arguments) {
 						acl := getResultAs[*accesslist.AccessList](args, 1)
+						require.Empty(t, acl.GetName())
+
 						acl.Metadata.Name = newACLID
 						acl.Spec.Owners = []accesslist.Owner{{Name: "test-owner"}}
 					}).
 					Return(nil)
+			}
 
+			if tt.expectCreateAccessList {
 				fix.accesslists.
 					On("UpsertAccessList", anyContext, isAccessList(tt.expectedAccessListID)).
 					Run(requireValidAccessList(t)).
@@ -436,11 +500,11 @@ func TestGroupCreate(t *testing.T) {
 
 			// Configure the roles service to expect the appropriate role
 			// creations (if any)
-			for _, roleName := range tt.expectedRoles {
+			for roleName, createCallResult := range tt.expectedRoles {
 				fix.roles.
-					On("UpsertRole", anyContext, isRoleNamed(roleName)).
+					On("CreateRole", anyContext, isRoleNamed(roleName)).
 					Run(requireRoleMetadata(t, roleName)).
-					Return(passThrough[types.Role])
+					Return(createCallResult...)
 			}
 
 			resource := tt.makeResource(t)
@@ -625,15 +689,17 @@ func TestGroupDelete(t *testing.T) {
 		expectACLMemberListing bool
 		aclMemberListResult    []*accesslist.AccessListMember
 		expectACLDelete        bool
+		expectRoleDeleteCalls  map[string]error
 		expectedMemberUpdates  []string
 		expectError            require.ErrorAssertionFunc
 	}{
 		{
-			name:            "simple",
-			resourceID:      newACLID,
-			getACLResult:    []any{mkTestAccessListWithName(t, newACLID, newACLDisplayName, true), nil},
-			expectACLDelete: true,
-			expectError:     require.NoError,
+			name:                  "simple delete",
+			resourceID:            newACLID,
+			getACLResult:          []any{mkTestAccessListWithName(t, newACLID, newACLDisplayName, true), nil},
+			expectACLDelete:       true,
+			expectRoleDeleteCalls: map[string]error{"test": nil, "test-reviewer": nil},
+			expectError:           require.NoError,
 		},
 		{
 			name:         "deleting a non-existent group is an error",
@@ -646,6 +712,17 @@ func TestGroupDelete(t *testing.T) {
 			resourceID:   newACLID,
 			getACLResult: []any{mkTestAccessListWithName(t, newACLID, newACLDisplayName, false), nil},
 			expectError:  requireNotFound,
+		},
+		{
+			name:            "failed role delete is not an error",
+			resourceID:      newACLID,
+			getACLResult:    []any{mkTestAccessListWithName(t, newACLID, newACLDisplayName, true), nil},
+			expectACLDelete: true,
+			expectRoleDeleteCalls: map[string]error{
+				"test":          trace.NotFound("no such role"),
+				"test-reviewer": nil,
+			},
+			expectError: require.NoError,
 		},
 	}
 
@@ -664,6 +741,12 @@ func TestGroupDelete(t *testing.T) {
 				fix.accesslists.
 					On("DeleteAccessList", anyContext, tt.resourceID).
 					Return(nil)
+			}
+
+			for roleName, result := range tt.expectRoleDeleteCalls {
+				fix.roles.
+					On("DeleteRole", anyContext, roleName).
+					Return(result)
 			}
 
 			// When I attempt to delete a Group...
@@ -969,6 +1052,10 @@ func mkTestAccessListWithName(t *testing.T, name, title string, isSCIM bool) *ac
 			Title: title,
 			Owners: []accesslist.Owner{
 				{Name: "test-owner"},
+			},
+			OwnerGrants: accesslist.Grants{
+				Roles:  []string{"test-reviewer"},
+				Traits: trait.Traits{},
 			},
 			Grants: accesslist.Grants{
 				Roles:  []string{"test"},

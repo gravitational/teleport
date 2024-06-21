@@ -33,6 +33,7 @@ type Service struct {
 
 	authorizer    authz.Authorizer
 	users         UsersService
+	roles         RolesService
 	plugins       PluginsService
 	creds         CredentialsService
 	locks         LocksService
@@ -126,6 +127,7 @@ func NewService(cfg *Config) (*Service, error) {
 	return &Service{
 		authorizer:    cfg.Authorizer,
 		users:         cfg.UsersService,
+		roles:         cfg.RolesService,
 		plugins:       cfg.PluginsService,
 		locks:         cfg.LocksService,
 		identity:      cfg.IdentityService,

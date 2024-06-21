@@ -35,6 +35,7 @@ type oktaShim struct {
 	creds    CredentialsService
 	locks    LocksService
 	users    UsersService
+	roles    RolesService
 	plugin   *types.PluginV1
 	clock    clockwork.Clock
 	log      logrus.FieldLogger
@@ -66,6 +67,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		locks:    service.locks,
 		clock:    service.clock,
 		users:    service.users,
+		roles:    service.roles,
 		identity: service.identity,
 		plugin:   p,
 		log:      log,

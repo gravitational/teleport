@@ -96,5 +96,10 @@ type AccessListsService interface {
 // will run perform on the cluster Role database. This is expected to be a
 // subset of the Auth Service interface
 type RolesService interface {
-	UpsertRole(context.Context, types.Role) (types.Role, error)
+	// CreateRole creates a new role, failing if there is an existing Role of
+	// the same name
+	CreateRole(context.Context, types.Role) (types.Role, error)
+
+	// DeleteRole deletes a given role
+	DeleteRole(context.Context, string) error
 }

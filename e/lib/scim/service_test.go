@@ -211,6 +211,10 @@ func requireAlreadyExists(t require.TestingT, err error, _ ...interface{}) {
 	require.True(t, trace.IsAlreadyExists(err), "Expected AlreadyExists, got %s", err)
 }
 
+func requireBadParameter(t require.TestingT, err error, _ ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %s", err)
+}
+
 type authMock struct {
 }
 
