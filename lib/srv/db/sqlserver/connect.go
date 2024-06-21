@@ -55,7 +55,7 @@ type Connector interface {
 
 type connector struct {
 	// Auth is the database auth client
-	DBAuth common.Auth
+	DBAuth common.SessionAuth
 	// AuthClient is the teleport client
 	AuthClient windows.AuthInterface
 	// DataDir is the Teleport data directory
