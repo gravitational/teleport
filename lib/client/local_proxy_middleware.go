@@ -378,7 +378,11 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := tls.X509KeyPair(certPem, tlsca.MarshalPrivateKeyPEM(certKey))
+	keyPEM, err := keys.MarshalPrivateKey(certKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair(certPem, keyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
