@@ -59,7 +59,17 @@ export type JoinRole =
 // Same hard-corded value as the backend.
 // - 'token' is the default method, where nodes join the cluster by
 //   presenting a secret token.
-export type JoinMethod = 'token' | 'ec2' | 'iam' | 'github';
+export type JoinMethod =
+  | 'token'
+  | 'ec2'
+  | 'iam'
+  | 'github'
+  | 'azure'
+  | 'gcp'
+  | 'circleci'
+  | 'gitlab'
+  | 'kubernetes'
+  | 'tpm';
 
 // JoinRule is a rule that a joining node must match in order to use the
 // associated token.

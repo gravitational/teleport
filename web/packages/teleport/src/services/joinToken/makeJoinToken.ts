@@ -18,11 +18,21 @@
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { type JoinToken } from './types';
+import { JoinMethod, type JoinToken } from './types';
 import iam from './templates/iam.yaml?raw';
+import azure from './templates/azure.yaml?raw';
 
-export const templates = {
-  join_token: iam,
+export const templates: Record<JoinMethod, any> = {
+  iam,
+  token: undefined,
+  ec2: undefined,
+  github: undefined,
+  azure,
+  gcp: undefined,
+  circleci: undefined,
+  gitlab: undefined,
+  kubernetes: undefined,
+  tpm: undefined,
 };
 
 export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
