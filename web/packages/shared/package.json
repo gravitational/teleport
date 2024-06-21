@@ -10,12 +10,12 @@
     "directory": "packages/shared"
   },
   "dependencies": {
-    "@codemirror/lang-sql": "^6.5.2",
+    "@codemirror/lang-sql": "^6.6.5",
     "@gravitational/design": "1.0.0",
-    "@lezer/highlight": "^1.1.6",
-    "@nivo/bar": "^0.83.0",
-    "@uiw/react-codemirror": "^4.21.9",
-    "ace-builds": "1.4.6",
+    "@lezer/highlight": "^1.2.0",
+    "@nivo/bar": "^0.87.0",
+    "@uiw/react-codemirror": "^4.22.2",
+    "ace-builds": "1.35.0",
     "create-react-class": "^15.6.3",
     "date-fns": "^2.28.0",
     "highlight-words-core": "^1.2.2",
@@ -25,10 +25,10 @@
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
-    "tslib": "^2.6.2",
-    "whatwg-fetch": "^3.0.0"
+    "tslib": "^2.6.3",
+    "whatwg-fetch": "^3.6.20"
   },
   "devDependencies": {
-    "@types/react-highlight": "^0.12.6"
+    "@types/react-highlight": "^0.12.8"
   }
 }
