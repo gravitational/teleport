@@ -331,7 +331,12 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		if err := s.SetListener(s.limiter.WrapListener(listener)); err != nil {
+		listener, err = s.limiter.WrapListener(listener)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := s.SetListener(listener); err != nil {
 			return trace.Wrap(err)
 		}
 	}
