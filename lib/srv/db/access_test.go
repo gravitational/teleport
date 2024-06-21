@@ -2240,7 +2240,10 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
-		Dir:         t.TempDir(),
+		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_BALANCED_DEV,
+		},
+		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
