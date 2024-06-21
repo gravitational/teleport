@@ -141,6 +141,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		},
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		TTL:            c.clusterClient.KeyTTL,
 	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", routeToDatabase.ServiceName)))
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

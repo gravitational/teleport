@@ -139,6 +139,11 @@ type ReissueParams struct {
 	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
+	// TTL defines the maximum time-to-live for user certificates.
+	// This variable sets the upper limit on the duration for which a certificate
+	// remains valid. It's bounded by the `max_session_ttl` or `min_mfa_verification_interval`
+	// if MFA is required.
+	TTL time.Duration
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {

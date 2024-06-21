@@ -699,7 +699,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 	}
 
 	if arg.tunnel {
-		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)
+		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil, client.WithTTL(time.Duration(arg.cf.MinsToLive)*time.Minute))
 		opts = append(opts, alpnproxy.WithMiddleware(cc))
 		// When using a tunnel, try to load certs, but if that fails
 		// just skip them and let the reissuer fetch new certs when the local

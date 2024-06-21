@@ -3042,19 +3042,26 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if identity.Renewable || isRoleImpersonation(req) {
 			// Bot self-renewal or role impersonation can request certs with an
 			// expiry up to the global maximum allowed value.
-			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
-				req.Expires = max
+			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
+				req.Expires = maxTime
 			}
-		} else if req.GetUsage() == proto.UserCertsRequest_Kubernetes && req.GetRequesterName() == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl.
+		} else if isLocalProxyCertReq(&req) {
+			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
+			// or min_mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
-			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			// [roleSet.AdjustMinMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
+			// MFA tap and `min_mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
+			sessionTTL := roleSet.AdjustMinMFAVerificationInterval(
+				roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration()),
+			)
+			if req.Expires.After(a.authServer.GetClock().Now().UTC().Add(sessionTTL)) {
+				req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			}
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
 			// of the current session. This prevents a user renewing their

@@ -110,7 +110,7 @@ func (a *localProxyApp) Close() error {
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
+	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil, client.WithTTL(a.tc.KeyTTL))
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.

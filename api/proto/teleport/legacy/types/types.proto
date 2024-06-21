@@ -2881,6 +2881,18 @@ message RoleOptions {
   // database when not set to off.
   // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MinMFAVerificationInterval defines the minimum duration that must elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  int64 MinMFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "min_mfa_verification_interval,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 message RecordSession {

@@ -189,6 +189,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		RouteToApp:     routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		TTL:            tc.KeyTTL,
 	}
 
 	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)

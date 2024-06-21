@@ -581,6 +581,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 			RouteToCluster:    teleportCluster,
 			KubernetesCluster: kubeCluster,
 			RequesterName:     requesterName,
+			TTL:               tc.KeyTTL,
 		},
 		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)
