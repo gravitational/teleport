@@ -21,6 +21,7 @@ package client
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -383,12 +384,16 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 	}
+	
+	expires := tlsCert.NotAfter
+	if params.TTL != 0 && time.Now().Add(params.TTL).Before(expires) {
+		expires = time.Now().Add(params.TTL)
 
 	return privateKey, &proto.UserCertsRequest{
 		SSHPublicKey:          sshPublicKey,
 		TLSPublicKey:          tlsPublicKey,
 		Username:              tlsCert.Subject.CommonName,
-		Expires:               tlsCert.NotAfter,
+		Expires:               expires,
 		RouteToCluster:        params.RouteToCluster,
 		KubernetesCluster:     params.KubernetesCluster,
 		AccessRequests:        params.AccessRequests,

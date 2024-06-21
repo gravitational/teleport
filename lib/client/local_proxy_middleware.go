@@ -72,19 +72,45 @@ func NewCertChecker(certIssuer CertIssuer, clock clockwork.Clock) *CertChecker {
 	}
 }
 
+// CertCheckerOption is a variadic options func to set options for CertChecker functions
+type CertCheckerOption func(*certCheckerOptions)
+
+type certCheckerOptions struct {
+	ttl time.Duration
+}
+
+func applyOptions(opts ...CertCheckerOption) certCheckerOptions {
+	o := certCheckerOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+// WithTTL sets the TTL option.
+func WithTTL(ttl time.Duration) CertCheckerOption {
+	return func(options *certCheckerOptions) {
+		options.ttl = ttl
+	}
+}
+
 // NewDBCertChecker creates a new CertChecker for the given database.
-func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *CertChecker {
+func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
+	opt := applyOptions(opts...)
 	return NewCertChecker(&DBCertIssuer{
 		Client:     tc,
 		RouteToApp: dbRoute,
+		TTL:        opt.ttl,
 	}, clock)
 }
 
 // NewAppCertChecker creates a new CertChecker for the given app.
-func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock) *CertChecker {
+func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
+	opt := applyOptions(opts...)
 	return NewCertChecker(&AppCertIssuer{
 		Client:     tc,
 		RouteToApp: appRoute,
+		TTL:        opt.ttl,
 	}, clock)
 }
 
@@ -173,6 +199,11 @@ type DBCertIssuer struct {
 	Client *TeleportClient
 	// RouteToApp contains database routing information.
 	RouteToApp tlsca.RouteToDatabase
+	// TTL defines the maximum time-to-live for user certificates.
+	// This variable sets the upper limit on the duration for which a certificate
+	// remains valid. It's bounded by the `max_session_ttl` or `min_mfa_verification_interval`
+	// if MFA is required.
+	TTL time.Duration
 }
 
 func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
@@ -199,6 +230,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			},
 			AccessRequests: accessRequests,
 			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+			TTL:            c.TTL,
 		}
 
 		clusterClient, err := c.Client.ConnectToCluster(ctx)
@@ -238,6 +270,11 @@ type AppCertIssuer struct {
 	Client *TeleportClient
 	// RouteToApp contains app routing information.
 	RouteToApp proto.RouteToApp
+	// TTL defines the maximum time-to-live for user certificates.
+	// This variable sets the upper limit on the duration for which a certificate
+	// remains valid. It's bounded by the `max_session_ttl` or `min_mfa_verification_interval`
+	// if MFA is required.
+	TTL time.Duration
 }
 
 func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
@@ -260,6 +297,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			RouteToApp:     c.RouteToApp,
 			AccessRequests: accessRequests,
 			RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+			TTL:            c.TTL,
 		}
 
 		clusterClient, err := c.Client.ConnectToCluster(ctx)
