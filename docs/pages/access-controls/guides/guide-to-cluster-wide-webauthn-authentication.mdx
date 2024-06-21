@@ -11,8 +11,8 @@ such as a fingerprint reader.
 
 With WebAuthn, users can authenticate using their hardware security keys, such as 
 YubiKeys, SoloKeys, or biometric authenticators like Touch ID and Windows Hello (`tsh` and WebUI), 
-making the login process both faster and more user-friendly. Seamless integration reduces the 
-friction commonly associated with MFA, encouraging broader adoption and consistent use among employees. 
+making the login process both faster and more user-friendly, encouraging broader adoption 
+and consistent MFA use among employees. 
 
 ## Prerequisites
 
@@ -49,7 +49,7 @@ Teleport configuration as below:
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
     second_factor: "on"
     webauthn:
-      # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+      # Required, replace with proxy web address (example.com, example.teleport.sh).
       # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
       # (https://) and port number.
       rp_id: example.com
@@ -83,7 +83,7 @@ Teleport configuration as below:
 
   </TabItem>
   <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+  Edit the Auth Server's `teleport.yaml` file and restart all Auth Service instances:
 
   ```yaml
   # snippet from /etc/teleport.yaml:
@@ -93,7 +93,7 @@ Teleport configuration as below:
       # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
       second_factor: on
       webauthn:
-        # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+        # Required, replace with proxy web address (example.com, example.teleport.sh).
         # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
         # (https://) and port number.
         rp_id: example.com
@@ -160,9 +160,9 @@ $ tsh mfa add
 ```
 
 <Admonition type="tip">
-`tsh mfa` picks the strongest known second factor you have for the "Tap any
+`tsh mfa` picks the strongest known multi-factor you have for the "Tap any
 *registered* security key" step. This may be undesirable at times, so you may
-fallback to a weaker second factor, like OTP, using `tsh mfa add
+fallback to a weaker multi-factor, like OTP, using `tsh mfa add
 --mfa-mode=otp`.
 
 See the possible `--mfa-mode` values in the [Teleport CLI
@@ -210,15 +210,15 @@ $ tsh login --proxy=example.com
 
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh
+$ tsh login --proxy=example.teleport.sh
 # Enter password for Teleport user codingllama:
 # Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://mytenant.teleport.sh
+# > Profile URL:        https://example.teleport.sh
 #   Logged in as:       codingllama
-#   Cluster:            mytenant.teleport.sh
+#   Cluster:            example.teleport.sh
 #   Roles:              access, editor, reviewer
 #   Logins:             codingllama
 #   Kubernetes:         enabled
