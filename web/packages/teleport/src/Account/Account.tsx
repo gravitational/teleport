@@ -348,7 +348,7 @@ function PasskeysHeader({
     return (
       <Flex flexDirection="column" alignItems="center">
         <Box
-          bg={theme.colors.interactive.tonal.neutral[0]}
+          bg={theme.colors.interactive.tonal.neutral[0].background}
           lineHeight={0}
           p={2}
           borderRadius={3}

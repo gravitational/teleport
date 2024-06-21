@@ -276,7 +276,7 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
       gap={4}
       p={4}
       mb={4}
-      bg="interactive.tonal.neutral.0"
+      bg="interactive.tonal.neutral.0.background"
     >
       <Flex height="168px" justifyContent="center" alignItems="center">
         {fetchQrCodeAttempt.status === 'error' && (
