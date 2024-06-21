@@ -9,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"sync"
 	"testing"
@@ -777,6 +778,6 @@ func getAccessGraphTLSConfig(cfg *AccessGraphConfig, tlsConfig *tls.Config) (*tl
 type teleportVersionHeaderAppender struct{}
 
 // Rewrite request headers.
-func (rw *teleportVersionHeaderAppender) Rewrite(req *http.Request) {
-	req.Header.Set(teleport.VersionRequest, teleport.Version)
+func (rw *teleportVersionHeaderAppender) Rewrite(req *httputil.ProxyRequest) {
+	req.Out.Header.Set(teleport.VersionRequest, teleport.Version)
 }
