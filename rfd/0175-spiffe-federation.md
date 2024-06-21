@@ -20,6 +20,8 @@ See https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md
 for the SPIFFE Federation specification. This will be referred to as
 "the specification" throughout this document.
 
+This feature will be gated behind a Teleport Enterprise license.
+
 ## Why
 
 Implementing support for SPIFFE Federation has the following benefits:
@@ -157,7 +159,7 @@ message SPIFFEFederationSpec {
 }
 
 // FederationStatus is the status of a trust domain federation.
-message FederationStatus {
+message SPIFFEFederationStatus {
   // The most recently fetched bundle from the federated trust domain.
   string current_bundle = 1;
   // The time that the most recently fetched bundle was obtained.
@@ -173,6 +175,15 @@ the trust bundle from the configured Bundle Endpoint. This will be written into
 `status.current_bundle`. If specified, the `current_bundle_refresh_hint` will
 be used to determine when the next fetch should occur. If unspecified, it will
 be assumed that the bundle should be refreshed every 60 minutes.
+
+#### TBot
+
+Some minor changes will need to be made to TBot to support federation.
+
+When the SPIFFE service starts, it will additionally need to fetch and watch
+the `SPIFFEFederation` resources. When a resource is updated, added or deleted,
+the service will need to update its trust bundle cache and distribute the
+updated trust bundles to any subscribed workloads.
 
 ### SPIFFE Joining
 
@@ -209,14 +220,94 @@ return it to the server. The server will then verify the signature using the
 public key from the X.509 certificate.
 
 ```protobuf
+service JoinService {
+  // .. Existing Methods ..
+  // RegisterUsingSPIFFEMethod is used to register a Bot or Agent using a SPIFFE
+  // SVID.
+  rpc RegisterUsingSPIFFEMethod(stream RegisterUsingSPIFFEMethodRequest) returns (stream RegisterUsingSPIFFEMethodResponse);
+}
 
+// The initial information sent from the client to the server.
+message RegisterUsingSPIFFEMethodInitialRequest {
+  // Holds the registration parameters shared by all join methods.
+  types.RegisterUsingTokenRequest join_request = 1;
+  // The X509 SVID encoded in ASN.1 DER format.
+  bytes x509_svid = 2;
+}
+
+// Payload of RegisterUsingSPIFFEMethodRequest, which is the solution to the
+// challenge provided by the server.
+message RegisterUsingSPIFFEMethodChallengeSolution {
+  // The signature of the challenge nonce using the private key corresponding to
+  // the X.509 SVID.
+  bytes signed_nonce = 1;
+}
+
+message RegisterUsingSPIFFEMethodRequest {
+  oneof payload {
+    // Initial information sent from the client to the server.
+    RegisterUsingSPIFFEMethodInitialRequest init = 1;
+    // The challenge response required to complete the SPIFFE join process.
+    // This is sent in response to the servers challenge.
+    RegisterUsingSPIFFEMethodChallengeSolution challenge_solution = 2;
+  }
+}
+
+// The RegisterUsingSPIFFEMethodResponse payload used by the server to issue the
+// challenge nonce to the client.
+message RegisterUsingSPIFFEMethodChallenge{
+  // The nonce that the client must sign with the private key corresponding to
+  // the X.509 SVID.
+  bytes nonce = 1;
+}
+
+message RegisterUsingSPIFFEMethodResponse {
+  oneof payload {
+    // The challenge required to complete the SPIFFE join process. This is sent
+    // to the client in response to the initial request.
+    RegisterUsingSPIFFEMethodChallenge challenge = 1;
+    // The signed certificates resulting from the join process.
+    Certs certs = 2;
+  }
+}
 ```
 
 The join method will be configured using the ProvisionTokenV2 resource:
 
 ```protobuf
+syntax = "proto3";
 
+message ProvisionTokenSpecV2SPIFFE{
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
+  message Rule {
+    // SPIFFEID matches against the full SPIFFE ID of the joining client's SVID.
+    // It should be prefixed with spiffe:// and glob-like patterns are 
+    // supported in the path element.
+    // Example: spiffe://example.com/foo/*
+    string SPIFFEID = 1;
+  }
+
+  // Allow is a list of Rules, clients using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1;
+}
 ```
+
+The join will flow as follows:
+
+1. The Client submits the initial join request, including the X.509 SVID.
+2. The Server responds with a challenge nonce.
+3. The Client signs the nonce with the private key corresponding to the X.509
+   SVID and returns the signature.
+4. The server:
+  a. Verifies the signature, and basic fields of the X.509 SVID (e.g expiry).
+  b. Finds the specified join token
+  c. Searches the configured SPIFFEFederations for a trust bundle that matches
+     the trust domain of the SPIFFE ID within X.509 SVID.
+  d. Verifies the X.509 SVID's signature against the trust bundle.
+  e. Verifies that the SPIFFE ID matches one of the allow rules.
+5. The Server signs and returns the user certificate.
 
 ## UX
 
@@ -239,6 +330,8 @@ spec:
       bundle_endpoint_url: https://example.com/webapi/spiffe/bundle.json
 ```
 
+Once configured, the administrator can delete the resource to stop federating.
+
 ### Joining
 
 Like other join methods, the SPIFFE join method will be configurable using 
@@ -248,7 +341,18 @@ or the Kubernetes Operator.
 Example configuration:
 
 ```yaml
-
+kind: token
+version: v2
+metadata:
+  name: spiffe-join-token
+spec:
+  roles: [Bot]
+  bot_name: my-bot
+  join_method: spiffe
+  spiffe:
+    allow:
+      - spiffe_id: spiffe://example.com/foo/*
+      - spiffe_id: spiffe://second.example.com/bar/foo/fizz
 ```
 
 ## Security Considerations
