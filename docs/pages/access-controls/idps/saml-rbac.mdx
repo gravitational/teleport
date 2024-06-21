@@ -4,7 +4,7 @@ description: Learn how SAML IdP service provider RBAC works.
 h1: Teleport SAML IdP service provider RBAC
 ---
 
-To manage access to SAML IdP service provider, a role spec must target `saml_idp_service_provider`
+To manage access to SAML IdP service provider resource, a role spec must target `saml_idp_service_provider`
 resource kind.
 
 Currently, SAML IdP only supports role-based access to `saml_idp_service_provider` resource.
@@ -23,7 +23,6 @@ resource in Teleport.
   Reference](./saml-reference.mdx) before proceeding.
 - User with permission to read and modify `saml_idp_service_provider` resource. The preset `editor`
 role has this permission.
-
 
 
 ## SAML IdP access role
@@ -98,3 +97,23 @@ role 'saml-idp-manager' has been created
 Next, add the role to your user.
 
 (!docs/pages/includes/add-role-to-user.mdx role="saml-idp-manager"!)
+
+
+## Deny access to enrolled SAML service providers
+
+By default, users are granted with an implicit access to the enrolled SAML service providers.
+To deny access, users must be assigned with a role that explicitly sets the
+`idp.saml.enabled` value to `false` in the role options. The value of `idp.saml.enabled`
+option is implicitly set to `true` in the default `access` role or when creating a new role.
+
+```yaml
+kind: role
+metadata:
+  name: access
+spec:
+  options:
+    ...
+    idp:
+      saml:
+        enabled: false
+```
