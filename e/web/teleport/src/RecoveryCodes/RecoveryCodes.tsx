@@ -5,9 +5,9 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { StyledCheckbox } from 'design/Checkbox';
 import * as Icon from 'design/Icon';
 import { RecoveryCodes as RecoveryCodesData } from 'teleport/services/auth';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 export type RecoveryCodesProps = {
   recoveryCodes: RecoveryCodesData;
@@ -116,16 +116,12 @@ export function RecoveryCodes({
             <Text className="print-only">
               {`Created: ${recoveryCodes.createdDate.toString()}`}
             </Text>
-            <Flex
-              as="label"
-              alignItems="center"
-              alignSelf="start"
-              gap={2}
-              className="no-print"
-            >
-              <StyledCheckbox checked={codesSaved} onChange={onSavedClick} />
-              <Text typography="paragraph">{checkboxText}</Text>
-            </Flex>
+            <FieldCheckbox
+              label={checkboxText}
+              checked={codesSaved}
+              onChange={onSavedClick}
+              mb={0}
+            />
             <ButtonPrimary
               size="large"
               width="100%"

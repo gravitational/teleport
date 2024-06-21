@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-import { Text, Alert, Box, Flex, Indicator } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { Text, Alert, Box, Indicator } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -11,6 +10,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import { useTeleport } from 'teleport/index';
 import userService, { User } from 'teleport/services/user';
+
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { FormDataField } from './types';
 
@@ -93,30 +94,15 @@ export function FormMixin({ attempt }) {
             />
           </Box>
           <Box my={4}>
-            <Flex
-              as="label"
-              alignItems="center"
-              alignSelf="start"
-              gap={2}
-              className="no-print"
-            >
-              <StyledCheckbox
-                role="checkbox"
-                type="checkbox"
-                name={FormDataField.AccessGraph}
-                checked={accessGraphEnabled}
-                disabled={!policyEnabled || attempt.status === 'processing'}
-                onChange={e => {
-                  setAccessGraphEnabled(e.target.checked);
-                }}
-              />
-              <Text
-                color={!policyEnabled ? 'text.muted' : ''}
-                typography="paragraph"
-              >
-                Enable Access Graph integration
-              </Text>
-            </Flex>
+            <FieldCheckbox
+              label="Enable Access Graph integration"
+              name={FormDataField.AccessGraph}
+              checked={accessGraphEnabled}
+              disabled={!policyEnabled || attempt.status === 'processing'}
+              onChange={e => {
+                setAccessGraphEnabled(e.target.checked);
+              }}
+            />
           </Box>
         </>
       ) : (

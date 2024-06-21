@@ -1,7 +1,7 @@
 import { Flex, LabelInput, Text } from 'design';
 import React from 'react';
 import Image from 'design/Image';
-import { CheckboxInput } from 'design/Checkbox';
+import { StyledCheckbox } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 
@@ -33,24 +33,21 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
     const isSelected = checked.includes(resource.value as ResourceOption);
     return (
       <label
-        htmlFor={`box-${resource.value}`}
         data-testid={`box-${resource.value}`}
         key={resource.value}
         style={{
           width: '100%',
           height: '100%',
         }}
-        onClick={() => updateResources(resource)}
       >
         <ResourceWrapper isSelected={isSelected} invalid={!valid}>
-          <CheckboxInput
+          <StyledCheckbox
+            size="small"
             aria-labelledby="resources"
             data-testid={`check-${resource.value}`}
-            role="checkbox"
-            type="checkbox"
             name={resource.label}
-            readOnly
             checked={checked.includes(resource.value as ResourceOption)}
+            onChange={() => updateResources(resource)}
             style={{
               alignSelf: 'flex-end',
               margin: '0',

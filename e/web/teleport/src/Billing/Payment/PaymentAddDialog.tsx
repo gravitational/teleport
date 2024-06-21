@@ -9,11 +9,11 @@ import React, { useState } from 'react';
 import { useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTheme } from 'styled-components';
 
-import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
-
 import { Danger } from 'design/Alert';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { SetupIntent } from 'e-teleport/services/cloud';
 import { CreditCard } from 'e-teleport/Banner/UsageBasedUpgrade/CreditCard';
@@ -131,23 +131,15 @@ export const PaymentAddDialog = ({
         </Text>
         <CreditCard setValid={setValid} />
         {showDefaultOption && (
-          <CheckboxWrapper
-            as="label"
-            htmlFor="setDefault"
-            style={{ border: 'none', padding: '2px 0' }}
-          >
-            <CheckboxInput
-              type="checkbox"
-              name="Make Default Payment"
-              id="setDefault"
-              data-testid="set-default"
-              onChange={e => {
-                setPrimary(e.target.checked);
-              }}
-              checked={primary}
-            />
-            Make Default Payment
-          </CheckboxWrapper>
+          <FieldCheckbox
+            label="Make Default Payment"
+            name="Make Default Payment"
+            data-testid="set-default"
+            onChange={e => {
+              setPrimary(e.target.checked);
+            }}
+            checked={primary}
+          />
         )}
       </DialogContent>
       {networkState.error != undefined && (
