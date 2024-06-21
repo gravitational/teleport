@@ -9,6 +9,9 @@ import {
   Alert,
   ButtonWarning,
   ButtonSecondary,
+  Link,
+  ButtonPrimary,
+  Menu,
 } from 'design';
 import Dialog, {
   DialogContent,
@@ -30,12 +33,37 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { JoinToken } from 'teleport/services/joinToken';
+import ResourceEditor from 'teleport/components/ResourceEditor';
+import { Resource, KindJoinToken } from 'teleport/services/resources';
+import useResources from 'teleport/components/useResources';
+import { templates } from 'teleport/services/joinToken/makeJoinToken';
+import { Dropdown } from 'teleport/components/Dropdown';
+import FieldSelect from 'shared/components/FieldSelect';
+
+function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
+  return {
+    id: token.id,
+    name: token.id,
+    kind: 'join_token',
+    content: token.content,
+  };
+}
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
     useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
+
+  const resources = useResources(
+    joinTokensAttempt?.data?.items?.map(makeTokenResource) || [],
+    templates
+  );
+
+  const title =
+    resources.status === 'creating' ? 'Create a new join token' : 'Edit token';
+
+  console.log({ resources });
 
   const [deleteTokenAttempt, runDeleteTokenAttempt] = useAsync(
     async (token: string) => {
@@ -59,10 +87,13 @@ export const JoinTokens = () => {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
+        <ButtonPrimary onClick={() => resources.create('join_token')}>
+          Add
+        </ButtonPrimary>
       </FeatureHeader>
       <Box>
         {deleteTokenAttempt.status === 'error' && (
-          <Alert kind="error">{deleteTokenAttempt.statusText}</Alert>
+          <Alert kind="danger">{deleteTokenAttempt.statusText}</Alert>
         )}
         {joinTokensAttempt.status === 'success' && (
           <Table
@@ -154,6 +185,19 @@ export const JoinTokens = () => {
           onClose={() => setTokenToDelete(null)}
           onDelete={() => runDeleteTokenAttempt(tokenToDelete.id)}
           attempt={deleteTokenAttempt}
+        />
+      )}
+      {(resources.status === 'creating' || resources.status === 'editing') && (
+        <ResourceEditor
+          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+          title={title}
+          text={resources.item?.content}
+          name={resources.item?.name}
+          isNew={resources.status === 'creating'}
+          onSave={(...args) => console.log(args)}
+          onClose={resources.disregard}
+          directions={<Directions />}
+          kind={resources.item?.kind}
         />
       )}
     </FeatureBox>
@@ -320,5 +364,55 @@ function TokenDelete({
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       </DialogFooter>
     </Dialog>
+  );
+}
+
+function Directions() {
+  return (
+    <>
+      <HoverTooltip tipContent={'Select a token template'}>
+        <ButtonSecondary
+          px={2}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          textTransform="none"
+          size="small"
+          onClick={handleOpen}
+        >
+          Types{' '}
+          {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
+          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
+          {kindsFromParams.length > 0 && <FiltersExistIndicator />}
+        </ButtonSecondary>
+      </HoverTooltip>
+      <Menu
+        popoverCss={() => `
+          margin-top: ${showInput ? '40px' : '4px'}; 
+          max-height: 265px; 
+          overflow: hidden; 
+        `}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      ></Menu>
+      WARNING tokens are defined using{' '}
+      <Link
+        color="text.main"
+        target="_blank"
+        href="https://en.wikipedia.org/wiki/YAML"
+      >
+        YAML format
+      </Link>
+      . YAML is sensitive to white space, so please be careful.
+    </>
   );
 }
