@@ -86,9 +86,9 @@ func TestRegisterEngine(t *testing.T) {
 	// The auth will be replaced with reporting auth internally, but we can unwrap the original auth.
 	engineInst, ok := repEngine.engine.(*testEngine)
 	require.True(t, ok)
-	repAuth, ok := engineInst.ec.Auth.(*reportingAuth)
+	repAuth, ok := engineInst.ec.Auth.(*reportingSessionAuth)
 	require.True(t, ok)
-	require.Equal(t, ec.Auth, repAuth.Auth)
+	require.Equal(t, ec.Auth, repAuth.SessionAuth)
 	engineInst.ec.Auth = ec.Auth
 	require.Equal(t, ec, engineInst.ec)
 }
@@ -103,5 +103,5 @@ type testAudit struct {
 }
 
 type testAuth struct {
-	Auth
+	SessionAuth
 }
