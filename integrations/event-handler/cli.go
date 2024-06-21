@@ -153,9 +153,6 @@ type IngestConfig struct {
 
 	//WindowSize is the size of the window to process events
 	WindowSize time.Duration `help:"Window size to process events" default:"24h"`
-
-	// DebugEnabled allows for debug logging
-	DebugLoggingEnabled bool `help:"Configures debug logging on" name:"debugLogging" env:"FDFWD_DEBUG"`
 }
 
 // LockConfig represents locking configuration
