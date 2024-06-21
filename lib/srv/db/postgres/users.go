@@ -38,15 +38,23 @@ import (
 )
 
 // connectAsAdmin connect to the database from db route as admin user.
-// If useDefaultDatabase is true and a default database is configured for the admin user, it will be used instead.
-func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultDatabase bool) (*pgx.Conn, error) {
+// If useDefaultValues is true and a default values are configured for the admin user, they will be used instead.
+func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultValues bool) (*pgx.Conn, error) {
+	loginSchema := ""
 	loginDatabase := sessionCtx.DatabaseName
-	if useDefaultDatabase && sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
-		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
-	} else {
-		e.Log.WithField("database", loginDatabase).Info("Connecting to session database")
+	if useDefaultValues {
+		if sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
+			loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
+		} else {
+			e.Log.WithField("database", loginDatabase).Info("Connecting to session database")
+		}
+
+		if sessionCtx.Database.GetAdminUser().DefaultSchema != "" {
+			loginSchema = sessionCtx.Database.GetAdminUser().DefaultSchema
+		}
 	}
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
+
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase), loginSchema)
 	return conn, trace.Wrap(err)
 }
 
@@ -408,15 +416,25 @@ func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, 
 
 // pgxConnect connects to the database using pgx driver which is higher-level
 // than pgconn and is easier to use for executing queries.
-func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session, searchPath string) (*pgx.Conn, error) {
 	config, err := e.getConnectConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Always reset runtime params to avoid using user provided flags to admin
+	// connections.
+	config.RuntimeParams = map[string]string{}
+
+	if searchPath != "" {
+		config.RuntimeParams[searchPathParam] = searchPath
+	}
+
 	pgxConf, err := pgx.ParseConfig("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	pgxConf.Config = *config
 	return pgx.ConnectConfig(ctx, pgxConf)
 }
@@ -458,6 +476,13 @@ func pickProcedures(sessionCtx *common.Session) map[string]string {
 	}
 	return procs
 }
+
+const (
+	// searchPathParam is the name of the startup parameter used to set the
+	// connection `search_path`.
+	// https://www.postgresql.org/docs/16/ddl-schemas.html#DDL-SCHEMAS-PATH
+	searchPathParam = "search_path"
+)
 
 const (
 	// activateProcName is the name of the stored procedure Teleport will use

@@ -344,6 +344,11 @@ message DatabaseAdminUser {
   // Depending on the database type, this database may be used to store
   // procedures or data for managing database users.
   string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
+  // DefaultSchema is the schema that the privileged database user will use.
+  //
+  // Depending on the database type, this schema may be used to store
+  // procedures.
+  string DefaultSchema = 3 [(gogoproto.jsontag) = "default_schema"];
 }
 
 // OracleOptions contains information about privileged database user used

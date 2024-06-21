@@ -1815,6 +1815,11 @@ type DatabaseAdminUser struct {
 	// Depending on the database type, this database may be used to store
 	// procedures or data for managing database users.
 	DefaultDatabase string `yaml:"default_database"`
+	// DefaultSchema is the schema that the privileged database user will use.
+	//
+	// Depending on the database type, this schema may be used to store
+	// procedures.
+	DefaultSchema string `yaml:"default_schema"`
 }
 
 // DatabaseAD contains database Active Directory configuration.

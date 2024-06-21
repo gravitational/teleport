@@ -50,8 +50,10 @@ func TestAutoUsersPostgres(t *testing.T) {
 		importRuleSpec      *dbobjectimportrulev1.DatabaseObjectImportRuleSpec
 
 		adminDefaultDatabase   string
+		adminDefaultSchema     string
 		connectionErrorMessage string
 		expectAdminDatabase    string
+		expectSchema           string
 	}{
 		"activate/deactivate users": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
@@ -76,6 +78,27 @@ func TestAutoUsersPostgres(t *testing.T) {
 			databaseRoles:        []string{"reader", "writer"},
 			adminDefaultDatabase: "admin-db",
 			expectAdminDatabase:  "admin-db",
+		},
+		"admin user default schema": {
+			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:       []string{"reader", "writer"},
+			adminDefaultSchema:  "example",
+			expectAdminDatabase: "user-db",
+			expectSchema:        "example",
+		},
+		"admin user default schema and permissions": {
+			mode:               types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			adminDefaultSchema: "example",
+			databasePermissions: types.DatabasePermissions{
+				{
+					Permissions: []string{"SELECT"},
+					Match: map[string]apiutils.Strings{
+						"can_select": []string{"true"},
+					},
+				},
+			},
+			expectAdminDatabase: "user-db",
+			expectSchema:        "example",
 		},
 		"roles and permissions are mutually exclusive": {
 			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
@@ -138,6 +161,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 				db.Spec.AdminUser = &types.DatabaseAdminUser{
 					Name:            "postgres",
 					DefaultDatabase: tc.adminDefaultDatabase,
+					DefaultSchema:   tc.adminDefaultSchema,
 				}
 			}))
 			go testCtx.startHandlingConnections()
@@ -173,15 +197,15 @@ func TestAutoUsersPostgres(t *testing.T) {
 
 			// Verify incoming connections.
 			// 1. Admin connecting to admin database
-			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", tc.expectAdminDatabase)
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", tc.expectAdminDatabase, tc.expectSchema)
 
 			// 2. If there are any database permissions: admin connecting to session database.
 			if len(tc.databasePermissions) > 0 {
-				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db")
+				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db", "")
 			}
 
 			// 3. User connecting to session database.
-			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "alice", "user-db")
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "alice", "user-db", "")
 
 			// Verify user was activated.
 			select {
@@ -224,13 +248,14 @@ func TestAutoUsersPostgres(t *testing.T) {
 	}
 }
 
-func requirePostgresConnection(t *testing.T, parametersCh chan map[string]string, expectUser, expectDatabase string) {
+func requirePostgresConnection(t *testing.T, parametersCh chan map[string]string, expectUser, expectDatabase, expectSchema string) {
 	t.Helper()
 	select {
 	case parameters := <-parametersCh:
 		require.NotNil(t, parameters)
 		require.Equal(t, expectUser, parameters["user"])
 		require.Equal(t, expectDatabase, parameters["database"])
+		require.Equal(t, expectSchema, parameters["search_path"])
 	case <-time.After(5 * time.Second):
 		t.Fatal("no connection after 5s")
 	}
