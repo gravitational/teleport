@@ -407,7 +407,8 @@ func TestListener(t *testing.T) {
 			limiter, err := NewConnectionsLimiter(test.config)
 			require.NoError(t, err)
 
-			ln := NewListener(test.listener, limiter)
+			ln, err := NewListener(test.listener, limiter)
+			require.NoError(t, err)
 
 			// open connections without closing to enforce limits
 			conns := make([]net.Conn, 0, connLimit)

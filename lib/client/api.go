@@ -77,8 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
-	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -461,9 +459,9 @@ type Config struct {
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
 
-	// DTAuthnRunCeremony allows tests to override the default device
-	// authentication function.
-	// Defaults to "dtauthn.NewCeremony().Run()".
+	// DTAuthnRunCeremony is the device authentication function to execute
+	// during device login ceremonies. If not provided and device trust is
+	// required, then the device login will fail.
 	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
 
 	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
@@ -471,10 +469,10 @@ type Config struct {
 	// Useful to force flows that only typically happen on Teleport Enterprise.
 	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
 
-	// dtAutoEnroll allows tests to override the default device auto-enroll
-	// function.
-	// Defaults to [dtenroll.AutoEnroll].
-	dtAutoEnroll dtAutoEnrollFunc
+	// DTAutoEnroll is the device auto-enroll function to execute during
+	// device enrollment. If not provided and device trust auto-enrollment
+	// is enabled, then the enrollment process will fail.
+	DTAutoEnroll DTAutoEnrollFunc
 
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
@@ -595,7 +593,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case utils.IsPredicateError(fnErr):
 		return trace.Wrap(utils.PredicateError{Err: fnErr})
 	case tc.NonInteractive:
-		return trace.Wrap(fnErr)
+		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
@@ -1099,8 +1097,8 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 // DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
 type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
-// dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
-type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
+// DTAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
+type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
 
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
@@ -3388,7 +3386,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	// Allow tests to override the default authn function.
 	runCeremony := tc.DTAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.NewCeremony().Run
+		return nil, trace.BadParameter("device authentication not enabled")
 	}
 
 	// Login without a previous auto-enroll attempt.
@@ -3409,9 +3407,9 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
 
-	autoEnroll := tc.dtAutoEnroll
+	autoEnroll := tc.DTAutoEnroll
 	if autoEnroll == nil {
-		autoEnroll = dtenroll.AutoEnroll
+		return nil, trace.BadParameter("device auto enrollment not enabled")
 	}
 
 	// Auto-enroll and Login again.
