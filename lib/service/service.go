@@ -1036,7 +1036,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	upgraderKind := automaticupgrades.GetUpgraderKind()
+	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
+	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
+	if upgraderVersion == "" {
+		upgraderKind = ""
+	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
 	// by the proxy. The instance heartbeat should properly reflect that.
@@ -1044,7 +1048,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if externalUpgrader == "" && os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar) == "true" {
 		externalUpgrader = types.OriginIntegrationAWSOIDC
 	}
-	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext(), externalUpgrader)
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
