@@ -101,7 +101,7 @@
     "webpack": "^5.76.2",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^4.10.0",
-    "webpack-dev-server": "^4.9.3"
+    "webpack-dev-server": "^5.0.4"
   },
   "devDependencies": {
     "msw-storybook-addon": "^1.8.0",
