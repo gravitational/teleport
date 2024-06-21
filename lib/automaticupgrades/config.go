@@ -73,8 +73,11 @@ func GetChannel() string {
 }
 
 // GetUpgraderVersion returns the teleport upgrader version
-func GetUpgraderVersion(ctx context.Context) string {
-	if os.Getenv(EnvUpgrader) == "unit" {
+func GetUpgraderVersion(ctx context.Context, kind string) string {
+	if kind == "" {
+		return ""
+	}
+	if kind == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
@@ -85,4 +88,18 @@ func GetUpgraderVersion(ctx context.Context) string {
 		}
 	}
 	return os.Getenv(EnvUpgraderVersion)
+}
+
+// GetUpgraderKind returns the upgrader kind.
+// If the environment value is 'unit' the upgrade script needs to be verified.
+func GetUpgraderKind() string {
+	kind := os.Getenv(EnvUpgrader)
+	if kind == "unit" {
+		// Verify the environment variable is still valid
+		if _, err := os.Stat(teleportUpgradeScript); err != nil {
+			log.WithError(err).Debugf("Failed to verify %s.", teleportUpgradeScript)
+			return ""
+		}
+	}
+	return kind
 }
