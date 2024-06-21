@@ -43,7 +43,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.logursLogger,
+		Log:                 s.logrusLogger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -78,7 +78,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       s.logursLogger,
+			Log:       s.logrusLogger,
 			Client:    s.cfg.AccessPoint,
 		},
 	})

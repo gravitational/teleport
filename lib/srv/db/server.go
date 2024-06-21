@@ -297,9 +297,9 @@ type Server struct {
 	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
-	// logursLogger is used for logging.
+	// logrusLogger is used for logging.
 	// TODO (greedy52) delete when possible.
-	logursLogger *logrus.Entry
+	logrusLogger *logrus.Entry
 	// logger is used for logging.
 	log *slog.Logger
 	// activeConnections counts the number of database active connections.
@@ -391,7 +391,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		logursLogger:     logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
+		logrusLogger:     logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
 		log:              slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,
@@ -495,7 +495,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, database types.Database
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: database.GetDynamicLabels(),
-		Log:    s.logursLogger,
+		Log:    s.logrusLogger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1170,7 +1170,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),
-		Log: s.logursLogger.WithFields(logrus.Fields{
+		Log: s.legacyLogger.WithFields(logrus.Fields{
 			"id": id,
 			"db": database.GetName(),
 		}),
