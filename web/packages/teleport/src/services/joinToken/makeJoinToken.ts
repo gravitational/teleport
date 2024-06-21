@@ -18,14 +18,27 @@
 
 import { formatDistanceStrict } from 'date-fns';
 
-import type { JoinToken } from './types';
+import { type JoinToken } from './types';
+import iam from './templates/iam.yaml?raw';
+
+export const templates = {
+  join_token: iam,
+};
 
 export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
 
 export default function makeToken(json): JoinToken {
   json = json || {};
-  const { id, roles, isStatic, expiry, method, suggestedLabels, safeName } =
-    json;
+  const {
+    id,
+    roles,
+    isStatic,
+    expiry,
+    method,
+    suggestedLabels,
+    safeName,
+    content,
+  } = json;
 
   const labels = suggestedLabels || [];
 
@@ -39,6 +52,7 @@ export default function makeToken(json): JoinToken {
     internalResourceId: extractInternalResourceId(labels),
     expiry: expiry ? new Date(expiry) : null,
     expiryText: getExpiryText(expiry, isStatic),
+    content,
   };
 }
 

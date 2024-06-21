@@ -1,0 +1,23 @@
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your AWS account to use this token
+  name: iam-token
+spec:
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+  
+  # set the join method allowed for this token
+  join_method: iam
+  
+  allow:
+    # specify the AWS account which Teleport processes may join from
+    - aws_account: "111111111111"
+    # multiple allow rules are supported
+    - aws_account: "222222222222"
+    # aws_arn is optional and allows you to restrict the IAM role of joining
+    # Teleport processes
+    - aws_account: "333333333333"
+      aws_arn: "arn:aws:sts::333333333333:assumed-role/teleport-node-role/i-*"

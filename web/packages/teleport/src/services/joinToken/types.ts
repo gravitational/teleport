@@ -35,6 +35,7 @@ export type JoinToken = {
   //
   // Extracted from suggestedLabels.
   internalResourceId?: string;
+  content: string;
 };
 
 // JoinRole defines built-in system roles and are roles associated with
