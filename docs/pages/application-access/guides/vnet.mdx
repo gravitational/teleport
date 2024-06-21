@@ -185,7 +185,7 @@ app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. Yo
 - If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
   cert](connecting-apps.mdx#tls-requirements) for the domain it is served on.
 - [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
-  [header rewrites](connecting-apps.mdx#header-passthrough) are not available for TCP apps.
+  [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
   chunks](../../architecture/session-recording.mdx#app-sessions) are not captured.
 
