@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -262,8 +262,8 @@ type testAuth struct {
 	// Auth is the wrapped "real" auth that handles everything except for
 	// cloud auth tokens generation.
 	common.Auth
-	// FieldLogger is used for logging.
-	logrus.FieldLogger
+	// Log is used for logging.
+	*slog.Logger
 }
 
 func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
@@ -272,8 +272,8 @@ func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &testAuth{
-		Auth:        auth,
-		FieldLogger: logrus.WithField(teleport.ComponentKey, "auth:test"),
+		Auth:   auth,
+		Logger: slog.With(teleport.ComponentKey, "auth:test"),
 	}, nil
 }
 
@@ -307,14 +307,14 @@ const (
 )
 
 type fakeTokenSource struct {
-	logrus.FieldLogger
+	*slog.Logger
 
 	token string
 	exp   time.Time
 }
 
 func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
-	f.Infof("Generating Cloud Spanner auth token source")
+	f.InfoContext(context.Background(), "Generating Cloud Spanner auth token source")
 	return &oauth2.Token{
 		Expiry:      f.exp,
 		AccessToken: f.token,
@@ -323,13 +323,13 @@ func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
 func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating RDS auth token for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating RDS auth token.", "session", sessionCtx)
 	return rdsAuthToken, nil
 }
 
 // GetRedshiftAuthToken generates Redshift auth token.
 func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
-	a.Infof("Generating Redshift auth token for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating Redshift auth token.", "session", sessionCtx)
 	return redshiftAuthUser, redshiftAuthToken, nil
 }
 
@@ -347,40 +347,40 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *common.Sess
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating Cloud SQL auth token.", "session", sessionCtx)
 	return cloudSQLAuthToken, nil
 }
 
 // GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *common.Session) (oauth2.TokenSource, error) {
 	return &fakeTokenSource{
-		token:       cloudSpannerAuthToken,
-		FieldLogger: a.WithField("session", sessionCtx),
+		token:  cloudSpannerAuthToken,
+		Logger: a.Logger.With("session", sessionCtx),
 	}, nil
 }
 
 // GetCloudSQLPassword generates Cloud SQL user password.
 func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating Cloud SQL user password.", "session", sessionCtx)
 	return cloudSQLPassword, nil
 }
 
 // GetAzureAccessToken generates Azure access token.
 func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Azure access token for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating Azure access token.", "session", sessionCtx)
 	return azureAccessToken, nil
 }
 
 // GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
 func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating Azure Redis token.", "session", sessionCtx)
 	return azureRedisToken, nil
 }
 
 // GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
 // access key and session token.
 func (a *testAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
-	a.Infof("Generating AWS IAM credentials for %v.", sessionCtx)
+	a.InfoContext(ctx, "Generating AWS IAM credentials.", "session", sessionCtx)
 	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
