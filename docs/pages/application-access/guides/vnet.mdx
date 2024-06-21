@@ -122,14 +122,9 @@ $ psql postgres://postgres@tcp-app.company.test/postgres
 
 ### Configuring IPv4 CIDR range
 
-VNet uses `100.64.0.0/10` as the IPv4 CIDR range by default. Each resource is assigned an IP address
-from that range just before the first connection is established. If this range conflicts with other
-software deployed on devices of your users, it can be changed by setting the `ipv4_cidr_range` field
-of the VNet config.
-
-When starting, VNet fetches configs from all available clusters and arbitrarily picks a range
-provided by one of the clusters. This means that if you have a root cluster with multiple leaf
-clusters, you should update the range on each cluster.
+Each cluster has a configurable IPv4 CIDR range which VNet uses when assigning IP addresses to
+applications from that cluster. Root and leaf clusters can use different ranges. The default is
+`100.64.0.0/10` and it can be changed by setting the `ipv4_cidr_range` field of the VNet config.
 
 Create a file called `vnet-config.yaml`:
 
@@ -154,6 +149,15 @@ If the config already exists, you can use `tctl edit` instead:
 ```
 $ tctl edit vnet_config
 ```
+
+<Admonition type="note" title="IPv4 address of the TUN device">
+When starting, VNet needs to assign an IPv4 address for its virtual network device. To pick an
+address, [VNet arbitrarily chooses a root
+cluster](https://github.com/gravitational/teleport/issues/43343) that the user is logged in to and
+picks an address from the range used by that cluster. If your cluster uses a custom range, but your
+users are logged in to other clusters that are not under your control, this might cause VNet to pick
+an address for the TUN device from a range offered by one of those clusters.
+</Admonition>
 
 ### Configuring leaf cluster apps
 
