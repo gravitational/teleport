@@ -1053,9 +1053,9 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
    designed for Windows Server 2008 R2 SP1
 1. Remote Session Environment > Limit maximum color depth
 
-Detailed instructions are available in the [setup
-guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx). A
-reboot may be required for these changes to take effect.
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 
