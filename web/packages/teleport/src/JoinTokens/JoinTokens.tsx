@@ -11,7 +11,6 @@ import {
   ButtonSecondary,
   Link,
   ButtonPrimary,
-  Menu,
 } from 'design';
 import Dialog, {
   DialogContent,
@@ -32,13 +31,10 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { JoinToken } from 'teleport/services/joinToken';
+import { JoinMethod, JoinToken } from 'teleport/services/joinToken';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import { Resource, KindJoinToken } from 'teleport/services/resources';
-import useResources from 'teleport/components/useResources';
 import { templates } from 'teleport/services/joinToken/makeJoinToken';
-import { Dropdown } from 'teleport/components/Dropdown';
-import FieldSelect from 'shared/components/FieldSelect';
 
 function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
   return {
@@ -49,21 +45,22 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
   };
 }
 
+function getJoinMethodTemplate(method: JoinMethod): string {
+  return templates[method] || templates.iam;
+}
+
 export const JoinTokens = () => {
   const ctx = useTeleport();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [template, setTemplate] = useState(getJoinMethodTemplate('iam'));
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
     useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
 
-  const resources = useResources(
-    joinTokensAttempt?.data?.items?.map(makeTokenResource) || [],
-    templates
-  );
-
-  const title =
-    resources.status === 'creating' ? 'Create a new join token' : 'Edit token';
-
-  console.log({ resources });
+  // const resources = useResources(
+  //   joinTokensAttempt?.data?.items?.map(makeTokenResource) || [],
+  //   templates.iam
+  // );
 
   const [deleteTokenAttempt, runDeleteTokenAttempt] = useAsync(
     async (token: string) => {
@@ -79,6 +76,13 @@ export const JoinTokens = () => {
     }
   );
 
+  const onTemplateChange = (method: JoinMethod) => {
+    setTemplate(getJoinMethodTemplate(method));
+    // resources.updateContentTemplate(
+    //   getJoinMethodTemplate(method)['join_token']
+    // );
+  };
+
   useEffect(() => {
     runJoinTokensAttempt();
   }, []);
@@ -87,9 +91,7 @@ export const JoinTokens = () => {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
-        <ButtonPrimary onClick={() => resources.create('join_token')}>
-          Add
-        </ButtonPrimary>
+        <ButtonPrimary onClick={() => setEditorOpen(true)}>Add</ButtonPrimary>
       </FeatureHeader>
       <Box>
         {deleteTokenAttempt.status === 'error' && (
@@ -187,17 +189,18 @@ export const JoinTokens = () => {
           attempt={deleteTokenAttempt}
         />
       )}
-      {(resources.status === 'creating' || resources.status === 'editing') && (
+      {editorOpen && (
         <ResourceEditor
           docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
-          title={title}
-          text={resources.item?.content}
-          name={resources.item?.name}
-          isNew={resources.status === 'creating'}
+          title={'create token'}
+          key={template} // reset the editor if the template changes
+          text={template}
+          name={'name here'}
+          isNew={true}
           onSave={(...args) => console.log(args)}
-          onClose={resources.disregard}
-          directions={<Directions />}
-          kind={resources.item?.kind}
+          onClose={() => setEditorOpen(false)}
+          directions={<Directions onTemplateChange={onTemplateChange} />}
+          kind={'join_token'}
         />
       )}
     </FeatureBox>
@@ -367,10 +370,14 @@ function TokenDelete({
   );
 }
 
-function Directions() {
+function Directions({
+  onTemplateChange,
+}: {
+  onTemplateChange: (method: JoinMethod) => void;
+}) {
   return (
     <>
-      <HoverTooltip tipContent={'Select a token template'}>
+      {/* <HoverTooltip tipContent={'Select a token template'}>
         <ButtonSecondary
           px={2}
           css={`
@@ -385,8 +392,8 @@ function Directions() {
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
           {kindsFromParams.length > 0 && <FiltersExistIndicator />}
         </ButtonSecondary>
-      </HoverTooltip>
-      <Menu
+      </HoverTooltip> */}
+      {/* <Menu
         popoverCss={() => `
           margin-top: ${showInput ? '40px' : '4px'}; 
           max-height: 265px; 
@@ -403,7 +410,10 @@ function Directions() {
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleClose}
-      ></Menu>
+      ></Menu> */}
+      <ButtonPrimary onClick={() => onTemplateChange('azure')}>
+        Change
+      </ButtonPrimary>
       WARNING tokens are defined using{' '}
       <Link
         color="text.main"
