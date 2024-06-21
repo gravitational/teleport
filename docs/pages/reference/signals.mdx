@@ -20,3 +20,4 @@ $ kill -SIG
 | `TERM`, `INT` | Immediate non-graceful shutdown. All existing connections will be closed after a very short delay. |
 | `USR2` | Forks a new Teleport daemon to serve new connections. |
 | `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process, same as `SIGQUIT`. |
+| `CONT` | Re-open the log file (useful for `logrotate`). |

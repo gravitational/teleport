@@ -227,6 +227,9 @@ type Config struct {
 	Logger *slog.Logger
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
+	// LogFileReopen is used to close and re-open the log file.
+	// If the logger is not writting to a log file, this is a no-op.
+	LogFileReopen func() error
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -592,6 +595,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	cfg.LogFileReopen = func() error { return nil }
 }
 
 // FileDescriptor is a file descriptor associated

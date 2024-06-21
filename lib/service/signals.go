@@ -76,6 +76,7 @@ var teleportSignals = []os.Signal{
 	syscall.SIGUSR1, // log process diagnostic info
 	syscall.SIGUSR2, // initiate process restart procedure
 	syscall.SIGHUP,  // graceful restart procedure
+	syscall.SIGCONT, // Re-open the log file
 }
 
 // WaitForSignals waits for system signals and processes them.
@@ -151,6 +152,11 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 				process.Shutdown(timeoutCtx)
 				process.logger.InfoContext(process.ExitContext(), "All services stopped, exiting.")
 				return nil
+			case syscall.SIGCONT:
+				process.logger.InfoContext(process.ExitContext(), "Rotating log file.")
+				if err := process.Config.LogFileReopen(); err != nil {
+					return trace.Wrap(err)
+				}
 			default:
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}

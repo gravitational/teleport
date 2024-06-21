@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -756,12 +757,12 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	var w io.Writer
 	switch loggerConfig.Output {
 	case "":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 	case "stderr", "error", "2":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
-		w = os.Stdout
+		w = logutils.NewSharedWriter(os.Stdout)
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		w = os.Stderr
@@ -779,14 +780,22 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
+		// If syslog output has been configured and is supported by the operating system,
+		// then the shared writer is not needed because the syslog writer is already
+		// protected with a mutex.
 		w = sw
 	default:
 		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		var flag int = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+		var mode = fs.FileMode(0666)
+		logFile, err := os.OpenFile(loggerConfig.Output, flag, mode)
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
-		w = logFile
+		fileWriter := logutils.NewFileSharedWriter(logFile, flag, mode)
+		cfg.LogFileReopen = fileWriter.Reopen
+
+		w = fileWriter
 	}
 
 	level := new(slog.LevelVar)
@@ -815,12 +824,6 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// If syslog output has been configured and is supported by the operating system,
-	// then the shared writer is not needed because the syslog writer is already
-	// protected with a mutex.
-	if len(logger.Hooks) == 0 {
-		w = logutils.NewSharedWriter(w)
-	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
