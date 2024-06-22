@@ -21,16 +21,14 @@ Graph paths can be divided into two categories:
 
     ![Allow Path](../../../img/access-graph/allow-path.png)
 
-    Allow paths connect identities to resources. They show what an identity can access
-    and what actions they can perform.
+    Allow paths connect identities to resources. They show what an identity can access and what actions they can perform.
 
 2. Deny paths
 
     ![Deny Path](../../../img/access-graph/deny-path.png)
 
-    Deny paths connect identities to resources. They show what an identity cannot access
-    and what actions they cannot perform. Deny paths take precedence over allow
-    paths.
+    Deny paths connect identities to resources. They show what an identity cannot access and what 
+    actions they cannot perform. Deny paths take precedence over allow paths.
 
 ## How resources and identities are represented
 
@@ -56,20 +54,19 @@ categories:
 
 1. Allow Actions
 
-    Allow Actions are created from Teleport roles. Allow Actions are the things
-    that users can do. For example, a user can SSH into a node.
+Allow Actions are created from Teleport roles. Allow Actions are the things that users can do. 
+For example, a user can SSH into a node.
 
 2. Deny Actions
 
-    Deny Actions are created from Teleport roles. Deny Actions are the things
-    that users cannot do. For example, a user cannot SSH into a node. Deny
-    Actions take precedence over Allow Actions.
+Deny Actions are created from Teleport roles. Deny Actions are the things that users cannot do. 
+For example, a user cannot SSH into a node. Deny Actions take precedence over Allow Actions.
 
 3. Temporary Actions
 
-    Temporary Actions are created when a user is granted temporary access to a
-    resource. They are automatically deleted when the user's access expires.
-    The temporary actions can be identified by having `Temporary: true` property.
+Temporary Actions are created when a user is granted temporary access to a resource. 
+They are automatically deleted when the user's access expires. The temporary actions 
+can be identified by having `Temporary: true` property.
 
 #### Resource Groups
 
