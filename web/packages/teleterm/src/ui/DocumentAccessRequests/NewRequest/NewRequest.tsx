@@ -19,7 +19,7 @@
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
-import { space, width } from 'design/system';
+import { space, SpaceProps, width } from 'design/system';
 import { Info as InfoIcon } from 'design/Icon';
 
 import {
@@ -117,7 +117,7 @@ function Inner(props: { rootCluster: Cluster }) {
   const isRoleList = selectedResource === 'role';
 
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%" flexDirection="column">
+    <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
@@ -199,7 +199,11 @@ const Layout = styled(Box)`
   }
 `;
 
-const StyledNavButton = styled.button(props => {
+interface StyledNavButtonProps extends SpaceProps {
+  active?: boolean;
+}
+
+const StyledNavButton = styled.button<StyledNavButtonProps>(props => {
   return {
     color: props.active
       ? props.theme.colors.text.main

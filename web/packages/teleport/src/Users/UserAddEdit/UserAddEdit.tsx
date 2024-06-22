@@ -75,7 +75,8 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
           dialogCss={() => ({
             maxWidth: '700px',
             width: '100%',
-            height: '70%',
+            height: '100%',
+            maxHeight: '600px',
           })}
           disableEscapeKeyDown={false}
           onClose={onClose}
@@ -84,7 +85,7 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
           <DialogHeader>
             <DialogTitle>{isNew ? 'Create User' : 'Edit User'}</DialogTitle>
           </DialogHeader>
-          <DialogContent maxHeight={620} overflow={'auto'}>
+          <DialogContent overflow={'auto'}>
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}

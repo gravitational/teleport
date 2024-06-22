@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { useRef, useEffect } from 'react';
 
 /** Resolves after a given duration. */
 export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
@@ -51,3 +52,23 @@ export function waitForever(abortSignal: AbortSignal): Promise<never> {
     abortSignal.addEventListener('abort', abort, { once: true });
   });
 }
+
+/**
+ * usePromiseRejectedOnUnmount is useful when writing stories for loading states.
+ */
+export const usePromiseRejectedOnUnmount = () => {
+  const abortControllerRef = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current.abort();
+    };
+  }, []);
+
+  const promiseRef = useRef<Promise<never>>();
+  if (!promiseRef.current) {
+    promiseRef.current = waitForever(abortControllerRef.current.signal);
+  }
+
+  return promiseRef.current;
+};

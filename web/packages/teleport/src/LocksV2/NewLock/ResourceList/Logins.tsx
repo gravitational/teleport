@@ -29,7 +29,7 @@ export function Logins(props: LoginsProps) {
     return Object.keys(loginMap).map(login => ({ login }));
   });
 
-  function addLogin(e: React.MouseEvent<HTMLButtonElement>) {
+  function addLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); // from form submit event
 
     props.toggleSelectResource({ kind: 'login', targetValue: loginInput });

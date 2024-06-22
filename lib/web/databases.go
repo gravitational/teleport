@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -361,7 +362,7 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
 		CACertPEM:       string(keyPair.Cert),
 		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		CACertBase64:    base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		CACertBase64:    base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		CRLPEM:          string(encodeCRLPEM(caCRL)),
 		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
 		ProvisionToken:  tokenStr,

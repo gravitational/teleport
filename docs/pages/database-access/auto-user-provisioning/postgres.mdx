@@ -192,7 +192,7 @@ GRANT CONNECT ON DATABASE <database> to "reader";
 
 ### Cannot execute in a read-only transaction error
 
-You may encounter the following error when connecting to an AWS RDS Aurora
+You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
 ```shell
 $ tsh db connect --db-name <database> example
@@ -246,6 +246,28 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 (!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx!)
 
 (!docs/pages/includes/database-access/psql-ssl-syscall-error.mdx!)
+
+### Amazon RDS Blue/Green deployment enters a state of "Replication degraded"
+
+Amazon RDS Blue/Green deployment may enter a state of "Replication degraded"
+when auto-user provisioning is used to connect to the database.
+
+This occurs due to a [limitation in PostgreSQL logical
+replication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/blue-green-deployments-overview.html#blue-green-deployments-limitations-postgres)
+for Blue/Green deployments as Data Definition Language (DDL) statements cannot
+be replicated. Consequently, Amazon RDS will enter the "Replication degraded"
+state when a DDL change is detected.
+
+It is recommended to disable database auto-user provisioning before starting
+the Blue/Green deployment.
+
+If the database is auto-discovered by Teleport, you can temporarily remove the
+`teleport.dev/db-admin` AWS resource tag. For a database registered using
+either static config or a dynamic `db` resource, you can temporarily remove the
+`admin_user` setting.
+
+Once auto-user provisioning is disabled, you can still connect as the database
+admin user through Teleport.
 
 ## Next steps
 
