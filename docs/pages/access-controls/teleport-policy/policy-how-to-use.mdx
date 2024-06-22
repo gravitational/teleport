@@ -18,7 +18,7 @@ Teleport Access Graph can help you to answer questions like:
 
 Determine who has access to resources and understand the pathways that grant access:
 
-    ![Show Access Path Resource](../../../img/access-graph/show-access-path-resource.gif)
+![Show Access Path Resource](../../../img/access-graph/show-access-path-resource.gif)
 
 - What resources can a specific user access?
 
@@ -54,51 +54,47 @@ Teleport Access Graph divides your infrastructure into six main components:
 
 1. Identities
 
-    ![Identity Node](../../../img/access-graph/identity-node.png)
+![Identity Node](../../../img/access-graph/identity-node.png)
 
-    Identities are the actors that can access your infrastructure. They can be employees,
-    contractors, machines or bots.
+Identities are the actors that can access your infrastructure. They can be employees, contractors, machines or bots.
 
-    The number on the right hand side shows "standing privileges".
-    Standing privileges is the number of resources that an identity can access without
-    creating an access request.
+The number on the right hand side shows "standing privileges". Standing privileges is the number of 
+resources that an identity can access without creating an access request.
 
 2. User Groups
 
-    ![Identity Group Node](../../../img/access-graph/identity-group-node.png)
+![Identity Group Node](../../../img/access-graph/identity-group-node.png)
 
-    Identity Groups are collections of identities. They can be used to organize users
-    based on their role or team, and they can be nested.
+Identity Groups are collections of identities. They can be used to organize users
+based on their role or team, and they can be nested.
 
 3. Actions
 
-    ![Action Node](../../../img/access-graph/allow-action-node.png)
+![Action Node](../../../img/access-graph/allow-action-node.png)
 
-    Actions are the things that identities can or cannot do. Actions are related to
-    resources. For example, a user can SSH into a node.
+Actions are the things that identities can or cannot do. Actions are related to resources. 
+For example, a user can SSH into a node.
 
 4. Deny Actions
 
-    ![Deny Action Node](../../../img/access-graph/deny-action-node.png)
+![Deny Action Node](../../../img/access-graph/deny-action-node.png)
 
-    Deny Actions are the things that identities cannot do. Deny Actions are related to
-    resources. For example, a user cannot SSH into a node.
+Deny Actions are the things that identities cannot do. Deny Actions are related to resources. 
+For example, a user cannot SSH into a node.
 
 5. Resource Groups
 
-    ![Resource Group Node](../../../img/access-graph/resource-group-node.png)
+![Resource Group Node](../../../img/access-graph/resource-group-node.png)
 
-    Resource Groups are collections of resources. They can be used to organize
-    resources based on their role or team.
+Resource Groups are collections of resources. They can be used to organize resources based on their role or team.
 
-    The number on the right hand side shows the number of resources that a resource group contains.
+The number on the right hand side shows the number of resources that a resource group contains.
 
 6. Resources
 
-    ![Resource Node](../../../img/access-graph/resource-node.png)
+![Resource Node](../../../img/access-graph/resource-node.png)
 
-    Resources are the things that users can or cannot access. They can be
-    servers, databases, or Kubernetes clusters.
+Resources are the things that users can or cannot access. They can be servers, databases, or Kubernetes clusters.
 
 ## SQL Editor
 
