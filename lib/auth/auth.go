@@ -337,7 +337,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.BotInstance == nil {
-		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend)
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

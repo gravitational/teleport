@@ -19,45 +19,43 @@
 package machineidv1
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // BotServiceConfig holds configuration options for
 // the bots gRPC service.
 type BotInstanceServiceConfig struct {
 	Authorizer authz.Authorizer
-	Cache      Cache
-	Backend    Backend
-	Logger     logrus.FieldLogger
+	Backend    services.BotInstance
+	Logger     *slog.Logger
 	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
 }
 
 // NewBotService returns a new instance of the BotService.
 func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, error) {
 	switch {
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache service is required")
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
-	case cfg.Reporter == nil:
-		return nil, trace.BadParameter("reporter is required")
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "bot_instance.service")
+		cfg.Logger = slog.With(teleport.ComponentKey, "bot_instance.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -66,10 +64,8 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 	return &BotInstanceService{
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
 		backend:    cfg.Backend,
 		emitter:    cfg.Emitter,
-		reporter:   cfg.Reporter,
 		clock:      cfg.Clock,
 	}, nil
 }
@@ -78,13 +74,78 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 type BotInstanceService struct {
 	pb.UnimplementedBotInstanceServiceServer
 
-	cache      Cache
-	backend    Backend
+	backend    services.BotInstance
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
 }
 
-//func (b *BotInstanceService)
+// DeleteBotInstance deletes a bot specific bot instance
+func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.DeleteBotInstanceRequest) (*emptypb.Empty, error) {
+	authCtx, err := b.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := b.backend.DeleteBotInstance(ctx, req.BotName, req.Id); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// GetBotInstance retrieves a specific bot instance
+func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotInstanceRequest) (*pb.BotInstance, error) {
+	authCtx, err := b.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := b.backend.GetBotInstance(ctx, req.BotName, req.InstanceId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// ListBotInstances returns a list of bot instances matching the criteria in the request
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListBotInstancesRequest) (*pb.ListBotInstancesResponse, error) {
+	authCtx, err := b.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: filter semantics are broken
+	res, nextToken, err := b.backend.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &pb.ListBotInstancesResponse{
+		BotInstances:  res,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// SubmitHeartbeat records heartbeat information for a bot
+func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
+	return nil, trace.NotImplemented("TODO")
+}

@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -26,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -34,9 +37,11 @@ const (
 
 type BotInstanceService struct {
 	service *generic.ServiceWrapper[*machineidv1.BotInstance]
+
+	clock clockwork.Clock
 }
 
-func NewBotInstanceService(backend backend.Backend) (*BotInstanceService, error) {
+func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*BotInstanceService, error) {
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindBotInstance,
 		botInstancePrefix,
@@ -45,7 +50,10 @@ func NewBotInstanceService(backend backend.Backend) (*BotInstanceService, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &BotInstanceService{service: service}, nil
+	return &BotInstanceService{
+		service: service,
+		clock:   clock,
+	}, nil
 }
 
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
@@ -54,14 +62,19 @@ func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *ma
 	}
 
 	if instance.Metadata != nil {
-		return nil, trace.BadParameter("metadata should be nil; initial parameters should be set in status")
+		return nil, trace.BadParameter("metadata should be nil; initial parameters should be set in spec")
 	}
 
 	instance.Kind = types.KindBotInstance
 	instance.Version = types.V1
+	instance.Metadata = &headerv1.Metadata{Name: instance.Spec.InstanceId}
 
-	// TODO: should bot name + id be part of the spec?
-	serviceWithPrefix := b.service.WithPrefix(instance.Status.BotName)
+	if instance.Spec.Ttl != nil {
+		expires := b.clock.Now().Add(instance.Spec.Ttl.AsDuration())
+		instance.Metadata.Expires = timestamppb.New(expires)
+	}
+
+	serviceWithPrefix := b.service.WithPrefix(instance.Spec.BotName)
 	created, err := serviceWithPrefix.CreateResource(ctx, instance)
 	return created, trace.Wrap(err)
 }
@@ -112,7 +125,8 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
-		lease, err := b.service.ConditionalUpdateResource(ctx, updated)
+		serviceWithPrefix := b.service.WithPrefix(botName)
+		lease, err := serviceWithPrefix.ConditionalUpdateResource(ctx, updated)
 		if err != nil {
 			if trace.IsCompareFailed(err) {
 				continue

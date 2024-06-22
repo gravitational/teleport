@@ -44,21 +44,25 @@ type BotInstance interface {
 		ctx context.Context,
 		botName, instanceID string,
 		updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
-	) error
+	) (*machineidv1.BotInstance, error)
 }
 
 // ValidateBotInstance verifies that required fields for a new BotInstance are present
 func ValidateBotInstance(b *machineidv1.BotInstance) error {
+	if b.Spec == nil {
+		return trace.BadParameter("spec is required")
+	}
+
+	if b.Spec.BotName == "" {
+		return trace.BadParameter("spec.bot_name is required")
+	}
+
+	if b.Spec.InstanceId == "" {
+		return trace.BadParameter("spec.instance_id is required")
+	}
+
 	if b.Status == nil {
 		return trace.BadParameter("status is required")
-	}
-
-	if b.Status.BotName == "" {
-		return trace.BadParameter("status.bot_name is required")
-	}
-
-	if b.Status.Id == "" {
-		return trace.BadParameter("status.id is required")
 	}
 
 	return nil

@@ -43,8 +43,14 @@ message BotInstance {
 
 // BotInstanceSpec contains fields
 message BotInstanceSpec {
-  // Empty as is not user configurable.
-  // Eventually this could be leveraged for simple command and control?
+  // The name of the bot associated with this instance.
+  string bot_name = 1;
+  // The unique identifier for this instance.
+  string instance_id = 2;
+  // The desired expiration offset for this bot instance. The expiration will be
+  // calculated from the current time at creation or authentication plus this
+  // value. A nil `ttl` will not expire.
+  google.protobuf.Duration ttl = 3;
 }
 
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
@@ -97,8 +103,6 @@ message BotInstanceStatusAuthentication {
   // authentication.
   int32 generation = 5;
   // The public key of the Bot instance.
-  // When authenticating a Bot instance, the full public key must be compared
-  // rather than just the fingerprint to mitigate pre-image attacks.
   bytes public_key = 6;
   // The fingerprint of the public key of the Bot instance.
   string fingerprint = 7;
@@ -106,16 +110,12 @@ message BotInstanceStatusAuthentication {
 
 // BotInstanceStatus holds the status of a BotInstance.
 message BotInstanceStatus {
-  // The unique identifier for this bot.
-  string id = 1;
-  // The name of the Bot that this instance is associated with.
-  string bot_name = 2;
   // The initial authentication status for this bot instance.
-  BotInstanceStatusAuthentication initial_authentication = 3;
+  BotInstanceStatusAuthentication initial_authentication = 1;
   // The N most recent authentication status records for this bot instance.
-  repeated BotInstanceStatusAuthentication latest_authentications = 4;
+  repeated BotInstanceStatusAuthentication latest_authentications = 2;
   // The initial heartbeat status for this bot instance.
-  BotInstanceStatusHeartbeat initial_heartbeat = 5;
+  BotInstanceStatusHeartbeat initial_heartbeat = 3;
   // The N most recent heartbeats for this bot instance.
-  repeated BotInstanceStatusHeartbeat latest_heartbeats = 6;
+  repeated BotInstanceStatusHeartbeat latest_heartbeats = 4;
 }

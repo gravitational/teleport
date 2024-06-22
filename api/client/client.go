@@ -859,7 +859,7 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 }
 
 // BotInstanceClient returns an unadorned client for the bot instance service
-func (c *Client) BotInstanceClient() machineidv1pb.BotInstanceServiceClient {
+func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
 	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
 }
 
