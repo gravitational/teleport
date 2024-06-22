@@ -23,9 +23,10 @@ import (
 	"encoding/base64"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalJWK(t *testing.T) {
