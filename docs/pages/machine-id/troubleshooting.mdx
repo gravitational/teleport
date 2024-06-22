@@ -296,7 +296,7 @@ $ tctl bots add example --roles=foo,bar,machine-id-db
 ## Destination kubernetes_secret: `identity-output` must be a directory in exec plugin mode
 
 By default, when outputting a Kubernetes identity, `tbot` outputs make use of a Kubernetes exec
-plugin to always provide the "latest" version of the credentials.
+plugin to always provide the latest version of the credentials.
 
 When outputting a Kubernetes identity to a Kubernetes secret, however, it is important to disable
 the use of the `exec` plugin by adding `disable_exec_plugin: true` to the output. This means that
