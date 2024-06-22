@@ -22,7 +22,7 @@ import { Box, Input, LabelInput, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 
-const FieldInput = forwardRef<HTMLInputElement, Props>(
+const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (
     {
       label,
@@ -114,7 +114,7 @@ const LabelTip = ({ text }) => (
 
 export default FieldInput;
 
-type Props = {
+export type FieldInputProps = {
   value?: string;
   label?: string;
   labelTip?: string;

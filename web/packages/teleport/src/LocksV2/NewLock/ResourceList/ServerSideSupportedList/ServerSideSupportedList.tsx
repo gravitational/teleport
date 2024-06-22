@@ -106,6 +106,9 @@ export function ServerSideSupportedList(props: CommonListProps) {
   }
 
   const table = useMemo(() => {
+    // If there is a fetchStatus, a fetching is going on.
+    // Show the loading indicator instead of trying to process previous data.
+    const resources = fetchStatus === 'loading' ? [] : fetchedData.agents;
     const listProps: ServerSideListProps = {
       fetchStatus,
       customSort: {
@@ -120,21 +123,17 @@ export function ServerSideSupportedList(props: CommonListProps) {
 
     switch (props.selectedResourceKind) {
       case 'role':
-        return (
-          <Roles roles={fetchedData.agents as RoleResource[]} {...listProps} />
-        );
+        return <Roles roles={resources as RoleResource[]} {...listProps} />;
       case 'node':
-        return <Nodes nodes={fetchedData.agents as Node[]} {...listProps} />;
+        return <Nodes nodes={resources as Node[]} {...listProps} />;
       case 'windows_desktop':
-        return (
-          <Desktops desktops={fetchedData.agents as Desktop[]} {...listProps} />
-        );
+        return <Desktops desktops={resources as Desktop[]} {...listProps} />;
       default:
         console.error(
           `[ServerSideSupportedList.tsx] table not defined for resource kind ${props.selectedResourceKind}`
         );
     }
-  }, [props.attempt, fetchedData, fetchStatus, props.selectedResources]);
+  }, [fetchedData, fetchStatus, props.selectedResources]);
 
   return (
     <TableWrapper
@@ -158,7 +157,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
         disableSearch={fetchStatus === 'loading'}
       />
       {table}
-      <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+      <StyledPanel>
         <Flex justifyContent="flex-end" width="100%">
           <Flex alignItems="center" mr={2}></Flex>
           <Flex>

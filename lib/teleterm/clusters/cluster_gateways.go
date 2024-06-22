@@ -83,10 +83,12 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Username:    params.TargetUser,
 	}
 
-	err = AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(c.reissueDBCerts(ctx, params.ClusterClient, routeToDatabase))
-	})
-	if err != nil {
+	var cert tls.Certificate
+
+	if err := AddMetadataToRetryableError(ctx, func() error {
+		cert, err = c.reissueDBCerts(ctx, params.ClusterClient, routeToDatabase)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -97,8 +99,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		TargetName:                    db.GetName(),
 		TargetSubresourceName:         params.TargetSubresourceName,
 		Protocol:                      db.GetProtocol(),
-		KeyPath:                       c.status.KeyPath(),
-		CertPath:                      c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
+		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
@@ -165,7 +166,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 	var cert tls.Certificate
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueAppCert(ctx, params.ClusterClient, app)
+		cert, err = c.ReissueAppCert(ctx, params.ClusterClient, app)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -192,10 +193,6 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 }
 
 // ReissueGatewayCerts reissues certificate for the provided gateway.
-//
-// At the moment, kube gateways reload their certs in memory while db gateways use the old approach
-// of saving a cert to disk and only then loading it to memory.
-// TODO(ravicious): Refactor db gateways to reload cert in memory and support MFA.
 func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client.ClusterClient, g gateway.Gateway) (tls.Certificate, error) {
 	switch {
 	case g.TargetURI().IsDB():
@@ -203,22 +200,8 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
-		err = c.reissueDBCerts(ctx, clusterClient, db.RouteToDatabase())
-		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-
-		// db gateways still store certs on disk, so they need to load it after reissue.
-		// Unlike other gateway types, the custom middleware for db proxies does not set the cert on the
-		// local proxy.
-		err = g.ReloadCert()
-		if err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-
-		// Return an empty cert even if there is no error. DB gateways do not utilize certs returned
-		// from ReissueGatewayCerts, at least not until we add support for MFA to them.
-		return tls.Certificate{}, nil
+		cert, err := c.reissueDBCerts(ctx, clusterClient, db.RouteToDatabase())
+		return cert, trace.Wrap(err)
 	case g.TargetURI().IsKube():
 		cert, err := c.reissueKubeCert(ctx, clusterClient, g.TargetName())
 		return cert, trace.Wrap(err)
@@ -230,7 +213,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		}
 
 		// The cert is returned from this function and finally set on LocalProxy by the middleware.
-		cert, err := c.reissueAppCert(ctx, clusterClient, app)
+		cert, err := c.ReissueAppCert(ctx, clusterClient, app)
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

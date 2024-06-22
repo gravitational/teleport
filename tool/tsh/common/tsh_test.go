@@ -48,6 +48,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,6 +207,16 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// IsEnterpriseBuild returns false for [cliModules].
+func (p *cliModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns false for [cliModules].
+func (p *cliModules) IsOSSBuild() bool {
+	return false
 }
 
 // PrintVersion prints the Teleport version.
@@ -1965,6 +1976,20 @@ func TestSSHAccessRequest(t *testing.T) {
 			_, err = rootAuth.GetAuthServer().UpsertUser(ctx, alice)
 			require.NoError(t, err)
 
+			err = Run(ctx, []string{
+				"logout",
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+				"--user", "alice",
+			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName()))
+			require.NoError(t, err)
+
+			requestReason := uuid.New().String()
 			// the first ssh request can fail if the proxy node watcher doesn't know
 			// about the nodes yet, retry a few times until it works
 			require.Eventually(t, func() bool {
@@ -1974,7 +1999,7 @@ func TestSSHAccessRequest(t *testing.T) {
 					"--debug",
 					"--insecure",
 					"--request-mode", tc.requestMode,
-					"--request-reason", "reason here to bypass prompt",
+					"--request-reason", requestReason,
 					fmt.Sprintf("%s@%s", user.Username, sshHostname),
 					"echo", "test",
 				}, setHomePath(tmpHomePath))
@@ -1983,6 +2008,12 @@ func TestSSHAccessRequest(t *testing.T) {
 				}
 				return err == nil
 			}, 10*time.Second, 100*time.Millisecond, "failed to ssh with retries")
+
+			requests, err := rootAuth.GetAuthServer().GetAccessRequests(ctx, types.AccessRequestFilter{})
+			require.NoError(t, err)
+			require.True(t, slices.ContainsFunc(requests, func(request types.AccessRequest) bool {
+				return request.GetRequestReason() == requestReason
+			}), "access request with the specified reason was not found")
 
 			// now that we have an approved access request, it should work without
 			// prompting for a request reason

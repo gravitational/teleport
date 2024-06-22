@@ -1,6 +1,6 @@
 ---
-title: Database Access with PostgreSQL on GCP Cloud SQL
-description: How to configure Teleport database access with GCP Cloud SQL PostgreSQL.
+title: Database Access with Cloud SQL for PostgreSQL 
+description: How to configure Teleport database access with Cloud SQL for PostgreSQL.
 videoBanner: br9LZ3ZXqCk
 ---
 
@@ -78,7 +78,7 @@ in Google Cloud documentation for more info.
 
 ### Create a join token
 
-(!docs/pages/includes/database-access/token.mdx tokenFile="/tmp/token"!)
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 ### (Optional) Download the Cloud SQL CA certificate
 

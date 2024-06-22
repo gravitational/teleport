@@ -25,6 +25,8 @@ import { Box, ButtonIcon } from 'design';
 
 import { useStore } from 'shared/libs/stores';
 
+import { TypographyProps } from 'design/system/typography';
+
 import * as stores from 'teleport/Console/stores';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
@@ -108,7 +110,7 @@ type Props = {
   [index: string]: any;
 };
 
-const StyledTabs = styled(Box)`
+const StyledTabs = styled(Box)<TypographyProps>`
   background: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
   border-radius: 4px;

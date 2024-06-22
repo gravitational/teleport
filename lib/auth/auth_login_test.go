@@ -1811,20 +1811,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			mfa := configureForMFA(t, srv)
 			username := mfa.User
 
-			// Fail a login attempt so we have a non-empty list of attempts.
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
-				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  username,
-					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
-					PublicKey: []byte(sshPubKey),
-				},
-				TTL: 24 * time.Hour,
-			})
-			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied", err)
-			attempts, err := srv.Auth().GetUserLoginAttempts(username)
-			require.NoError(t, err)
-			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
-
 			ctx, cancel := context.WithTimeout(ctx, tc.timeout)
 			defer cancel()
 
@@ -1875,18 +1861,8 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 			if tc.expectErr {
 				require.Error(t, err)
-				// Verify login attempts unchanged. This is a proxy for various other user
-				// checks (locked, etc).
-				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
-				require.NoError(t, err)
-				require.Equal(t, attempts, updatedAttempts, "Login attempts unexpectedly changed")
 			} else {
 				require.NoError(t, err)
-				// Verify zeroed login attempts. This is a proxy for various other user
-				// checks (locked, etc).
-				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
-				require.NoError(t, err)
-				require.Empty(t, updatedAttempts, "Login attempts not reset")
 			}
 		})
 	}

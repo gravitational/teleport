@@ -1,7 +1,6 @@
 ---
 title: Kubernetes Clusters Discovery
 description: Detailed guides for configuring Kubernetes Clusters Discovery.
-layout: tocless-doc
 ---
 
 Kubernetes Clusters Discovery allows Kubernetes clusters
@@ -80,6 +79,17 @@ discovery_service:
        # Optional section: Defaults to "*":"*"
        tags:
          "env": "prod"
+       # AWS role to assume when discovering resources in the AWS Account.
+       # This value is an optional AWS role ARN to assume when polling EKS clusters
+       assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
+       # External ID is an optional value that should be set when accessing
+       # your AWS account from a third-party service (delegated access).
+       external_id: "example-external-id"
+       # Optional role for which the Discovery Service should create the EKS access entry.
+       # If not set, the Discovery Service will attempt to create the access
+       # entry using its own identity.
+       # If used, the role must match the role configured for a Teleport Kubernetes Service.
+       setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
     # Matchers for discovering Azure-hosted resources.
     azure:
       # Azure resource types. Valid options are:
@@ -136,7 +146,38 @@ kubernetes_service:
     resources:
     - labels:
         "*": "*" # can be configured to limit the clusters to watched by this service.
+      aws:
+       # AWS role to assume when accessing EKS clusters in the AWS Account.
+       # This value is an optional AWS role ARN to assume when forwarding requests
+       # to EKS clusters.
+       assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
+       # External ID is an optional value that should be set when accessing
+	     # your AWS account from a third-party service (delegated access).
+       external_id: "example-external-id"
 ```
+
+
+When configuring the `kubernetes_service.resources` parameter, the Teleport
+Kubernetes Service is set to monitor EKS clusters that are discovered by
+the Teleport Discovery Service. The monitoring process involves a label
+matching mechanism to identify and manage the EKS clusters.
+
+1. **Discovery and Label Matching:** The Discovery Service identifies available
+   EKS clusters within the AWS environment. The Teleport Kubernetes Service
+   checks the labels of these clusters against the labels specified in the
+   `kubernetes_service.resources[].labels` configuration, which is the
+   **selector array**.
+1. **Role Selection:** The first selector in the array that matches the labels
+   of an EKS cluster determines the role that the Kubernetes Service will
+   assume. This role is essential for the Teleport Kubernetes Service to
+   retrieve necessary cluster details from the AWS API. If no match is found,
+   the Kubernetes Service defaults to its own identity.
+1. **Interaction with AWS and Kubernetes APIs:** Once a match is found and a
+   role is assumed, the Teleport Kubernetes Service uses this role to access the
+   AWS API. It retrieves information about the EKS cluster, such as
+   configuration and status. Subsequently, the Teleport Kubernetes Service
+   forwards requests to the Kubernetes API, enabling interaction with the
+   cluster.
 
 Both services — Discovery and Kubernetes — can be configured in the same
 Teleport process or separate processes.

@@ -64,19 +64,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	config := gateway.Config{
-		LocalPort:             params.LocalPort,
-		TargetURI:             params.TargetURI,
-		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
-		TargetSubresourceName: params.TargetSubresourceName,
-		Protocol:              defaults.ProtocolPostgres,
-		Insecure:              true,
-		WebProxyAddr:          hs.Listener.Addr().String(),
-		TCPPortAllocator:      m.tcpPortAllocator,
-		KubeconfigsDir:        m.t.TempDir(),
-	}
-
+	ca := gatewaytest.MustGenCACert(m.t)
 	identity := tlsca.Identity{
 		Username: "user",
 		Groups:   []string{"test-group"},
@@ -88,18 +76,18 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KubernetesCluster: params.TargetURI.GetKubeName(),
 	}
 
-	ca := gatewaytest.MustGenCACert(m.t)
-
-	if params.TargetURI.IsDB() {
-		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
-
-		config.CertPath = keyPairPaths.CertPath
-		config.KeyPath = keyPairPaths.KeyPath
-	}
-
-	if params.TargetURI.IsKube() {
-		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
-		config.Cert = cert
+	config := gateway.Config{
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              defaults.ProtocolPostgres,
+		Insecure:              true,
+		WebProxyAddr:          hs.Listener.Addr().String(),
+		TCPPortAllocator:      m.tcpPortAllocator,
+		KubeconfigsDir:        m.t.TempDir(),
+		Cert:                  gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity),
 	}
 
 	gateway, err := gateway.New(config)
@@ -475,7 +463,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				return tt.fnErrs[fnCallCount-1]
 			}
 
-			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
+			err = daemon.RetryWithRelogin(ctx, &api.ReloginRequest{}, fn)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)

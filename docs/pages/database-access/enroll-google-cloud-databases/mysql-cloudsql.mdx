@@ -1,6 +1,6 @@
 ---
-title: Database Access with MySQL on GCP Cloud SQL
-description: How to configure Teleport database access with GCP Cloud SQL MySQL.
+title: Database Access with Cloud SQL for MySQL
+description: How to configure Teleport database access with Cloud SQL for MySQL.
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="MySQL on Google Cloud SQL" dbConfigure="with a service account"!)
@@ -122,7 +122,7 @@ Cloud documentation for more info.
 
 ### Create a join token
 
-(!docs/pages/includes/database-access/token.mdx tokenFile="/tmp/token" !)
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token" !)
 
 ### (Optional) Download the Cloud SQL CA certificate
 

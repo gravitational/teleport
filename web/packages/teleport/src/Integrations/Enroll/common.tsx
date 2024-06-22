@@ -20,7 +20,10 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
 
-export const IntegrationTile = styled(Flex)`
+export const IntegrationTile = styled(Flex)<{
+  disabled?: boolean;
+  $exists?: boolean;
+}>`
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -34,7 +37,7 @@ export const IntegrationTile = styled(Flex)`
   cursor: pointer;
 
   ${props => {
-    const pointerEvents = props.disabled ? 'none' : null;
+    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
       return { pointerEvents };
     }
@@ -44,6 +47,7 @@ export const IntegrationTile = styled(Flex)`
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
+    pointer-events: ${pointerEvents};
     `;
   }}
 `;

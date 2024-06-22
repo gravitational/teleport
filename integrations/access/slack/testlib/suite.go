@@ -311,6 +311,132 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
 	assert.Equal(t, s.reviewer1SlackUser.ID, messages[1].Channel)
 	assert.Equal(t, s.reviewer2SlackUser.ID, messages[2].Channel)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-slack-amr"))
+}
+
+func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// Setup base config to ensure access monitoring rule recipient take precidence
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		types.Wildcard: []string{
+			s.reviewer2SlackUser.Profile.Email,
+		},
+	}
+
+	s.startApp()
+	const numMessagesInitial = 3
+	const numMessagesFinal = 2
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-slack-amr-2",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "slack",
+					Recipients: []string{
+						s.reviewer1SlackUser.ID,
+						s.reviewer2SlackUser.Profile.Email,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Test execution: we create an access request
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, numMessagesInitial)
+
+	var messages []slack.Message
+
+	messageSet := make(SlackDataMessageSet)
+
+	// Validate we got 3 messages: one for each recipient and one for the requester.
+	for i := 0; i < numMessagesInitial; i++ {
+		msg, err := s.fakeSlack.CheckNewMessage(ctx)
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messages = append(messages, msg)
+	}
+
+	assert.Len(t, messageSet, numMessagesInitial)
+	for i := 0; i < numMessagesInitial; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
+
+	// Validate the message recipients
+	sort.Sort(SlackMessageSlice(messages))
+	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
+	assert.Equal(t, s.reviewer1SlackUser.ID, messages[1].Channel)
+	assert.Equal(t, s.reviewer2SlackUser.ID, messages[2].Channel)
+
+	_, err = s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-slack-amr-2",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{"someOtherKind"},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "slack",
+					Recipients: []string{
+						s.reviewer1SlackUser.ID,
+						s.reviewer2SlackUser.Profile.Email,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	messages = []slack.Message{}
+	messageSet = make(SlackDataMessageSet)
+
+	// Test execution: we create an access request
+	request = s.CreateAccessRequest(ctx, userName, nil)
+	pluginData = s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, numMessagesFinal)
+
+	// Validate we got 2 messages since the base config should kick back in
+	for i := 0; i < numMessagesFinal; i++ {
+		msg, err := s.fakeSlack.CheckNewMessage(ctx)
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messages = append(messages, msg)
+	}
+
+	assert.Len(t, messageSet, numMessagesFinal)
+	for i := numMessagesInitial - 1; i < numMessagesFinal; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
+
+	// Validate the message recipients
+	sort.Sort(SlackMessageSlice(messages))
+	assert.Equal(t, s.requesterOSSSlackUser.ID, messages[0].Channel)
+	assert.Equal(t, s.reviewer2SlackUser.ID, messages[1].Channel)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-slack-amr-2"))
 }
 
 // TestApproval tests that when a request is approved, its corresponding message
@@ -760,6 +886,7 @@ func (s *SlackSuiteEnterprise) TestAccessListReminder() {
 }
 
 func (s *SlackBaseSuite) requireReminderMsgEqual(ctx context.Context, id, text string) {
+	s.T().Helper()
 	t := s.T()
 
 	msg, err := s.fakeSlack.CheckNewMessage(ctx)

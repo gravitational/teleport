@@ -762,9 +762,11 @@ const (
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
 
-	// AccessGraphAccessPathChanged is emitted when an access path is changed in the access graph
+	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.
-	AccessGraphAccessPathChanged = "access_graph.access_path_changed"
+	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
+	// TODO(jakule): Remove once e is updated to the new name.
+	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
 )
 
 const (

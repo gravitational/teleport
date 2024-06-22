@@ -58,6 +58,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -65,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -79,8 +79,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -107,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/spacelift"
@@ -211,9 +210,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
-	if cfg.Assist == nil {
-		cfg.Assist = local.NewAssistService(cfg.Backend)
-	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -311,9 +307,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Embeddings == nil {
-		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
-	}
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
@@ -343,28 +336,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
+	keystoreOpts := &keystore.Options{
+		HostUUID:     cfg.HostUUID,
+		ClusterName:  cfg.ClusterName,
+		CloudClients: cfg.CloudClients,
+	}
+	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.GCPKMS != (keystore.GCPKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
-		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
-		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
 	}
-	cfg.KeyStoreConfig.Logger = log
-	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
+	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +398,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Embeddings:                cfg.Embeddings,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
 		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
@@ -415,7 +406,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserLoginStates:           cfg.UserLoginState,
 		StatusInternal:            cfg.Status,
 		UsageReporter:             cfg.UsageReporter,
-		Assistant:                 cfg.Assist,
 		UserPreferences:           cfg.UserPreferences,
 		PluginData:                cfg.PluginData,
 		KubeWaitingContainer:      cfg.KubeWaitingContainers,
@@ -444,8 +434,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                    cfg.FIPS,
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		embeddingsRetriever:     cfg.EmbeddingRetriever,
-		embedder:                cfg.EmbeddingClient,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
 	}
 	as.inventory = inventory.NewController(&as, services,
@@ -587,8 +575,6 @@ type Services struct {
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
-	services.Assistant
-	services.Embeddings
 	services.UserPreferences
 	services.PluginData
 	services.SCIM
@@ -973,12 +959,6 @@ type Server struct {
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
 
-	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
-	embeddingsRetriever *ai.SimpleRetriever
-
-	// embedder is an embedder client used to generate embeddings.
-	embedder embedding.Embedder
-
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
 
@@ -1285,7 +1265,7 @@ func (a *Server) runPeriodicOperations() {
 	defer instancePeriodics.Stop()
 
 	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if modules.GetModules().IsOSSBuild() {
 		ossDesktopsCheck = interval.New(interval.Config{
 			Duration:      OSSDesktopsCheckPeriod,
 			FirstDuration: utils.HalfJitter(time.Second * 10),
@@ -2142,6 +2122,8 @@ type GenerateUserTestCertsRequest struct {
 	PinnedIP             string
 	MFAVerified          string
 	AttestationStatement *keys.AttestationStatement
+	AppName              string
+	AppSessionID         string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2172,6 +2154,8 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		pinIP:                req.PinnedIP != "",
 		mfaVerified:          req.MFAVerified,
 		attestationStatement: req.AttestationStatement,
+		appName:              req.AppName,
+		appSessionID:         req.AppSessionID,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -4268,7 +4252,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
-	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	cryptoPubKey, err := keys.ParsePublicKey(req.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4971,7 +4955,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
+					Expires: timestamppb.New(req.Expiry()),
 				},
 			},
 		},
@@ -5202,23 +5187,29 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 	if req.GetState().IsApproved() {
 		subKind = types.NotificationAccessRequestApprovedSubKind
 		reviewVerb = "approved"
+	} else if req.GetState().IsPromoted() {
+		subKind = types.NotificationAccessRequestPromotedSubKind
 	} else {
 		subKind = types.NotificationAccessRequestDeniedSubKind
 		reviewVerb = "denied"
 	}
 
 	var notificationText string
-	// If this was a resource request.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
-		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
-		}
-		// If this was a role request.
+	if req.GetState().IsPromoted() {
+		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", params.Review.Author)
 	} else {
-		notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
-		if len(req.GetRoles()) > 1 {
-			notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+		// If this was a resource request.
+		if len(req.GetRequestedResourceIDs()) > 0 {
+			notificationText = fmt.Sprintf("%s %s your access request for %d resources.", params.Review.Author, reviewVerb, len(req.GetRequestedResourceIDs()))
+			if len(req.GetRequestedResourceIDs()) == 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for a resource.", params.Review.Author, reviewVerb)
+			}
+			// If this was a role request.
+		} else {
+			notificationText = fmt.Sprintf("%s %s your access request for the '%s' role.", params.Review.Author, reviewVerb, req.GetRoles()[0])
+			if len(req.GetRoles()) > 1 {
+				notificationText = fmt.Sprintf("%s %s your access request for %d roles.", params.Review.Author, reviewVerb, len(req.GetRoles()))
+			}
 		}
 	}
 
@@ -5238,7 +5229,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"request-id":                 params.RequestID,
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
-			}},
+			},
+			Expires: timestamppb.New(req.Expiry())},
 	}
 }
 
@@ -5521,7 +5513,7 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 
 // desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
 func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
-	if modules.GetModules().BuildType() != modules.BuildOSS {
+	if modules.GetModules().IsEnterpriseBuild() {
 		return false, nil
 	}
 
@@ -6844,39 +6836,6 @@ func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username 
 
 	err = a.Services.UpsertHeadlessAuthentication(ctx, stub)
 	return trace.Wrap(err)
-}
-
-// GetAssistantMessages returns all messages with given conversation ID.
-func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	resp, err := a.Services.GetAssistantMessages(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// CreateAssistantMessage adds the message to the backend.
-func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
-}
-
-// UpdateAssistantConversationInfo stores the given conversation title in the backend.
-func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
-}
-
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	resp, err := a.Services.CreateAssistantConversation(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
-// GetAssistantConversations returns all conversations started by a user.
-func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	resp, err := a.Services.GetAssistantConversations(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// DeleteAssistantConversation deletes a conversation from the backend.
-func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
-	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare

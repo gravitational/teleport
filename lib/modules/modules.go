@@ -23,6 +23,7 @@ package modules
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -82,8 +83,6 @@ type Features struct {
 	AutomaticUpgrades bool
 	// IsUsageBasedBilling enables some usage-based billing features
 	IsUsageBasedBilling bool
-	// Assist enables Assistant feature
-	Assist bool
 	// DeviceTrust holds its namesake feature settings.
 	DeviceTrust DeviceTrustFeature
 	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
@@ -190,7 +189,6 @@ func (f Features) ToProto() *proto.Features {
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
-		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
 		CustomTheme:             f.CustomTheme,
 		AccessGraph:             f.AccessGraph,
@@ -293,6 +291,10 @@ type Modules interface {
 	SetFeatures(Features)
 	// BuildType returns build type (OSS, Community or Enterprise)
 	BuildType() string
+	// IsEnterpriseBuild returns if the binary was built with enterprise modules
+	IsEnterpriseBuild() bool
+	// IsOSSBuild returns if the binary was built without enterprise modules
+	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -334,6 +336,8 @@ func GetModules() Modules {
 	return modules
 }
 
+var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
+
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
 	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
@@ -344,7 +348,7 @@ func ValidateResource(res types.Resource) error {
 		case types.AuthPreference:
 			switch r.GetSecondFactor() {
 			case constants.SecondFactorOff, constants.SecondFactorOptional:
-				return trace.BadParameter("cannot disable two-factor authentication")
+				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
 	}
@@ -379,6 +383,16 @@ func (p *defaultModules) BuildType() string {
 	return teleportBuildType
 }
 
+// IsEnterpriseBuild returns false for [defaultModules].
+func (p *defaultModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns true for [defaultModules].
+func (p *defaultModules) IsOSSBuild() bool {
+	return true
+}
+
 // PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
@@ -396,7 +410,6 @@ func (p *defaultModules) Features() Features {
 		App:                true,
 		Desktop:            true,
 		AutomaticUpgrades:  p.automaticUpgrades,
-		Assist:             true,
 		JoinActiveSessions: true,
 		SupportType:        proto.SupportType_SUPPORT_TYPE_FREE,
 	}

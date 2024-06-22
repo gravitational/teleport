@@ -922,6 +922,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	const defaultKRB5FilePath = "/etc/krb5.conf"
+	// The presence of AD Domain indicates the AD configuration will be used.
+	// In those cases, set the default KRB5 file location if not present.
+	if d.Spec.AD.Domain != "" && d.Spec.AD.Krb5File == "" {
+		d.Spec.AD.Krb5File = defaultKRB5FilePath
+	}
+
 	return nil
 }
 

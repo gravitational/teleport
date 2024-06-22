@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -33,8 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -50,7 +51,7 @@ type AppProvider interface {
 	// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
 	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
 	// expected to be cached, as this may be called frequently.
-	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
+	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
 
 	// ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
 	// Implementations may trigger a re-login to the cluster, but if they do, they MUST clear all cached
@@ -60,8 +61,19 @@ type AppProvider interface {
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
 
-	// GetVnetConfig returns the cluster VnetConfig resource.
-	GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
+	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
+	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
+	// app.
+	//
+	// The connection won't be established until OnNewConnection returns. Returning an error prevents
+	// the connection from being made.
+	OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error
+}
+
+// ClusterClient is an interface defining the subset of [client.ClusterClient] methods used by [AppProvider].
+type ClusterClient interface {
+	CurrentCluster() authclient.ClientI
+	ClusterName() string
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
@@ -80,10 +92,12 @@ type DialOptions struct {
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
-	appProvider        AppProvider
-	clusterConfigCache *clusterConfigCache
-	slog               *slog.Logger
-	clock              clockwork.Clock
+	appProvider          AppProvider
+	clusterConfigCache   *ClusterConfigCache
+	customDNSZoneChecker *customDNSZoneValidator
+	slog                 *slog.Logger
+	clock                clockwork.Clock
+	lookupTXT            lookupTXTFunc
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -102,18 +116,32 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 	for _, opt := range opts {
 		opt(r)
 	}
-	if r.clock == nil {
-		r.clock = clockwork.NewRealClock()
-	}
-	r.clusterConfigCache = newClusterConfigCache(appProvider.GetVnetConfig, r.clock)
+	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
+	r.clusterConfigCache = cmp.Or(r.clusterConfigCache, NewClusterConfigCache(r.clock))
+	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
 
 type tcpAppResolverOption func(*TCPAppResolver)
 
+// withClock is a functional option to override the default clock (for tests).
 func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.clock = clock
+	}
+}
+
+// withLookupTXTFunc is a functional option to override the DNS TXT record lookup function (for tests).
+func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.lookupTXT = lookupTXT
+	}
+}
+
+// WithClusterConfigCache is a functional option to override the cluster config cache.
+func WithClusterConfigCache(clusterConfigCache *ClusterConfigCache) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.clusterConfigCache = clusterConfigCache
 	}
 }
 
@@ -131,25 +159,107 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, ErrNoTCPHandler
 		}
-		if !isSubdomain(fqdn, profileName) {
-			// TODO(nklaassen): support leaf clusters and custom DNS zones.
+
+		clusterClient, err := r.clusterClientForAppFQDN(ctx, profileName, fqdn)
+		if err != nil {
+			if errors.Is(err, errNoMatch) {
+				continue
+			}
+			// The user might be logged out from this one cluster (and retryWithRelogin isn't working). Log
+			// the error but don't return it so that DNS resolution will be forwarded upstream instead of
+			// failing, to avoid breaking e.g. web app access (we don't know if this is a web or TCP app yet
+			// because we can't log in).
+			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
 
-		slog := r.slog.With("profile", profileName, "fqdn", fqdn)
-		rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
-		if err != nil {
-			// The user might be logged out from this one cluster (and retryWithRelogin isn't working). Don't
-			// return an error so that DNS resolution will be forwarded upstream instead of failing, to avoid
-			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't
-			// log in).
-			slog.InfoContext(ctx, "Failed to get teleport client.", "error", err)
-			continue
+		leafClusterName := ""
+		if clusterClient.ClusterName() != profileName {
+			leafClusterName = clusterClient.ClusterName()
 		}
-		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
+
+		slog := r.slog.With("profile", profileName, "fqdn", fqdn, "leaf_cluster", leafClusterName)
+		return r.resolveTCPHandlerForCluster(ctx, slog, clusterClient, profileName, leafClusterName, fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
+}
+
+var errNoMatch = errors.New("cluster does not match queried FQDN")
+
+func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
+	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
+	if err != nil {
+		r.slog.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		return nil, errNoMatch
+	}
+
+	if isSubdomain(fqdn, profileName) {
+		// The queried app fqdn is direct subdomain of this cluster proxy address.
+		return rootClient, nil
+	}
+
+	leafClusters, err := getLeafClusters(ctx, rootClient)
+	if err != nil {
+		// Good chance we're here because the user is not logged in to the profile.
+		r.slog.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		return nil, errNoMatch
+	}
+
+	// Prefix with an empty string to represent the root cluster.
+	allClusters := append([]string{""}, leafClusters...)
+	for _, leafClusterName := range allClusters {
+		clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
+		if err != nil {
+			r.slog.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			continue
+		}
+
+		clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+		if err != nil {
+			r.slog.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			continue
+		}
+		for _, zone := range clusterConfig.DNSZones {
+			if !isSubdomain(fqdn, zone) {
+				// The queried app fqdn is not a subdomain of this zone, skip it.
+				continue
+			}
+
+			// Found a matching cluster.
+
+			if zone == clusterConfig.ProxyPublicAddr {
+				// We don't need to validate a custom DNS zone if this is the proxy public address, this is a
+				// normal app public_addr.
+				return clusterClient, nil
+			}
+			// The queried app fqdn is a subdomain of this custom zone. Check if the zone is valid.
+			if err := r.customDNSZoneChecker.validate(ctx, clusterConfig.ClusterName, zone); err != nil {
+				// Return an error here since the FQDN does match this custom zone, but the zone failed to
+				// validate.
+				return nil, trace.Wrap(err, "validating custom DNS zone %q matching queried FQDN %q", zone, fqdn)
+			}
+			return clusterClient, nil
+		}
+	}
+	return nil, errNoMatch
+}
+
+func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
+	var leafClusters []string
+	nextPage := ""
+	for {
+		remoteClusters, nextPage, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, rc := range remoteClusters {
+			leafClusters = append(leafClusters, rc.GetName())
+		}
+		if nextPage == "" {
+			return leafClusters, nil
+		}
+	}
 }
 
 // resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
@@ -159,13 +269,13 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
 	slog *slog.Logger,
-	clt apiclient.GetResourcesClient,
+	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
 ) (*TCPHandlerSpec, error) {
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
-	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clusterClient.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		PredicateExpression: expr,
 		Limit:               1,
@@ -186,19 +296,13 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	var cidrRange string
-	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, leafClusterName)
-	switch {
-	case err == nil:
-		cidrRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
-	case trace.IsNotFound(err) || trace.IsNotImplemented(err):
-		cidrRange = defaultIPv4CIDRRange
-	default:
+	clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &TCPHandlerSpec{
-		IPv4CIDRRange: cidrRange,
+		IPv4CIDRRange: clusterConfig.IPv4CIDRRange,
 		TCPHandler:    appHandler,
 	}, nil
 }
@@ -227,7 +331,14 @@ func (r *TCPAppResolver) newTCPAppHandler(
 		leafClusterName: leafClusterName,
 		app:             app,
 	}
-	middleware := client.NewCertChecker(appCertIssuer, r.clock)
+	certChecker := client.NewCertChecker(appCertIssuer, r.clock)
+	middleware := &localProxyMiddleware{
+		certChecker:     certChecker,
+		appProvider:     r.appProvider,
+		app:             app,
+		profileName:     profileName,
+		leafClusterName: leafClusterName,
+	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         dialOpts.WebProxyAddr,
@@ -281,8 +392,8 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
-func isSubdomain(appFQDN, proxyAddress string) bool {
-	return strings.HasSuffix(appFQDN, "."+fullyQualify(proxyAddress))
+func isSubdomain(appFQDN, suffix string) bool {
+	return strings.HasSuffix(appFQDN, "."+fullyQualify(suffix))
 }
 
 // fullyQualify returns a fully-qualified domain name from [domain]. Fully-qualified domain names always end
@@ -292,4 +403,27 @@ func fullyQualify(domain string) string {
 		return domain
 	}
 	return domain + "."
+}
+
+// localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
+// OnNewConnection method calls the same method of [AppProvider].
+type localProxyMiddleware struct {
+	app             types.Application
+	profileName     string
+	leafClusterName string
+	certChecker     *client.CertChecker
+	appProvider     AppProvider
+}
+
+func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	err := m.certChecker.OnNewConnection(ctx, lp)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(m.appProvider.OnNewConnection(ctx, m.profileName, m.leafClusterName, m.app))
+}
+
+func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
+	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
 }

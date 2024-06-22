@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
-
-import { Option } from 'shared/components/Select';
 
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
+import { useSpecifiableFields } from '../NewRequest/useSpecifiableFields';
 
 import { AssumeStartTime } from './AssumeStartTime';
 
@@ -128,21 +126,32 @@ const AssumeStartTimeComp = ({
   accessRequest: AccessRequest;
   review?: boolean;
 }) => {
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  const [start, setStart] = useState<Date>();
+  const {
+    onDryRunChange,
+    maxDuration,
+    maxDurationOptions,
+    onMaxDurationChange,
+    startTime,
+    onStartTimeChange,
+    dryRunResponse,
+  } = useSpecifiableFields();
+
+  if (!dryRunResponse) {
+    onDryRunChange(accessRequest);
+  }
 
   if (review) {
     return (
       <>
         <AssumeStartTime
-          start={start}
-          onStartChange={setStart}
-          accessRequest={accessRequest}
+          start={startTime}
+          onStartChange={onStartTimeChange}
+          accessRequest={dryRunResponse}
           reviewing={true}
         />
         <AccessDurationReview
-          assumeStartTime={start}
-          accessRequest={accessRequest}
+          assumeStartTime={startTime}
+          accessRequest={dryRunResponse}
         />
       </>
     );
@@ -151,15 +160,14 @@ const AssumeStartTimeComp = ({
   return (
     <>
       <AssumeStartTime
-        start={start}
-        onStartChange={setStart}
-        accessRequest={accessRequest}
+        start={startTime}
+        onStartChange={onStartTimeChange}
+        accessRequest={dryRunResponse}
       />
       <AccessDurationRequest
-        assumeStartTime={start}
-        accessRequest={accessRequest}
         maxDuration={maxDuration}
-        setMaxDuration={setMaxDuration}
+        onMaxDurationChange={onMaxDurationChange}
+        maxDurationOptions={maxDurationOptions}
       />
     </>
   );

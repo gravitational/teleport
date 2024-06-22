@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 )
@@ -38,7 +39,8 @@ import (
 type Storage interface {
 	clusters.Resolver
 
-	ReadAll() ([]*clusters.Cluster, error)
+	ListProfileNames() ([]string, error)
+	ListRootClusters() ([]*clusters.Cluster, error)
 	Add(ctx context.Context, webProxyAddress string) (*clusters.Cluster, *client.TeleportClient, error)
 	Remove(ctx context.Context, profileName string) error
 	GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
@@ -73,6 +75,10 @@ type Config struct {
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
 	CreateClientCacheFunc func(resolver clientcache.NewClientFunc) (ClientCache, error)
+	// ClusterIDCache gets updated whenever daemon.Service.ResolveClusterWithDetails gets called.
+	// Since that method is called by the Electron app only for root clusters and typically only once
+	// after a successful login, this cache doesn't have to be cleared.
+	ClusterIDCache *clusteridcache.Cache
 }
 
 // ResolveClusterFunc returns a cluster by URI.
@@ -171,6 +177,10 @@ func (c *Config) CheckAndSetDefaults() error {
 				RetryWithReloginFunc: clientcache.RetryWithReloginFunc(retryWithRelogin),
 			})
 		}
+	}
+
+	if c.ClusterIDCache == nil {
+		c.ClusterIDCache = &clusteridcache.Cache{}
 	}
 
 	return nil

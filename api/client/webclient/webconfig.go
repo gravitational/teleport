@@ -69,8 +69,6 @@ type WebConfig struct {
 	// Eg, v13.4.3
 	// Only present when AutomaticUpgrades are enabled.
 	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
-	// AssistEnabled is true when Teleport Assist is enabled.
-	AssistEnabled bool `json:"assistEnabled"`
 	// HideInaccessibleFeatures is true when features should be undiscoverable to users without the necessary permissions.
 	// Usually, in order to encourage discoverability of features, we show UI elements even if the user doesn't have permission to access them,
 	// this flag disables that behavior.
@@ -82,6 +80,8 @@ type WebConfig struct {
 	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	IsIGSEnabled bool `json:"isIgsEnabled"`
+	// IsPolicyEnabled is true if [Features.Policy] = true
+	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 	// featureLimits define limits for features.
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.

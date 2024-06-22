@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	vnetproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -72,7 +71,7 @@ func (p *vnetAppProvider) ListProfiles() ([]string, error) {
 
 // GetCachedClient returns a cached [*client.ClusterClient] for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster.
-func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *vnetAppProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
 	return p.clientCache.Get(ctx, profileName, leafClusterName)
 }
 
@@ -105,6 +104,7 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 	dialOpts := &vnet.DialOptions{
 		WebProxyAddr:            profile.WebProxyAddr,
 		ALPNConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
 	}
 	if dialOpts.ALPNConnUpgradeRequired {
 		dialOpts.RootClusterCACertPool, err = p.getRootClusterCACertPool(ctx, profileName)
@@ -115,14 +115,10 @@ func (p *vnetAppProvider) GetDialOptions(ctx context.Context, profileName string
 	return dialOpts, nil
 }
 
-func (p *vnetAppProvider) GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnetproto.VnetConfig, error) {
-	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	vnetConfigClient := clusterClient.AuthClient.VnetConfigServiceClient()
-	vnetConfig, err := vnetConfigClient.GetVnetConfig(ctx, &vnetproto.GetVnetConfigRequest{})
-	return vnetConfig, trace.Wrap(err)
+// OnNewConnection gets called before each VNet connection. It's a noop as tsh doesn't need to do
+// anything extra here.
+func (p *vnetAppProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, app types.Application) error {
+	return nil
 }
 
 // getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.
@@ -195,11 +191,11 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
-	clusterClient, err := p.GetCachedClient(ctx, profileName, leafClusterName)
+	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
 	}
-	rootClient, err := p.GetCachedClient(ctx, profileName, "")
+	rootClient, err := p.clientCache.Get(ctx, profileName, "")
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached root client")
 	}
