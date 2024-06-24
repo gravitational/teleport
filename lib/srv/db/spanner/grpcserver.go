@@ -300,7 +300,7 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 		return spannerpb.NewSpannerClient(e.gcloudClient), nil
 	}
 
-	tlsCfg, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser, e.sessionCtx.DatabaseName)
+	tlsCfg, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

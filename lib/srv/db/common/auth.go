@@ -77,21 +77,21 @@ type Auth interface {
 	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 	GetRedshiftServerlessAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error)
 	// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
-	GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error)
+	GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetMemoryDBToken generates a MemoryDB auth token.
-	GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error)
+	GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error)
 	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 	GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
-	GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error)
+	GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
-	GetAzureAccessToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error)
+	GetAzureAccessToken(ctx context.Context) (string, error)
 	// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
 	GetAzureCacheForRedisToken(ctx context.Context, database types.Database) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
-	GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error)
+	GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	// GetAzureIdentityResourceID returns the Azure identity resource ID
@@ -511,7 +511,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 //
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
-func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -519,7 +519,6 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Databas
 	a.cfg.Log.
 		WithField("database", database).
 		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
 		Debug("Generating GCP user password")
 	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
@@ -572,12 +571,8 @@ SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 }
 
 // GetAzureAccessToken generates Azure database access token.
-func (a *dbAuth) GetAzureAccessToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
-	a.cfg.Log.
-		WithField("database", database).
-		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
-		Debug("Generating Azure access token")
+func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
+	a.cfg.Log.Debug("Generating Azure access token")
 	cred, err := a.cfg.Clients.GetAzureCredential()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -595,7 +590,7 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, database types.Databas
 }
 
 // GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
-func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
 	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
 		cloud.WithAssumeRoleFromAWSMeta(meta),
@@ -607,7 +602,6 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 	a.cfg.Log.
 		WithField("database", database).
 		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
 		Debug("Generating ElastiCache Redis auth token")
 	tokenReq := &awsRedisIAMTokenRequest{
 		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
@@ -624,7 +618,7 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 }
 
 // GetMemoryDBToken generates a MemoryDB auth token.
-func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	meta := database.GetAWS()
 	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region,
 		cloud.WithAssumeRoleFromAWSMeta(meta),
@@ -636,7 +630,6 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, database types.Database, 
 	a.cfg.Log.
 		WithField("database", database).
 		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
 		Debug("Generating MemoryDB auth token")
 	tokenReq := &awsRedisIAMTokenRequest{
 		userID:      databaseUser,
@@ -703,23 +696,23 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
 // authority. For on-prem we generate a client certificate signed by the host
 // CA used to authenticate.
-func (a *dbAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (a *dbAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	dbTLSConfig := database.GetTLS()
 
 	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
 	switch dbTLSConfig.Mode {
 	case types.DatabaseTLSMode_INSECURE:
-		return a.getTLSConfigInsecure(ctx, expiry, database, databaseUser, databaseName)
+		return a.getTLSConfigInsecure(ctx, expiry, database, databaseUser)
 	case types.DatabaseTLSMode_VERIFY_CA:
-		return a.getTLSConfigVerifyCA(ctx, expiry, database, databaseUser, databaseName)
+		return a.getTLSConfigVerifyCA(ctx, expiry, database, databaseUser)
 	default:
-		return a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
+		return a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser)
 	}
 }
 
 // getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
 // Config also includes database specific adjustment.
-func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 
 	// Add CA certificate to the trusted pool if it's present, e.g. when
@@ -779,13 +772,13 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, expiry time.Time, d
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
-	return a.appendClientCert(ctx, expiry, database, databaseUser, databaseName, tlsConfig)
+	return a.appendClientCert(ctx, expiry, databaseUser, tlsConfig)
 }
 
 // getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
 // Generated configuration will accept any certificate provided by database.
-func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
+func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -801,8 +794,8 @@ func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, expiry time.Time, dat
 // getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
 // Generated configuration is the same as 'verify-full' except the server name
 // verification is disabled.
-func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser, databaseName)
+func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
+	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, expiry, database, databaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -819,8 +812,8 @@ func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, expiry time.Time, dat
 }
 
 // appendClientCert generates a client certificate and appends it to the provided tlsConfig.
-func (a *dbAuth) appendClientCert(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string, tlsConfig *tls.Config) (*tls.Config, error) {
-	cert, cas, err := a.getClientCert(ctx, expiry, database, databaseUser, databaseName)
+func (a *dbAuth) appendClientCert(ctx context.Context, expiry time.Time, databaseUser string, tlsConfig *tls.Config) (*tls.Config, error) {
+	cert, cas, err := a.getClientCert(ctx, expiry, databaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -980,7 +973,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
-func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (cert *tls.Certificate, cas [][]byte, err error) {
+func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUser string) (cert *tls.Certificate, cas [][]byte, err error) {
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -995,9 +988,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, database t
 	// TODO(r0mant): Cache database certificates to avoid expensive generate
 	// operation on each connection.
 	a.cfg.Log.
-		WithField("database", database).
 		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
 		Debug("Generating client certificate")
 
 	resp, err := a.cfg.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
@@ -1079,14 +1070,10 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 	dbAWS := database.GetAWS()
 	awsAccountID := dbAWS.AccountID
 
-	log := a.cfg.Log.
-		WithField("database", database).
-		WithField("database_user", databaseUser)
-
 	if awsutils.IsPartialRoleARN(databaseUser) && awsAccountID == "" {
 		switch {
 		case dbAWS.AssumeRoleARN != "":
-			log.Debug("Using AWS Account ID from assumed role")
+			a.cfg.Log.Debug("Using AWS Account ID from assumed role")
 			assumeRoleARN, err := awsutils.ParseRoleARN(dbAWS.AssumeRoleARN)
 			if err != nil {
 				return "", trace.Wrap(err)
@@ -1094,7 +1081,7 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 
 			awsAccountID = assumeRoleARN.AccountID
 		default:
-			log.Debug("Fetching AWS Account ID to build role ARN")
+			a.cfg.Log.Debug("Fetching AWS Account ID to build role ARN")
 			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region, cloud.WithAmbientCredentials())
 			if err != nil {
 				return "", trace.Wrap(err)
@@ -1309,7 +1296,7 @@ func newReportingAuth(db types.Database, auth Auth) Auth {
 	}
 }
 
-func (r *reportingAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (r *reportingAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	defer methodCallMetrics("GetTLSConfig", r.component, r.db)()
-	return r.Auth.GetTLSConfig(ctx, expiry, database, databaseUser, databaseName)
+	return r.Auth.GetTLSConfig(ctx, expiry, database, databaseUser)
 }

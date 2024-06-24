@@ -218,7 +218,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 // connect establishes connection to MySQL database.
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -265,7 +265,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
-		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+		password, err = e.Auth.GetAzureAccessToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

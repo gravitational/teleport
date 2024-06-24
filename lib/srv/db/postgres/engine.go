@@ -483,7 +483,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -538,7 +538,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 			}
 		}
 	case types.DatabaseTypeAzure:
-		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+		config.Password, err = e.Auth.GetAzureAccessToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -553,7 +553,7 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
