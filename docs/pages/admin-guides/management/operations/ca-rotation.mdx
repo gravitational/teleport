@@ -4,11 +4,11 @@ description: Describes how to rotate Teleport's certificate authorities.
 tocDepth: 3
 ---
 
-Various components of a Teleport cluster authenticate to one another using
-either X.509 or SSH certificates. To verify certificates, Teleport maintains
-several certificate authorities. You can rotate Teleport CAs to prevent
-malicious actors from impersonating part of your Teleport cluster. This guide
-explains the CAs that Teleport maintains and how to rotate them.
+Components of a Teleport cluster authenticate to one another using either X.509
+or SSH certificates. To issue certificates, Teleport maintains several
+certificate authorities. You can rotate Teleport CAs to prevent malicious actors
+from impersonating part of your Teleport cluster. This guide explains the CAs
+that Teleport maintains and how to rotate them.
 
 We recommend becoming familiar with the entire guide before following the steps,
 as you should be ready to roll back the CA rotation if it does not proceed as
@@ -19,15 +19,16 @@ expected.
 Teleport maintains its CAs independently of one another, and rotating one CA
 does not affect the rotation status of the others. The rotation process is
 designed to take place in **phases**, which give operators time to update their
-infrastructure and roll back the migration if necessary.
+infrastructure and roll back a CA rotation if necessary.
 
-Teleport CA rotation takes place in five phases, which have the following order:
+Teleport CA rotation takes place in five phases for each CA. The phases have the
+following order:
 
 1. `standby`: No rotation in progress. No operations have begun.
 1. `init`: A new certificate authority is issued, but not used.
 1. `update_clients`: The Teleport Auth Service uses the new CA to sign
    certificates but continues to trust certificates signed by the original CA.
-1. `update_servers`: Teleport servers (agents, Auth Service, and Proxy Service
+1. `update_servers`: Teleport servers (Agents, Auth Service, and Proxy Service
    instances) reload and start serving TLS and SSH certificates signed by the
    new certificate authority, but still accept certificates issued by the
    original certificate authority. This only applies to the Teleport [`host`
@@ -53,30 +54,31 @@ phase automatically, with a grace period between each phase.
 ## Step 1/4. Choose a CA to rotate
 
 When rotating a CA, you need to check that any infrastructure that relies on the
-CA has not lost connectivity. You may also need to export the new CA to that
+CA has not lost connectivity. You may also need to export the new CA to your
 infrastructure. Choose one of the CAs below to determine how to keep it up to
 date during the migration.
 
 We recommend rotating a single CA at a time in order to reduce complexity. The
 exception is rotating the `db` and `db_client` CAs. 
 
-|CA type|Traffic it authenticates|
+|CA type|Certificate subjects|Verified by|
 |---|---|
-|[`host`](#host)|Traffic between Teleport agents and Proxy Service instances and the Teleport Auth Service.|
-|[`user`](#user)|Traffic from authenticated Teleport users. Client traffic from the Teleport SSH Service and OpenSSH clients to Teleport-protected servers. Client traffic from the Windows Desktop Service to Teleport-protected desktops.|
-|[`db`](#db-and-db_client)|Server traffic from self-hosted databases protected by Teleport.|
-|[`db_client`](#db-and-db_client)|Client traffic from the Teleport Database Service to self-hosted databases protected by Teleport.|
-|[`openssh`](#openssh)|Client traffic to OpenSSH servers enrolled in your Teleport cluster.|
-|[`jwt`](#jwt)|Traffic from the Teleport Application Service to applications that accept Teleport-issued JSON web tokens.|
-|[`saml_idp`](#saml_idp)|Traffic from the Teleport SAML IdP to service providers.|
-|[`oidc_idp`](#oidc_idp)|Traffic from the Teleport OIDC IdP integration, which authenticates to AWS for features like EICE EC2 Access, External Audit Storage, Auto-Discovery, and AWS Sync for Access Graph.|
+|[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|Clients communicating with Teleport components.|
+|[`user`](#user)|Teleport users. Teleport SSH Service and Windows Desktop Service instances.|Teleport-protected servers and Windows desktops.|
+|[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|The Teleport Database Service.|
+|[`db_client`](#db-and-db_client)|The Teleport Database Service.|Self-hosted databases protected by Teleport.|
+|[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|Clients connecting to Teleport-protected OpenSSH servers.|
+|[`jwt`](#jwt)|Teleport users|Applications that accept Teleport-issued JSON web tokens sent by the Teleport Application Service.|
+|[`saml_idp`](#saml_idp)|The Teleport SAML IdP|Applications configured to use the Teleport SAML IdP for authentication.|
+|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration|AWS during authentication for features like EICE EC2 Access, External Audit Storage, Auto-Discovery, and AWS Sync for Access Graph.|
 
 ### `host`
 
-The `host` CA authenticates traffic between Teleport agents and Proxy Service
-instances and the Teleport Auth Service.
+The `host` CA issues certificates to Teleport Agents as well as Auth Service and
+Proxy Service instances so Teleport clients and the Teleport Auth Service can
+verify them.
 
-Teleport agents and Proxy Service instances use **heartbeats** to periodically
+Teleport Agents and Proxy Service instances use **heartbeats** to periodically
 report their status to the Teleport Auth Service and update their internal data
 to reflect data held by the Auth Service. This internal data includes the status
 of the `host` CA rotation if one is in progress.
@@ -108,7 +110,7 @@ the rotation state of the `host` CA on each agent kind:
 | Proxy Service       | `proxies`        |
 | SSH Service         | `nodes`          |
 
-During each phase of the `host` CA rotation, make sure all agents and Proxy
+During each phase of the `host` CA rotation, make sure all Agents and Proxy
 Service instances have completed the transition to target phase before
 proceeding to the next phase. We will explain the phases in [Step
 2](#step-2-4-start-a-manual-rotation).
@@ -121,22 +123,30 @@ when adding Teleport services after `host` CA rotation.
 
 ### `user`
 
-Teleport issues certificates from the `user` CA when a user authenticates to
-Teleport. Once you have completed the rotation and reached the final `standby`
-phase, users who have signed into Teleport must reauthenticate to receive a user
+The `user` CA issues a certificate when a user authenticates to Teleport. It
+also signs client certificates for the Windows Desktop Service and Teleport SSH
+Service. Teleport-protected servers and Windows desktops use these certificates
+to verify connecting clients.
+
+Once you have completed the rotation and reached the final `standby` phase,
+users who have signed into Teleport must reauthenticate to receive a user
 certificate from the new CA, otherwise Teleport client commands fail.
 
-Teleport signs Windows Desktop client certificates with the `user` certificate
-authority. If you have registered Windows desktops with Teleport, [follow the
+If you have registered Windows desktops with Teleport, [follow the
 guide](../../desktop-access/active-directory-manual.mdx) to exporting the
 Teleport user CA so the Windows Desktop Service can authenticate to RDP hosts.
 Verify that you can connect to registered desktops throughout the rotation.
 
 ### `db` and `db_client`
 
-The `db` CA authenticates server traffic from self-hosted databases protected by
-Teleport, while the `db_client` CA authenticates client traffic from the
-Teleport Database Service to self-hosted databases.
+The `db` and `db_client` CAs issue certificates that the Teleport Database
+Service uses to communicate with self-hosted databases. 
+
+The Teleport Database Service presents a certificate signed by the `db_client`
+CA when communicating with a self-hosted database, which an admin configures to
+trust certificates issued by the CA. Self-hosted databases present a certificate
+signed by the `db` CA, which the Database Service uses to verify that a database
+server is a genuine Teleport-protected resource.
 
 #### Beginning the rotation
 
@@ -173,8 +183,9 @@ to reconfigure them again before transitioning to `standby` from the
 
 ### `openssh`
 
-The `openssh` CA authenticates client traffic to OpenSSH servers enrolled in
-your Teleport cluster. 
+The `openssh` CA issues certificates for [OpenSSH servers registered with
+Teleport](../../server-access/openssh.mdx). Clients verify these certificates
+when connecting to Teleport-protected OpenSSH servers.
 
 If you used the [manual
 method](../../server-access/openssh/openssh-manual-install.mdx) to enroll any
@@ -185,8 +196,10 @@ servers you enrolled in your cluster using the manual method.
 
 ### `jwt`
 
-The `jwt` CA authenticates traffic from the Teleport Application Service to
-applications that accept Teleport-issued JSON web tokens.
+The Teleport Auth Service uses the `jwt` CA to sign JSON web tokens. The
+Teleport Application Service includes JSON web tokens in HTTP messages that it
+forwards to Teleport-protected applications, which use the `jwt` CA to verify
+the tokens.
 
 If you have enrolled web applications with Teleport, and those applications
 authenticate traffic from the Teleport Application Service by verifying JSON web
@@ -212,8 +225,8 @@ Elasticsearch](../../application-access/jwt/elasticsearch.mdx).
 
 ### `saml_idp`
 
-The `saml_idp` CA authenticates traffic from the Teleport SAML IdP to service
-providers.
+The `saml_idp` CA signs SAML messages sent by the Teleport IdP so services that
+rely on the Teleport IdP can verify them.
 
 If you are rotating this CA, then before entering the final `standby` phase, you
 must configure any service providers that rely on the Teleport SAML IdP to trust
@@ -223,10 +236,11 @@ metadata file and make it available to your service provider.
 
 ### `oidc_idp`
 
-The `oidc_idp` CA authenticates traffic from the Teleport OIDC IdP integration,
-which Teleport uses for features like EICE EC2 Access, External Audit Storage,
-Auto-Discovery, and AWS Sync for Access Graph. There are two ways to serve the
-public key for the Teleport `oidc_idp` certificate authority:
+The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration. AWS
+verifies these messages to authenticate your Teleport account for features like
+EICE EC2 Access, External Audit Storage, Auto-Discovery, and AWS Sync for Access
+Graph. There are two ways to serve the public key for the Teleport `oidc_idp`
+certificate authority:
 
 - From the `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API.
 - From an Amazon S3 bucket.
@@ -338,7 +352,7 @@ trust certificates signed by the original CA.
 
 ### `update_servers`
 
-Initiate the `update_servers` phase. In this phase, Teleport servers (agents,
+Initiate the `update_servers` phase. In this phase, Teleport servers (Agents,
 Auth Service, and Proxy Service instances) reload and start serving TLS and SSH
 certificates signed by the new certificate authority, but still accept
 certificates issued by the original certificate authority. This phase only
@@ -456,7 +470,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 
 Be careful when choosing a grace period when rotating the `host` CA.
 
-The grace period needs to be long enough for all agents and Proxy Service
+The grace period needs to be long enough for all Agents and Proxy Service
 instances in a cluster to request a new certificate. If some hosts go offline
 during the rotation and come back only after the grace period has ended, they
 will be forced to leave the cluster.
