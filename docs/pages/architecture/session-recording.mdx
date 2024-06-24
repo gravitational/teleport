@@ -123,7 +123,7 @@ Auth Service.
 ### Synchronous recording
 
 When synchronous recording is enabled, the Teleport component doing the recording
-(which may be the Node or the Proxy Service instance depending on your configuration)
+(which may be the Teleport SSH Service or the Proxy Service instance depending on your configuration)
 submits each recording event to Teleport's Auth Server as it occurs. In this mode,
 failure to emit a recording event is considered fatal - the session will be terminated
 if an event cannot be recorded. This makes synchronous recording best suited for highly
@@ -135,8 +135,9 @@ or terminated due to temporary connection loss.
 In synchronous recording modes, the Auth Server receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
 it to the storage backend. Since data is streamed directly to the Auth Server,
-Teleport administrators don't need to be concerned with disk space on their Nodes
-and Proxy Service instances, as no recording data is written to those disks.
+Teleport administrators don't need to be concerned with disk space on their
+Teleport SSH Service and Proxy Service instances, as no recording data is
+written to those disks.
 
 ### Asynchronous recording
 

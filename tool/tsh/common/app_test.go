@@ -60,7 +60,7 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 	return srv.URL
 }
 
-func testDummyAppConn(t require.TestingT, name string, addr string, tlsCerts ...tls.Certificate) {
+func testDummyAppConn(t require.TestingT, addr string, tlsCerts ...tls.Certificate) (resp *http.Response) {
 	clt := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -72,12 +72,7 @@ func testDummyAppConn(t require.TestingT, name string, addr string, tlsCerts ...
 
 	resp, err := clt.Get(addr)
 	assert.NoError(t, err)
-	if err != nil {
-		return
-	}
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, name, resp.Header.Get("Server"))
-	_ = resp.Body.Close()
+	return resp
 }
 
 // TestAppCommands tests the following basic app command functionality for registered root and leaf apps.
@@ -261,7 +256,10 @@ func TestAppCommands(t *testing.T) {
 								clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 								require.NoError(t, err)
 
-								testDummyAppConn(t, app.name, fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
+								resp := testDummyAppConn(t, fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
+								resp.Body.Close()
+								assert.Equal(t, http.StatusOK, resp.StatusCode)
+								assert.Equal(t, app.name, resp.Header.Get("Server"))
 
 								// app logout.
 								err = Run(ctx, []string{
@@ -291,20 +289,25 @@ func TestAppCommands(t *testing.T) {
 								}()
 
 								assert.EventuallyWithT(t, func(t *assert.CollectT) {
-									testDummyAppConn(t, app.name, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
+									resp := testDummyAppConn(t, fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
+									assert.Equal(t, http.StatusOK, resp.StatusCode)
+									assert.Equal(t, app.name, resp.Header.Get("Server"))
+									resp.Body.Close()
 								}, 10*time.Second, time.Second)
 
 								proxyCancel()
 								assert.NoError(t, <-errC)
 
-								// proxy certs should not be saved to disk.
-								err = Run(context.Background(), []string{
-									"app",
-									"config",
-									app.name,
-									"--cluster", app.cluster,
-								}, setHomePath(loginPath))
-								assert.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+								// proxy certs should not be saved to disk if mfa was used..
+								if requireMFAType == types.RequireMFAType_SESSION {
+									err = Run(context.Background(), []string{
+										"app",
+										"config",
+										app.name,
+										"--cluster", app.cluster,
+									}, setHomePath(loginPath))
+									assert.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+								}
 							})
 						})
 					}
@@ -394,8 +397,8 @@ func TestFormatAppConfig(t *testing.T) {
 			tc:     defaultTc,
 			format: appFormatCURL,
 			expected: `curl \
-  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
-  --key /test/dir/keys/alice \
+  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+  --key "/test/dir/keys/alice" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -404,8 +407,8 @@ func TestFormatAppConfig(t *testing.T) {
 			format:   appFormatCURL,
 			insecure: true,
 			expected: `curl --insecure \
-  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
-  --key /test/dir/keys/alice \
+  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+  --key "/test/dir/keys/alice" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -418,7 +421,7 @@ func TestFormatAppConfig(t *testing.T) {
   "ca": "/test/dir/keys/cas/root.pem",
   "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
   "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443"
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443"
 }
 `,
 		},
@@ -430,8 +433,8 @@ func TestFormatAppConfig(t *testing.T) {
 cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
-    --key /test/dir/keys/alice \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
 key: /test/dir/keys/alice
 name: test-app
@@ -475,7 +478,7 @@ uri: https://test-app.example.com:8443
   "ca": "/test/dir/keys/cas/root.pem",
   "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
   "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
   "azure_identity": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
 }
 `,
@@ -490,8 +493,8 @@ ca: /test/dir/keys/cas/root.pem
 cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
-    --key /test/dir/keys/alice \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
 key: /test/dir/keys/alice
 name: test-app
@@ -517,7 +520,7 @@ uri: https://test-app.example.com:8443
   "ca": "/test/dir/keys/cas/root.pem",
   "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
   "key": "/test/dir/keys/alice",
-  "curl": "curl \\\n  --cert /test/dir/keys/alice-app/root/test-app-x509.pem \\\n  --key /test/dir/keys/alice \\\n  https://test-app.example.com:8443",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
   "gcp_service_account": "dev@example-123456.iam.gserviceaccount.com"
 }
 `,
@@ -531,8 +534,8 @@ uri: https://test-app.example.com:8443
 cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert /test/dir/keys/alice-app/root/test-app-x509.pem \
-    --key /test/dir/keys/alice \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
 gcp_service_account: dev@example-123456.iam.gserviceaccount.com
 key: /test/dir/keys/alice
