@@ -201,6 +201,14 @@ func (t *templateKubernetes) render(
 		kubernetesClusterName: t.clusterName,
 	}
 
+	destinationDir, isDirectoryDest := destination.(*DestinationDirectory)
+	if !t.disableExecPlugin {
+		if !isDirectoryDest {
+			log.WarnContext(ctx, "Kubernetes template will be rendered without exec plugin because destination is not a directory. Explicitly set `disable_exec_plugin: true` in the output to suppress this message")
+			t.disableExecPlugin = true
+		}
+	}
+
 	var cfg *clientcmdapi.Config
 	if t.disableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
@@ -216,14 +224,6 @@ func (t *templateKubernetes) render(
 		// We only support directory mode for this since the exec plugin needs
 		// to know the path to read the credentials from, and this is
 		// unpredictable with other types of destination.
-		destinationDir, ok := destination.(*DestinationDirectory)
-		if !ok {
-			return trace.BadParameter(
-				"Destination %s must be a directory in exec plugin mode",
-				destination,
-			)
-		}
-
 		executablePath, err := t.executablePathGetter()
 		if err != nil {
 			return trace.Wrap(err)
