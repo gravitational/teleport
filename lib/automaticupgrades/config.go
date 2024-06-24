@@ -17,13 +17,15 @@ limitations under the License.
 package automaticupgrades
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -78,8 +80,10 @@ func GetUpgraderVersion(ctx context.Context) string {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
 			return ""
 		}
-		if version := strings.TrimSpace(string(out)); version != "" {
-			return version
+		ver, err := version.EnsureSemver(string(bytes.TrimSpace(out)))
+		if err != nil {
+			log.WithError(err).Debug("Unexpected teleport-upgrade version.")
+			return ver
 		}
 	}
 	return os.Getenv(EnvUpgraderVersion)
