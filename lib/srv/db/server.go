@@ -298,7 +298,7 @@ type Server struct {
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
 	// logrusLogger is used for logging.
-	// TODO (greedy52) delete when possible.
+	// Deprecated: use log (*slog.Logger) instead.
 	logrusLogger *logrus.Entry
 	// logger is used for logging.
 	log *slog.Logger
@@ -1170,7 +1170,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),
-		Log: s.legacyLogger.WithFields(logrus.Fields{
+		Log: s.logrusLogger.WithFields(logrus.Fields{
 			"id": id,
 			"db": database.GetName(),
 		}),

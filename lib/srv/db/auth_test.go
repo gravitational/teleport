@@ -262,7 +262,7 @@ type testAuth struct {
 	// Auth is the wrapped "real" auth that handles everything except for
 	// cloud auth tokens generation.
 	common.Auth
-	// Log is used for logging.
+	// Logger is used for logging.
 	*slog.Logger
 }
 
