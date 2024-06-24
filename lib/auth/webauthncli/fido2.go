@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -134,9 +133,7 @@ var (
 
 // isLibfido2Enabled returns true if libfido2 is available in the current build.
 func isLibfido2Enabled() bool {
-	val, ok := os.LookupEnv("TELEPORT_FIDO2")
-	// Default to enabled, otherwise obey the env variable.
-	return !ok || val == "1"
+	return true
 }
 
 // fido2Login implements FIDO2Login.

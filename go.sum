@@ -529,10 +529,6 @@ github.com/fatih/color v1.15.0/go.mod h1:0h5ZqXfHYED7Bhv2ZJamyIOUej9KtShiJESRwBD
 github.com/felixge/httpsnoop v1.0.1/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a h1:fsyWnwbywFpHJS4T55vDW+UUeWP2WomJbB45/jf4If4=
-github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a/go.mod h1:Osz+xPHFsGWK9kZCEVcwXazcF/CHjscCVZosNFgwUIY=
-github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d h1:2D6Rp/MRcrKnRFr7kfgBOJnJPFN0jPfc36ggct5MaK0=
-github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d/go.mod h1:shcCQPgKtaJz4obqb6Si031WgtSrW+Tj+ZLq/mRNrM8=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/form3tech-oss/jwt-go v3.2.5+incompatible h1:/l4kBbb4/vGSsdtB5nUe8L7B9mImVMaBPw9L/0TBHU8=
 github.com/form3tech-oss/jwt-go v3.2.5+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
