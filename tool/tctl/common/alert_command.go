@@ -205,7 +205,7 @@ func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) erro
 
 func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 	if verbose {
-		table := asciitable.MakeTable([]string{"ID", "Severity", "TTL", "Message", "Created", "Labels"})
+		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message", "Created", "Labels"})
 		for _, alert := range alerts {
 			var labelPairs []string
 			for key, val := range alert.Metadata.Labels {
@@ -224,7 +224,7 @@ func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 		}
 		fmt.Println(table.AsBuffer().String())
 	} else {
-		table := asciitable.MakeTable([]string{"ID", "Severity", "TTL", "Message"})
+		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message"})
 		for _, alert := range alerts {
 			table.AddRow([]string{
 				alert.GetName(),
