@@ -20,41 +20,11 @@ import styled from 'styled-components';
 
 import React, { forwardRef } from 'react';
 
-import { Flex } from 'design';
-import { space } from 'design/system';
 import * as Icon from 'design/Icon';
-
-export const CheckboxWrapper = styled(Flex)`
-  padding: 8px;
-  margin-bottom: 4px;
-  width: 300px;
-  align-items: center;
-  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-  border-radius: 8px;
-
-  &.disabled {
-    pointer-events: none;
-    opacity: 0.5;
-  }
-`;
-
-export const CheckboxInput = styled.input`
-  margin-right: 10px;
-  accent-color: ${props => props.theme.colors.brand};
-
-  // The "force" class is required for Storybook, where we want to show all the
-  // states, even though we can't enforce them.
-  &:hover,
-  .teleport-checkbox__force-hover & {
-    cursor: pointer;
-  }
-
-  ${space}
-`;
 
 export type CheckboxSize = 'large' | 'small';
 
-interface StyledCheckboxProps {
+interface CheckboxInputProps {
   size?: CheckboxSize;
 
   // Input properties
@@ -79,7 +49,7 @@ interface StyledCheckboxProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-export const StyledCheckbox = forwardRef<HTMLInputElement, StyledCheckboxProps>(
+export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
   (props, ref) => {
     const { style, className, size, ...inputProps } = props;
     return (
