@@ -17,7 +17,7 @@
  */
 
 import Box from 'design/Box';
-import { CheckboxSize, StyledCheckbox } from 'design/Checkbox';
+import { CheckboxSize, CheckboxInput } from 'design/Checkbox';
 import Flex from 'design/Flex';
 import LabelInput from 'design/LabelInput';
 import Text from 'design/Text';
@@ -60,7 +60,7 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
       <Box mb={3} {...styles}>
         <StyledLabel disabled={disabled}>
           <Flex flexDirection="row" gap={2}>
-            <StyledCheckbox
+            <CheckboxInput
               size={size}
               ref={ref}
               checked={checked}
