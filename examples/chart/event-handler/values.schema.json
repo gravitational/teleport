@@ -225,6 +225,20 @@
             "default": {},
             "additionalProperties": true
         },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },        
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",

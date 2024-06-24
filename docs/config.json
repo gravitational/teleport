@@ -493,11 +493,24 @@
         },
         {
           "title": "Teleport Policy",
-          "slug": "/access-controls/access-graph/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "slug": "/access-controls/teleport-policy/getting-started-policy/",
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
+            {
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/policy-integrations/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/policy-connections/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Usage",
+              "slug" : "/access-controls/teleport-policy/policy-how-to-use/",
+              "forScopes":["enterprise","cloud"]
+            },
             {
               "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
@@ -1049,6 +1062,10 @@
             {
               "title": "TCP App Access",
               "slug": "/application-access/guides/tcp/"
+            },
+            {
+              "title": "VNet",
+              "slug": "/application-access/guides/vnet/"
             },
             {
               "title": "API Access",
@@ -2417,6 +2434,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/teleport-policy/",
+      "destination": "/access-controls/teleport-policy/getting-started-policy/",
+      "permanent": true
+    },
+    {
       "source": "/try-out-teleport/",
       "destination": "/",
       "permanent": true
@@ -2709,11 +2731,6 @@
     {
       "source": "/server-access/guides/restricted-session/",
       "destination": "/server-access/guides/",
-      "permanent": true
-    },
-    {
-      "source": "/access-graph/",
-      "destination": "/access-controls/access-graph/",
       "permanent": true
     },
     {

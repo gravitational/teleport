@@ -21,7 +21,6 @@ package tlsca
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -35,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -194,77 +194,27 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
-// ParsePrivateKeyPEM parses PEM-encoded private key
-func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
-		return nil, trace.BadParameter("expected PEM-encoded block")
-	}
-	return ParsePrivateKeyDER(block.Bytes)
-}
-
-// ParsePrivateKeyDER parses unencrypted DER-encoded private key
-func ParsePrivateKeyDER(der []byte) (crypto.Signer, error) {
-	generalKey, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		generalKey, err = x509.ParsePKCS1PrivateKey(der)
-		if err != nil {
-			generalKey, err = x509.ParseECPrivateKey(der)
-			if err != nil {
-				return nil, trace.BadParameter("failed parsing private key")
-			}
-		}
-	}
-
-	switch k := generalKey.(type) {
-	case *rsa.PrivateKey:
-		return k, nil
-	case *ecdsa.PrivateKey:
-		return k, nil
-	}
-
-	return nil, trace.BadParameter("unsupported private key type")
-}
-
-// ParsePublicKeyPEM parses public key PEM
-func ParsePublicKeyPEM(bytes []byte) (interface{}, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
-		return nil, trace.BadParameter("expected PEM-encoded block")
-	}
-	return ParsePublicKeyDER(block.Bytes)
-}
-
-// ParsePublicKeyDER parses unencrypted DER-encoded publice key
-func ParsePublicKeyDER(der []byte) (crypto.PublicKey, error) {
-	generalKey, err := x509.ParsePKIXPublicKey(der)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return generalKey, nil
-}
-
 // MarshalPublicKeyFromPrivateKeyPEM extracts public key from private key
 // and returns PEM marshaled key
 func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, error) {
-	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
-	if !ok {
-		return nil, trace.BadParameter("expected RSA key")
+	// TODO(nklaassen): DELETE IN 18.0.0 when this quirk is no longer necessary because all parsers can handle
+	// either format.
+	if rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey); ok {
+		// This is weird and historical: we're marshaling an RSA public key into PKIX DER format and then
+		// putting it into an "RSA PUBLIC KEY" PEM block. Normally RSA keys should either be:
+		// - PKCS#1 DER format in an "RSA PUBLIC KEY" PEM block
+		// - PKIX DER format in a "PUBLIC KEY" PEM block
+		derBytes, err := x509.MarshalPKIXPublicKey(rsaPrivateKey.Public())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pem.EncodeToMemory(&pem.Block{Type: keys.PKCS1PublicKeyType, Bytes: derBytes}), nil
 	}
-	rsaPublicKey := rsaPrivateKey.Public()
-	derBytes, err := x509.MarshalPKIXPublicKey(rsaPublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// All private keys in the standard library implement crypto.Signer, which gives access to the public key.
+	if signer, ok := privateKey.(crypto.Signer); ok {
+		return keys.MarshalPublicKey(signer.Public())
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}), nil
-}
-
-// MarshalPrivateKeyPEM marshals provided rsa.PrivateKey into PEM format.
-func MarshalPrivateKeyPEM(privateKey *rsa.PrivateKey) []byte {
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	})
+	return nil, trace.BadParameter("unsupported key type %T", privateKey)
 }
 
 // MarshalCertificatePEM takes a *x509.Certificate and returns the PEM
