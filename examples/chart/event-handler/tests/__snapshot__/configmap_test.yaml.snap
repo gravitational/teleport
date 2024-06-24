@@ -7,6 +7,7 @@ should match the snapshot:
         timeout = "10s"
         batch = 20
         window-size = "24h"
+        debug = false
 
         [teleport]
         addr = "teleport.example.com:1234"
