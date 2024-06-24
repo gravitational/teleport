@@ -48,15 +48,21 @@ func TestOneOffScript(t *testing.T) {
 
 	unameMock, err := bintest.NewMock("uname")
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		assert.NoError(t, unameMock.Close())
-	}()
+	})
 
 	mktempMock, err := bintest.NewMock("mktemp")
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		assert.NoError(t, mktempMock.Close())
-	}()
+	})
+
+	sudoMock, err := bintest.NewMock("sudo")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, sudoMock.Close())
+	})
 
 	script, err := BuildScript(OneOffScriptParams{
 		BinUname:        unameMock.Path,
@@ -75,9 +81,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
@@ -86,7 +92,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
@@ -132,9 +138,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
@@ -143,7 +149,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:              unameMock.Path,
@@ -153,13 +159,14 @@ func TestOneOffScript(t *testing.T) {
 			TeleportArgs:          "version",
 			SuccessMessage:        "Test was a success.",
 			TeleportCommandPrefix: "sudo",
+			binSudo:               sudoMock.Path,
 		})
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
-		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
+		sudoMock.Expect(teleportMock.Path, "version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
@@ -191,9 +198,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
@@ -202,7 +209,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
@@ -315,9 +322,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
@@ -329,7 +336,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
