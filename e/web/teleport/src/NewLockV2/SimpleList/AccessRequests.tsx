@@ -11,12 +11,10 @@ import {
   renderIdCell,
   renderUserCell,
 } from 'shared/components/AccessRequests/ReviewRequests';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 
 import { AccessRequestWithFlags } from 'e-teleport/Workflow/ReviewRequests/RequestList/useRequestList';
-import {
-  RequestedCell,
-  requestdMatcher,
-} from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
+import { RequestedCell } from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
 
 export function AccessRequests(
   props: SimpleListProps & { requests: AccessRequest[] }
@@ -91,7 +89,7 @@ export function AccessRequests(
       isSearchable
       pagination={{ pageSize }}
       initialSort={{ key: 'created', dir: 'DESC' }}
-      customSearchMatchers={[requestdMatcher]}
+      customSearchMatchers={[requestMatcher]}
       fetching={{
         fetchStatus,
       }}

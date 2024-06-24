@@ -17,11 +17,7 @@ import { ResourceTab } from 'shared/components/UnifiedResources/ResourceTab';
 
 import session from 'teleport/services/websession';
 
-import {
-  canAssumeNow,
-  AccessRequest,
-  Resource,
-} from 'shared/services/accessRequests';
+import { canAssumeNow } from 'shared/services/accessRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
@@ -186,27 +182,6 @@ export function RequestList({
       <div ref={setTrigger} />
     </>
   );
-}
-
-export function requestdMatcher(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof AccessRequest & string
-) {
-  if (propName === 'roles') {
-    return targetValue.some((role: string) =>
-      role.toUpperCase().includes(searchValue)
-    );
-  }
-
-  if (propName === 'resources') {
-    return targetValue.some((r: Resource) =>
-      Object.values(r.id)
-        .concat(Object.values(r.details.hostname || {}))
-        .concat(Object.values(r.details.friendlyName || {}))
-        .some(v => v.toUpperCase().includes(searchValue))
-    );
-  }
 }
 
 const renderActionCell = (
