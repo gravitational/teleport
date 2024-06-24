@@ -74,7 +74,6 @@ export function RequestCheckout({
   resourceRequestRoles,
   createRequest,
   clearAttempt,
-  reviewers,
   selectedReviewers,
   setSelectedReviewers,
   SuccessComponent,
@@ -84,14 +83,16 @@ export function RequestCheckout({
   selectedResourceRequestRoles,
   setSelectedResourceRequestRoles,
   fetchStatus,
+  onMaxDurationChange,
+  maxDurationOptions,
+  setPendingRequestTtl,
+  pendingRequestTtlOptions,
   maxDuration,
-  setMaxDuration,
-  requestTTL,
-  setRequestTTL,
+  pendingRequestTtl,
   dryRunResponse,
+  startTime,
+  onStartTimeChange,
 }: RequestCheckoutProps) {
-  // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Date>();
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
 
@@ -119,8 +120,8 @@ export function RequestCheckout({
       reason,
       suggestedReviewers: selectedReviewers.map(r => r.value),
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: start,
+      requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
+      start: startTime,
     });
   }
 
@@ -291,7 +292,7 @@ export function RequestCheckout({
                 )}
                 <Box mt={6} mb={1}>
                   <SelectReviewers
-                    reviewers={reviewers}
+                    reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
                     selectedReviewers={selectedReviewers}
                     setSelectedReviewers={setSelectedReviewers}
                   />
@@ -302,15 +303,14 @@ export function RequestCheckout({
                       {dryRunResponse && (
                         <Box mb={1}>
                           <AssumeStartTime
-                            start={start}
-                            onStartChange={setStart}
+                            start={startTime}
+                            onStartChange={onStartTimeChange}
                             accessRequest={dryRunResponse}
                           />
                           <AccessDurationRequest
-                            assumeStartTime={start}
                             maxDuration={maxDuration}
-                            setMaxDuration={setMaxDuration}
-                            accessRequest={dryRunResponse}
+                            onMaxDurationChange={onMaxDurationChange}
+                            maxDurationOptions={maxDurationOptions}
                           />
                         </Box>
                       )}
@@ -321,11 +321,11 @@ export function RequestCheckout({
                       />
                       {dryRunResponse && maxDuration && (
                         <AdditionalOptions
-                          selectedMaxDurationTimestamp={maxDuration?.value}
-                          maxDuration={maxDuration}
-                          setRequestTTL={setRequestTTL}
-                          requestTTL={requestTTL}
+                          selectedMaxDurationTimestamp={maxDuration.value}
+                          setPendingRequestTtl={setPendingRequestTtl}
+                          pendingRequestTtl={pendingRequestTtl}
                           dryRunResponse={dryRunResponse}
+                          pendingRequestTtlOptions={pendingRequestTtlOptions}
                         />
                       )}
                       <Box
@@ -672,22 +672,25 @@ export type RequestCheckoutProps = {
     /** Identifier of the resource. Should be sent in requests. */
     id: string;
   }[];
-  setRequestTTL: (value: Option<number>) => void;
   createRequest: (req: CreateRequest) => void;
   fetchStatus: 'loading' | 'loaded';
   fetchResourceRequestRolesAttempt: Attempt;
-  requestTTL: Option<number>;
+  pendingRequestTtl: Option<number>;
+  setPendingRequestTtl: (value: Option<number>) => void;
+  pendingRequestTtlOptions: Option<number>[];
   resourceRequestRoles: string[];
-  reviewers: string[];
+  maxDuration: Option<number>;
+  onMaxDurationChange: (value: Option<number>) => void;
+  maxDurationOptions: Option<number>[];
   setSelectedReviewers: (value: ReviewerOption[]) => void;
-  setMaxDuration: (value: Option<number>) => void;
   clearAttempt: () => void;
   createAttempt: Attempt;
   setSelectedResourceRequestRoles: (value: string[]) => void;
   numRequestedResources: number;
   selectedResourceRequestRoles: string[];
   dryRunResponse: AccessRequest;
-  maxDuration: Option<number>;
+  startTime: Date;
+  onStartTimeChange(t?: Date): void;
 };
 
 type SuccessComponentParams = {

@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package webauthncli
+package utils
 
-var U2FDevices = &u2fDevices
-var U2FOpen = &u2fOpen
-var U2FNewToken = &u2fNewToken
+// Combinations yields all unique sub-slices of the input slice.
+func Combinations(verbs []string) [][]string {
+	var result [][]string
+	length := len(verbs)
+
+	for i := 0; i < (1 << length); i++ {
+		subslice := make([]string, 0)
+		for j := 0; j < length; j++ {
+			if i&(1<<j) != 0 {
+				subslice = append(subslice, verbs[j])
+			}
+		}
+		result = append(result, subslice)
+	}
+
+	return result
+}

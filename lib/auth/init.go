@@ -210,6 +210,9 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
+	// CrownJewels is a service that manages CrownJewels.
+	CrownJewels services.CrownJewels
+
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
@@ -1103,20 +1106,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		}
 	}
 	return nil
-}
-
-// Identity alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type Identity = state.Identity
-
-// IdentityID alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type IdentityID = state.IdentityID
-
-// ReadLocalIdentity left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-func ReadLocalIdentity(dataDir string, id state.IdentityID) (*Identity, error) {
-	return state.ReadLocalIdentity(dataDir, id)
 }
 
 // GenerateIdentity generates identity for the auth server

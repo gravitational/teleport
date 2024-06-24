@@ -130,6 +130,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
 					types.NewRule(types.KindBot, RW()),
+					types.NewRule(types.KindCrownJewel, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),

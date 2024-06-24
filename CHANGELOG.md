@@ -1,5 +1,34 @@
 # Changelog
 
+## 15.4.5 (06/20/24)
+
+* Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs. [#43256](https://github.com/gravitational/teleport/pull/43256)
+* Patched timing variability in curve25519-dalek. [#43249](https://github.com/gravitational/teleport/pull/43249)
+* Updated `tctl` to ignore a configuration file if the `auth_service` section is disabled, and prefer loading credentials from a given identity file or tsh profile instead. [#43203](https://github.com/gravitational/teleport/pull/43203)
+* Fixed setting request reason for automatic ssh access requests. [#43180](https://github.com/gravitational/teleport/pull/43180)
+* Updated `teleport` to skip `jamf_service` validation when the Jamf service is not enabled. [#43169](https://github.com/gravitational/teleport/pull/43169)
+* Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs. [#43162](https://github.com/gravitational/teleport/pull/43162)
+* Made `tsh` and Teleport Connect return early during login if ping to proxy service was not successful. [#43086](https://github.com/gravitational/teleport/pull/43086)
+* Added ability to edit user traits from the Web UI. [#43068](https://github.com/gravitational/teleport/pull/43068)
+* Enforce limits when reading events from Firestore to prevent OOM events. [#42967](https://github.com/gravitational/teleport/pull/42967)
+* Fixed updating groups for Teleport-created host users. [#42884](https://github.com/gravitational/teleport/pull/42884)
+* Added support for `crown_jewel` resource. [#42866](https://github.com/gravitational/teleport/pull/42866)
+* Added ability to edit user traits from the Web UI. [#43068](https://github.com/gravitational/teleport/pull/43068)
+* Fixed gRPC disconnection on certificate expiry even though DisconnectCertExpiry was false. [#43291](https://github.com/gravitational/teleport/pull/43291)
+* Fixed issue where a Teleport instance running only Jamf or Discovery service would never have a healthy `/readyz` endpoint.  [#43284](https://github.com/gravitational/teleport/pull/43284)
+
+### Enterprise-only changes
+
+* Fixed sync error in Okta SCIM integration.
+
+## 15.4.4 (06/13/24)
+
+* Improve search and predicate/label based dialing performance in large clusters under very high load. [#42941](https://github.com/gravitational/teleport/pull/42941)
+* Fix an issue Oracle access failed through trusted cluster. [#42928](https://github.com/gravitational/teleport/pull/42928)
+* Fix errors caused by `dynamoevents` query `StartKey` not being within the [From, To] window. [#42915](https://github.com/gravitational/teleport/pull/42915)
+* Fix Jira Issue creation when Summary exceeds the max allowed size. [#42862](https://github.com/gravitational/teleport/pull/42862)
+* Fix editing reviewers from being ignored/overwritten when creating an access request from the web UI. [#4397](https://github.com/gravitational/teleport.e/pull/4397)
+
 ## 15.4.3 (06/12/24)
 
 **Note:** This release includes a new binary, `fdpass-teleport`, that can be
