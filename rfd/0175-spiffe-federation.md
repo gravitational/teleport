@@ -174,6 +174,10 @@ The `SPIFFEFederation` resource will be accessed via the standard RFD153
 gRPC CRUD APIs, and will be guarded by RBAC. We will grant the verbs to view,
 modify and create `SPIFFEFederation` resources to the default `edit` role.
 
+For security reasons, we will guard the `status` field of the `SPIFFEFederation`
+resource from modification by the user. This field will be set by the Teleport
+Auth Server and there is no need for the user to modify it.
+
 #### Syncing Trust Bundles.
 
 A background task will be introduced to the Teleport Auth Server:
