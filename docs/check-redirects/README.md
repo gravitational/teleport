@@ -1,17 +1,20 @@
 # Redirect checker
 
-This is a tool to check for URL paths in the Teleport docs site
-(`https://goteleport.com/docs/`) that do not correspond to actual docs pages or
-redirects. These URLs are most likely links that will 404 if a user follows
-them.
+This is a tool to check for out-of-date URL paths to pages on the Teleport docs
+site. You can use it to identify 404ing links in the Teleport Web UI source,
+`gravitational/blog`, and `gravitational/next` repositories. The tool identifies
+URLs in the target directory that do not correspond to docs page files or
+redirects in the `gravitational/teleport` repository.
 
-## Usage:
+## Usage
 
-Example of running the program from the root of a `gravitational/teleport` clone
-to check for mentions of docs URLs in `gravitational/blog`:
+The following example checks for `https://goteleport.com/docs` URLs in a
+`gravitational/blog` clone. The `--in` flag points to the directory that
+contains blog pages (the clone itself is at `~/Documents/blog`). Our
+`gravitational/teleport` clone is at `~/Documents/docs/content/16.x`:
 
 ```bash
-$ node docs/check-redirects/index.js --in ~/Documents/blog/pages --docs . --name "gravitational/blog" --config docs/config.json
+$ node docs/check-redirects/index.js --in ~/Documents/blog/pages --docs ~/Documents/teleport --name ~/Documents/docs/content/16.x --config ~/Documents/docs/content/16.x/docs/config.json
 ```
 
 ## Command-line flags

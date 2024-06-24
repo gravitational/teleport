@@ -11,7 +11,7 @@ const teleportDomain = 'https://goteleport.com';
 // @param {string} docsRoot - directory path in fs in which to check for present
 // or missing docs files based on URL paths found in the directory tree at
 // otherRepoRoot.
-// @param {object} redirects - array of objects with keys "source",
+// @param {Array<object>} redirects - array of objects with keys "source",
 // "destination", and "permanent".
 // @param {Array<string>} exclude - array of file extensions not to check.
 class RedirectChecker {
@@ -19,7 +19,7 @@ class RedirectChecker {
     this.fs = fs;
     this.otherRepoRoot = otherRepoRoot;
     this.docsRoot = docsRoot;
-    this.redirects = {};
+    this.redirectSet = new Set();
 
     if (!exclude) {
       this.exclude = [];
@@ -29,7 +29,7 @@ class RedirectChecker {
 
     if (!!redirects) {
       redirects.forEach(r => {
-        this.redirects[r.source] = true;
+        this.redirectSet.add(r.source);
       });
     }
   }
@@ -80,24 +80,27 @@ class RedirectChecker {
     );
     const text = this.fs.readFileSync(filePath, 'utf8');
     const docsURLs = [...text.matchAll(docsPattern)];
-    if (!docsURLs) {
+    if (docsURLs.length === 0) {
       return;
     }
     let result = [];
     docsURLs.forEach(url => {
       const docsPath = this.urlToDocsPath(url[0]);
-      const entry = this.fs.statSync(docsPath, {
-        throwIfNoEntry: false,
-      });
-      if (entry != undefined) {
+      const missingEntry =
+        this.fs.statSync(docsPath, {
+          throwIfNoEntry: false,
+        }) == undefined;
+
+      if (!missingEntry) {
         return;
       }
+
       let pathPart = url[0].slice(teleportDomain.length);
       if (pathPart[pathPart.length - 1] != '/') {
         pathPart += '/';
       }
 
-      if (this.redirects[pathPart] == undefined) {
+      if (!this.redirectSet.has(pathPart)) {
         result.push(url[0]);
       }
     });
