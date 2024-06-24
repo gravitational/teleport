@@ -285,7 +285,6 @@ uses:
 * signs host ssh certs
 * signs host tls certs
 * ssh clients trust this CA
-* signs short-lived proxy cert used to authenticate proxy to database service
 
 * current/`legacy` SSH key type: 2048-bit RSA
 * proposed `balanced-v1` key type: Ed25519
