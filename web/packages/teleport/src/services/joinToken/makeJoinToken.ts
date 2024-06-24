@@ -21,18 +21,26 @@ import { formatDistanceStrict } from 'date-fns';
 import { JoinMethod, type JoinToken } from './types';
 import iam from './templates/iam.yaml?raw';
 import azure from './templates/azure.yaml?raw';
+import token from './templates/token.yaml?raw';
+import ec2 from './templates/ec2.yaml?raw';
+import github from './templates/github.yaml?raw';
+import gcp from './templates/gcp.yaml?raw';
+import circleci from './templates/circleci.yaml?raw';
+import gitlab from './templates/gitlab.yaml?raw';
+import kubernetes from './templates/kubernetes.yaml?raw';
+import tpm from './templates/tpm.yaml?raw';
 
 export const templates: Record<JoinMethod, any> = {
   iam,
-  token: undefined,
-  ec2: undefined,
-  github: undefined,
+  token,
+  ec2,
+  github,
   azure,
-  gcp: undefined,
-  circleci: undefined,
-  gitlab: undefined,
-  kubernetes: undefined,
-  tpm: undefined,
+  gcp,
+  circleci,
+  gitlab,
+  kubernetes,
+  tpm,
 };
 
 export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';

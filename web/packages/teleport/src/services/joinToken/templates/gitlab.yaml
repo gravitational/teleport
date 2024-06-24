@@ -1,0 +1,103 @@
+kind: token
+version: v2
+metadata:
+  # name identifies the token. When configuring a bot or node to join using this
+  # token, this name should be specified.
+  name: gitlab-demo
+spec:
+  # The Bot role indicates that this token grants access to a bot user, rather
+  # than allowing a node to join.
+  roles: [Bot]
+  # join_method for GitLab joining will always be "gitlab".
+  join_method: gitlab
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used.
+  bot_name: gitlab-demo
+
+  gitlab:
+    # domain should be the domain of your GitLab instance. If you are using
+    # GitLab's cloud hosted offering, omit this field entirely.
+    domain: gitlab.example.com
+    # allow is an array of rule configurations for what GitLab CI jobs should be
+    # allowed to join. All options configured within one allow entry
+    # must be satisfied for the GitLab CI run to be allowed to join. Where
+    # multiple allow entries are specified, any job which satisfies all of the
+    # options within a single entry will be allowed to join.
+    #
+    # An allow entry must include at least one of:
+    # - project_path
+    # - namespace_path
+    # - sub
+    # This ensures that GitLab CI runs in other GitLab user's projects are not
+    # able to access your Teleport cluster.
+    allow:
+      # project_path restricts joins to jobs that originate within the
+      # specified project.
+      #
+      # This field supports glob-style matching:
+      # - Use '*' to match zero or more characters.
+      # - Use '?' to match any single character.
+      - project_path: my-user/my-project
+        # namespace_path restricts joins to any run within project that exists
+        # within the specified namespace. A namespace will either be a username
+        # or the name of a group.
+        #
+        # This field supports glob-style matching:
+        # - Use '*' to match zero or more characters.
+        # - Use '?' to match any single character.
+        namespace_path: my-user
+        # pipeline_source restricts joins to jobs triggered by certain criteria,
+        # e.g triggered through the web interface.
+        pipeline_source: web
+        # environment restricts joins to jobs that are associated with the
+        # specified environment
+        environment: production
+        # ref_type restricts joins to jobs that were triggered by a specific
+        # type of git reference. Either `branch` or `tag`.
+        ref_type: branch
+        # ref restricts joins to jobs that were triggered by a specific git
+        # reference. Combine this with `ref_type` to create allow rules that
+        # can only be triggered by a specific branch or tag.
+        #
+        # This field supports glob-style matching:
+        # - Use '*' to match zero or more characters.
+        # - Use '?' to match any single character.
+        ref: main
+        # sub is a single string that concatenates the project_path, ref_type
+        # and ref. This can be used to restrict joins using a single string,
+        # whilst also describing a specific project and git ref.
+        #
+        # It is better to use the individual fields, as it is easy to mis-format
+        # the sub string.
+        #
+        # This field supports glob-style matching:
+        # - Use '*' to match zero or more characters.
+        # - Use '?' to match any single character.
+        sub: project_path:my-user/my-project:ref_type:branch:ref:main
+        # user_login restricts joins to jobs that were triggered by a specific
+        # username.
+        user_login: octocat
+        # user_email restricts joins to jobs that were triggered by a specific
+        # user with the given email
+        user_email: octo.cat@example.com
+        # ref_protected if set to true restricts joins to jobs running against a
+        # protected ref.
+        # If omitted, the protection status of the ref is not checked.
+        ref_protected: true
+        # environment_protected if set to true restricts joins to jobs running
+        # against a protected ref.
+        # If omitted, the protection status of the ref is not checked.
+        environment_protected: true
+        # ci_config_sha restricts joins to jobs that are using a specific
+        # commit of CI configuration.
+        ci_config_sha: ffffffffffffffffffffffffffffffffffffffff
+        # ci_config_ref_uri restricts joins to jobs that are using a specific
+        # CI configuration source.
+        ci_config_ref_uri: gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main
+        # deployment_tier restricts joins to jobs that are deploying to a
+        # specific deployment_tier.
+        deployment_tier: production
+        # project_visibility restricts joins to jobs that are running against a
+        # project with a specific visibility configuration.
+        project_visibility: public

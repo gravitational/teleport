@@ -258,6 +258,7 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokenYamlPath: '/v1/webapi/token/yaml',
     joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
@@ -500,6 +501,10 @@ const cfg = {
 
   getJoinTokenUrl() {
     return cfg.api.joinTokenPath;
+  },
+
+  getJoinTokenYamlUrl() {
+    return cfg.api.joinTokenYamlPath;
   },
 
   getNodeScriptUrl(token: string) {

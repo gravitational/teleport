@@ -1,0 +1,24 @@
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your GCP project to use this token
+  name: gcp-token
+spec:
+  # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: gcp
+
+  gcp:
+    allow:
+      # The GCP project ID(s) that VMs can join from.
+      - project_ids: ["example-project-id"]
+        # (Optional) The locations that VMs can join from. Note: both regions and
+        # zones are accepted.
+        locations: ["us-west1", "us-west2-a"]
+        # (Optional) The email addresses of service accounts that VMs can join
+        # with.
+        service_accounts: ["example@example.com"]
