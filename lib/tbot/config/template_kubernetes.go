@@ -204,7 +204,7 @@ func (t *templateKubernetes) render(
 	destinationDir, isDirectoryDest := destination.(*DestinationDirectory)
 	if !t.disableExecPlugin {
 		if !isDirectoryDest {
-			log.WarnContext(ctx, "Kubernetes template will be rendered without exec plugin because destination is not a directory. Explicitly set `disable_exec_plugin: true` in the output to suppress this message")
+			log.InfoContext(ctx, "Kubernetes template will be rendered without exec plugin because destination is not a directory. Explicitly set `disable_exec_plugin: true` in the output to suppress this message")
 			t.disableExecPlugin = true
 		}
 	}
