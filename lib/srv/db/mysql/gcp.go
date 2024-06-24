@@ -154,7 +154,7 @@ func (e *Engine) getGCPOneTimePassword(ctx context.Context, sessionCtx *common.S
 			e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
 		}
 	}()
-	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

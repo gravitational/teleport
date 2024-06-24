@@ -48,7 +48,7 @@ func (a fakeAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string)
 	return "iam-auth-token", nil
 }
 
-func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	if isDBUserFullGCPServerAccountID(databaseUser) {
 		return "", trace.BadParameter("database user must not be a service account")
 	}

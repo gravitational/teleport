@@ -97,7 +97,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := c.DBAuth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
+	tlsConfig, err := c.DBAuth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
