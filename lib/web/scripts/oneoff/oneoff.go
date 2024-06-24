@@ -62,6 +62,9 @@ type OneOffScriptParams struct {
 	// TeleportCommandPrefix is a prefix command to use when calling teleport command.
 	// Acceptable values are: "sudo"
 	TeleportCommandPrefix string
+	// binSudo contains the location for the sudo binary.
+	// Used for testing.
+	binSudo string
 
 	// TeleportArgs is the arguments to pass to the teleport binary.
 	// Eg, 'version'
@@ -106,6 +109,10 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.BinMktemp = binMktemp
 	}
 
+	if p.binSudo == "" {
+		p.binSudo = "sudo"
+	}
+
 	if p.CDNBaseURL == "" {
 		p.CDNBaseURL = teleportCDNLocation
 	}
@@ -128,10 +135,12 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.SuccessMessage = "Completed successfully."
 	}
 
-	if p.TeleportCommandPrefix != "" {
-		if !slices.Contains(allowedCommandPrefix, p.TeleportCommandPrefix) {
-			return trace.BadParameter("invalid command prefix, only %v are supported", allowedCommandPrefix)
-		}
+	switch p.TeleportCommandPrefix {
+	case PrefixSUDO:
+		p.TeleportCommandPrefix = p.binSudo
+	case "":
+	default:
+		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)
 	}
 
 	return nil
