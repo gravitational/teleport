@@ -151,8 +151,8 @@ Server ID                            Hostname      Services Version Upgrader
 ```
 
 Note that the `inventory ls` command will also list `teleport-auth` and
-`teleport-proxy` services. These services are managed by the Teleport team, and
-updates will be performed automatically.
+`teleport-proxy` services. If you use managed Teleport Enterprise, the Teleport
+team updates these services automatically.
 
 ## Step 3/4. Enroll agents on Linux servers in automatic updates
 
@@ -184,14 +184,14 @@ updates will be performed automatically.
    to enroll into automatic updates:
 
    <Tabs>
-   <TabItem label="Cloud-Hosted">
+   <TabItem label="Managed Teleport Enterprise">
 
    ```code
    $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} cloud
    ```
 
    </TabItem>
-   <TabItem label="Self-Hosted">
+   <TabItem label="Self-Hosted Teleport Enterprise">
 
    ```code
    $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} enterprise
