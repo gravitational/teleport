@@ -79,6 +79,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -88,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -405,7 +407,7 @@ type TeleportProcess struct {
 	forkedTeleportCount atomic.Int32
 
 	// storage is a server local storage
-	storage *state.ProcessStorage
+	storage *storage.ProcessStorage
 
 	// id is a process id - used to identify different processes
 	// during in-process reloads.
@@ -917,7 +919,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := state.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2823,7 +2825,12 @@ func (process *TeleportProcess) initSSH() error {
 			}()
 			defer mux.Close()
 
-			go s.Serve(limiter.WrapListener(mux.SSH()))
+			listener, err = limiter.WrapListener(mux.SSH())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			go s.Serve(listener)
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -4086,6 +4093,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
+		rtListener, err := reverseTunnelLimiter.WrapListener(listeners.reverseTunnel)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
 				Context:               process.ExitContext(),
@@ -4093,7 +4105,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ID:                    process.Config.HostUUID,
 				ClusterName:           clusterName,
 				ClientTLS:             clientTLSConfig,
-				Listener:              reverseTunnelLimiter.WrapListener(listeners.reverseTunnel),
+				Listener:              rtListener,
 				GetHostSigners:        sshutils.StaticHostSigners(conn.ServerIdentity.KeySigner),
 				LocalAuthClient:       conn.Client,
 				LocalAccessPoint:      accessPoint,
@@ -4607,14 +4619,24 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start ssh server
 		go func() {
-			if err := sshProxy.Serve(proxyLimiter.WrapListener(listeners.ssh)); err != nil && !utils.IsOKNetworkError(err) {
+			listener, err := proxyLimiter.WrapListener(listeners.ssh)
+			if err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
+				return
+			}
+			if err := sshProxy.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
 				logger.ErrorContext(process.ExitContext(), "SSH proxy server terminated unexpectedly", "error", err)
 			}
 		}()
 
 		// start grpc server
 		go func() {
-			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
+			listener, err := proxyLimiter.WrapListener(listeners.sshGRPC)
+			if err != nil {
+				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
+				return
+			}
+			if err := sshGRPCServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
 				logger.ErrorContext(process.ExitContext(), "SSH gRPC server terminated unexpectedly", "error", err)
 			}
 		}()
@@ -5079,7 +5101,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 }
 
 func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplexer.PROXYHeaderSigner, error) {
-	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
+	signer, err := keys.ParsePrivateKey(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")
 	}
