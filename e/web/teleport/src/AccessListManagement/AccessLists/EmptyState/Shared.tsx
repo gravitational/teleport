@@ -27,7 +27,7 @@ height: var(--feature-height);
 
   background-color: ${p =>
     !p.$isSliding && p.$active
-      ? p => p.theme.colors.interactive.tonal.primary[0]
+      ? p => p.theme.colors.interactive.tonal.primary[0].background
       : 'inherit'};
 
   ${Title} {

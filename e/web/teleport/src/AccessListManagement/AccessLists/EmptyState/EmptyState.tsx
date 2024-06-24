@@ -151,5 +151,6 @@ const FeatureSlider = styled.div<{ $currIndex: number }>`
 
   top: calc(var(--feature-height) * ${p => p.$currIndex});
 
-  background-color: ${p => p.theme.colors.interactive.tonal.primary[0]};
+  background-color: ${p =>
+    p.theme.colors.interactive.tonal.primary[0].background};
 `;
