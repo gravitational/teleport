@@ -73,7 +73,7 @@ describe('NotificationRoutingRulesDialog', () => {
 
   test('fetched rules and plugins are listed', async () => {
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
     expect(screen.getAllByText(/plugin-name/i)).toHaveLength(2);
@@ -85,7 +85,7 @@ describe('NotificationRoutingRulesDialog', () => {
     jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue([]);
 
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
 
@@ -101,7 +101,7 @@ describe('NotificationRoutingRulesDialog', () => {
 
   test('deleting a rule, removes it from the cached list', async () => {
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
 
@@ -126,7 +126,7 @@ describe('NotificationRoutingRulesDialog', () => {
 
   test('creating a rule, adds it to the cached list', async () => {
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
     expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(2);
@@ -156,7 +156,7 @@ describe('NotificationRoutingRulesDialog', () => {
       } as any);
 
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
     await screen.findAllByText(/plugin-name/i);
 
     expect(
@@ -193,7 +193,7 @@ describe('NotificationRoutingRulesDialog', () => {
       } as any);
 
     render(<Component />);
-    waitForAllAsyncCalls();
+    await waitForAllAsyncCalls();
     await screen.findAllByText(/plugin-name/i);
 
     expect(

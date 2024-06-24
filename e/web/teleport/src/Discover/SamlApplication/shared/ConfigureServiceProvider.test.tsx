@@ -146,7 +146,7 @@ describe('configure SAML service provider', () => {
         await user.type(attrValEl, '{enter}');
       }
 
-      user.click(screen.getByRole('button', { name: /Finish/i }));
+      await user.click(screen.getByRole('button', { name: /Finish/i }));
 
       await waitFor(() => {
         expect(onSubmit).toHaveBeenLastCalledWith({
