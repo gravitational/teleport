@@ -112,11 +112,6 @@
               "forScopes": ["cloud"]
             },
             {
-              "title": "Public IP Allowlist",
-              "slug": "/choose-an-edition/teleport-cloud/ips/",
-              "forScopes": ["cloud"]
-            },
-            {
               "title": "FAQ",
               "slug": "/choose-an-edition/teleport-cloud/faq/",
               "forScopes": ["cloud"]
@@ -1062,10 +1057,6 @@
             {
               "title": "TCP App Access",
               "slug": "/application-access/guides/tcp/"
-            },
-            {
-              "title": "VNet",
-              "slug": "/application-access/guides/vnet/"
             },
             {
               "title": "API Access",
