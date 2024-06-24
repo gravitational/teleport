@@ -207,7 +207,7 @@ updated trust bundles to any subscribed workloads.
 
 SPIFFE joining will be implemented as a new join method.
 
-SPIFFE defines two forms of SVID:
+SPIFFE defines two forms of SVID that are issued to workloads:
 
 - X.509 SVIDs
 - JWT SVIDs
@@ -216,13 +216,13 @@ One option would be to validate the identity of the joining node by requiring
 that it offer the X.509 SVID as a client certificate. Unfortunately, this
 has the following problems:
 
+- Building the ability to validate X.509 certificates issued by arbitrary
+  CAs into our TLS servers is complex and error-prone. We risk a compromised
+  CA being able to issue user certificates that would be trusted by Teleport.
 - Traversing TLS-terminating loadbalancers is challenging.
 - Incompatibility with renewal mechanisms that rely on an X.509 client
   certificate being presented (e.g BotInstance renewals) as only one client
   certificate can be presented.
-- Building the ability to validate X.509 certificates issued by arbitrary
-  CAs into our TLS servers is complex and error-prone. We risk a compromised
-  CA being able to issue user certificates that would be trusted by Teleport.
 
 JWT SVIDs also come with their own challenges:
 
@@ -239,6 +239,29 @@ the join payload, with the server returning a challenge nonce. The client will
 sign the nonce with the private key corresponding to the X.509 certificate and
 return it to the server. The server will then verify the signature using the
 public key from the X.509 certificate.
+
+The join will flow as follows:
+
+1. The Client opens a BiDi stream to the Auth Server and submits the initial
+   join request, including the name of the Join Token they wish to use and the
+   X.509 SVID.
+2. The Server sends the Client a challenge nonce. This will be at least 32 bytes
+   of random data. We do not validate the Join Token exists at this point as to
+   not leak information about the existence of the Join Token.
+3. The Client signs the nonce with the private key corresponding to the X.509
+   SVID. It sends this signature in a message back to the server.
+4. The Server now has all the information needed to validate the join:
+   a. Verifies the signature, and basic fields of the X.509 SVID (e.g expiry).
+   b. Finds the specified join token
+   c. Searches the configured SPIFFEFederations for a trust bundle that matches
+   the trust domain of the SPIFFE ID within X.509 SVID.
+   d. Verifies the X.509 SVID's signature against the trust bundle.
+   e. Verifies that the SPIFFE ID contained with the SVID matches one of the
+      allow rules.
+5. The Server signs the user or host certificate and returns it to the Client.
+
+The use of a BiDi gRPC stream allows the server to keep the expected nonce in-
+memory during the join process.
 
 ```protobuf
 service JoinService {
@@ -315,21 +338,6 @@ message ProvisionTokenSpecV2SPIFFE{
 }
 ```
 
-The join will flow as follows:
-
-1. The Client submits the initial join request, including the X.509 SVID.
-2. The Server responds with a challenge nonce.
-3. The Client signs the nonce with the private key corresponding to the X.509
-   SVID and returns the signature.
-4. The server:
-  a. Verifies the signature, and basic fields of the X.509 SVID (e.g expiry).
-  b. Finds the specified join token
-  c. Searches the configured SPIFFEFederations for a trust bundle that matches
-     the trust domain of the SPIFFE ID within X.509 SVID.
-  d. Verifies the X.509 SVID's signature against the trust bundle.
-  e. Verifies that the SPIFFE ID matches one of the allow rules.
-5. The Server signs and returns the user certificate.
-
 ## UX
 
 ### Federation
@@ -383,6 +391,8 @@ spec:
 The following audit events will be added or modified:
 
 - `bot.join` and `agent.join` will be leveraged by SPIFFE joining.
+  - The Subject, SANs, Serial and Issuer of the X.509 SVID will be included in
+    the audit event.
 - `spiffe.federation.create` upon creation of a `SPIFFEFederation` resource.
 - `spiffe.federation.update` upon update of a `SPIFFEFederation` resource.
 - `spiffe.federation.delete` upon deletion of a `SPIFFEFederation` resource.
