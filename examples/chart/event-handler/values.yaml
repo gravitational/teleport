@@ -20,6 +20,8 @@ eventHandler:
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
+  # Optional setting to enable debug logging
+  # debugLogger: true
 
 fluentd:
   url: ""
