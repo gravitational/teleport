@@ -18,7 +18,6 @@
 
 export {
   CheckboxInput,
-  CheckboxWrapper,
-  StyledCheckbox,
+  CheckboxInput as StyledCheckbox, // Temporary alias for compatibility with Enterprise
   type CheckboxSize,
 } from './Checkbox';

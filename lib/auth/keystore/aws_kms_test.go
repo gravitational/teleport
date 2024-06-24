@@ -40,10 +40,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAWSKMS_deleteUnusedKeys tests the AWS KMS keystore's deleteUnusedKeys
@@ -298,7 +298,7 @@ func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) 
 	default:
 		return nil, trace.BadParameter("unsupported SigningAlgorithm %q", aws.StringValue(input.SigningAlgorithm))
 	}
-	signer, err := utils.ParsePrivateKeyPEM(testRawPrivateKey)
+	signer, err := keys.ParsePrivateKey(testRawPrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
