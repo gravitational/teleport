@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -13,16 +14,29 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (s *AWSOIDCService) DescribeIdentityCenterInstance(
-	ctx context.Context,
-	req *integrationpb.DescribeIdentityCenterInstanceRequest) (*integrationpb.DescribeIdentityCenterInstanceResponse, error) {
+func (s *AWSOIDCService) clientFromHeader(ctx context.Context, h *integrationpb.RequestHeader) (awsoidc.IDCClient, error) {
+	if h == nil {
+		return nil, trace.BadParameter("request header must not be nil")
+	}
 
-	cr, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	cr, err := s.awsClientReq(ctx, h.IntegrationId, h.AwsRegion)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	awsClient, err := awsoidc.NewIDCClient(ctx, cr)
+	client, err := awsoidc.NewIDCClient(ctx, cr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client, nil
+}
+
+func (s *AWSOIDCService) DescribeIdentityCenterInstance(
+	ctx context.Context,
+	req *integrationpb.DescribeIdentityCenterInstanceRequest) (*integrationpb.DescribeIdentityCenterInstanceResponse, error) {
+
+	awsClient, err := s.clientFromHeader(ctx, req.Header)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,6 +79,13 @@ func valOrEmpty(src *string) string {
 	return *src
 }
 
+func nilIfEmpty(ps *string) *string {
+	if *ps == "" {
+		return nil
+	}
+	return ps
+}
+
 func InstanceStatusToPB(src ssoadmintypes.InstanceStatus) (integrationpb.IdentityCenterInstanceStatus, error) {
 	switch src {
 	case ssoadmintypes.InstanceStatusActive:
@@ -94,4 +115,55 @@ func InstanceStatusFromPB(src integrationpb.IdentityCenterInstanceStatus) (ssoad
 	}
 
 	return "", trace.BadParameter("Invalid InstanceStatus enum value %d", src)
+}
+
+func (s *AWSOIDCService) identityStoreClientFromHeader(ctx context.Context, h *integrationpb.RequestHeader) (awsoidc.IdentityStoreClient, error) {
+	if h == nil {
+		return nil, trace.BadParameter("request header must not be nil")
+	}
+
+	cr, err := s.awsClientReq(ctx, h.IntegrationId, h.AwsRegion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err := awsoidc.NewIdentityStoreClient(ctx, cr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client, nil
+}
+
+func (s *AWSOIDCService) ListIdentityStoreUsers(ctx context.Context, req *integrationpb.ListIdentityStoreUsersRequest) (*integrationpb.ListIdentityStoreUsersResponse, error) {
+
+	awsClient, err := s.identityStoreClientFromHeader(ctx, req.Header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsClient.ListUsers(ctx, &identitystore.ListUsersInput{
+		IdentityStoreId: &req.IdentityStoreId,
+		NextToken:       nilIfEmpty(&req.NextToken),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var users []*integrationpb.IdentityStoreUser
+	for _, src := range resp.Users {
+		dst := integrationpb.IdentityStoreUser{
+			IdentityStoreId: valOrEmpty(src.UserId),
+			UserId:          valOrEmpty(src.UserId),
+			Name:            valOrEmpty(src.UserName),
+		}
+		users = append(users, &dst)
+	}
+
+	result := &integrationpb.ListIdentityStoreUsersResponse{
+		Users:     users,
+		NextToken: valOrEmpty(resp.NextToken),
+	}
+
+	return result, nil
 }

@@ -44,7 +44,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
-	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
+	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy, types.RoleAWSIdentityCenter} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
 			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
 		}

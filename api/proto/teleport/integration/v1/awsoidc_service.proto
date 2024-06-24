@@ -74,6 +74,16 @@ service AWSOIDCService {
   // DescribeIdentityCenterInstance retreives info about a specific Identity
   // Center instance
   rpc DescribeIdentityCenterInstance(DescribeIdentityCenterInstanceRequest) returns (DescribeIdentityCenterInstanceResponse);
+
+  // ListIdentityStoreUsers fetches an optionally filtered list of User records
+  // from a given Identity Store
+  rpc ListIdentityStoreUsers(ListIdentityStoreUsersRequest) returns (ListIdentityStoreUsersResponse);
+}
+
+// RequestHeader holds common data required for all AWS OIDC requests
+message RequestHeader {
+  string integration_id = 1;
+  string aws_region = 2;
 }
 
 // ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
@@ -443,7 +453,7 @@ message ListEKSClustersResponse {
 // ListOrganizationAccountsRequest represents a request to list the accounts in
 // an AWS organization
 message ListOrganizationAccountsRequest {
-  string integration = 1;
+  RequestHeader header = 1;
   string parent = 2;
   string next_token = 3;
 }
@@ -483,9 +493,8 @@ message ListOrganizationAccountsResponse {
 
 // DescribeIdentityCenterInstanceRequest
 message DescribeIdentityCenterInstanceRequest {
-  string integration = 1;
-  string region = 2;
-  string arn = 3;
+  RequestHeader header = 1;
+  string arn = 2;
 }
 
 // IdentityCenterInstanceStatus lists the possible values of an Identiy Center
@@ -515,12 +524,22 @@ message Filter {
 
 // ListIdentityStoreUsersRequest
 message ListIdentityStoreUsersRequest {
-  repeated Filter filters = 1;
-  string identity_store_id = 2;
-  string next_token = 3;
+  RequestHeader header = 1;
+  repeated Filter filters = 2;
+  string identity_store_id = 3;
+  string next_token = 4;
+}
+
+// IdentityStoreUser holds data about a Identity Store User
+message IdentityStoreUser {
+  string identity_store_id = 1;
+  string user_id = 2;
+  string name = 3;
+  string type = 4;
 }
 
 // ListIdentityStoreUsersResponse
 message ListIdentityStoreUsersResponse {
+  repeated IdentityStoreUser users = 1;
   string next_token = 2;
 }

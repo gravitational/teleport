@@ -22,7 +22,11 @@ func (s *AWSOIDCService) ListOrganizationAccounts(ctx context.Context, req *inte
 		return nil, trace.BadParameter("request may not be nil")
 	}
 
-	cr, err := s.awsClientReq(ctx, req.Integration, "ap-southeast-2")
+	if req.Header == nil {
+		return nil, trace.BadParameter("request header may not be nil")
+	}
+
+	cr, err := s.awsClientReq(ctx, req.Header.IntegrationId, req.Header.AwsRegion)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
