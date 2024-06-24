@@ -806,6 +806,10 @@ func setupTLSConfigRootCAs(tlsConfig *tls.Config, sessionCtx *Session) error {
 // certificates signed by publicly trusted CAs so a system cert pool can be
 // used.
 func shouldUseSystemCertPool(sessionCtx *Session) bool {
+	if sessionCtx.Database.GetTLS().TrustSystemCertPool {
+		return true
+	}
+
 	switch sessionCtx.Database.GetType() {
 	// Azure databases either use Baltimore Root CA or DigiCert Global Root G2.
 	//
