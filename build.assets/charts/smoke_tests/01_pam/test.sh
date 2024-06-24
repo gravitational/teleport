@@ -6,4 +6,4 @@
 #
 # If teleport is still up when the timeout expires, then we're 
 # probably OK
-timeout --preserve-status 10s docker run --platform $1 --rm --entrypoint /usr/local/bin/teleport -v "$(pwd):/etc/teleport" $2 start -c /etc/teleport/config.yaml
+timeout --preserve-status 10s docker run --platform $1 --rm --entrypoint /usr/bin/teleport -v "$(pwd):/etc/teleport" $2 start -c /etc/teleport/config.yaml

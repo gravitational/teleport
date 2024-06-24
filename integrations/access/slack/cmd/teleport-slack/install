@@ -3,7 +3,7 @@
 #
 # the directory where Teleport binaries will be located
 #
-BINDIR=/usr/local/bin
+BINDIR=/usr/bin
 
 #
 # the directory where Teleport Plugins store their data files

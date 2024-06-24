@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=on-failure
-ExecStart=/usr/local/bin/teleport-msteams start --config=/etc/teleport-msteams.toml
+ExecStart=/usr/bin/teleport-msteams start --config=/etc/teleport-msteams.toml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport-msteams.pid
 

@@ -30,4 +30,4 @@ FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging /
 COPY --from=staging /opt/staging/root /
 COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
-ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

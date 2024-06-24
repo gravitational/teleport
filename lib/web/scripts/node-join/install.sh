@@ -16,7 +16,7 @@ MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
-TELEPORT_BINARY_DIR="/usr/local/bin"
+TELEPORT_BINARY_DIR="/usr/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
@@ -819,7 +819,7 @@ install_from_file() {
         download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
         # extract tarball
         tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
-        # install binaries to /usr/local/bin
+        # install binaries to /usr/bin
         for BINARY in ${TELEPORT_BINARY_LIST}; do
             ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
         done

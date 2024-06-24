@@ -27,19 +27,16 @@ install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
 # Extract tarball to /tmp/teleport to get the binaries out
 mkdir /tmp/teleport
 tar -C /tmp/teleport -x -z -f /tmp/teleport.tar.gz --strip-components=1
-install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot} /usr/local/bin
+install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot} /usr/bin
 rm -rf /tmp/teleport /tmp/teleport.tar.gz
 
 if [[ "${TELEPORT_FIPS}" == 1 ]]; then
     # add --fips to 'teleport start' commands in FIPS mode
-    sed -i -E 's_^(ExecStart=/usr/local/bin/teleport start)_\1 --fips_' /etc/systemd/system/teleport*.service
+    sed -i -E 's_^(ExecStart=/usr/bin/teleport start)_\1 --fips_' /etc/systemd/system/teleport*.service
     # https://docs.aws.amazon.com/linux/al2023/ug/fips-mode.html
     dnf install -y crypto-policies crypto-policies-scripts
     fips-mode-setup --enable
 fi
-
-# Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 
 # Clean up the authorized keys not used
 rm -f /root/.ssh/authorized_keys

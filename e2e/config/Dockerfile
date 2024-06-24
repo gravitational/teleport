@@ -17,4 +17,4 @@ RUN mkdir -p /etc/teleport/certs && \
     "*.localhost" "teleport" && \
     cp $(mkcert -CAROOT)/rootCA.pem /etc/teleport/certs/
 
-CMD ["/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--bootstrap", "/etc/teleport/state.yaml"]
+CMD ["/usr/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--bootstrap", "/etc/teleport/state.yaml"]

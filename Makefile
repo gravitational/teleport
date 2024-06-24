@@ -26,8 +26,8 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-BINDIR ?= /usr/local/bin
-DATADIR ?= /usr/local/share/teleport
+BINDIR ?= /usr/bin
+DATADIR ?= /usr/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false

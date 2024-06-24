@@ -63,7 +63,7 @@ TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
 # linux package configuration
-LINUX_BINARY_DIR=/usr/local/bin
+LINUX_BINARY_DIR=/usr/bin
 LINUX_SYSTEMD_DIR=/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
@@ -321,7 +321,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         --root ${PACKAGE_TEMPDIR}/${TAR_PATH} \
         --identifier ${BUNDLE_ID} \
         --version ${TELEPORT_VERSION} \
-        --install-location /usr/local/bin \
+        --install-location /usr/bin \
         ${PKG_FILENAME}
 
     if [[ "${SIGN_PKG}" == "true" ]]; then

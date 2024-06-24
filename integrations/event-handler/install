@@ -3,7 +3,7 @@
 #
 # the directory where Teleport binaries will be located
 #
-BINDIR=/usr/local/bin
+BINDIR=/usr/bin
 
 [ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
 cd $(dirname $0)

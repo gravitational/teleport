@@ -9,7 +9,7 @@ set -o pipefail
 # Source variables from user-data
 . /etc/teleport.d/conf
 
-TCTL=/usr/local/bin/tctl
+TCTL=/usr/bin/tctl
 # get the tctl version
 # database service tokens are only supported in Teleport 6+
 # if the Teleport version cannot be detected, database service tokens will not be configured.

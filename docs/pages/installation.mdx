@@ -267,9 +267,6 @@ repositories.
    $ sudo yum install -y yum-utils
    $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
    $ sudo yum install ${TELEPORT_PKG?}
-   #
-   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
 
    </TabItem>
@@ -286,9 +283,6 @@ repositories.
    $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport-zypper.repo")
    $ sudo zypper --gpg-auto-import-keys refresh teleport
    $ sudo zypper install ${TELEPORT_PKG?}
-   #
-   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
 
    </TabItem>
@@ -308,9 +302,6 @@ repositories.
 
    # Install teleport
    $ sudo dnf install ${TELEPORT_PKG}
-
-   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
    ```
 
    </TabItem>
@@ -641,7 +632,7 @@ the Proxy Service's self-signed TLS certificate:
 
 ```code
 $ docker run --hostname localhost --rm \
-  --entrypoint=/usr/local/bin/teleport \
+  --entrypoint=/usr/bin/teleport \
   <Var name="(=teleport.latest_oss_docker_image=)" /> configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 ```
 
@@ -787,7 +778,7 @@ You can download one of the following .pkg installers for macOS:
   # installer: Upgrading at base path /
   # installer: The upgrade was successful.
   $ which teleport
-  # /usr/local/bin/teleport
+  # /usr/bin/teleport
   ```
 
 <Notice type="danger">

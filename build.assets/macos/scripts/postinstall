@@ -2,7 +2,7 @@
 set -eu
 
 main() {
-  BIN=/usr/local/bin/
+  BIN=/usr/bin/
   [ ! -d "$BIN" ] && mkdir -p "$BIN"
 
   # If tsh exists and is not a link, make a backup.

@@ -168,7 +168,7 @@ Group=teleport
 Restart=always
 RestartSec=5
 Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecStart=/usr/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
 LimitNOFILE=524288

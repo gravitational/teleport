@@ -12,7 +12,7 @@ services:
       - ./config/teleport.yaml:/etc/teleport/teleport.yaml
       - ./config/state.yaml:/etc/teleport/state.yaml
       - teleport-data:/var/lib/teleport
-      - ../build/teleport:/usr/local/bin/teleport
+      - ../build/teleport:/usr/bin/teleport
     ports:
       - "3080:3080"
 

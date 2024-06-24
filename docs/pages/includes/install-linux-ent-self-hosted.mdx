@@ -38,9 +38,6 @@ $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
 $ sudo yum install -y yum-utils
 $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
 $ sudo yum install {{ to-install }}
-#
-# Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:
@@ -63,9 +60,6 @@ $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
 # Use zypper to add the teleport RPM repo
 $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-zypper.repo")
 $ sudo yum install {{ to-install }}
-#
-# Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:
@@ -90,9 +84,6 @@ $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.telepor
 
 # Install teleport
 $ sudo dnf install {{ to-install }}
-
-# Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 For FedRAMP/FIPS-compliant installations, install the `teleport-ent-fips` package instead:

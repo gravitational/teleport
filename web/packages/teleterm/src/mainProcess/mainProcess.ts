@@ -339,10 +339,10 @@ export default class MainProcess {
     // prompt. Throws an error when osascript fails.
     ipcMain.handle('main-process-symlink-tsh-macos', async () => {
       const source = this.settings.tshd.binaryPath;
-      const target = '/usr/local/bin/tsh';
+      const target = '/usr/bin/tsh';
       const prompt =
-        'Teleport Connect wants to create a symlink for tsh in /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
+        'Teleport Connect wants to create a symlink for tsh in /usr/bin.';
+      const command = `osascript -e "do shell script \\"mkdir -p /usr/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
 
       try {
         await promisify(exec)(command);
@@ -360,9 +360,9 @@ export default class MainProcess {
     });
 
     ipcMain.handle('main-process-remove-tsh-symlink-macos', async () => {
-      const target = '/usr/local/bin/tsh';
+      const target = '/usr/bin/tsh';
       const prompt =
-        'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
+        'Teleport Connect wants to remove a symlink for tsh from /usr/bin.';
       const command = `osascript -e "do shell script \\"rm '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
 
       try {
@@ -516,15 +516,15 @@ export default class MainProcess {
     const viewMenuTemplate: MenuItemConstructorOptions = this.settings.debug
       ? { role: 'viewMenu' }
       : {
-          label: 'View',
-          submenu: [
-            { role: 'resetZoom' },
-            { role: 'zoomIn' },
-            { role: 'zoomOut' },
-            { type: 'separator' },
-            { role: 'togglefullscreen' },
-          ],
-        };
+        label: 'View',
+        submenu: [
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
+          { type: 'separator' },
+          { role: 'togglefullscreen' },
+        ],
+      };
 
     const macTemplate: MenuItemConstructorOptions[] = [
       { role: 'appMenu' },
@@ -724,7 +724,7 @@ function rewrapResolveError(
 
     throw new Error(
       `Could not communicate with ${processName}.\n\n` +
-        `Last logs from ${logPath}:\n${lastLogs}`
+      `Last logs from ${logPath}:\n${lastLogs}`
     );
   };
 }

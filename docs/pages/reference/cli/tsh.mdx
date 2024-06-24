@@ -792,7 +792,7 @@ Host *.example.com example.com
 # Flags for all example.com hosts except the proxy
 Host *.example.com !example.com
     Port 3022
-    ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
+    ProxyCommand "/usr/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
 ```
 
 This output should be placed into the default SSH Config for environment, `~/.ssh/config` for Mac/Linux or

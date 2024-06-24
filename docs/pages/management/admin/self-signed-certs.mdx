@@ -158,7 +158,7 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
 
     Edit the Teleport unit file to include `--insecure` in the `ExecStart` line, for example:
     ```text
-    ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid --insecure
+    ExecStart=/usr/bin/teleport start --pid-file=/run/teleport.pid --insecure
     ```
     
     After saving the unit file, you will need to reload the daemon for your changes to take effect:

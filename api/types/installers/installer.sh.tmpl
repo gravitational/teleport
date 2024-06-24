@@ -48,7 +48,7 @@ on_gcp() {
 
 (
   flock -n 9 || exit 1
-  if test -f /usr/local/bin/teleport; then
+  if test -f /usr/bin/teleport; then
     exit 0
   fi
   # shellcheck disable=SC1091
@@ -185,7 +185,7 @@ on_gcp() {
   # generate teleport ssh config
   # token is read as a parameter from the AWS ssm script run and
   # passed as the first argument to the script
-  sudo /usr/local/bin/teleport node configure \
+  sudo /usr/bin/teleport node configure \
     --proxy="{{ .PublicProxyAddr }}" \
     --join-method=${JOIN_METHOD} \
     {{- if .AzureClientID }}

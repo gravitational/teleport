@@ -27,7 +27,7 @@ should be possible to override volume name (smtp on):
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml
@@ -95,7 +95,7 @@ should match the snapshot:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml
@@ -156,7 +156,7 @@ should match the snapshot (mailgun on):
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml
@@ -224,7 +224,7 @@ should match the snapshot (smtp on):
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml
@@ -292,7 +292,7 @@ should mount external secret (mailgun on):
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml
@@ -360,7 +360,7 @@ should mount external secret (smtp on):
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-email.toml

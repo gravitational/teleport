@@ -11,7 +11,7 @@ RestartSec=5
 # want to run all three roles on a single host
 # --roles='proxy,auth,node' is the default value
 # if none is set
-ExecStart=/usr/local/bin/teleport start --roles=proxy --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
+ExecStart=/usr/bin/teleport start --roles=proxy --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 # systemd before 239 needs an absolute path
 ExecReload=/bin/sh -c "exec pkill -HUP -L -F /run/teleport.pid"
 PIDFile=/run/teleport.pid

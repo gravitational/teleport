@@ -24,7 +24,7 @@ fi
 ###
 
 APP="/opt/${sanitizedProductName}"
-BIN=/usr/local/bin
+BIN=/usr/bin
 TSH_SYMLINK_SOURCE=$APP/resources/bin/tsh
 TSH_SYMLINK_TARGET=$BIN/tsh
 

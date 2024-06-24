@@ -21,6 +21,6 @@ RUN tar -xzvf /plugin.tar.gz && \
 # TARGETPLATFORM is provided by Docker/buildx
 FROM --platform=${TARGETPLATFORM} ${BASE_IMAGE}
 WORKDIR /
-COPY --from=extractor /teleport-plugin /usr/local/bin/teleport-plugin
+COPY --from=extractor /teleport-plugin /usr/bin/teleport-plugin
 
-ENTRYPOINT ["/usr/local/bin/teleport-plugin"]
+ENTRYPOINT ["/usr/bin/teleport-plugin"]

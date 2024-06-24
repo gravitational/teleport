@@ -39,7 +39,7 @@ run_teleport() {
     OPENSSH_CONFIG="${SSHD_CONFIG}"
   fi
 
-  sudo /usr/local/bin/teleport join openssh \
+  sudo /usr/bin/teleport join openssh \
     --openssh-config="${OPENSSH_CONFIG}" \
     --join-method=iam \
     --token="$TOKEN" \
@@ -209,7 +209,7 @@ install_teleport() {
 
   TOKEN="$1"
 
-  if ! test -f /usr/local/bin/teleport; then
+  if ! test -f /usr/bin/teleport; then
     install_teleport
   fi
 

@@ -164,7 +164,7 @@ The following table includes all command line options available with the `telepo
 | `--fd-limit` | The maximum number of open file descriptors by the service, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
 | `--env-file` | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | `--envfile=/etc/default/teleport` |
 | `--pid-file` | The path to the pid file containing the process identification number. | `--pid-file=/run/teleport.pid` |
-| `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/local/bin/teleport` |
+| `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/bin/teleport` |
 | `-o`, `--output` | The full unit file load path which will define where to create and store the system unit file itself. This flag is used to write the output to the designated file. | `--output=/etc/systemd/system/teleport.service` |
 
 While a default configuration can always be created using the `sudo teleport install systemd -o /etc/systemd/system/teleport.service`command,
@@ -175,7 +175,7 @@ $ sudo teleport install systemd \
 --fd-limit=8192 \
 --env-file=/etc/default/teleport \
 --pid-file=/run/teleport.pid \
---teleport-path=/usr/local/bin/teleport \
+--teleport-path=/usr/bin/teleport \
 --output=/etc/systemd/system/teleport.service
 ```
 

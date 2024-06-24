@@ -27,7 +27,7 @@ should match the snapshot:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-mattermost.toml
@@ -95,7 +95,7 @@ should mount external secret:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-mattermost.toml
@@ -163,7 +163,7 @@ should override volume name:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-mattermost.toml

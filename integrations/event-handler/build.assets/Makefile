@@ -25,7 +25,7 @@ BUILDFORHOST := -e OS=$(OS) \
 DOCKERPULLFLAGS ?= --pull
 
 NOROOT=-u $$(id -u):$$(id -g)
-BINDIR=/usr/local/bin
+BINDIR=/usr/bin
 
 .PHONY: buildbox
 buildbox:

@@ -37,8 +37,8 @@ USER root
 RUN apk add --no-cache gcompat=1.1.0-r1
 
 # Copy in `tbot`
-COPY --from=builder /workspace/build/tbot /usr/local/bin
-RUN chmod 755 /usr/local/bin/tbot
+COPY --from=builder /workspace/build/tbot /usr/bin
+RUN chmod 755 /usr/bin/tbot
 
 # Switch back to the default spacelift user.
 USER spacelift

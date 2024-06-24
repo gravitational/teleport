@@ -27,7 +27,7 @@ should match the snapshot:
         spec:
           containers:
           - command:
-            - /usr/local/bin/teleport-plugin
+            - /usr/bin/teleport-plugin
             - start
             - --config
             - /etc/teleport-pagerduty.toml

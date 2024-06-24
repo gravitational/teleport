@@ -123,7 +123,7 @@ Main PID: 1815 (teleport)
 Memory: 55.6M
 	CPU: 2h 2min 27.181s
 CGroup: /system.slice/teleport.service
-		└─1815 /usr/local/bin/teleport start --pid-file=/run/teleport.pid
+		└─1815 /usr/bin/teleport start --pid-file=/run/teleport.pid
 `
 				return []byte(output), nil
 			},

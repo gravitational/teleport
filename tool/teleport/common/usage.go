@@ -75,7 +75,7 @@ region us-west-1 which only allows access to users with the role "env=aws".`
     --fd-limit=8192 \
     --env-file=/etc/default/teleport \
     --pid-file=/run/teleport.pid \
-    --teleport-path=/usr/local/bin/teleport \
+    --teleport-path=/usr/bin/teleport \
     --output=/etc/systemd/system/teleport.service
   Generates a systemd unit file teleport.service using the provided flags and 
   places it in the given system configuration directory.

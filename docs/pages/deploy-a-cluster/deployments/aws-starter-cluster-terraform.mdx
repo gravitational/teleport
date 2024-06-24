@@ -674,7 +674,7 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
     Active: active (running) since Thu 2023-09-21 20:35:32 UTC; 9min ago
   Main PID: 2483 (teleport)
     CGroup: /system.slice/teleport-acm.service
-            └─2483 /usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
+            └─2483 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
   Sep 21 20:43:12 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:12Z [AUDIT]     INFO session.data addr.local:127.0.0.1:443 addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2006I ei:2.147483646e+09 event:se...
   Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [SESSION:N] INFO Stopping session session_id:ca17914c-e0d5-42c1-9407-fa7a5c2dc163...
@@ -698,7 +698,7 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
     Active: active (running) since Thu 2023-09-21 20:35:32 UTC; 9min ago
   Main PID: 2483 (teleport)
     CGroup: /system.slice/teleport.service
-            └─2483 /usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
+            └─2483 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
   Sep 21 20:43:12 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:12Z [AUDIT]     INFO session.data addr.local:127.0.0.1:443 addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2006I ei:2.147483646e+09 event:se...
   Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [SESSION:N] INFO Stopping session session_id:ca17914c-e0d5-42c1-9407-fa7a5c2dc163...

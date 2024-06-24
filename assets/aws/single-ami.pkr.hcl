@@ -204,7 +204,7 @@ build {
     remote_folder = local.remote_folder
     inline = [
       "sudo cp /tmp/files/system/* /etc/systemd/system/",
-      "sudo cp /tmp/files/bin/* /usr/local/bin/"
+      "sudo cp /tmp/files/bin/* /usr/bin/"
     ]
   }
 

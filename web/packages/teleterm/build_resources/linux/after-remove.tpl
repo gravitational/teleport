@@ -28,7 +28,7 @@ if [ "$1" = "upgrade" ] || [ "$1" = "1" ]; then
 fi
 
 APP="/opt/${sanitizedProductName}"
-BIN=/usr/local/bin
+BIN=/usr/bin
 TSH_SYMLINK_TARGET=$BIN/tsh
 
 # Remove the link to the Electron app binary.

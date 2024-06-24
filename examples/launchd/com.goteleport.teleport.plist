@@ -6,7 +6,7 @@
    <string>Teleport Service</string>
    <key>ProgramArguments</key>
    <array>
-      <string>/usr/local/bin/teleport</string>
+      <string>/usr/bin/teleport</string>
       <string>start</string>
       <string>--config=/etc/teleport.yaml</string>
    </array>
