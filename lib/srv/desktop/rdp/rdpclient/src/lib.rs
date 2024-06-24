@@ -47,6 +47,7 @@ mod piv;
 mod rdpdr;
 mod ssl;
 mod util;
+mod network_client;
 
 #[no_mangle]
 pub extern "C" fn init() {

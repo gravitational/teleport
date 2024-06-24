@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -68,7 +69,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		Clock:           a.clock,
 		PublicKey:       csr.PublicKey,
 		Subject:         csr.Subject,
-		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
+		NotAfter:        a.clock.Now().UTC().Add(240 * time.Hour),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.

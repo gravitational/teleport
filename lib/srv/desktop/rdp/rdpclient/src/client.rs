@@ -60,6 +60,9 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+use ironrdp_connector::credssp::KerberosConfig;
+use picky::key::PrivateKey;
+use sspi::SmartCardIdentity;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -71,6 +74,7 @@ use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::{HandshakeError, SslStream};
+use url::Url;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -202,14 +206,19 @@ impl Client {
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
+        let mut network_client = crate::network_client::ReqwestNetworkClient::new();
+        let kdc_url = Url::parse("tcp://ec2amaz-ju8mcfe.przemkoad.teleportdemo.net").map_err(|e|custom_err!("parse", e))?;
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             &mut rdp_stream,
             connector,
             server_addr.into(),
             server_public_key,
-            None,
-            None,
+            Some(&mut network_client),
+            Some(KerberosConfig{
+                kdc_proxy_url: Some(kdc_url),
+                hostname: Some("EC2AMAZ-JU8MCFE".to_string()),
+            }),
         )
         .await?;
 
@@ -1384,14 +1393,28 @@ type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: &ConnectParams, pin: String) -> Config {
     Config {
-        desktop_size: ironrdp_connector::DesktopSize {
+        desktop_size: DesktopSize {
             width: params.screen_width,
             height: params.screen_height,
         },
         enable_tls: true,
-        enable_credssp: false,
-        credentials: Credentials::SmartCard { pin },
-        domain: None,
+        enable_credssp: true,
+        credentials: Credentials::SmartCard {
+            config: Some(SmartCardIdentity {
+                username: "".to_string(),
+                domain: "przemkoad.teleportdemo.net".to_string(),
+                certificate: picky_asn1_der::from_bytes(&params.cert_der).unwrap(),
+                reader_name: "Teleport".to_string(),
+                card_name: None,
+                container_name: "".to_string(),
+                csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                pin: Vec::from(pin.clone()).into(),
+                private_key_file_index: None,
+                private_key: Some(PrivateKey::from_rsa_der(&params.key_der).unwrap().into()),
+            }),
+            pin,
+        },
+        domain: Some("przemkoad.teleportdemo.net".to_string()),
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
         // This determines which Smart Card Redirection dialect we use per
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
@@ -1399,6 +1422,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         client_name: "Teleport".to_string(),
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
+        keyboard_layout: 0,
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {

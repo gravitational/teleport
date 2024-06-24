@@ -1,0 +1,729 @@
+rdp-client v0.1.0 (/Users/hesperus/work/teleport/lib/srv/desktop/rdp/rdpclient)
+├── bitflags v2.5.0
+├── byteorder v1.5.0
+├── bytes v1.6.0
+├── env_logger v0.11.3
+│   ├── anstream v0.6.11
+│   │   ├── anstyle v1.0.6
+│   │   ├── anstyle-parse v0.2.3
+│   │   │   └── utf8parse v0.2.1
+│   │   ├── anstyle-query v1.0.2
+│   │   ├── colorchoice v1.0.0
+│   │   └── utf8parse v0.2.1
+│   ├── anstyle v1.0.6
+│   ├── env_filter v0.1.0
+│   │   ├── log v0.4.21
+│   │   └── regex v1.10.2
+│   │       ├── aho-corasick v1.1.2
+│   │       │   └── memchr v2.6.4
+│   │       ├── memchr v2.6.4
+│   │       ├── regex-automata v0.4.3
+│   │       │   ├── aho-corasick v1.1.2 (*)
+│   │       │   ├── memchr v2.6.4
+│   │       │   └── regex-syntax v0.8.2
+│   │       └── regex-syntax v0.8.2
+│   ├── humantime v2.1.0
+│   └── log v0.4.21
+├── ironrdp-cliprdr v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-cliprdr)
+│   ├── bitflags v2.5.0
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu)
+│   │   ├── bit_field v0.10.2
+│   │   ├── bitflags v2.5.0
+│   │   ├── byteorder v1.5.0
+│   │   ├── der-parser v9.0.0
+│   │   │   ├── asn1-rs v0.6.1
+│   │   │   │   ├── asn1-rs-derive v0.5.0 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.70
+│   │   │   │   │   │   └── unicode-ident v1.0.12
+│   │   │   │   │   ├── quote v1.0.33
+│   │   │   │   │   │   └── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   ├── syn v2.0.39
+│   │   │   │   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   │   ├── quote v1.0.33 (*)
+│   │   │   │   │   │   └── unicode-ident v1.0.12
+│   │   │   │   │   └── synstructure v0.13.1
+│   │   │   │   │       ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │       ├── quote v1.0.33 (*)
+│   │   │   │   │       └── syn v2.0.39 (*)
+│   │   │   │   ├── asn1-rs-impl v0.2.0 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   ├── quote v1.0.33 (*)
+│   │   │   │   │   └── syn v2.0.39 (*)
+│   │   │   │   ├── displaydoc v0.2.4 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   ├── quote v1.0.33 (*)
+│   │   │   │   │   └── syn v2.0.39 (*)
+│   │   │   │   ├── nom v7.1.3
+│   │   │   │   │   ├── memchr v2.6.4
+│   │   │   │   │   └── minimal-lexical v0.2.1
+│   │   │   │   ├── num-traits v0.2.17
+│   │   │   │   │   └── libm v0.2.8
+│   │   │   │   │   [build-dependencies]
+│   │   │   │   │   └── autocfg v1.1.0
+│   │   │   │   ├── rusticata-macros v4.1.0
+│   │   │   │   │   └── nom v7.1.3 (*)
+│   │   │   │   └── thiserror v1.0.50
+│   │   │   │       └── thiserror-impl v1.0.50 (proc-macro)
+│   │   │   │           ├── proc-macro2 v1.0.70 (*)
+│   │   │   │           ├── quote v1.0.33 (*)
+│   │   │   │           └── syn v2.0.39 (*)
+│   │   │   ├── displaydoc v0.2.4 (proc-macro) (*)
+│   │   │   ├── nom v7.1.3 (*)
+│   │   │   ├── num-traits v0.2.17 (*)
+│   │   │   └── rusticata-macros v4.1.0 (*)
+│   │   ├── ironrdp-error v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-error)
+│   │   ├── md-5 v0.10.6
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   └── digest v0.10.7
+│   │   │       ├── block-buffer v0.10.4
+│   │   │       │   └── generic-array v0.14.7
+│   │   │       │       ├── typenum v1.17.0
+│   │   │       │       └── zeroize v1.7.0
+│   │   │       │           └── zeroize_derive v1.4.2 (proc-macro)
+│   │   │       │               ├── proc-macro2 v1.0.70 (*)
+│   │   │       │               ├── quote v1.0.33 (*)
+│   │   │       │               └── syn v2.0.39 (*)
+│   │   │       │       [build-dependencies]
+│   │   │       │       └── version_check v0.9.4
+│   │   │       ├── const-oid v0.9.5
+│   │   │       ├── crypto-common v0.1.6
+│   │   │       │   ├── generic-array v0.14.7 (*)
+│   │   │       │   └── typenum v1.17.0
+│   │   │       └── subtle v2.4.1
+│   │   ├── num-bigint v0.4.4
+│   │   │   ├── num-integer v0.1.45
+│   │   │   │   └── num-traits v0.2.17 (*)
+│   │   │   │   [build-dependencies]
+│   │   │   │   └── autocfg v1.1.0
+│   │   │   └── num-traits v0.2.17 (*)
+│   │   │   [build-dependencies]
+│   │   │   └── autocfg v1.1.0
+│   │   ├── num-derive v0.4.1 (proc-macro)
+│   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   ├── quote v1.0.33 (*)
+│   │   │   └── syn v2.0.39 (*)
+│   │   ├── num-integer v0.1.45 (*)
+│   │   ├── num-traits v0.2.17 (*)
+│   │   ├── pkcs1 v0.7.5
+│   │   │   ├── der v0.7.8
+│   │   │   │   ├── const-oid v0.9.5
+│   │   │   │   ├── der_derive v0.7.2 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   ├── quote v1.0.33 (*)
+│   │   │   │   │   └── syn v2.0.39 (*)
+│   │   │   │   ├── flagset v0.4.4
+│   │   │   │   ├── pem-rfc7468 v0.7.0
+│   │   │   │   │   └── base64ct v1.6.0
+│   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   ├── pkcs8 v0.10.2
+│   │   │   │   ├── der v0.7.8 (*)
+│   │   │   │   └── spki v0.7.3
+│   │   │   │       └── der v0.7.8 (*)
+│   │   │   └── spki v0.7.3 (*)
+│   │   ├── sha1 v0.10.6
+│   │   │   ├── cfg-if v1.0.0
+│   │   │   ├── cpufeatures v0.2.11
+│   │   │   │   └── libc v0.2.154
+│   │   │   └── digest v0.10.7 (*)
+│   │   ├── tap v1.0.1
+│   │   ├── thiserror v1.0.50 (*)
+│   │   └── x509-cert v0.2.4
+│   │       ├── const-oid v0.9.5
+│   │       ├── der v0.7.8 (*)
+│   │       └── spki v0.7.3 (*)
+│   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc)
+│   │   ├── bitflags v2.5.0
+│   │   └── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   ├── thiserror v1.0.50 (*)
+│   └── tracing v0.1.40
+│       ├── log v0.4.21
+│       ├── pin-project-lite v0.2.13
+│       ├── tracing-attributes v0.1.27 (proc-macro)
+│       │   ├── proc-macro2 v1.0.70 (*)
+│       │   ├── quote v1.0.33 (*)
+│       │   └── syn v2.0.39 (*)
+│       └── tracing-core v0.1.32
+│           └── once_cell v1.18.0
+├── ironrdp-connector v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-connector)
+│   ├── ironrdp-error v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-error)
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+│   ├── picky-asn1-x509 v0.12.0
+│   │   ├── base64 v0.21.5
+│   │   ├── num-bigint-dig v0.8.4
+│   │   │   ├── byteorder v1.5.0
+│   │   │   ├── lazy_static v1.4.0
+│   │   │   │   └── spin v0.5.2
+│   │   │   ├── libm v0.2.8
+│   │   │   ├── num-integer v0.1.45 (*)
+│   │   │   ├── num-iter v0.1.43
+│   │   │   │   ├── num-integer v0.1.45 (*)
+│   │   │   │   └── num-traits v0.2.17 (*)
+│   │   │   │   [build-dependencies]
+│   │   │   │   └── autocfg v1.1.0
+│   │   │   ├── num-traits v0.2.17 (*)
+│   │   │   ├── rand v0.8.5
+│   │   │   │   ├── libc v0.2.154
+│   │   │   │   ├── rand_chacha v0.3.1
+│   │   │   │   │   ├── ppv-lite86 v0.2.17
+│   │   │   │   │   └── rand_core v0.6.4
+│   │   │   │   │       └── getrandom v0.2.15
+│   │   │   │   │           ├── cfg-if v1.0.0
+│   │   │   │   │           └── libc v0.2.154
+│   │   │   │   └── rand_core v0.6.4 (*)
+│   │   │   ├── serde v1.0.193
+│   │   │   │   └── serde_derive v1.0.193 (proc-macro)
+│   │   │   │       ├── proc-macro2 v1.0.70 (*)
+│   │   │   │       ├── quote v1.0.33 (*)
+│   │   │   │       └── syn v2.0.39 (*)
+│   │   │   ├── smallvec v1.13.2
+│   │   │   └── zeroize v1.7.0 (*)
+│   │   ├── oid v0.2.1
+│   │   │   └── serde v1.0.193 (*)
+│   │   ├── picky-asn1 v0.8.0
+│   │   │   ├── oid v0.2.1 (*)
+│   │   │   ├── serde v1.0.193 (*)
+│   │   │   ├── serde_bytes v0.11.12
+│   │   │   │   └── serde v1.0.193 (*)
+│   │   │   ├── time v0.3.36
+│   │   │   │   ├── deranged v0.3.10
+│   │   │   │   │   └── powerfmt v0.2.0
+│   │   │   │   ├── itoa v1.0.9
+│   │   │   │   ├── num-conv v0.1.0
+│   │   │   │   ├── powerfmt v0.2.0
+│   │   │   │   └── time-core v0.1.2
+│   │   │   └── zeroize v1.7.0 (*)
+│   │   ├── picky-asn1-der v0.4.1
+│   │   │   ├── picky-asn1 v0.8.0 (*)
+│   │   │   ├── serde v1.0.193 (*)
+│   │   │   └── serde_bytes v0.11.12 (*)
+│   │   ├── serde v1.0.193 (*)
+│   │   ├── widestring v1.0.2
+│   │   └── zeroize v1.7.0 (*)
+│   ├── rand_core v0.6.4 (*)
+│   ├── sspi v0.12.0 (/Users/hesperus/work/sspi-rs)
+│   │   ├── async-dnssd v0.5.0
+│   │   │   ├── bitflags v1.3.2
+│   │   │   ├── futures-channel v0.3.29
+│   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   └── futures-sink v0.3.29
+│   │   │   ├── futures-core v0.3.29
+│   │   │   ├── futures-util v0.3.29
+│   │   │   │   ├── futures-channel v0.3.29 (*)
+│   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   ├── futures-io v0.3.29
+│   │   │   │   ├── futures-macro v0.3.29 (proc-macro)
+│   │   │   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   │   │   ├── quote v1.0.33 (*)
+│   │   │   │   │   └── syn v2.0.39 (*)
+│   │   │   │   ├── futures-sink v0.3.29
+│   │   │   │   ├── futures-task v0.3.29
+│   │   │   │   ├── memchr v2.6.4
+│   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   ├── pin-utils v0.1.0
+│   │   │   │   └── slab v0.4.9
+│   │   │   │       [build-dependencies]
+│   │   │   │       └── autocfg v1.1.0
+│   │   │   ├── libc v0.2.154
+│   │   │   ├── log v0.4.21
+│   │   │   ├── pin-utils v0.1.0
+│   │   │   └── tokio v1.38.0
+│   │   │       ├── bytes v1.6.0
+│   │   │       ├── libc v0.2.154
+│   │   │       ├── mio v0.8.11
+│   │   │       │   └── libc v0.2.154
+│   │   │       ├── num_cpus v1.16.0
+│   │   │       │   └── libc v0.2.154
+│   │   │       ├── parking_lot v0.12.3
+│   │   │       │   ├── lock_api v0.4.11
+│   │   │       │   │   └── scopeguard v1.2.0
+│   │   │       │   │   [build-dependencies]
+│   │   │       │   │   └── autocfg v1.1.0
+│   │   │       │   └── parking_lot_core v0.9.9
+│   │   │       │       ├── cfg-if v1.0.0
+│   │   │       │       ├── libc v0.2.154
+│   │   │       │       └── smallvec v1.13.2
+│   │   │       ├── pin-project-lite v0.2.13
+│   │   │       ├── signal-hook-registry v1.4.1
+│   │   │       │   └── libc v0.2.154
+│   │   │       ├── socket2 v0.5.5
+│   │   │       │   └── libc v0.2.154
+│   │   │       └── tokio-macros v2.3.0 (proc-macro)
+│   │   │           ├── proc-macro2 v1.0.70 (*)
+│   │   │           ├── quote v1.0.33 (*)
+│   │   │           └── syn v2.0.39 (*)
+│   │   │   [build-dependencies]
+│   │   │   └── pkg-config v0.3.27
+│   │   ├── async-recursion v1.0.5 (proc-macro)
+│   │   │   ├── proc-macro2 v1.0.70 (*)
+│   │   │   ├── quote v1.0.33 (*)
+│   │   │   └── syn v2.0.39 (*)
+│   │   ├── bitflags v2.5.0
+│   │   ├── byteorder v1.5.0
+│   │   ├── cfg-if v1.0.0
+│   │   ├── crypto-mac v0.11.1
+│   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   └── subtle v2.4.1
+│   │   ├── futures v0.3.29
+│   │   │   ├── futures-channel v0.3.29 (*)
+│   │   │   ├── futures-core v0.3.29
+│   │   │   ├── futures-executor v0.3.29
+│   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   ├── futures-task v0.3.29
+│   │   │   │   └── futures-util v0.3.29 (*)
+│   │   │   ├── futures-io v0.3.29
+│   │   │   ├── futures-sink v0.3.29
+│   │   │   ├── futures-task v0.3.29
+│   │   │   └── futures-util v0.3.29 (*)
+│   │   ├── hmac v0.12.1
+│   │   │   └── digest v0.10.7 (*)
+│   │   ├── lazy_static v1.4.0 (*)
+│   │   ├── md-5 v0.10.6 (*)
+│   │   ├── md4 v0.10.2
+│   │   │   └── digest v0.10.7 (*)
+│   │   ├── num-bigint-dig v0.8.4 (*)
+│   │   ├── num-derive v0.4.1 (proc-macro) (*)
+│   │   ├── num-traits v0.2.17 (*)
+│   │   ├── oid v0.2.1 (*)
+│   │   ├── picky v7.0.0-rc.8
+│   │   │   ├── base64 v0.21.5
+│   │   │   ├── digest v0.10.7 (*)
+│   │   │   ├── ed25519-dalek v2.1.0
+│   │   │   │   ├── curve25519-dalek v4.1.1
+│   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   [build-dependencies]
+│   │   │   │   │   ├── platforms v3.2.0
+│   │   │   │   │   └── rustc_version v0.4.0
+│   │   │   │   │       └── semver v1.0.20
+│   │   │   │   ├── ed25519 v2.2.3
+│   │   │   │   │   └── signature v2.2.0
+│   │   │   │   │       ├── digest v0.10.7 (*)
+│   │   │   │   │       └── rand_core v0.6.4 (*)
+│   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   ├── sha2 v0.10.8
+│   │   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   │   ├── cpufeatures v0.2.11 (*)
+│   │   │   │   │   └── digest v0.10.7 (*)
+│   │   │   │   ├── subtle v2.4.1
+│   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   ├── md-5 v0.10.6 (*)
+│   │   │   ├── num-bigint-dig v0.8.4 (*)
+│   │   │   ├── p256 v0.13.2
+│   │   │   │   ├── ecdsa v0.16.9
+│   │   │   │   │   ├── der v0.7.8 (*)
+│   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   ├── elliptic-curve v0.13.8
+│   │   │   │   │   │   ├── base16ct v0.2.0
+│   │   │   │   │   │   ├── crypto-bigint v0.5.5
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   │   │   ├── ff v0.13.0
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   ├── group v0.13.0
+│   │   │   │   │   │   │   ├── ff v0.13.0 (*)
+│   │   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   │   ├── hkdf v0.12.3
+│   │   │   │   │   │   │   └── hmac v0.12.1 (*)
+│   │   │   │   │   │   ├── pem-rfc7468 v0.7.0 (*)
+│   │   │   │   │   │   ├── pkcs8 v0.10.2 (*)
+│   │   │   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   │   │   ├── sec1 v0.7.3
+│   │   │   │   │   │   │   ├── base16ct v0.2.0
+│   │   │   │   │   │   │   ├── der v0.7.8 (*)
+│   │   │   │   │   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   │   │   │   │   ├── pkcs8 v0.10.2 (*)
+│   │   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   │   ├── subtle v2.4.1
+│   │   │   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   │   │   ├── rfc6979 v0.4.0
+│   │   │   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   │   │   └── subtle v2.4.1
+│   │   │   │   │   ├── signature v2.2.0 (*)
+│   │   │   │   │   └── spki v0.7.3 (*)
+│   │   │   │   ├── elliptic-curve v0.13.8 (*)
+│   │   │   │   ├── primeorder v0.13.6
+│   │   │   │   │   └── elliptic-curve v0.13.8 (*)
+│   │   │   │   └── sha2 v0.10.8 (*)
+│   │   │   ├── p384 v0.13.0
+│   │   │   │   ├── ecdsa v0.16.9 (*)
+│   │   │   │   ├── elliptic-curve v0.13.8 (*)
+│   │   │   │   ├── primeorder v0.13.6 (*)
+│   │   │   │   └── sha2 v0.10.8 (*)
+│   │   │   ├── picky-asn1 v0.8.0 (*)
+│   │   │   ├── picky-asn1-der v0.4.1 (*)
+│   │   │   ├── picky-asn1-x509 v0.12.0 (*)
+│   │   │   ├── rand v0.8.5 (*)
+│   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   ├── rsa v0.9.6
+│   │   │   │   ├── const-oid v0.9.5
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   ├── num-bigint-dig v0.8.4 (*)
+│   │   │   │   ├── num-integer v0.1.45 (*)
+│   │   │   │   ├── num-traits v0.2.17 (*)
+│   │   │   │   ├── pkcs1 v0.7.5 (*)
+│   │   │   │   ├── pkcs8 v0.10.2 (*)
+│   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   ├── sha1 v0.10.6 (*)
+│   │   │   │   ├── signature v2.2.0 (*)
+│   │   │   │   ├── spki v0.7.3 (*)
+│   │   │   │   ├── subtle v2.4.1
+│   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   ├── serde v1.0.193 (*)
+│   │   │   ├── sha1 v0.10.6 (*)
+│   │   │   ├── sha2 v0.10.8 (*)
+│   │   │   ├── sha3 v0.10.8
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   └── keccak v0.1.4
+│   │   │   │       └── cpufeatures v0.2.11 (*)
+│   │   │   ├── thiserror v1.0.50 (*)
+│   │   │   ├── x25519-dalek v2.0.0
+│   │   │   │   ├── curve25519-dalek v4.1.1 (*)
+│   │   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   │   └── zeroize v1.7.0 (*)
+│   │   │   └── zeroize v1.7.0 (*)
+│   │   ├── picky-asn1 v0.8.0 (*)
+│   │   ├── picky-asn1-der v0.4.1 (*)
+│   │   ├── picky-asn1-x509 v0.12.0 (*)
+│   │   ├── picky-krb v0.8.0
+│   │   │   ├── aes v0.8.3
+│   │   │   │   ├── cfg-if v1.0.0
+│   │   │   │   ├── cipher v0.4.4
+│   │   │   │   │   ├── crypto-common v0.1.6 (*)
+│   │   │   │   │   └── inout v0.1.3
+│   │   │   │   │       ├── block-padding v0.3.3
+│   │   │   │   │       │   └── generic-array v0.14.7 (*)
+│   │   │   │   │       └── generic-array v0.14.7 (*)
+│   │   │   │   └── cpufeatures v0.2.11 (*)
+│   │   │   ├── byteorder v1.5.0
+│   │   │   ├── cbc v0.1.2
+│   │   │   │   └── cipher v0.4.4 (*)
+│   │   │   ├── crypto v0.5.1
+│   │   │   │   └── crypto-common v0.1.6 (*)
+│   │   │   ├── des v0.8.1
+│   │   │   │   └── cipher v0.4.4 (*)
+│   │   │   ├── hmac v0.12.1 (*)
+│   │   │   ├── num-bigint-dig v0.8.4 (*)
+│   │   │   ├── oid v0.2.1 (*)
+│   │   │   ├── pbkdf2 v0.12.2
+│   │   │   │   ├── digest v0.10.7 (*)
+│   │   │   │   ├── hmac v0.12.1 (*)
+│   │   │   │   └── sha1 v0.10.6 (*)
+│   │   │   ├── picky-asn1 v0.8.0 (*)
+│   │   │   ├── picky-asn1-der v0.4.1 (*)
+│   │   │   ├── picky-asn1-x509 v0.12.0 (*)
+│   │   │   ├── rand v0.8.5 (*)
+│   │   │   ├── serde v1.0.193 (*)
+│   │   │   ├── sha1 v0.10.6 (*)
+│   │   │   ├── thiserror v1.0.50 (*)
+│   │   │   └── uuid v1.8.0
+│   │   │       ├── getrandom v0.2.15 (*)
+│   │   │       └── serde v1.0.193 (*)
+│   │   ├── portpicker v0.1.1
+│   │   │   └── rand v0.8.5 (*)
+│   │   ├── rand v0.8.5 (*)
+│   │   ├── reqwest v0.11.22
+│   │   │   ├── base64 v0.21.5
+│   │   │   ├── bytes v1.6.0
+│   │   │   ├── encoding_rs v0.8.33
+│   │   │   │   └── cfg-if v1.0.0
+│   │   │   ├── futures-core v0.3.29
+│   │   │   ├── futures-util v0.3.29 (*)
+│   │   │   ├── h2 v0.3.26
+│   │   │   │   ├── bytes v1.6.0
+│   │   │   │   ├── fnv v1.0.7
+│   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   ├── futures-sink v0.3.29
+│   │   │   │   ├── futures-util v0.3.29 (*)
+│   │   │   │   ├── http v0.2.11
+│   │   │   │   │   ├── bytes v1.6.0
+│   │   │   │   │   ├── fnv v1.0.7
+│   │   │   │   │   └── itoa v1.0.9
+│   │   │   │   ├── indexmap v2.1.0
+│   │   │   │   │   ├── equivalent v1.0.1
+│   │   │   │   │   └── hashbrown v0.14.3
+│   │   │   │   ├── slab v0.4.9 (*)
+│   │   │   │   ├── tokio v1.38.0 (*)
+│   │   │   │   ├── tokio-util v0.7.10
+│   │   │   │   │   ├── bytes v1.6.0
+│   │   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   │   ├── futures-sink v0.3.29
+│   │   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   │   ├── tokio v1.38.0 (*)
+│   │   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   │   └── tracing v0.1.40 (*)
+│   │   │   ├── http v0.2.11 (*)
+│   │   │   ├── http-body v0.4.5
+│   │   │   │   ├── bytes v1.6.0
+│   │   │   │   ├── http v0.2.11 (*)
+│   │   │   │   └── pin-project-lite v0.2.13
+│   │   │   ├── hyper v0.14.27
+│   │   │   │   ├── bytes v1.6.0
+│   │   │   │   ├── futures-channel v0.3.29 (*)
+│   │   │   │   ├── futures-core v0.3.29
+│   │   │   │   ├── futures-util v0.3.29 (*)
+│   │   │   │   ├── h2 v0.3.26 (*)
+│   │   │   │   ├── http v0.2.11 (*)
+│   │   │   │   ├── http-body v0.4.5 (*)
+│   │   │   │   ├── httparse v1.8.0
+│   │   │   │   ├── httpdate v1.0.3
+│   │   │   │   ├── itoa v1.0.9
+│   │   │   │   ├── pin-project-lite v0.2.13
+│   │   │   │   ├── socket2 v0.4.10
+│   │   │   │   │   └── libc v0.2.154
+│   │   │   │   ├── tokio v1.38.0 (*)
+│   │   │   │   ├── tower-service v0.3.2
+│   │   │   │   ├── tracing v0.1.40 (*)
+│   │   │   │   └── want v0.3.1
+│   │   │   │       └── try-lock v0.2.4
+│   │   │   ├── hyper-rustls v0.24.2
+│   │   │   │   ├── futures-util v0.3.29 (*)
+│   │   │   │   ├── http v0.2.11 (*)
+│   │   │   │   ├── hyper v0.14.27 (*)
+│   │   │   │   ├── rustls v0.21.11
+│   │   │   │   │   ├── log v0.4.21
+│   │   │   │   │   ├── ring v0.17.6
+│   │   │   │   │   │   ├── getrandom v0.2.15 (*)
+│   │   │   │   │   │   └── untrusted v0.9.0
+│   │   │   │   │   │   [build-dependencies]
+│   │   │   │   │   │   └── cc v1.0.83
+│   │   │   │   │   │       └── libc v0.2.154
+│   │   │   │   │   ├── rustls-webpki v0.101.7
+│   │   │   │   │   │   ├── ring v0.17.6 (*)
+│   │   │   │   │   │   └── untrusted v0.9.0
+│   │   │   │   │   └── sct v0.7.1
+│   │   │   │   │       ├── ring v0.17.6 (*)
+│   │   │   │   │       └── untrusted v0.9.0
+│   │   │   │   ├── tokio v1.38.0 (*)
+│   │   │   │   └── tokio-rustls v0.24.1
+│   │   │   │       ├── rustls v0.21.11 (*)
+│   │   │   │       └── tokio v1.38.0 (*)
+│   │   │   ├── ipnet v2.9.0
+│   │   │   ├── log v0.4.21
+│   │   │   ├── mime v0.3.17
+│   │   │   ├── once_cell v1.18.0
+│   │   │   ├── percent-encoding v2.3.1
+│   │   │   ├── pin-project-lite v0.2.13
+│   │   │   ├── rustls v0.21.11 (*)
+│   │   │   ├── rustls-native-certs v0.6.3
+│   │   │   │   ├── rustls-pemfile v1.0.4
+│   │   │   │   │   └── base64 v0.21.5
+│   │   │   │   └── security-framework v2.9.2
+│   │   │   │       ├── bitflags v1.3.2
+│   │   │   │       ├── core-foundation v0.9.4
+│   │   │   │       │   ├── core-foundation-sys v0.8.6
+│   │   │   │       │   └── libc v0.2.154
+│   │   │   │       ├── core-foundation-sys v0.8.6
+│   │   │   │       ├── libc v0.2.154
+│   │   │   │       └── security-framework-sys v2.9.1
+│   │   │   │           ├── core-foundation-sys v0.8.6
+│   │   │   │           └── libc v0.2.154
+│   │   │   ├── rustls-pemfile v1.0.4 (*)
+│   │   │   ├── serde v1.0.193 (*)
+│   │   │   ├── serde_urlencoded v0.7.1
+│   │   │   │   ├── form_urlencoded v1.2.1
+│   │   │   │   │   └── percent-encoding v2.3.1
+│   │   │   │   ├── itoa v1.0.9
+│   │   │   │   ├── ryu v1.0.15
+│   │   │   │   └── serde v1.0.193 (*)
+│   │   │   ├── system-configuration v0.5.1
+│   │   │   │   ├── bitflags v1.3.2
+│   │   │   │   ├── core-foundation v0.9.4 (*)
+│   │   │   │   └── system-configuration-sys v0.5.0
+│   │   │   │       ├── core-foundation-sys v0.8.6
+│   │   │   │       └── libc v0.2.154
+│   │   │   ├── tokio v1.38.0 (*)
+│   │   │   ├── tokio-rustls v0.24.1 (*)
+│   │   │   ├── tower-service v0.3.2
+│   │   │   ├── url v2.5.0
+│   │   │   │   ├── form_urlencoded v1.2.1 (*)
+│   │   │   │   ├── idna v0.5.0
+│   │   │   │   │   ├── unicode-bidi v0.3.13
+│   │   │   │   │   └── unicode-normalization v0.1.22
+│   │   │   │   │       └── tinyvec v1.6.0
+│   │   │   │   │           └── tinyvec_macros v0.1.1
+│   │   │   │   └── percent-encoding v2.3.1
+│   │   │   └── webpki-roots v0.25.3
+│   │   ├── serde v1.0.193 (*)
+│   │   ├── serde_derive v1.0.193 (proc-macro) (*)
+│   │   ├── sha1 v0.10.6 (*)
+│   │   ├── sha2 v0.10.8 (*)
+│   │   ├── time v0.3.36 (*)
+│   │   ├── tokio v1.38.0 (*)
+│   │   ├── tracing v0.1.40 (*)
+│   │   ├── url v2.5.0 (*)
+│   │   ├── uuid v1.8.0 (*)
+│   │   ├── winscard v0.1.0 (/Users/hesperus/work/sspi-rs/crates/winscard)
+│   │   │   ├── bitflags v2.5.0
+│   │   │   ├── flate2 v1.0.30
+│   │   │   │   ├── crc32fast v1.4.2
+│   │   │   │   │   └── cfg-if v1.0.0
+│   │   │   │   ├── libz-sys v1.1.16
+│   │   │   │   │   [build-dependencies]
+│   │   │   │   │   ├── cc v1.0.83 (*)
+│   │   │   │   │   ├── pkg-config v0.3.27
+│   │   │   │   │   └── vcpkg v0.2.15
+│   │   │   │   └── miniz_oxide v0.7.1
+│   │   │   │       └── adler v1.0.2
+│   │   │   ├── iso7816 v0.1.2
+│   │   │   │   ├── delog v0.1.7
+│   │   │   │   │   └── log v0.4.21
+│   │   │   │   └── heapless v0.7.17
+│   │   │   │       ├── hash32 v0.2.1
+│   │   │   │       │   └── byteorder v1.5.0
+│   │   │   │       └── stable_deref_trait v1.2.0
+│   │   │   │       [build-dependencies]
+│   │   │   │       └── rustc_version v0.4.0 (*)
+│   │   │   ├── iso7816-tlv v0.4.4
+│   │   │   │   └── untrusted v0.9.0
+│   │   │   ├── picky v7.0.0-rc.8 (*)
+│   │   │   ├── picky-asn1-x509 v0.12.0 (*)
+│   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   ├── rsa v0.9.6 (*)
+│   │   │   ├── sha1 v0.10.6 (*)
+│   │   │   ├── time v0.3.36 (*)
+│   │   │   ├── tracing v0.1.40 (*)
+│   │   │   └── uuid v1.8.0 (*)
+│   │   └── zeroize v1.7.0 (*)
+│   ├── tracing v0.1.40 (*)
+│   └── url v2.5.0 (*)
+├── ironrdp-displaycontrol v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-displaycontrol)
+│   ├── ironrdp-dvc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-dvc)
+│   │   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   │   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+│   │   ├── slab v0.4.9 (*)
+│   │   └── tracing v0.1.40 (*)
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+│   └── tracing v0.1.40 (*)
+├── ironrdp-dvc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-dvc) (*)
+├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+├── ironrdp-rdpdr v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-rdpdr)
+│   ├── bitflags v2.5.0
+│   ├── ironrdp-error v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-error)
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+│   └── tracing v0.1.40 (*)
+├── ironrdp-rdpsnd v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-rdpsnd)
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   └── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+├── ironrdp-session v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-session)
+│   ├── ironrdp-connector v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-connector) (*)
+│   ├── ironrdp-displaycontrol v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-displaycontrol) (*)
+│   ├── ironrdp-dvc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-dvc) (*)
+│   ├── ironrdp-error v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-error)
+│   ├── ironrdp-graphics v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-graphics)
+│   │   ├── bit_field v0.10.2
+│   │   ├── bitflags v2.5.0
+│   │   ├── bitvec v1.0.1
+│   │   │   ├── funty v2.0.0
+│   │   │   ├── radium v0.7.0
+│   │   │   ├── tap v1.0.1
+│   │   │   └── wyz v0.5.1
+│   │   │       └── tap v1.0.1
+│   │   ├── byteorder v1.5.0
+│   │   ├── ironrdp-error v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-error)
+│   │   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   │   ├── lazy_static v1.4.0 (*)
+│   │   ├── num-derive v0.4.1 (proc-macro) (*)
+│   │   ├── num-traits v0.2.17 (*)
+│   │   └── thiserror v1.0.50 (*)
+│   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   ├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+│   └── tracing v0.1.40 (*)
+├── ironrdp-svc v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-svc) (*)
+├── ironrdp-tls v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-tls)
+│   ├── tokio v1.38.0 (*)
+│   ├── tokio-rustls v0.24.1 (*)
+│   └── x509-cert v0.2.4 (*)
+├── ironrdp-tokio v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-tokio)
+│   ├── bytes v1.6.0
+│   ├── ironrdp-async v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-async)
+│   │   ├── bytes v1.6.0
+│   │   ├── ironrdp-connector v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-connector) (*)
+│   │   ├── ironrdp-pdu v0.1.0 (/Users/hesperus/work/IronRDP/crates/ironrdp-pdu) (*)
+│   │   └── tracing v0.1.40 (*)
+│   └── tokio v1.38.0 (*)
+├── iso7816 v0.1.2 (*)
+├── iso7816-tlv v0.4.4 (*)
+├── log v0.4.21
+├── parking_lot v0.12.3 (*)
+├── rand v0.8.5 (*)
+├── rand_chacha v0.3.1 (*)
+├── rsa v0.9.6 (*)
+├── sspi v0.12.0 (/Users/hesperus/work/sspi-rs) (*)
+├── static_init v1.0.3
+│   ├── bitflags v1.3.2
+│   ├── parking_lot v0.11.2
+│   │   ├── instant v0.1.12
+│   │   │   └── cfg-if v1.0.0
+│   │   ├── lock_api v0.4.11 (*)
+│   │   └── parking_lot_core v0.8.6
+│   │       ├── cfg-if v1.0.0
+│   │       ├── instant v0.1.12 (*)
+│   │       ├── libc v0.2.154
+│   │       └── smallvec v1.13.2
+│   ├── parking_lot_core v0.8.6 (*)
+│   └── static_init_macro v1.0.2 (proc-macro)
+│       ├── memchr v2.6.4
+│       ├── proc-macro2 v1.0.70 (*)
+│       ├── quote v1.0.33 (*)
+│       └── syn v1.0.109
+│           ├── proc-macro2 v1.0.70 (*)
+│           ├── quote v1.0.33 (*)
+│           └── unicode-ident v1.0.12
+│       [build-dependencies]
+│       └── cfg_aliases v0.1.1
+│   [build-dependencies]
+│   └── cfg_aliases v0.1.1
+├── tokio v1.38.0 (*)
+├── utf16string v0.2.0
+│   └── byteorder v1.5.0
+└── uuid v1.8.0 (*)
+[build-dependencies]
+├── cbindgen v0.26.0
+│   ├── clap v3.2.25
+│   │   ├── atty v0.2.14
+│   │   │   └── libc v0.2.154
+│   │   ├── bitflags v1.3.2
+│   │   ├── clap_lex v0.2.4
+│   │   │   └── os_str_bytes v6.6.1
+│   │   ├── indexmap v1.9.3
+│   │   │   └── hashbrown v0.12.3
+│   │   │   [build-dependencies]
+│   │   │   └── autocfg v1.1.0
+│   │   ├── strsim v0.10.0
+│   │   ├── termcolor v1.4.0
+│   │   └── textwrap v0.16.0
+│   ├── heck v0.4.1
+│   ├── indexmap v1.9.3 (*)
+│   ├── log v0.4.21
+│   ├── proc-macro2 v1.0.70 (*)
+│   ├── quote v1.0.33 (*)
+│   ├── serde v1.0.193
+│   │   └── serde_derive v1.0.193 (proc-macro) (*)
+│   ├── serde_json v1.0.108
+│   │   ├── itoa v1.0.9
+│   │   ├── ryu v1.0.15
+│   │   └── serde v1.0.193 (*)
+│   ├── syn v1.0.109 (*)
+│   ├── tempfile v3.10.1
+│   │   ├── cfg-if v1.0.0
+│   │   ├── fastrand v2.0.1
+│   │   └── rustix v0.38.31
+│   │       ├── bitflags v2.5.0
+│   │       ├── errno v0.3.8
+│   │       │   └── libc v0.2.154
+│   │       └── libc v0.2.154
+│   └── toml v0.5.11
+│       └── serde v1.0.193 (*)
+└── tempfile v3.10.1 (*)
