@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
@@ -72,3 +73,45 @@ test('should convert the user preferences back to the old format when updating',
     actualUserPreferences.clusterPreferences.pinnedResources.resourceIds
   );
 });
+
+test('getCurrentTheme', () => {
+  mockMatchMediaWindow('dark');
+  let currentTheme = getCurrentTheme(Theme.UNSPECIFIED);
+  expect(currentTheme).toBe(Theme.DARK);
+
+  mockMatchMediaWindow('light');
+  currentTheme = getCurrentTheme(Theme.UNSPECIFIED);
+  expect(currentTheme).toBe(Theme.LIGHT);
+
+  currentTheme = getCurrentTheme(Theme.LIGHT);
+  expect(currentTheme).toBe(Theme.LIGHT);
+
+  currentTheme = getCurrentTheme(Theme.DARK);
+  expect(currentTheme).toBe(Theme.DARK);
+});
+
+test('getNextTheme', () => {
+  mockMatchMediaWindow('dark');
+  let nextTheme = getNextTheme(Theme.UNSPECIFIED);
+  expect(nextTheme).toBe(Theme.LIGHT);
+
+  mockMatchMediaWindow('light');
+  nextTheme = getNextTheme(Theme.UNSPECIFIED);
+  expect(nextTheme).toBe(Theme.DARK);
+
+  nextTheme = getNextTheme(Theme.LIGHT);
+  expect(nextTheme).toBe(Theme.DARK);
+
+  nextTheme = getNextTheme(Theme.DARK);
+  expect(nextTheme).toBe(Theme.LIGHT);
+});
+
+function mockMatchMediaWindow(prefers: 'light' | 'dark') {
+  return Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation(query => ({
+      matches: query === `(prefers-color-scheme: ${prefers})`,
+      media: query,
+    })),
+  });
+}

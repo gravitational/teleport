@@ -1793,17 +1793,16 @@ func TestInitDatabaseService(t *testing.T) {
 			})
 			require.NoError(t, process.Start())
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
 			if !test.expectErr {
-				// should timeout without the process exit event.
-				require.Error(t, err)
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
+				require.NoError(t, err)
 				return
 			}
 
+			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
 			require.NoError(t, err)
 			require.NotNil(t, event)
 			exitPayload, ok := event.Payload.(ExitEventPayload)
