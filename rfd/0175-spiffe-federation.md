@@ -170,15 +170,29 @@ message SPIFFEFederationStatus {
 }
 ```
 
-A background task will run on the Teleport Auth Server to periodically fetch
-the trust bundle from the configured Bundle Endpoint. This will be written into
-`status.current_bundle`. If specified, the `current_bundle_refresh_hint` will
-be used to determine when the next fetch should occur. If unspecified, it will
-be assumed that the bundle should be refreshed every 60 minutes.
+The `SPIFFEFederation` resource will be accessed via the standard RFD153
+gRPC CRUD APIs, and will be guarded by RBAC. We will grant the verbs to view,
+modify and create `SPIFFEFederation` resources to the default `edit` role.
 
-#### TBot
+#### Syncing Trust Bundles.
 
-Some minor changes will need to be made to TBot to support federation.
+A background task will be introduced to the Teleport Auth Server:
+`sync-spiffe-federation`. This will run on an elected Teleport Auth Server,
+and periodically fetch the trust bundle from the configured Bundle Endpoint.
+This will be written into `status.current_bundle`.
+
+The `current_bundle_refresh_hint` and `current_bundle_synced_at` fields will be
+used to determine when the next fetch should occur. If the `current_bundle` is
+older than the `current_bundle_refresh_hint` from the `current_bundle_synced_at`,
+a new fetch will be initiated.  If unspecified, it will be assumed that the
+bundle should be refreshed every 60 minutes.
+
+In addition, this task will watch the `SPIFFEFederation` resources and
+immediately fetch the trust bundle when a new resource is created or updated.
+
+#### `tbot`
+
+Some minor changes will need to be made to `tbot` to support federation.
 
 When the SPIFFE service starts, it will additionally need to fetch and watch
 the `SPIFFEFederation` resources. When a resource is updated, added or deleted,
@@ -202,6 +216,9 @@ has the following problems:
 - Incompatibility with renewal mechanisms that rely on an X.509 client
   certificate being presented (e.g BotInstance renewals) as only one client
   certificate can be presented.
+- Building the ability to validate X.509 certificates issued by arbitrary
+  CAs into our TLS servers is complex and error-prone. We risk a compromised
+  CA being able to issue user certificates that would be trusted by Teleport.
 
 JWT SVIDs also come with their own challenges:
 
@@ -212,7 +229,7 @@ JWT SVIDs also come with their own challenges:
 - JWT SVIDs are less common and may not be supported by all SPIFFE
   implementations.
 
-Instead, we'll leverage a combination. The joining node will not use the X.509
+Instead, we'll use a third option. The joining node will not use the X.509
 certificate as a client certificate, but will instead present it as part of
 the join payload, with the server returning a challenge nonce. The client will
 sign the nonce with the private key corresponding to the X.509 certificate and
@@ -377,9 +394,14 @@ workloads in the trust domain.
 
 This is primarily mitigated by requiring that the Bundle Endpoint is protected
 by TLS. In the case of the `https_web` profile, the certificate must be issued
-by a CA trusted by Teleport (typically Web PKI). In the case of the self-serving
-`https_spiffe` profile, the certificate must be issued by the trust domain
-itself.
+by a CA trusted by Teleport (typically Web PKI).
+
+In the case of the self-serving `https_spiffe` profile, the certificate must be
+issued by the trust domain itself. The user must configure out of band the
+initial value of the trust bundle, and from this point onwards the fetched
+trust bundles will be used to validate future fetches. This allows for rotation
+of the trust domain CA. This profile reduces reliance on the security of Web
+PKI, but requires manual out-of-band steps during initial configuration.
 
 Additionally, this is mitigated by the inclusion of the
 `spiffe.federation.rotation` audit event. This event will be output whenever
