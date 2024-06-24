@@ -90,7 +90,6 @@ func enableLogDebug() {
 
 // start spawns the main process
 func start() error {
-
 	app, err := NewApp(&cli.Start)
 	if err != nil {
 		return trace.Wrap(err)
