@@ -1,0 +1,22 @@
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # The token name is not a secret as the Kubernetes join method relies on the
+  # Kubernetes signature to establish trust and not on the join token name.
+  name: kubernetes-token
+  # set a long expiry time, the default for tokens is only 30 minutes
+  expires: "2050-01-01T00:00:00Z"
+spec:
+  # Use the minimal set of system roles required.
+  roles: [App]
+
+  # set the join method allowed for this token
+  join_method: kubernetes
+  
+  kubernetes:
+    # If type is not specified, it defaults to in_cluster
+    type: in_cluster
+    allow:
+      # Service account names follow the format "namespace:serviceaccountname".
+      - service_account: "teleport-agent:teleport-app-service"

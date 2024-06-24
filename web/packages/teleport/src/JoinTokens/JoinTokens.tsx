@@ -7,24 +7,28 @@ import {
   Indicator,
   Label,
   Alert,
-  ButtonWarning,
-  ButtonSecondary,
   Link,
   ButtonPrimary,
+  MenuItem,
+  ButtonWarning,
+  ButtonSecondary,
+  Menu,
 } from 'design';
+import Table, { Cell } from 'design/DataTable';
+import { ChevronDown, Warning } from 'design/Icon';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import Table, { Cell } from 'design/DataTable';
-import { MagnifyingMinus, MagnifyingPlus, Trash, Warning } from 'design/Icon';
+import { MenuButton } from 'shared/components/MenuAction';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useTeleport } from 'teleport';
+import useResources from 'teleport/components/useResources';
 
 import {
   FeatureBox,
@@ -39,7 +43,7 @@ import { templates } from 'teleport/services/joinToken/makeJoinToken';
 function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
   return {
     id: token.id,
-    name: token.id,
+    name: token.safeName,
     kind: 'join_token',
     content: token.content,
   };
@@ -51,16 +55,26 @@ function getJoinMethodTemplate(method: JoinMethod): string {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<JoinMethod>('iam');
   const [template, setTemplate] = useState(getJoinMethodTemplate('iam'));
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
   const [joinTokensAttempt, runJoinTokensAttempt, setJoinTokensAttempt] =
     useAsync(async () => await ctx.joinTokenService.fetchJoinTokens());
 
-  // const resources = useResources(
-  //   joinTokensAttempt?.data?.items?.map(makeTokenResource) || [],
-  //   templates.iam
-  // );
+  const resources = useResources(
+    joinTokensAttempt.data?.items.map(makeTokenResource) || [],
+    { join_token: template }
+  );
+
+  async function handleSave(content: string): Promise<void> {
+    const token = await ctx.joinTokenService.createJoinToken({ content });
+    const items = [token, ...joinTokensAttempt.data.items];
+    setJoinTokensAttempt({
+      data: { ...joinTokensAttempt.data, items },
+      status: 'success',
+      statusText: '',
+    });
+  }
 
   const [deleteTokenAttempt, runDeleteTokenAttempt] = useAsync(
     async (token: string) => {
@@ -77,10 +91,8 @@ export const JoinTokens = () => {
   );
 
   const onTemplateChange = (method: JoinMethod) => {
+    setSelectedMethod(method);
     setTemplate(getJoinMethodTemplate(method));
-    // resources.updateContentTemplate(
-    //   getJoinMethodTemplate(method)['join_token']
-    // );
   };
 
   useEffect(() => {
@@ -91,7 +103,9 @@ export const JoinTokens = () => {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
-        <ButtonPrimary onClick={() => setEditorOpen(true)}>Add</ButtonPrimary>
+        <ButtonPrimary ml="auto" onClick={() => resources.create('join_token')}>
+          Create new token
+        </ButtonPrimary>
       </FeatureHeader>
       <Box>
         {deleteTokenAttempt.status === 'error' && (
@@ -137,32 +151,13 @@ export const JoinTokens = () => {
                 ),
               },
               {
-                altKey: 'delete-btn',
-                render: token => (
-                  <Cell align="right">
-                    <HoverTooltip
-                      css={`
-                        display: flex;
-                        justify-content: end;
-                      `}
-                      tipContent={
-                        token.isStatic
-                          ? 'Cannot delete static tokens'
-                          : 'Delete token'
-                      }
-                    >
-                      <StyledTrashButton
-                        size="small"
-                        onClick={() => setTokenToDelete(token)}
-                        disabled={
-                          token.isStatic ||
-                          deleteTokenAttempt.status === 'processing'
-                        }
-                        p={2}
-                        isStatic={token.isStatic}
-                      />
-                    </HoverTooltip>
-                  </Cell>
+                altKey: 'options-btn',
+                render: (token: JoinToken) => (
+                  <ActionCell
+                    token={token}
+                    onEdit={() => resources.edit(token.id)}
+                    onDelete={() => setTokenToDelete(token)}
+                  />
                 ),
               },
             ]}
@@ -189,17 +184,26 @@ export const JoinTokens = () => {
           attempt={deleteTokenAttempt}
         />
       )}
-      {editorOpen && (
+      {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+          docsURL="https://goteleport.com/docs/reference/join-methods"
           title={'create token'}
           key={template} // reset the editor if the template changes
-          text={template}
-          name={'name here'}
-          isNew={true}
-          onSave={(...args) => console.log(args)}
-          onClose={() => setEditorOpen(false)}
-          directions={<Directions onTemplateChange={onTemplateChange} />}
+          text={
+            resources.status === 'creating' ? template : resources.item.content
+          }
+          name={resources.item.name}
+          isNew={resources.status === 'creating'}
+          onSave={handleSave}
+          onClose={resources.disregard}
+          directions={
+            <Directions
+              selected={selectedMethod}
+              options={Object.keys(templates) as JoinMethod[]}
+              creating={resources.status === 'creating'}
+              onTemplateChange={onTemplateChange}
+            />
+          }
           kind={'join_token'}
         />
       )}
@@ -229,14 +233,7 @@ const renderRolesCell = ({ roles }: JoinToken) => {
   );
 };
 
-const NameCell = ({ id, safeName, method, isStatic }: JoinToken) => {
-  // const [visible, setVisible] = useState(false);
-  // const onVisible = () => {
-  //   setVisible(true);
-  //   setTimeout(() => {
-  //     setVisible(false);
-  //   }, 5000);
-  // };
+const NameCell = ({ id, safeName, method }: JoinToken) => {
   return (
     <Cell
       align="left"
@@ -250,13 +247,6 @@ const NameCell = ({ id, safeName, method, isStatic }: JoinToken) => {
     >
       <Flex alignItems="center" gap={2}>
         <CopyButton name={id}></CopyButton>
-        {/* {method === 'token' && (
-            <ToggleVisibilityButton
-              visible={visible}
-              onShow={onVisible}
-              onHide={() => setVisible(false)}
-            />
-          )} */}
         <Text
           css={`
             text-overflow: clip;
@@ -269,48 +259,6 @@ const NameCell = ({ id, safeName, method, isStatic }: JoinToken) => {
     </Cell>
   );
 };
-
-const ToggleVisibilityButton = ({
-  visible,
-  onShow,
-  onHide,
-}: {
-  visible: boolean;
-  onShow: () => void;
-  onHide: () => void;
-}) => {
-  return (
-    <HoverTooltip tipContent={visible ? 'Hide' : 'Show'}>
-      {visible ? (
-        <MagnifyingMinus
-          css={`
-            cursor: pointer;
-          `}
-          size="small"
-          onClick={onHide}
-        />
-      ) : (
-        <MagnifyingPlus
-          css={`
-            cursor: pointer;
-          `}
-          onClick={onShow}
-          size="small"
-        />
-      )}
-    </HoverTooltip>
-  );
-};
-
-const StyledTrashButton = styled(Trash)`
-  cursor: ${props => (props.isStatic ? 'not-allowed' : 'pointer')};
-  opacity: ${props => (props.isStatic ? '0.5' : 1)};
-  background-color: ${props =>
-    props.isStatic
-      ? props.theme.colors.action.disabled
-      : props.theme.colors.buttons.trashButton.default};
-  border-radius: 2px;
-`;
 
 const StyledLabel = styled(Label)`
   height: 20px;
@@ -362,7 +310,7 @@ function TokenDelete({
           disabled={attempt.status === 'processing'}
           onClick={onDelete}
         >
-          I understand, delete user
+          I understand, delete token
         </ButtonWarning>
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       </DialogFooter>
@@ -371,58 +319,122 @@ function TokenDelete({
 }
 
 function Directions({
+  selected,
+  options,
+  creating,
   onTemplateChange,
 }: {
+  selected: JoinMethod;
+  options: JoinMethod[];
+  creating: boolean;
   onTemplateChange: (method: JoinMethod) => void;
 }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const handleOpen = event => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  function onChangeOption(method: JoinMethod) {
+    onTemplateChange(method);
+    setAnchorEl(null);
+  }
+
   return (
     <>
-      {/* <HoverTooltip tipContent={'Select a token template'}>
-        <ButtonSecondary
-          px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
-          textTransform="none"
-          size="small"
-          onClick={handleOpen}
+      {creating && (
+        <Box mb={3}>
+          <Text mb={2}>Select join method template</Text>
+          <HoverTooltip
+            tipContent={
+              'Select an existing template for your preferred join method.'
+            }
+          >
+            <ButtonSecondary
+              width="100px"
+              size="large"
+              css={`
+                border-color: ${props => props.theme.colors.spotBackground[0]};
+              `}
+              textTransform="none"
+              onClick={handleOpen}
+            >
+              {selected}
+              <ChevronDown ml="auto" size="small" color="text.slightlyMuted" />
+            </ButtonSecondary>
+          </HoverTooltip>
+          <Menu
+            popoverCss={() => `
+              margin-top: 36px;
+              overflow: hidden; 
+            `}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={() => setAnchorEl(null)}
+          >
+            {options.map(method => (
+              <MenuItem
+                px={2}
+                key={method}
+                onClick={() => onChangeOption(method)}
+              >
+                <Text ml={2} fontSize={2}>
+                  {method}
+                </Text>
+              </MenuItem>
+            ))}
+          </Menu>
+        </Box>
+      )}
+      <Box mt={4}>
+        WARNING: Tokens are defined using{' '}
+        <Link
+          color="text.main"
+          target="_blank"
+          href="https://en.wikipedia.org/wiki/YAML"
         >
-          Types{' '}
-          {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-          {kindsFromParams.length > 0 && <FiltersExistIndicator />}
-        </ButtonSecondary>
-      </HoverTooltip> */}
-      {/* <Menu
-        popoverCss={() => `
-          margin-top: ${showInput ? '40px' : '4px'}; 
-          max-height: 265px; 
-          overflow: hidden; 
-        `}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-      ></Menu> */}
-      <ButtonPrimary onClick={() => onTemplateChange('azure')}>
-        Change
-      </ButtonPrimary>
-      WARNING tokens are defined using{' '}
-      <Link
-        color="text.main"
-        target="_blank"
-        href="https://en.wikipedia.org/wiki/YAML"
-      >
-        YAML format
-      </Link>
-      . YAML is sensitive to white space, so please be careful.
+          YAML format
+        </Link>
+        . YAML is sensitive to white space, so please be careful.
+      </Box>
     </>
   );
 }
+
+const ActionCell = ({
+  onEdit,
+  onDelete,
+  token,
+}: {
+  onEdit(): void;
+  onDelete(): void;
+  token: JoinToken;
+}) => {
+  if (token.isStatic) {
+    return (
+      <Cell align="right">
+        <HoverTooltip
+          justifyContentProps={{ justifyContent: 'end' }}
+          tipContent="Statically configured tokens cannot be editted or deleted via the web UI. You must remove them from your teleport configuration file."
+        >
+          <MenuButton buttonProps={{ disabled: true }} />
+        </HoverTooltip>
+      </Cell>
+    );
+  }
+  return (
+    <Cell align="right">
+      <MenuButton>
+        <MenuItem onClick={onEdit}>View/Edit...</MenuItem>
+        <MenuItem onClick={onDelete}>Delete...</MenuItem>
+      </MenuButton>
+    </Cell>
+  );
+};

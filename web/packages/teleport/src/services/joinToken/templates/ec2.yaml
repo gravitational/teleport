@@ -1,0 +1,30 @@
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your AWS account to use this token
+  name: ec2-token
+spec:
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: ec2
+
+  # aws_iid_ttl is the amount of time after the EC2 instance is launched during
+  # which it should be allowed to join the cluster. Use a short TTL to decrease
+  # the risk of stolen EC2 Instance Identity Documents being used to join your
+  # cluster.
+  #
+  # When launching your first Teleport process using the EC2 join method, you may need to
+  # temporarily configure a higher `aws_iid_ttl` value so that you have time
+  # to get Teleport set up and configured. This feature works best once Teleport
+  # is configured in an EC2 AMI to start automatically on launch.
+  aws_iid_ttl: 5m
+
+  allow:
+  - aws_account: "111111111111" # your AWS account ID
+    aws_regions: # use the minimal set of AWS regions required
+    - us-west-1
+    - us-west-2

@@ -1,0 +1,70 @@
+kind: token
+version: v2
+metadata:
+  # name identifies the token. When configuring a bot or node to join using this
+  # token, this name should be specified.
+  name: github-token
+spec:
+  # For Machine ID and GitHub joining, roles will always be "Bot" and
+  # join_method will always be "github".
+  roles: [Bot]
+  join_method: github
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used.
+  bot_name: github-demo
+
+  github:
+    # enterprise_server_host allows joining from GitHub Actions workflows in a
+    # GitHub Enterprise Server instance. For normal situations, where you are
+    # using github.com, this option should be omitted. If you are using GHES,
+    # this value should be configured to the hostname of your GHES instance.
+    enterprise_server_host: ghes.example.com
+
+    # enterprise_slug allows the slug of a GitHub Enterprise organisation to be
+    # included in the expected issuer of the OIDC tokens. This is for
+    # compatibility with the include_enterprise_slug option in GHE.
+    #
+    # This field should be set to the slug of your Github Enterprise organization if this is enabled. If
+    # this is not enabled, then this field must be left empty. This field cannot
+    # be specified if `enterprise_server_host` is specified.
+    #
+    # See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+    # for more information about customized issuer values.
+    enterprise_slug: slug
+
+    # allow is an array of rule configurations for what GitHub Actions workflows
+    # should be allowed to join. All options configured within one allow entry
+    # must be satisfied for the GitHub Actions run to be allowed to join. Where
+    # multiple allow entries are specified, any run which satisfies all of the
+    # options within a single entry will be allowed to join.
+    #
+    # An allow entry must include at least one of:
+    # - repository
+    # - repository_owner
+    # - sub
+    allow:
+      - # repository is a fully qualified (e.g. including the owner) name of a
+        # GitHub repository.
+        repository: gravitational/teleport
+        # repository_owner is the name of an organization or user that a
+        # repository belongs to.
+        repository_owner: gravitational
+        # workflow is the exact name of a workflow as configured in the GitHub 
+        # Action workflow YAML file.
+        workflow: my-workflow
+        # environment is the environment associated with the GitHub Actions run.
+        # If no environment is configured for the GitHub Actions run, this will
+        # be empty.
+        environment: production
+        # actor is the GitHub username that caused the GitHub Actions run,
+        # whether by committing or by directly despatching the workflow.
+        actor: octocat
+        # ref is the git ref that triggered the action run.
+        ref: ref/heads/main
+        # ref_type is the type of the git ref that triggered the action run.
+        ref_type: branch
+        # sub is a concatenated string of various attributes of the workflow 
+        # run. GitHub explains the format of this string at:
+        # https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims
+        sub: repo:gravitational/example-repo:environment:production

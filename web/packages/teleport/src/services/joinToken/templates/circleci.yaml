@@ -1,0 +1,18 @@
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  roles: [Bot]
+  join_method: circleci
+  bot_name: example
+  circleci:
+    organization_id: $ORGANIZATION_ID
+    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # should be allowed to join.
+    allow:
+      - # CircleCI context id. See the CircleCI MachineID guide to learn
+        # how to create a context and recover its ID.
+        context_id: 00000000-0000-0000-0000-000000000000
+        # CircleCI projectID.
+        project_id: 1234

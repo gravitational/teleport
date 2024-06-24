@@ -1,0 +1,43 @@
+# token.yaml
+kind: token
+version: v2
+metadata:
+  name: my-token-name
+spec:
+  # System roles describe what services the joining Teleport instance can run.
+  # Those roles are written on the instance certificate. If you want to change
+  # them (e.g. add Application access to an SSH Node), you need to:
+  # - edit the token to update the roles (e.g. add "App")
+  # - un-register the Teleport instance
+  # - modify its configuration to enable the new service (here "app_service.enabled")
+  # - have the instance join again 
+  #
+  # You should use the minimal set of system roles required.
+  # Common roles are:
+  # - "Node" for SSH Service
+  # - "Proxy" for Proxy Service
+  # - "Kube" for Kubernetes Service
+  # - "App" for Application Service
+  # - "Db" for Database Service
+  # - "WindowsDesktop" for Windows Desktop Service
+  # - "Discovery" for Discovery Service
+  # - "Bot" for MachineID (when set, "spec.bot_name" must be set in the token)
+  roles: 
+    - Node
+    - App
+  join_method: gcp
+  # Only set bot name when the token is used for MachineID.
+  # When set, the token must have the "Bot" role as well.
+  bot_name: my-bot
+  # SuggestedLabels is a set of labels that resources should set when using this
+  # token to enroll themselves in the cluster.
+  # Currently, only node-join scripts create a configuration according to the suggestion.
+  suggested_labels:
+    teams: ["sales-eng", "eng", "qa"]
+    application: ["demo-product"]
+  # SuggestedAgentMatcherLabels is a set of labels to be used by discovery agents to match on resources.
+  # When an agent uses this token, the agent should monitor resources that match those labels.
+  # For databases, this means adding the labels to `db_service.resources.labels`.
+  # Currently, only node-join scripts create a configuration according to the suggestion.
+  suggested_agent_matcher_labels:
+    teams: ["sales-eng"]
