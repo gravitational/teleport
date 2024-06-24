@@ -2241,7 +2241,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_BALANCED_DEV,
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 		Dir: t.TempDir(),
 	})
