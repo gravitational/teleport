@@ -33,18 +33,15 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	AWSOIDCService_ListEICE_FullMethodName                       = "/teleport.integration.v1.AWSOIDCService/ListEICE"
-	AWSOIDCService_CreateEICE_FullMethodName                     = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
-	AWSOIDCService_ListDatabases_FullMethodName                  = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
-	AWSOIDCService_ListSecurityGroups_FullMethodName             = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
-	AWSOIDCService_DeployDatabaseService_FullMethodName          = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
-	AWSOIDCService_DeployService_FullMethodName                  = "/teleport.integration.v1.AWSOIDCService/DeployService"
-	AWSOIDCService_EnrollEKSClusters_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
-	AWSOIDCService_ListEC2_FullMethodName                        = "/teleport.integration.v1.AWSOIDCService/ListEC2"
-	AWSOIDCService_ListEKSClusters_FullMethodName                = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
-	AWSOIDCService_ListOrganizationAccounts_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListOrganizationAccounts"
-	AWSOIDCService_DescribeIdentityCenterInstance_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DescribeIdentityCenterInstance"
-	AWSOIDCService_ListIdentityStoreUsers_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListIdentityStoreUsers"
+	AWSOIDCService_ListEICE_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEICE"
+	AWSOIDCService_CreateEICE_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
+	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
+	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
+	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
+	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
+	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
+	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
+	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -86,17 +83,6 @@ type AWSOIDCServiceClient interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error)
-	// ListOrganizationAccounts retrieves a paginated list of AWS Accounts for the
-	// current organization. If the request "parent" field is set, it will only
-	// list accounts for a given OU, otherwise it will return accounts for the
-	// whole organization
-	ListOrganizationAccounts(ctx context.Context, in *ListOrganizationAccountsRequest, opts ...grpc.CallOption) (*ListOrganizationAccountsResponse, error)
-	// DescribeIdentityCenterInstance retreives info about a specific Identity
-	// Center instance
-	DescribeIdentityCenterInstance(ctx context.Context, in *DescribeIdentityCenterInstanceRequest, opts ...grpc.CallOption) (*DescribeIdentityCenterInstanceResponse, error)
-	// ListIdentityStoreUsers fetches an optionally filtered list of User records
-	// from a given Identity Store
-	ListIdentityStoreUsers(ctx context.Context, in *ListIdentityStoreUsersRequest, opts ...grpc.CallOption) (*ListIdentityStoreUsersResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -197,36 +183,6 @@ func (c *aWSOIDCServiceClient) ListEKSClusters(ctx context.Context, in *ListEKSC
 	return out, nil
 }
 
-func (c *aWSOIDCServiceClient) ListOrganizationAccounts(ctx context.Context, in *ListOrganizationAccountsRequest, opts ...grpc.CallOption) (*ListOrganizationAccountsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListOrganizationAccountsResponse)
-	err := c.cc.Invoke(ctx, AWSOIDCService_ListOrganizationAccounts_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *aWSOIDCServiceClient) DescribeIdentityCenterInstance(ctx context.Context, in *DescribeIdentityCenterInstanceRequest, opts ...grpc.CallOption) (*DescribeIdentityCenterInstanceResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DescribeIdentityCenterInstanceResponse)
-	err := c.cc.Invoke(ctx, AWSOIDCService_DescribeIdentityCenterInstance_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *aWSOIDCServiceClient) ListIdentityStoreUsers(ctx context.Context, in *ListIdentityStoreUsersRequest, opts ...grpc.CallOption) (*ListIdentityStoreUsersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListIdentityStoreUsersResponse)
-	err := c.cc.Invoke(ctx, AWSOIDCService_ListIdentityStoreUsers_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -266,17 +222,6 @@ type AWSOIDCServiceServer interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error)
-	// ListOrganizationAccounts retrieves a paginated list of AWS Accounts for the
-	// current organization. If the request "parent" field is set, it will only
-	// list accounts for a given OU, otherwise it will return accounts for the
-	// whole organization
-	ListOrganizationAccounts(context.Context, *ListOrganizationAccountsRequest) (*ListOrganizationAccountsResponse, error)
-	// DescribeIdentityCenterInstance retreives info about a specific Identity
-	// Center instance
-	DescribeIdentityCenterInstance(context.Context, *DescribeIdentityCenterInstanceRequest) (*DescribeIdentityCenterInstanceResponse, error)
-	// ListIdentityStoreUsers fetches an optionally filtered list of User records
-	// from a given Identity Store
-	ListIdentityStoreUsers(context.Context, *ListIdentityStoreUsersRequest) (*ListIdentityStoreUsersResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -310,15 +255,6 @@ func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Reques
 }
 func (UnimplementedAWSOIDCServiceServer) ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEKSClusters not implemented")
-}
-func (UnimplementedAWSOIDCServiceServer) ListOrganizationAccounts(context.Context, *ListOrganizationAccountsRequest) (*ListOrganizationAccountsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListOrganizationAccounts not implemented")
-}
-func (UnimplementedAWSOIDCServiceServer) DescribeIdentityCenterInstance(context.Context, *DescribeIdentityCenterInstanceRequest) (*DescribeIdentityCenterInstanceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DescribeIdentityCenterInstance not implemented")
-}
-func (UnimplementedAWSOIDCServiceServer) ListIdentityStoreUsers(context.Context, *ListIdentityStoreUsersRequest) (*ListIdentityStoreUsersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListIdentityStoreUsers not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -495,60 +431,6 @@ func _AWSOIDCService_ListEKSClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AWSOIDCService_ListOrganizationAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListOrganizationAccountsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AWSOIDCServiceServer).ListOrganizationAccounts(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AWSOIDCService_ListOrganizationAccounts_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AWSOIDCServiceServer).ListOrganizationAccounts(ctx, req.(*ListOrganizationAccountsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AWSOIDCService_DescribeIdentityCenterInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DescribeIdentityCenterInstanceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AWSOIDCServiceServer).DescribeIdentityCenterInstance(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AWSOIDCService_DescribeIdentityCenterInstance_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AWSOIDCServiceServer).DescribeIdentityCenterInstance(ctx, req.(*DescribeIdentityCenterInstanceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AWSOIDCService_ListIdentityStoreUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListIdentityStoreUsersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AWSOIDCServiceServer).ListIdentityStoreUsers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AWSOIDCService_ListIdentityStoreUsers_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AWSOIDCServiceServer).ListIdentityStoreUsers(ctx, req.(*ListIdentityStoreUsersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -591,18 +473,6 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEKSClusters",
 			Handler:    _AWSOIDCService_ListEKSClusters_Handler,
-		},
-		{
-			MethodName: "ListOrganizationAccounts",
-			Handler:    _AWSOIDCService_ListOrganizationAccounts_Handler,
-		},
-		{
-			MethodName: "DescribeIdentityCenterInstance",
-			Handler:    _AWSOIDCService_DescribeIdentityCenterInstance_Handler,
-		},
-		{
-			MethodName: "ListIdentityStoreUsers",
-			Handler:    _AWSOIDCService_ListIdentityStoreUsers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

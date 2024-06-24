@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
-	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
@@ -158,15 +157,6 @@ func newEC2InstanceConnectClient(ctx context.Context, req *AWSClientRequest) (*e
 	}
 
 	return ec2instanceconnect.NewFromConfig(*cfg), nil
-}
-
-func newOrganizationsClient(ctx context.Context, req *AWSClientRequest) (*organizations.Client, error) {
-	cfg, err := newAWSConfig(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return organizations.NewFromConfig(*cfg), nil
 }
 
 // NewAWSCredentialsProvider creates an [aws.CredentialsProvider] using the provided Token, RoleARN and Region.

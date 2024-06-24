@@ -22,13 +22,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -672,30 +670,4 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 		Clusters:  clustersList,
 		NextToken: listEKSClustersResp.NextToken,
 	}, nil
-}
-
-func (s *AWSOIDCService) TestIDCLogin(ctx context.Context, integration string) error {
-	awsClientReq, err := s.awsClientReq(ctx, integration, "ap-southeast-2")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	idc, err := awsoidc.NewIDCClient(ctx, awsClientReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	response, err := idc.ListInstances(ctx, &ssoadmin.ListInstancesInput{
-		MaxResults: box[int32](100),
-		NextToken:  nil,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, i := range response.Instances {
-		s.logger.With("instance-name", i.Name).Info("Found new instance")
-	}
-
-	return nil
 }
