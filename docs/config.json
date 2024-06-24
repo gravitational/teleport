@@ -112,11 +112,6 @@
               "forScopes": ["cloud"]
             },
             {
-              "title": "Public IP Allowlist",
-              "slug": "/choose-an-edition/teleport-cloud/ips/",
-              "forScopes": ["cloud"]
-            },
-            {
               "title": "FAQ",
               "slug": "/choose-an-edition/teleport-cloud/faq/",
               "forScopes": ["cloud"]
@@ -248,11 +243,6 @@
               "forScopes": ["oss", "enterprise"]
             }
           ]
-        },
-        {
-          "title": "Multi-region Blueprint",
-          "slug": "/deploy-a-cluster/multi-region-blueprint/",
-          "forScopes": ["enterprise"]
         }
       ]
     },
@@ -886,10 +876,6 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
           "title": "Using PuTTY and WinSCP",
           "slug": "/connect-your-client/putty-winscp/"
         },
@@ -1062,10 +1048,6 @@
             {
               "title": "TCP App Access",
               "slug": "/application-access/guides/tcp/"
-            },
-            {
-              "title": "VNet",
-              "slug": "/application-access/guides/vnet/"
             },
             {
               "title": "API Access",
@@ -1864,24 +1846,12 @@
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
             {
-              "title": "teleport-plugin-discord",
-              "slug": "/reference/helm-reference/teleport-plugin-discord/"
-            },
-            {
-              "title": "teleport-plugin-email",
-              "slug": "/reference/helm-reference/teleport-plugin-email/"
-            },
-            {
               "title": "teleport-plugin-jira",
               "slug": "/reference/helm-reference/teleport-plugin-jira/"
             },
             {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
-            },
-            {
-              "title": "teleport-plugin-msteams",
-              "slug": "/reference/helm-reference/teleport-plugin-msteams/"
             },
             {
               "title": "teleport-plugin-pagerduty",
