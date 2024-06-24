@@ -120,7 +120,8 @@ get_state() {
     echo "$normalized_value"
 }
 
-# get_endpoint chooses which endpoint should be used to get the target version and criticality
+# get_endpoint chooses which endpoint should be used to get the target version and criticality.
+# returns 'none' if unable to identify endpoint.
 get_endpoint() {
     # if there's a manual override, we honor it
     custom_endpoint="$(get_conf endpoint none)"
@@ -130,25 +131,20 @@ get_endpoint() {
     fi
 
     # else, we try to look for the proxy domain in the config file
-    # if there's no teleport config, we use the default
     if ! test -f "$agent_conf"; then
-        echo $default_endpoint
+        echo "none"
         return 0
     fi
 
-    # we try to parse the teleport config, if it fails we use the default
+    # we try to parse the teleport config
     proxy_server="$(grep -oP '^\s+proxy_server:\s*([^\s#]+).*$' "$agent_conf" | sed 's/\s\+proxy_server:\s*\([^[:space:]#]\+\).*/\1/' | sed 's/\"//g' | sed "s/'//g")"
     if [ -z "$proxy_server" ]; then
-        echo "$default_endpoint"
+        echo "none"
         return 0
     fi
 
     echo "$proxy_server/v1/webapi/automaticupgrades/channel/stable/cloud"
 }
-
-# default_endpoint is the endpoint used if no endpoint is specified and we cannot detect it
-# from the teleport.yaml config file.
-default_endpoint="updates.releases.teleport.dev/v1/stable/cloud"
 
 # upgrade_endpoint is the base host+path used to load the /version and /critical endpoints
 upgrade_endpoint="$(get_endpoint)"
@@ -611,6 +607,12 @@ ensure_version_lock || true
 # run multiple package managers.
 if [[ "$installer_kind" == "none" ]]; then
     log_warn "missing required config '$conf_dir/installer' (typically set to one of 'apt', 'yum', or 'zypper')"
+    exit 1
+fi
+
+# the updater will no longer use the global version channel as a default endpoint.
+if [[ "${upgrade_endpoint}" == "none" ]]; then
+    log_warn "missing required config '$conf_dir/endpoint' (typically set to <domain>.teleport.sh/v1/webapi/automaticupgrades/channel/stable/cloud/version)"
     exit 1
 fi
 

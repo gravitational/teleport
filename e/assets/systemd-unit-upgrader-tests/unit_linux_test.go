@@ -247,6 +247,36 @@ func TestMissingInstaller(t *testing.T) {
 	require.Contains(t, out.stderr, "missing required config")
 }
 
+// TestMissingEndpoint verifies that he upgrader refuses to run without a valid endpoint
+// configured.
+func TestMissingEndpoint(t *testing.T) {
+	// tc1 covers the case of installer file being empty (or containing only comments)
+	tc1 := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint": "",
+		},
+	}
+
+	out, err := tc1.Run()
+	require.NoError(t, err)
+	require.False(t, out.success)
+	require.Contains(t, out.stderr, "missing required config")
+
+	// tc2 covers the case of endpoint file being completely missing
+	tc2 := testCase{
+		dir: t.TempDir(),
+		exclude: []string{
+			"endpoint",
+		},
+	}
+
+	out, err = tc2.Run()
+	require.NoError(t, err)
+	require.False(t, out.success)
+	require.Contains(t, out.stderr, "missing required config")
+}
+
 // TestUpgraderBasics verifies the standard paths to upgrade.
 func TestUpgraderBasics(t *testing.T) {
 	endpoint := NewUpgradeEndpoint("")
