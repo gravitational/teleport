@@ -18,10 +18,14 @@
 
 import { AccessRequest, Resource } from 'shared/services/accessRequests';
 
+// TODO
+// places that use this need to be replaced with server-side filtering like
+// done in RequestList.tsx:
+// https://github.com/gravitational/teleport.e/blob/a776b3e65e6e8e11ca6938025e63fc3676238fb2/web/teleport/src/Workflow/ReviewRequests/RequestList/RequestList.tsx#L72
 export function requestMatcher(
   targetValue: any,
   searchValue: string,
-  propName: keyof AccessRequest & string
+  propName: keyof AccessRequest
 ) {
   if (propName === 'roles') {
     return targetValue.some((role: string) =>
