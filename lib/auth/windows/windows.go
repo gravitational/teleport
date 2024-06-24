@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -77,15 +78,19 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
 	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey)
 
+	// sanitize username to avoid domain spoofing
+	username, _, _ := strings.Cut(req.Username, "@")
+	upn := fmt.Sprintf("%v@%v", username, req.Domain)
+
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for requirements.
-	san, err := SubjectAltNameExtension(req.Username, req.Domain)
+	san, err := SubjectAltNameExtension(upn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: req.Username},
+		Subject: pkix.Name{CommonName: upn},
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
 		// crypto/x509 doesn't support what we need:
 		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
@@ -314,7 +319,7 @@ var EnhancedKeyUsageExtension = pkix.Extension{
 }
 
 // SubjectAltNameExtension fills in the SAN for a Windows certificate
-func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
+func SubjectAltNameExtension(userPrincipalName string) (pkix.Extension, error) {
 	// Setting otherName SAN according to
 	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
 	//
@@ -327,7 +332,7 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 			OtherName: otherName[upn]{
 				OID: UPNOtherNameOID,
 				Value: upn{
-					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
+					Value: userPrincipalName,
 				},
 			},
 		},
