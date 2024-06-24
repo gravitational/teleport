@@ -83,6 +83,11 @@ type DatabaseAdminUser struct {
 	// Depending on the database type, this database may be used to store
 	// procedures or data for managing database users.
 	DefaultDatabase string
+	// DefaultSchema is the schema that the privileged database user will use.
+	//
+	// Depending on the database type, this schema may be used to store
+	// procedures.
+	DefaultSchema string
 }
 
 // OracleOptions are additional Oracle options.
@@ -133,6 +138,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		AdminUser: &types.DatabaseAdminUser{
 			Name:            d.AdminUser.Name,
 			DefaultDatabase: d.AdminUser.DefaultDatabase,
+			DefaultSchema:   d.AdminUser.DefaultSchema,
 		},
 		Oracle: convOracleOptions(d.Oracle),
 		AWS: types.AWS{

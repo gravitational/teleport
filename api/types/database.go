@@ -304,6 +304,9 @@ func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 		if ret.DefaultDatabase == "" {
 			ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
 		}
+		if ret.DefaultSchema == "" {
+			ret.DefaultSchema = d.Metadata.Labels[DatabaseAdminDefaultSchemaLabel]
+		}
 	}
 	return
 }

@@ -210,6 +210,10 @@ func ValidateDatabase(db types.Database) error {
 		}
 	}
 
+	if err := validateAdminDefaultSchema(db); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -347,6 +351,28 @@ func ValidateSQLServerURI(uri string) error {
 	return nil
 }
 
+// validateAdminDefaultSchema validates the admin user default schema value.
+func validateAdminDefaultSchema(db types.Database) error {
+	defaultSchema := db.GetAdminUser().DefaultSchema
+	// Only validate if auto user provisioning is configured to the database.
+	if !db.SupportsAutoUsers() || db.GetAdminUser().Name == "" || defaultSchema == "" {
+		return nil
+	}
+
+	if db.GetProtocol() != defaults.ProtocolPostgres || (db.GetType() != types.DatabaseTypeSelfHosted && !db.IsRDS() && !db.IsRedshift()) {
+		return trace.BadParameter("admin user default schema is only supported for PostgreSQL databases")
+	}
+
+	// Currently, PostgreSQL procedures are only created on activate user. If
+	// the schema is set to the temporary the procedures won't be available for
+	// auto users teardown.
+	if defaultSchema == PostgresTempSchema {
+		return trace.BadParameter("admin user default schema cannot be set to %q", PostgresTempSchema)
+	}
+
+	return nil
+}
+
 func isDNSError(err error) bool {
 	if err == nil {
 		return false
@@ -355,6 +381,11 @@ func isDNSError(err error) bool {
 	var dnsErr *net.DNSError
 	return errors.As(err, &dnsErr)
 }
+
+const (
+	// PostgresTempSchema is the name of the temporary schema on PostgreSQL.
+	PostgresTempSchema = "pg_temp"
+)
 
 const (
 	// RDSDescribeTypeInstance is used to filter for Instances type of RDS DBs when describing RDS Databases.

@@ -1832,6 +1832,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			AdminUser: servicecfg.DatabaseAdminUser{
 				Name:            database.AdminUser.Name,
 				DefaultDatabase: database.AdminUser.DefaultDatabase,
+				DefaultSchema:   database.AdminUser.DefaultSchema,
 			},
 			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{

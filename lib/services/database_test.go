@@ -492,6 +492,87 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "other-protocol-default-schema",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				AdminUser: &types.DatabaseAdminUser{
+					Name:          "tp",
+					DefaultSchema: "random-schema",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "self-hosted-postgres-temp-default-schema-disabled-auto-provisioning",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{
+					DefaultSchema: PostgresTempSchema,
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "self-hosted-postgres-temp-default-schema",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{
+					Name:          "tp",
+					DefaultSchema: PostgresTempSchema,
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "rds-postgres-temp-default-schema",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS: types.AWS{
+					RDS: types.RDS{
+						InstanceID: "example-rds",
+					},
+				},
+				AdminUser: &types.DatabaseAdminUser{
+					Name:          "tp",
+					DefaultSchema: PostgresTempSchema,
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "rds-postgres-default-schema",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS: types.AWS{
+					RDS: types.RDS{
+						InstanceID: "example-rds",
+					},
+				},
+				AdminUser: &types.DatabaseAdminUser{
+					Name:          "tp",
+					DefaultSchema: "example-schema",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "rds-postgres-default-schema",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{
+					Name:          "tp",
+					DefaultSchema: "example-schema",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
