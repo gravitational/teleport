@@ -808,6 +808,8 @@ type Auth struct {
 
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
+
+	Assist any `yaml:"assist"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -2107,6 +2109,8 @@ type Proxy struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels `yaml:"automatic_upgrades_channels,omitempty"`
+
+	Assist any `yaml:"assist"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
