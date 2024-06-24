@@ -90,23 +90,23 @@ func TestSignatureAlgorithmSuiteRoundtrip(t *testing.T) {
 	}{
 		{
 			str:  "",
-			enum: types.SignatureAlgorithmSuite_UNSPECIFIED,
+			enum: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
 		},
 		{
 			str:  "legacy",
-			enum: types.SignatureAlgorithmSuite_LEGACY,
+			enum: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
 		},
 		{
-			str:  "balanced-dev",
-			enum: types.SignatureAlgorithmSuite_BALANCED_DEV,
+			str:  "balanced-v1",
+			enum: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 		{
-			str:  "fips-dev",
-			enum: types.SignatureAlgorithmSuite_FIPS_DEV,
+			str:  "fips-v1",
+			enum: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
 		},
 		{
-			str:  "hsm-dev",
-			enum: types.SignatureAlgorithmSuite_HSM_DEV,
+			str:  "hsm-v1",
+			enum: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 		},
 	} {
 		t.Run(tc.str, func(t *testing.T) {

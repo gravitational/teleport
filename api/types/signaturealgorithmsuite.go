@@ -16,22 +16,52 @@ package types
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/gravitational/trace"
 )
 
-// MarshalJSON returns custom strings for each SignatureAlgorithmSuite enum value that match the format
-// defined in the RFD: legacy, balanced-v1, fips-v1, legacy-v1, etc. instead of the protobuf BALANCED_V1
-// format.
-func (s *SignatureAlgorithmSuite) MarshalJSON() ([]byte, error) {
-	str := strings.ToLower(s.String())
-	str = strings.ReplaceAll(str, "_", "-")
-	return []byte(`"` + str + `"`), nil
+func (s *SignatureAlgorithmSuite) toString() string {
+	switch *s {
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
+		return "legacy"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
+		return "balanced-v1"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
+		return "fips-v1"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
+		return "hsm-v1"
+	default:
+		return s.String()
+	}
 }
 
-// UnmarshalJSON unmarshals a SignatureAlgorithmSuite and suppports the custom string format or numeric types
-// matching an enum value.
+func (s *SignatureAlgorithmSuite) fromString(str string) error {
+	switch str {
+	case "legacy":
+		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY
+	case "balanced-v1":
+		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1
+	case "fips-v1":
+		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1
+	case "hsm-v1":
+		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1
+	default:
+		if v, ok := SignatureAlgorithmSuite_value[str]; ok {
+			*s = SignatureAlgorithmSuite(v)
+		} else {
+			return trace.BadParameter("SignatureAlgorithmSuite invalid value: %s", str)
+		}
+	}
+	return nil
+}
+
+// UnmarshalJSON marshals a SignatureAlgorithmSuite value to JSON.
+func (s *SignatureAlgorithmSuite) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.toString() + `"`), nil
+}
+
+// UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
+// string format or numeric types matching an enum value.
 func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	var val any
 	if err := json.Unmarshal(data, &val); err != nil {
@@ -39,14 +69,7 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	}
 	switch v := val.(type) {
 	case string:
-		v = strings.ToUpper(v)
-		v = strings.ReplaceAll(v, "-", "_")
-		suite, ok := SignatureAlgorithmSuite_value[v]
-		if !ok {
-			return trace.BadParameter("SignatureAlgorithmSuite invalid value %v", v)
-		}
-		*s = SignatureAlgorithmSuite(suite)
-		return nil
+		return trace.Wrap(s.fromString(v))
 	case int32:
 		return trace.Wrap(s.setFromEnum(v))
 	case int64:

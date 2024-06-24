@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 )
 
-const defaultSuite = types.SignatureAlgorithmSuite_LEGACY
+const defaultSuite = types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY
 
 // KeyPurpose represents the purpose of a keypair.
 type KeyPurpose int
@@ -180,10 +180,10 @@ var (
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]Suite{
-		types.SignatureAlgorithmSuite_LEGACY:       Legacy,
-		types.SignatureAlgorithmSuite_BALANCED_DEV: BalancedV1,
-		types.SignatureAlgorithmSuite_FIPS_DEV:     FIPSV1,
-		types.SignatureAlgorithmSuite_HSM_DEV:      HSMV1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:      Legacy,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1: BalancedV1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:     FIPSV1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:      HSMV1,
 	}
 )
 
@@ -196,10 +196,10 @@ type AuthPreferenceGetter interface {
 func getSignatureAlgorithmSuite(ctx context.Context, authPrefGetter AuthPreferenceGetter) (types.SignatureAlgorithmSuite, error) {
 	authPref, err := authPrefGetter.GetAuthPreference(ctx)
 	if err != nil {
-		return types.SignatureAlgorithmSuite_UNSPECIFIED, trace.Wrap(err)
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
 	}
 	suite := authPref.GetSignatureAlgorithmSuite()
-	if suite == types.SignatureAlgorithmSuite_UNSPECIFIED {
+	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
 		return defaultSuite, nil
 	}
 	return suite, nil

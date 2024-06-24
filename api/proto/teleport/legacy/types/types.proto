@@ -5773,27 +5773,26 @@ enum RequireMFAType {
 
 // SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.
 enum SignatureAlgorithmSuite {
-  // UNSPECIFIED represents an unspecified signature algorithm suite.
-  UNSPECIFIED = 0;
-  // LEGACY is the original algorithm suite used in Teleport, it almost exclusively uses 2048-bit RSA. It is
-  // the current default suite.
-  LEGACY = 1;
-  // BALANCED_DEV is the development version of the BALANCED algorithm suite, which aims to strikes a balance
-  // between security, compatibility, and performance. It uses Ed25519 for most SSH keys, ECDSA on the NIST
-  // P256 curve for most TLS keys, and 2048-bit RSA where necessary for compatibility with third-party
-  // software.
-  //
-  // It is not fully implemented, and will be deprecated when BALANCED_V1 is released.
-  BALANCED_DEV = 2;
-  // FIPS_DEV is the development version of the FIPS algorithm suite, which is tailored for FIPS compliance.
-  // It is based on the BALANCED suite but replaces all instances of Ed25519 with ECDSA on the NIST P256
-  // curve.
-  FIPS_DEV = 3;
-  // HSM_DEV is the development version of the HSM algorithm suite, which is tailored for clusters using an
-  // HSM or KMS service to back CA private material. It is based on the BALANCED suite but replaces Ed25519
-  // with ECDSA on the NIST P256 curve for CA keys only, not for server or client keys. It is also valid to
-  // use the LEGACY for FIPS suites if your cluster uses an HSM or KMS.
-  HSM_DEV = 4;
+  // SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED represents an unspecified signature algorithm suite.
+  SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED = 0;
+  // SIGNATURE_ALGORITHM_SUITE_LEGACY is the original algorithm suite used in
+  // Teleport, it almost exclusively uses 2048-bit RSA.
+  SIGNATURE_ALGORITHM_SUITE_LEGACY = 1;
+  // SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 aims to strikes a balance between
+  // security, compatibility, and performance. It uses Ed25519 for most SSH
+  // keys, ECDSA on the NIST P256 curve for most TLS keys, and 2048-bit RSA
+  // where necessary for compatibility with third-party software.
+  SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 = 2;
+  // SIGNATURE_ALGORITHM_SUITE_FIPS_V1 is tailored for FIPS compliance. It is
+  // based on the BALANCED_V1 suite but replaces all instances of Ed25519 with
+  // ECDSA on the NIST P256 curve.
+  SIGNATURE_ALGORITHM_SUITE_FIPS_V1 = 3;
+  // SIGNATURE_ALGORITHM_SUITE_HSM_V1 is tailored for clusters using an HSM or
+  // KMS service to back CA private material. It is based on the BALANCED suite
+  // but replaces Ed25519 with ECDSA on the NIST P256 curve for CA keys only,
+  // not for server or client keys. It is also valid to use the LEGACY for FIPS
+  // suites if your cluster uses an HSM or KMS.
+  SIGNATURE_ALGORITHM_SUITE_HSM_V1 = 4;
 }
 
 // Plugin describes a single instance of a Teleport Plugin
