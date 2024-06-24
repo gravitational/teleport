@@ -621,6 +621,13 @@ message DatabaseTLS {
   // ServerName allows to provide custom hostname. This value will override the
   // servername/hostname on a certificate during validation.
   string ServerName = 3 [(gogoproto.jsontag) = "server_name,omitempty"];
+  // TrustSystemCertPool allows Teleport to trust certificate authorities
+  // available on the host system. If not set (by default), Teleport only
+  // trusts self-signed databases with TLS certificates signed by Teleport's
+  // Database Server CA or the ca_cert specified in this TLS setting. For
+  // cloud-hosted databases, Teleport downloads the corresponding required CAs
+  // for validation.
+  bool TrustSystemCertPool = 4 [(gogoproto.jsontag) = "trust_system_cert_pool,omitempty"];
 }
 
 // MySQLOptions are additional MySQL database options.

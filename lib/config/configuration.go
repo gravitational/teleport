@@ -1848,9 +1848,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ServerVersion: database.MySQL.ServerVersion,
 			},
 			TLS: servicecfg.DatabaseTLS{
-				CACert:     caBytes,
-				ServerName: database.TLS.ServerName,
-				Mode:       servicecfg.TLSMode(database.TLS.Mode),
+				CACert:              caBytes,
+				ServerName:          database.TLS.ServerName,
+				Mode:                servicecfg.TLSMode(database.TLS.Mode),
+				TrustSystemCertPool: database.TLS.TrustSystemCertPool,
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
 				Name:            database.AdminUser.Name,
