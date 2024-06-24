@@ -270,9 +270,7 @@ func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-
 			apps := MakeAppTypeFromSAMLApp(&test.sp, MakeAppsConfig{})
-
 			require.Empty(t, cmp.Diff(test.expected, apps))
 		})
 	}
