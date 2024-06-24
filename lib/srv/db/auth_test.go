@@ -345,11 +345,11 @@ func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, database 
 	return "", "", trace.NotImplemented("GetRedshiftServerlessAuthToken is not implemented")
 }
 
-func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	return elastiCacheRedisToken, nil
 }
 
-func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	return memorydbToken, nil
 }
 
@@ -365,21 +365,16 @@ func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser strin
 	}, nil
 }
 
-func (a *testAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
+func (a *testAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	a.logger.
 		WithField("database", database).
 		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
 		Info("Generating Cloud SQL password")
 	return cloudSQLPassword, nil
 }
 
-func (a *testAuth) GetAzureAccessToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, error) {
-	a.logger.
-		WithField("database", database).
-		WithField("database_user", databaseUser).
-		WithField("database_name", databaseName).
-		Info("Generating Azure access token")
+func (a *testAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
+	a.logger.Info("Generating Azure access token")
 	return azureAccessToken, nil
 }
 
@@ -390,8 +385,8 @@ func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, database type
 	return azureRedisToken, nil
 }
 
-func (a *testAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
-	return a.realAuth.GetTLSConfig(ctx, expiry, database, databaseUser, databaseName)
+func (a *testAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
+	return a.realAuth.GetTLSConfig(ctx, expiry, database, databaseUser)
 }
 
 func (a *testAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {

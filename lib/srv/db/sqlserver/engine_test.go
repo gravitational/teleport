@@ -410,7 +410,7 @@ func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreferenc
 	})
 }
 
-func (m *mockDBAuth) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string, databaseName string) (*tls.Config, error) {
+func (m *mockDBAuth) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	return &tls.Config{}, nil
 }
 

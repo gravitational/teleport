@@ -227,9 +227,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			tlsConfig, err := auth.GetTLSConfig(context.TODO(),
 				time.Now().Add(time.Hour),
 				test.sessionDatabase,
-				"defaultUser",
-				"defaultDatabase",
-			)
+				"defaultUser")
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectServerName, tlsConfig.ServerName)
@@ -550,13 +548,12 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			checkGetAuthFn: func(t *testing.T, auth Auth) {
 				t.Helper()
 				databaseUser := "some-user"
-				databaseName := "some-database"
 				database := newElastiCacheRedisDatabase(t,
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
 						ExternalID: "externalElastiCacheRedis",
 					}))
-				token, err := auth.GetElastiCacheRedisToken(ctx, database, databaseUser, databaseName)
+				token, err := auth.GetElastiCacheRedisToken(ctx, database, databaseUser)
 				require.NoError(t, err)
 				u, err := url.Parse(token)
 				require.NoError(t, err)
