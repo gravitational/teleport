@@ -85,8 +85,9 @@ func GetUpgraderVersion(ctx context.Context) string {
 		ver, err := version.EnsureSemver(string(bytes.TrimSpace(out)))
 		if err != nil {
 			log.WithError(err).Debug("Unexpected teleport-upgrade version.")
-			return ver
+			return ""
 		}
+		return ver
 	}
 	return os.Getenv(EnvUpgraderVersion)
 }
