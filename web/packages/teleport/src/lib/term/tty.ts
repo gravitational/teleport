@@ -209,6 +209,9 @@ class Tty extends EventEmitterWebAuthnSender {
             this.emit(TermEvent.DATA, msg.payload);
           }
           break;
+        case MessageTypeEnum.ERROR:
+          this.emit(TermEvent.DATA, msg.payload + '\n');
+          break;
         case MessageTypeEnum.LATENCY:
           this.emit(TermEvent.LATENCY, msg.payload);
           break;
