@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-export const ButtonIconContainer = styled.div<{ open: boolean }>`
+export const ButtonIconContainer = styled.div<{ open?: boolean }>`
   padding: 0 10px;
   height: 100%;
   display: flex;

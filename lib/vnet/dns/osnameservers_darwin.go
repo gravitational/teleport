@@ -96,6 +96,6 @@ func (s *OSUpstreamNameserverSource) upstreamNameservers(ctx context.Context) ([
 		nameservers = append(nameservers, nameserver)
 	}
 
-	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "source", confFilePath)
+	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)
 	return nameservers, nil
 }

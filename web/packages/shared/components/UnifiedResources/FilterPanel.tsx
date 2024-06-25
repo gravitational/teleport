@@ -22,7 +22,7 @@ import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
 import { Text, Flex } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import {
   ArrowUp,
   ArrowDown,
@@ -123,7 +123,7 @@ export function FilterPanel({
     >
       <Flex gap={2}>
         <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
-          <StyledCheckbox
+          <CheckboxInput
             css={`
               // add extra margin so it aligns with the checkboxes of the resources
               margin-left: 19px;
@@ -323,7 +323,7 @@ const FilterTypesMenu = ({
         {kindOptions.map(kind => {
           const $checkbox = (
             <>
-              <StyledCheckbox
+              <CheckboxInput
                 type="checkbox"
                 name={kind.label}
                 disabled={kind.disabled}
@@ -603,7 +603,7 @@ const IncludedResourcesSelector = ({
         <form onSubmit={applyFilter}>
           {options.map(option => (
             <MenuItem as="label" key={option.value} px={2}>
-              <StyledCheckbox
+              <CheckboxInput
                 type={availabilityFilter.canRequestAll ? 'checkbox' : 'radio'}
                 name="availabilityOptions"
                 value={option.value}

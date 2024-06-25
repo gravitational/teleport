@@ -93,7 +93,7 @@ type DialOptions struct {
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
 	appProvider          AppProvider
-	clusterConfigCache   *clusterConfigCache
+	clusterConfigCache   *ClusterConfigCache
 	customDNSZoneChecker *customDNSZoneValidator
 	slog                 *slog.Logger
 	clock                clockwork.Clock
@@ -117,7 +117,7 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 		opt(r)
 	}
 	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
-	r.clusterConfigCache = newClusterConfigCache(appProvider.GetCachedClient, r.clock)
+	r.clusterConfigCache = cmp.Or(r.clusterConfigCache, NewClusterConfigCache(r.clock))
 	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
@@ -135,6 +135,13 @@ func withClock(clock clockwork.Clock) tcpAppResolverOption {
 func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.lookupTXT = lookupTXT
+	}
+}
+
+// WithClusterConfigCache is a functional option to override the cluster config cache.
+func WithClusterConfigCache(clusterConfigCache *ClusterConfigCache) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.clusterConfigCache = clusterConfigCache
 	}
 }
 
@@ -208,12 +215,12 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 			continue
 		}
 
-		clusterConfig, err := r.clusterConfigCache.getClusterConfig(ctx, clusterClient)
+		clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 		if err != nil {
 			r.slog.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
-		for _, zone := range clusterConfig.dnsZones {
+		for _, zone := range clusterConfig.DNSZones {
 			if !isSubdomain(fqdn, zone) {
 				// The queried app fqdn is not a subdomain of this zone, skip it.
 				continue
@@ -221,13 +228,13 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 
 			// Found a matching cluster.
 
-			if zone == clusterConfig.proxyPublicAddr {
+			if zone == clusterConfig.ProxyPublicAddr {
 				// We don't need to validate a custom DNS zone if this is the proxy public address, this is a
 				// normal app public_addr.
 				return clusterClient, nil
 			}
 			// The queried app fqdn is a subdomain of this custom zone. Check if the zone is valid.
-			if err := r.customDNSZoneChecker.validate(ctx, clusterConfig.clusterName, zone); err != nil {
+			if err := r.customDNSZoneChecker.validate(ctx, clusterConfig.ClusterName, zone); err != nil {
 				// Return an error here since the FQDN does match this custom zone, but the zone failed to
 				// validate.
 				return nil, trace.Wrap(err, "validating custom DNS zone %q matching queried FQDN %q", zone, fqdn)
@@ -289,13 +296,13 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := r.clusterConfigCache.getClusterConfig(ctx, clusterClient)
+	clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &TCPHandlerSpec{
-		IPv4CIDRRange: clusterConfig.ipv4CIDRRange,
+		IPv4CIDRRange: clusterConfig.IPv4CIDRRange,
 		TCPHandler:    appHandler,
 	}, nil
 }
