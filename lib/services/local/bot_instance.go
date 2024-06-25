@@ -19,6 +19,10 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -26,9 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -86,6 +87,12 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 }
 
 func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string) ([]*machineidv1.BotInstance, string, error) {
+	// If botName is empty, return instances for all bots by not using a service prefix
+	if botName == "" {
+		r, nextToken, err := b.service.ListResources(ctx, pageSize, lastKey)
+		return r, nextToken, trace.Wrap(err)
+	}
+
 	serviceWithPrefix := b.service.WithPrefix(botName)
 	r, nextToken, err := serviceWithPrefix.ListResources(ctx, pageSize, lastKey)
 	return r, nextToken, trace.Wrap(err)

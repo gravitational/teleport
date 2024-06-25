@@ -23,20 +23,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/russellhaering/gosaml2/uuid"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *machineidv1.BotInstance {
-	id := uuid.NewV4()
+	id := uuid.New()
 
 	bi := &machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
@@ -69,7 +70,49 @@ func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 	}
 }
 
+// createInstances creates new bot instances for the named bot with random UUIDs
+func createInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, count int) map[string]struct{} {
+	t.Helper()
+
+	ids := map[string]struct{}{}
+
+	for i := 0; i < count; i++ {
+		bi := newBotInstance(botName)
+		_, err := service.CreateBotInstance(ctx, bi)
+		require.NoError(t, err)
+
+		ids[bi.Spec.InstanceId] = struct{}{}
+	}
+
+	return ids
+}
+
+// listInstances fetches all instances from the BotInstanceService matching the botName filter
+func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string) []*machineidv1.BotInstance {
+	t.Helper()
+
+	var resources []*machineidv1.BotInstance
+	var bis []*machineidv1.BotInstance
+	var nextKey string
+	var err error
+
+	for {
+		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey)
+		require.NoError(t, err)
+
+		resources = append(resources, bis...)
+
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return resources
+}
+
 func TestBotInstanceCreateMetadata(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
@@ -131,6 +174,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 }
 
 func TestBotInstanceInvalidGetters(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -151,6 +196,8 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 }
 
 func TestBotInstanceCRUD(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -176,21 +223,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, bi2)
 	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
-	// fetch all stored instances
-	var resources []*machineidv1.BotInstance
-	var bis []*machineidv1.BotInstance
-	var nextKey string
-
-	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, "example", 0, nextKey)
-		require.NoError(t, err)
-
-		resources = append(resources, bis...)
-
-		if nextKey == "" {
-			break
-		}
-	}
+	resources := listInstances(t, ctx, service, "example")
 
 	require.Len(t, resources, 1, "must list only 1 bot instance")
 	require.EqualExportedValues(t, patched, resources[0])
@@ -214,4 +247,41 @@ func TestBotInstanceCRUD(t *testing.T) {
 
 	// subsequent delete attempts should fail
 	require.Error(t, service.DeleteBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId))
+}
+
+func TestBotInstanceList(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	aIds := createInstances(t, ctx, service, "a", 3)
+	bIds := createInstances(t, ctx, service, "b", 4)
+
+	// listing "a" should only return known "a" instances
+	aInstances := listInstances(t, ctx, service, "a")
+	require.Len(t, aInstances, 3)
+	for _, ins := range aInstances {
+		require.Contains(t, aIds, ins.Spec.InstanceId)
+	}
+
+	// listing "b" should only return known "b" instances
+	bInstances := listInstances(t, ctx, service, "b")
+	require.Len(t, bInstances, 4)
+	for _, ins := range bInstances {
+		require.Contains(t, bIds, ins.Spec.InstanceId)
+	}
+
+	// Listing an empty bot name ("") should return all instances.
+	allInstances := listInstances(t, ctx, service, "")
+	require.Len(t, allInstances, 7)
 }

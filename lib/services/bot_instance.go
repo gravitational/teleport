@@ -19,8 +19,9 @@ package services
 import (
 	"context"
 
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/trace"
+
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 )
 
 // BotInstance is an interface for the BotInstance service.

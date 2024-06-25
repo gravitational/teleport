@@ -5163,7 +5163,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services.BotInstance,
-		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
 	})
 	if err != nil {

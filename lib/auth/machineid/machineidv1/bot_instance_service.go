@@ -22,15 +22,15 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gravitational/teleport"
-	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/teleport"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // BotServiceConfig holds configuration options for
@@ -39,7 +39,6 @@ type BotInstanceServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    services.BotInstance
 	Logger     *slog.Logger
-	Emitter    apievents.Emitter
 	Clock      clockwork.Clock
 }
 
@@ -50,8 +49,6 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
-	case cfg.Emitter == nil:
-		return nil, trace.BadParameter("emitter is required")
 	}
 
 	if cfg.Logger == nil {
@@ -65,7 +62,6 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
-		emitter:    cfg.Emitter,
 		clock:      cfg.Clock,
 	}, nil
 }
@@ -77,7 +73,6 @@ type BotInstanceService struct {
 	backend    services.BotInstance
 	authorizer authz.Authorizer
 	logger     *slog.Logger
-	emitter    apievents.Emitter
 	clock      clockwork.Clock
 }
 
@@ -133,7 +128,6 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: filter semantics are broken
 	res, nextToken, err := b.backend.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,5 +141,6 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 
 // SubmitHeartbeat records heartbeat information for a bot
 func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
+	// TODO: to be implemented in follow-up PR alongside bot instance creation.
 	return nil, trace.NotImplemented("TODO")
 }
