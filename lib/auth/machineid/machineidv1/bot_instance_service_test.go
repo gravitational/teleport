@@ -136,6 +136,8 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 	})
 }
 
+// TestBotInstanceServiceReadDelete tests read and delete functionality exposed
+// by the BotInstanceService.
 func TestBotInstanceServiceReadDelete(t *testing.T) {
 	t.Parallel()
 
@@ -277,6 +279,7 @@ func callMethod(t *testing.T, service *BotInstanceService, method string) error 
 	panic("this line should never be reached: FailNow() should interrupt the test")
 }
 
+// newBotInstance creates a new bot instance for the named bot with a random ID
 func newBotInstance(botName string) *machineidv1.BotInstance {
 	id := uuid.New()
 
@@ -293,6 +296,7 @@ func newBotInstance(botName string) *machineidv1.BotInstance {
 	return bi
 }
 
+// createInstances creates and inserts many random bot instances for the named bot
 func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstanceService, botName string, count int) map[string]struct{} {
 	t.Helper()
 
@@ -309,6 +313,7 @@ func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstan
 	return ids
 }
 
+// listInstances lists all instances for the named bot (if any)
 func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string) []*machineidv1.BotInstance {
 	t.Helper()
 
@@ -334,6 +339,8 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	return resources
 }
 
+// newBotInstanceBackend creates a new local backend for BotInstance CRUD
+// operations.
 func newBotInstanceBackend(t *testing.T) *local.BotInstanceService {
 	b, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -344,6 +351,7 @@ func newBotInstanceBackend(t *testing.T) *local.BotInstanceService {
 	return backendService
 }
 
+// newBotInstanceService creates a gRPC bot instance service for testing
 func newBotInstanceService(
 	t *testing.T,
 	backendService *local.BotInstanceService,
