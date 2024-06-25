@@ -184,6 +184,9 @@ type Identity struct {
 	// BotName indicates the name of the Machine ID bot this identity was issued
 	// to, if any.
 	BotName string
+	// BotInstance indicates the name of the Machine ID Bot Instance this
+	// identity is associated with.
+	BotInstance string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
