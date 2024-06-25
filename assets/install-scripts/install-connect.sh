@@ -208,7 +208,7 @@ install_teleport() {
 
   KERNEL_VERSION=$(uname -r)
   MIN_VERSION="2.6.23"
-  if [ $MIN_VERSION != $(echo -e "$MIN_VERSION\n$KERNEL_VERSION" | sort -V | head -n1) ]; then
+  if [ $MIN_VERSION != "$(echo -e "$MIN_VERSION\n$KERNEL_VERSION" | sort -V | head -n1)" ]; then
     echo "ERROR: Teleport Connect requires Linux kernel version $MIN_VERSION+"
     exit 1
   fi
@@ -261,6 +261,8 @@ install_teleport() {
   ID=""
   ID_LIKE=""
   if [[ -f "$OS_RELEASE" ]]; then
+    # Skip checking the os release file
+    # shellcheck source=/dev/null
     . $OS_RELEASE
   fi
 
