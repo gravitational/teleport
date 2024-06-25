@@ -604,27 +604,44 @@ func (s *SSHMultiplexerService) handleConn(
 	}()
 
 	// The first thing downstream will send is the multiplexing request which is
-	// the "[host]:[port]\x00" format.
+	// the "[host]:[port]|[?cluster_name]\x00" format.
 	buf := bufio.NewReader(downstream)
 	req, err := buf.ReadString('\x00')
 	if err != nil {
 		return trace.Wrap(err, "reading request")
 	}
 	req = req[:len(req)-1] // Drop the NUL.
-	host, port, err := utils.SplitHostPort(req)
+
+	// Split by | to pull out the optionally specified cluster name.
+	// TODO(noah): When we need to add another parameter in future, we should
+	// roll this API to v2 and use a more extensible format.
+	splitReq := strings.Split(req, "|")
+	if len(splitReq) >= 2 {
+		return trace.BadParameter(
+			"malformed request, expected at most 2 fields, got %d: %q",
+			len(splitReq), req,
+		)
+	}
+
+	host, port, err := utils.SplitHostPort(splitReq[0])
 	if err != nil {
 		return trace.Wrap(err, "malformed request %q", req)
+	}
+
+	clusterName := s.identity.Get().ClusterName
+	if len(splitReq) > 1 {
+		clusterName = splitReq[1]
 	}
 
 	log := s.log.With(
 		slog.Group("req",
 			"host", host,
 			"port", port,
+			"cluster_name", clusterName,
 		),
 	)
 	log.InfoContext(ctx, "Received multiplexing request")
 
-	clusterName := s.identity.Get().ClusterName
 	expanded, matched := tshConfig.ProxyTemplates.Apply(
 		net.JoinHostPort(host, port),
 	)
