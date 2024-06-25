@@ -883,13 +883,13 @@ type PKCS11 struct {
 	// SlotNumber is the slot number of the HSM token to use. Set this or
 	// TokenLabel to select a token.
 	SlotNumber *int `yaml:"slot_number,omitempty"`
-	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// PIN is the raw pin for connecting to the HSM. Set this or PINPath to set
 	// the pin.
-	Pin string `yaml:"pin,omitempty"`
-	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	PIN string `yaml:"pin,omitempty"`
+	// PINPath is a path to a file containing a pin for connecting to the HSM.
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
-	PinPath string `yaml:"pin_path,omitempty"`
+	PINPath string `yaml:"pin_path,omitempty"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -1843,6 +1843,9 @@ type DatabaseTLS struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// CACertFile is an optional path to the database CA certificate.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool `yaml:"trust_system_cert_pool,omitempty"`
 }
 
 // DatabaseMySQL are an additional MySQL database options.
