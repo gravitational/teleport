@@ -10176,3 +10176,17 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
+
+func TestUnstartedServerShutdown(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	srv, err := NewServer(ServerConfig{
+		Server:  &http.Server{},
+		Handler: s.webHandler,
+	})
+
+	require.NoError(t, err)
+
+	// Shutdown the server before starting it shouldn't panic.
+	require.NoError(t, srv.Shutdown(context.Background()))
+}
