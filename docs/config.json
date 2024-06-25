@@ -29,41 +29,12 @@
               "slug": "/upgrading/overview/"
             },
             {
-              "title": "Teleport Cloud Agents (Linux)",
-              "slug": "/upgrading/cloud-linux/",
-              "forScopes": [
-                "cloud"
-              ]
+                "title": "Set up Automatic Agent Updates",
+                "slug": "/upgrading/automatic-agent-updates/"
             },
             {
-              "title": "Teleport Cloud Agents (Kubernetes)",
-              "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": [
-                "cloud"
-              ]
-            },
-            {
-              "title": "Self-Hosted Linux",
-              "slug": "/upgrading/self-hosted-linux/",
-              "forScopes": [
-                "enterprise",
-                "oss"
-              ]
-            },
-            {
-              "title": "Self-Hosted Kubernetes",
-              "slug": "/upgrading/self-hosted-kubernetes/",
-              "forScopes": [
-                "enterprise",
-                "oss"
-              ]
-            },
-            {
-              "title": "Self-Hosted Automatic Upgrades",
-              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
-              "forScopes": [
-                "enterprise"
-              ]
+                "title": "Updating Reference",
+                "slug": "/upgrading/reference/"
             }
           ]
         },
@@ -3304,7 +3275,7 @@
     },
     {
       "source": "/management/operations/self-hosted-automatic-agent-updates/",
-      "destination": "/upgrading/self-hosted-automatic-agent-updates/",
+      "destination": "/upgrading/",
       "permanent": true
     },
     {
