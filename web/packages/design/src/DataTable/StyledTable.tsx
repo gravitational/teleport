@@ -108,4 +108,5 @@ export const StyledPanel = styled.nav`
   justify-content: space-between;
   padding: 0 0 ${props => props.theme.space[3]}px 0;
   max-height: ${props => props.theme.space[6]}px;
+  margin-top: ${props => props.theme.space[1]}px;
 `;
