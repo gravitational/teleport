@@ -19,7 +19,7 @@ env:
   # we want to rebuild the images. Make sure this value is kept
   # up-to-date as new major versions are released. See:
   #   https://github.com/gravitational/teleport/blob/master/docs/postrelease.md
-  TELEPORT_MAJOR_VERSIONS: "v13 v14 v15"
+  TELEPORT_MAJOR_VERSIONS: "v14 v15 v16"
 
 permissions:
   contents: read
