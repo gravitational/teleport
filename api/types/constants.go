@@ -290,6 +290,9 @@ const (
 	// KindClusterAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
 
+	// KindVersion is the teleport version
+	KindVersion = "version"
+
 	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 

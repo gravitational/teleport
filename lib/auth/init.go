@@ -289,6 +289,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// VersionInternal is a service that manages teleport version.
+	VersionInternal services.VersionInternal
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -334,6 +337,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := services.ValidateMajorVersion(ctx, teleport.Version, asrv.Services.VersionInternal); err != nil {
 		return trace.Wrap(err)
 	}
 
