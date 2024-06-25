@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box, Text } from 'design';
+import { Indicator, Box } from 'design';
 import { Danger } from 'design/Alert';
 
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
