@@ -91,7 +91,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if err := b.backend.DeleteBotInstance(ctx, req.BotName, req.Id); err != nil {
+	if err := b.backend.DeleteBotInstance(ctx, req.BotName, req.InstanceId); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

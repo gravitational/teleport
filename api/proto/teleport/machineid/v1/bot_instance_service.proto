@@ -59,7 +59,7 @@ message DeleteBotInstanceRequest {
   // The name of the BotInstance to delete.
   string bot_name = 1;
   // The unique identifier of the bot instance to delete.
-  string id = 2;
+  string instance_id = 2;
 }
 
 // The request for SubmitHeartbeat.

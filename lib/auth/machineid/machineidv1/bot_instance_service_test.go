@@ -203,16 +203,16 @@ func TestBotInstanceServiceReadDelete(t *testing.T) {
 	// Attempt to delete everything
 	for id := range idsFoo {
 		_, err := service.DeleteBotInstance(ctx, &machineidv1.DeleteBotInstanceRequest{
-			BotName: "foo",
-			Id:      id,
+			BotName:    "foo",
+			InstanceId: id,
 		})
 		require.NoError(t, err)
 	}
 
 	for id := range idsBar {
 		_, err := service.DeleteBotInstance(ctx, &machineidv1.DeleteBotInstanceRequest{
-			BotName: "bar",
-			Id:      id,
+			BotName:    "bar",
+			InstanceId: id,
 		})
 		require.NoError(t, err)
 	}
