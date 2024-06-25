@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
@@ -97,12 +98,8 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		if errors.Is(err, eauth.ErrLicenseExpired) {
 			return nil, trace.Wrap(err)
 		}
-		// TODO(espadolini): replace with auth.InvalidClientRedirectErrorMessage
-		// and web.SSOLoginFailureInvalidRedirect after
-		// https://github.com/gravitational/teleport-private/pull/1433 is merged
-		// in OSS
-		if strings.Contains(err.Error(), "invalid or disallowed client redirect URL") {
-			return nil, trace.AccessDenied("Failed to login due to a disallowed callback URL. Please check Teleport's log for more details.")
+		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
+			return nil, trace.AccessDenied(web.SSOLoginFailureInvalidRedirect)
 		}
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}
@@ -256,12 +253,8 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		if errors.Is(err, eauth.ErrLicenseExpired) {
 			return nil, trace.Wrap(err)
 		}
-		// TODO(espadolini): replace with auth.InvalidClientRedirectErrorMessage
-		// and web.SSOLoginFailureInvalidRedirect after
-		// https://github.com/gravitational/teleport-private/pull/1433 is merged
-		// in OSS
-		if strings.Contains(err.Error(), "invalid or disallowed client redirect URL") {
-			return nil, trace.AccessDenied("Failed to login due to a disallowed callback URL. Please check Teleport's log for more details.")
+		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
+			return nil, trace.AccessDenied(web.SSOLoginFailureInvalidRedirect)
 		}
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}

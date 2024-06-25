@@ -277,11 +277,10 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(espadolini): inline the real function call once the security fix is
-	// out of embargo ( https://github.com/gravitational/teleport-private/pull/1433 )
-	if hook := auth.OIDCAuthRequestHook; hook != nil {
-		if err := hook(ctx, &req, connector); err != nil {
-			return nil, trace.Wrap(err)
+	// see [auth.CreateGithubAuthRequest]
+	if !req.CreateWebSession {
+		if err := auth.ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return nil, trace.Wrap(err, auth.InvalidClientRedirectErrorMessage)
 		}
 	}
 
