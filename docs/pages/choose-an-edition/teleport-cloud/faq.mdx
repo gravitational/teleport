@@ -151,7 +151,7 @@ described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 - Minor updates and patches typically occur between one day and a week after a release.
 - Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
   during your scheduled maintenance window.
-- Teleport Auth and Proxy service will not be automatically upgraded to the next major version with
+- The Teleport Auth Service and Proxy Service will not be automatically upgraded to the next major version with
   Teleport agents on older major versions. An example would be the Teleport Auth and Proxy service are on
   version 16 and agents are still on version 15 or older. That would prevent Teleport Auth and Proxy
   being updated to version 17 automatically.
@@ -168,9 +168,9 @@ connected agents?](#how-can-i-find-version-information-on-connected-agents).
 For more information about automatic updates and compatibility issues, contact
 [Teleport support](https://goteleport.com/support/).
 
-### Why wasn't my Teleport Enterprise Cloud instance upgraded to the latest major version?
+### Why wasn't my managed Teleport Enterprise instance upgraded to the latest major version?
 
-The Teleport Control plane supports agents that are on the same major version or one major version behind.
+The Teleport control plane supports Agents that are on the same major version or one major version behind.
 If your agents are not up to date, we will withhold major version upgrades in order to prevent connectivity
 issues to your resources. For example, if your control plane is currently running Teleport 15 and you have agents
 running Teleport 14, we will not be able to upgrade your control plane to Teleport 16 until all agents are
