@@ -151,7 +151,6 @@ export C_ARCH
 ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
 LIBFIDO2_TEST_TAG := libfido2
 ifeq ($(FIDO2),)
-$(info libfido2 found, setting FIDO2=dynamic)
 FIDO2 ?= dynamic
 endif
 endif
