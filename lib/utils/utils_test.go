@@ -133,8 +133,8 @@ func TestRemoveFromSlice(t *testing.T) {
 	}
 }
 
-// TestVersions tests versions compatibility checking
-func TestVersions(t *testing.T) {
+// TestMinVersions tests versions compatibility checking
+func TestMinVersions(t *testing.T) {
 	t.Parallel()
 
 	type tc struct {
@@ -149,8 +149,8 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.True(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to succeed")
+			require.NoError(t, CheckMinVersion(testCase.client, testCase.minClient))
+			assert.True(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to succeed")
 		})
 	}
 
@@ -160,8 +160,8 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.False(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to fail")
+			fixtures.AssertBadParameter(t, CheckMinVersion(testCase.client, testCase.minClient))
+			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
 		})
 	}
 }

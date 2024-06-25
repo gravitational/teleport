@@ -24,18 +24,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMeetsVersion_emptyOrInvalid(t *testing.T) {
-	// See TestVersions for more comprehensive tests.
+func TestMeetsMinVersion_emptyOrInvalid(t *testing.T) {
+	// See TestMinVersions for more comprehensive tests.
 
-	if !MeetsVersion("", "v1.2.3") {
-		t.Error("MeetsVersion with an empty gotVer should always succeed")
+	if !MeetsMinVersion("", "v1.2.3") {
+		t.Error("MeetsMinVersion with an empty gotVer should always succeed")
 	}
 
-	if !MeetsVersion("banana", "v1.2.3") {
-		t.Error("MeetsVersion with an invalid version should always succeed")
+	if !MeetsMinVersion("banana", "v1.2.3") {
+		t.Error("MeetsMinVersion with an invalid version should always succeed")
 	}
-	if !MeetsVersion("v1.2.3", "banana") {
-		t.Error("MeetsVersion with an invalid version should always succeed")
+	if !MeetsMinVersion("v1.2.3", "banana") {
+		t.Error("MeetsMinVersion with an invalid version should always succeed")
 	}
 }
 
