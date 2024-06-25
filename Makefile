@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.0-dev
+VERSION=17.0.0-dev-tross-tbot.8
 
 DOCKER_IMAGE ?= teleport
 
@@ -352,7 +352,12 @@ $(BUILDDIR)/tsh:
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+# The -buildmode=pie flag requires external cgo linking.
+ifeq ("$(CGO_ENABLED)", "1")
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ./tool/tbot
+else
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(BUILDMODE) ./tool/tbot
+endif
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
