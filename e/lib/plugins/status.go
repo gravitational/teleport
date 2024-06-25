@@ -91,5 +91,4 @@ func (s *statusSink) Emit(ctx context.Context, status types.PluginStatus) error 
 		labelStatus:     strings.ToLower(status.GetCode().String()),
 	}).Set(1)
 	return nil
-
 }

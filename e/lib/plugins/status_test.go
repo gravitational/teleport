@@ -29,7 +29,7 @@ func TestStatusSink(t *testing.T) {
 	require.NoError(t, backendService.CreatePlugin(ctx, initialPlugin))
 	statusSink := newStatusSink(backendService, pluginName, string(initialPlugin.GetType()))
 
-	newStatus := types.PluginStatusV1{
+	newStatus := &types.PluginStatusV1{
 		Code: types.PluginStatusCode_UNAUTHORIZED,
 	}
 	err = statusSink.Emit(ctx, newStatus)

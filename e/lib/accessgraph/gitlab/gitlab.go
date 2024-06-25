@@ -3,7 +3,9 @@ package gitlab
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	gitlab "github.com/xanzy/go-gitlab"
@@ -116,7 +118,6 @@ func (g *gitlabFetcher) getGroups() (
 	[]*accessgraphv1alpha.GitlabGroupMember,
 	error,
 ) {
-
 	groups, err := g.client.getGroups()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -153,7 +154,6 @@ func (g *gitlabFetcher) getUsers(usernames []string) (
 	[]*accessgraphv1alpha.GitlabUser,
 	error,
 ) {
-
 	users, err := g.client.getUsers(usernames)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -222,6 +222,21 @@ func isUnauthorized(err error) bool {
 	return false
 }
 
+// GitlabMessageOrError returns the error message from a Gitlab error or the error message itself.
+func GitlabMessageOrError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var gitlabErr *gitlab.ErrorResponse
+	if errors.As(err, &gitlabErr) {
+		if gitlabErr.Message == "" {
+			return gitlabErr.Error()
+		}
+		return gitlabErr.Message
+	}
+	return err.Error()
+}
+
 func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, groupMembers []*accessgraphv1alpha.GitlabGroupMember) []string {
 	seen := make(map[string]struct{})
 	for _, member := range projectMembers {
@@ -231,4 +246,45 @@ func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, g
 		seen[member.Username] = struct{}{}
 	}
 	return maps.Keys(seen)
+}
+
+// GitlabInstanceConnectionTest tests the connection to a Gitlab instance.
+func GitlabInstanceConnectionTest(ctx context.Context, gitlabURL string, token string) error {
+	if err := gitlabInstanceReachable(ctx, gitlabURL); err != nil {
+		return trace.Wrap(err)
+	}
+	client, err := newClient(gitlabURL, token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.getProjects()
+	if isUnauthorized(err) {
+		return trace.NewAggregate(ErrGitlabInvalidCredentials, err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func gitlabInstanceReachable(ctx context.Context, gitlabURL string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	u, _, err := prepareURL(gitlabURL)
+	if err != nil {
+		return trace.BadParameter("invalid Gitlab URL: %v", err)
+	}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, u, nil)
+	if err != nil {
+		return trace.Wrap(err, "Failed to create request")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return trace.ConnectionProblem(err, "Failed to reach Gitlab instance")
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	return nil
 }

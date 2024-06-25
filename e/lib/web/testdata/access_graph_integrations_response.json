@@ -63,7 +63,16 @@
                 "endpoint": "https://gitlab.com"
             },
             "status": {
-                "state": "running"
+                "state": "running",
+                "last_error_message":"fake error",
+                "last_sync_time":"1984-04-04T00:00:00Z",
+                "details":{
+                    "gitlab":{
+                        "imported_users":200,
+                        "imported_groups":100,
+                        "imported_projects":500
+                    }
+                }
             }
         },
         {
@@ -79,7 +88,8 @@
                 "endpoint": "https://ultraorg.okta.com"
             },
             "status": {
-                "state": "running"
+                "state": "running",
+                "last_sync_time": "1984-04-04T00:00:00Z"
             }
         }
     ]

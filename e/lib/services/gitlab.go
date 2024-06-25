@@ -61,12 +61,22 @@ func startGitlabService(ctx context.Context, process *service.TeleportProcess, s
 	if err != nil {
 		// Update plugin status if the service is running as a plugin.
 		if statusSink != nil {
-			switch {
-			case errors.Is(err, gitlabservice.ErrGitlabInvalidCredentials):
-				statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_UNAUTHORIZED})
-			default:
-				statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
+			code := types.PluginStatusCode_OTHER_ERROR
+			if errors.Is(err, gitlabservice.ErrGitlabInvalidCredentials) {
+				code = types.PluginStatusCode_UNAUTHORIZED
 			}
+			statusSink.Emit(
+				ctx,
+				&types.PluginStatusV1{
+					Code:         code,
+					LastSyncTime: process.Clock.Now(),
+					ErrorMessage: gitlabservice.GitlabMessageOrError(err),
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			)
+
 		}
 
 		return trace.Wrap(err)

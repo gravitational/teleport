@@ -214,7 +214,16 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				},
 			},
 			Status: types.PluginStatusV1{
-				Code: types.PluginStatusCode_RUNNING,
+				Code:         types.PluginStatusCode_RUNNING,
+				ErrorMessage: "fake error",
+				LastSyncTime: s.clock.Now(),
+				Details: &types.PluginStatusV1_Gitlab{
+					Gitlab: &types.PluginGitlabStatusV1{
+						ImportedGroups:   100,
+						ImportedUsers:    200,
+						ImportedProjects: 500,
+					},
+				},
 			},
 		},
 		StaticCredentials: &types.PluginStaticCredentialsV1{
@@ -248,7 +257,8 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				},
 			},
 			Status: types.PluginStatusV1{
-				Code: types.PluginStatusCode_RUNNING,
+				LastSyncTime: s.clock.Now(),
+				Code:         types.PluginStatusCode_RUNNING,
 			},
 		},
 		StaticCredentials: &types.PluginStaticCredentialsV1{
@@ -270,6 +280,5 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 	endpoint := webPack.clt.Endpoint("enterprise", "accessgraph", "integrations")
 	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 	require.NoError(t, err)
-
 	require.JSONEq(t, expectedListIntegrationsResponse, string(resp.Bytes()))
 }

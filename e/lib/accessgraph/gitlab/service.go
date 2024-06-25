@@ -257,17 +257,35 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	}()
 
 	currentTAGResources := &resources{}
-	ticker := s.clock.NewTicker(1 * time.Minute)
+	ticker := s.clock.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	prevIterationHadError := false
 	for {
 		err = s.reconcileAccessGraph(ctx, currentTAGResources, stream)
-		if err != nil && s.pluginStatusSink != nil {
-			s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
-			prevIterationHadError = true
-		} else if prevIterationHadError && s.pluginStatusSink != nil {
-			s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING})
+		code := types.PluginStatusCode_RUNNING
+		message := GitlabMessageOrError(err)
+		if err != nil {
+			code = types.PluginStatusCode_OTHER_ERROR
+			if isUnauthorized(err) {
+				code = types.PluginStatusCode_UNAUTHORIZED
+			}
 		}
+
+		if s.pluginStatusSink != nil {
+			s.pluginStatusSink.Emit(ctx,
+				&types.PluginStatusV1{
+					Code:         code,
+					LastSyncTime: s.clock.Now(),
+					ErrorMessage: message,
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{
+							ImportedUsers:    uint32(len(currentTAGResources.Users)),
+							ImportedGroups:   uint32(len(currentTAGResources.Groups)),
+							ImportedProjects: uint32(len(currentTAGResources.Projects)),
+						},
+					},
+				})
+		}
+
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())

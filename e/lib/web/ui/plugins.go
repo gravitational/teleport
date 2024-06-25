@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -95,6 +96,37 @@ type Plugin struct {
 	// Spec contains any pluginType-specific information that may be useful to
 	// the UI. May be nil at any time.
 	Spec PluginSpec `json:"spec,omitempty"`
+
+	// Status contains the last known status of the plugin
+	Status *PluginStatusV1 `json:"status,omitempty"`
+}
+
+// PluginStatusV1 holds information about the status of a plugin
+type PluginStatusV1 struct {
+	// Code is the status code of the plugin
+	Code types.PluginStatusCode `json:"code,omitempty"`
+	// LastSyncTime is the time the plugin was last run
+	LastSyncTime time.Time `json:"lastRun,omitempty"`
+	// ErrorMessage is the last error message from the plugin
+	ErrorMessage string `json:"errorMessage,omitempty"`
+	// Details contains provider-specific status information
+	Details *PluginDetails `json:"details,omitempty"`
+}
+
+// PluginDetails holds information about the plugin
+type PluginDetails struct {
+	// Gitlab is the status of the Gitlab plugin
+	Gitlab *PluginGitlabDetails `json:"gitlab,omitempty"`
+}
+
+// PluginGitlabDetails holds information about the Gitlab plugin
+type PluginGitlabDetails struct {
+	// ImportedUsers is the number of users imported from Gitlab
+	ImportedUsers uint32 `json:"importedUsers,omitempty"`
+	// ImportedGroups is the number of groups imported from Gitlab
+	ImportedGroups uint32 `json:"importedGroups,omitempty"`
+	// ImportedProjects is the number of projects imported from Gitlab
+	ImportedProjects uint32 `json:"importedProjects,omitempty"`
 }
 
 // UnmarshalJSON implements spec-aware JSON decoding for Plugin
@@ -128,18 +160,34 @@ func NewPlugin(p types.Plugin) (*Plugin, error) {
 	if p == nil {
 		return nil, trace.BadParameter("p must be set")
 	}
-	var statusCode types.PluginStatusCode
-	if s := p.GetStatus(); s != nil {
-		statusCode = s.GetCode()
-	}
 
-	return &Plugin{
+	status := p.GetStatus()
+	uiP := &Plugin{
 		Name:       p.GetName(),
 		Type:       p.GetType(),
 		Details:    pluginDetails(p),
-		StatusCode: statusCode,
 		Spec:       pluginSpec(p),
-	}, nil
+		StatusCode: status.GetCode(),
+		Status: &PluginStatusV1{
+			Code:         status.GetCode(),
+			LastSyncTime: status.GetLastSyncTime(),
+			ErrorMessage: status.GetErrorMessage(),
+		},
+	}
+
+	switch {
+	case status.GetGitlab() != nil:
+		gitlabStatus := status.GetGitlab()
+		uiP.Status.Details = &PluginDetails{
+			Gitlab: &PluginGitlabDetails{
+				ImportedUsers:    gitlabStatus.ImportedUsers,
+				ImportedGroups:   gitlabStatus.ImportedGroups,
+				ImportedProjects: gitlabStatus.ImportedProjects,
+			},
+		}
+	}
+
+	return uiP, nil
 }
 
 func pluginDetails(p types.Plugin) string {

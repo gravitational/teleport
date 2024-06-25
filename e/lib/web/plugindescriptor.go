@@ -10,6 +10,7 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/accessgraph/gitlab"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/integrations/access/servicenow"
@@ -219,6 +220,10 @@ func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 	apiEndpoint := r.FormValue("apiEndpoint")
 	if apiEndpoint == "" {
 		return nil, trace.BadParameter("missing API endpoint")
+	}
+
+	if err := gitlab.GitlabInstanceConnectionTest(ctx, apiEndpoint, apiKey); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	req := &pluginspb.CreatePluginRequest{
@@ -633,7 +638,7 @@ func (slackDescriptor) getAuthURL(ctx context.Context, sctx *web.SessionContext,
 	}
 
 	callbackURL := p.getPluginCallbackURL(r, typ)
-	var scopes = []string{
+	scopes := []string{
 		"chat:write",
 		"users:read",
 		"users:read.email",

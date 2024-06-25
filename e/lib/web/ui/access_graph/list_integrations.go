@@ -96,6 +96,27 @@ type PluginSpec struct {
 type PluginStatus struct {
 	// State is the current state of the plugin.
 	State string `json:"state"`
+	// LastErrorMessage holds the error message.
+	LastErrorMessage string `json:"last_error_message,omitempty"`
+	// LastSyncTime is the timestamp when the plugin was last sync.
+	LastSyncTime time.Time `json:"last_sync_time,omitempty"`
+	// Details is the details of the plugin.
+	Details *PluginDetails `json:"details,omitempty"`
+}
+
+// PluginDetails is the details of the plugin.
+type PluginDetails struct {
+	Gitlab *GitlabDetails `json:"gitlab,omitempty"`
+}
+
+// GitlabDetails is the details of the Gitlab plugin.
+type GitlabDetails struct {
+	// ImportedUsers is the count of imported users.
+	ImportedUsers uint32 `json:"imported_users"`
+	// ImportedGroups is the count of imported groups.
+	ImportedGroups uint32 `json:"imported_groups"`
+	// ImportedProjects is the count of imported projects.
+	ImportedProjects uint32 `json:"imported_projects"`
 }
 
 // Metadata is the metadata of the integration.
@@ -143,7 +164,7 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 	} else if pl.Spec.GetGitlab() != nil {
 		endpoint = pl.Spec.GetGitlab().ApiEndpoint
 	}
-	return &Plugin{
+	p := &Plugin{
 		Kind:    pl.Kind,
 		SubKind: pl.SubKind,
 		Version: pl.Version,
@@ -156,9 +177,22 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 			Endpoint: endpoint,
 		},
 		Status: PluginStatus{
-			State: codeToStr(pl.Status.Code),
+			State:            codeToStr(pl.Status.Code),
+			LastErrorMessage: pl.Status.ErrorMessage,
+			LastSyncTime:     pl.Status.LastSyncTime,
 		},
 	}
+
+	if gitlab := pl.Status.GetGitlab(); gitlab != nil {
+		p.Status.Details = &PluginDetails{
+			Gitlab: &GitlabDetails{
+				ImportedUsers:    gitlab.ImportedUsers,
+				ImportedGroups:   gitlab.ImportedGroups,
+				ImportedProjects: gitlab.ImportedProjects,
+			},
+		}
+	}
+	return p
 }
 
 func newIntegration(dc *discoveryconfig.DiscoveryConfig, integrations map[string]types.Integration) *AWS {
