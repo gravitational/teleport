@@ -100,13 +100,12 @@ const (
 	algorithmMax
 )
 
-// Suite defines the cryptographic signature algorithm used for each unique key purpose.
-type Suite map[KeyPurpose]Algorithm
+// suite defines the cryptographic signature algorithm used for each unique key purpose.
+type suite map[KeyPurpose]Algorithm
 
 var (
-	// Legacy is the original algorithm suite, which exclusively uses RSA2048. It is the current default
-	// suite.
-	Legacy = Suite{
+	// legacy is the original algorithm suite, which exclusively uses RSA2048.
+	legacy = suite{
 		UserCATLS:           RSA2048,
 		UserCASSH:           RSA2048,
 		HostCATLS:           RSA2048,
@@ -122,9 +121,10 @@ var (
 		// TODO(nklaassen): subject key purposes.
 	}
 
-	// BalancedV1 strikes a balance between security, compatibility, and performance. It uses ECDSA256,
-	// Ed25591, and 2048-bit RSA. It is not completely implemented yet.
-	BalancedV1 = Suite{
+	// balancedV1 strikes a balance between security, compatibility, and
+	// performance. It uses ECDSA256, Ed25591, and 2048-bit RSA. It is not
+	// completely implemented yet.
+	balancedV1 = suite{
 		UserCATLS:           ECDSAP256,
 		UserCASSH:           Ed25519,
 		HostCATLS:           ECDSAP256,
@@ -140,10 +140,10 @@ var (
 		// TODO(nklaassen): subject key purposes.
 	}
 
-	// FIPSV1 is an algorithm suite tailored for FIPS compliance. It is based on the BALANCED suite but
-	// replaces all instances of Ed25519 with ECDSA on the NIST P256 curve. It is not completely implemented
-	// yet.
-	FIPSV1 = Suite{
+	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
+	// the balancedv1 suite but replaces all instances of Ed25519 with ECDSA on
+	// the NIST P256 curve. It is not completely implemented yet.
+	fipsv1 = suite{
 		UserCATLS:           ECDSAP256,
 		UserCASSH:           ECDSAP256,
 		HostCATLS:           ECDSAP256,
@@ -159,11 +159,12 @@ var (
 		// TODO(nklaassen): subject key purposes.
 	}
 
-	// HSMV1 in an algorithm suite tailored for clusters using an HSM or KMS service to back CA private material.
-	// It is based on the BALANCED suite but replaces Ed25519 with ECDSA on the NIST P256 curve *for CA keys
-	// only*. It is also valid to use the LEGACY for FIPS_v1 suites if your cluster uses an HSM or KMS. It is
-	// not completely implemented yet.
-	HSMV1 = Suite{
+	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
+	// service to back CA private material.  It is based on the balancedv1 suite
+	// but replaces Ed25519 with ECDSA on the NIST P256 curve *for CA keys
+	// only*. It is also valid to use the legacy or fipsv1 suites if your
+	// cluster uses an HSM or KMS. It is not completely implemented yet.
+	hsmv1 = suite{
 		UserCATLS:           ECDSAP256,
 		UserCASSH:           ECDSAP256,
 		HostCATLS:           ECDSAP256,
@@ -179,11 +180,11 @@ var (
 		// TODO(nklaassen): subject key purposes.
 	}
 
-	allSuites = map[types.SignatureAlgorithmSuite]Suite{
-		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:      Legacy,
-		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1: BalancedV1,
-		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:     FIPSV1,
-		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:      HSMV1,
+	allSuites = map[types.SignatureAlgorithmSuite]suite{
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:      legacy,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1: balancedV1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:     fipsv1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:      hsmv1,
 	}
 )
 
