@@ -38,7 +38,7 @@ const (
 
 	// PackageNameOSS is the teleport package name for the OSS version.
 	PackageNameOSS = "teleport"
-	// PackageNameOSS is the teleport package name for the Enterprise version.
+	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
 
 	// ActionRead grants read access (get, list)
@@ -465,10 +465,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is used to program RBAC for
-	// Teleport Assist resources.
-	KindAssistant = "assistant"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -550,6 +546,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// PackageNameKinds is the list of valid teleport package names.
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -673,7 +672,7 @@ const (
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
 	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
-	// ZoneLabek is used to identify virtual machines by GCP zone
+	// ZoneLabel is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	ZoneLabel = TeleportInternalLabelPrefix + "zone"

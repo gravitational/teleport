@@ -25,8 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
 
 func makeMetadataGetter(values map[string]string) metadataGetter {
@@ -40,38 +38,73 @@ func makeMetadataGetter(values map[string]string) metadataGetter {
 }
 
 type mockInstanceGetter struct {
-	gcp.InstancesClient
-	instance    *gcp.Instance
+	InstanceGetter
+	instance    *Instance
 	instanceErr error
 	tags        map[string]string
 	tagsErr     error
 }
 
-func (m *mockInstanceGetter) GetInstance(ctx context.Context, req *gcp.InstanceRequest) (*gcp.Instance, error) {
+func (m *mockInstanceGetter) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
 	return m.instance, m.instanceErr
 }
 
-func (m *mockInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.InstanceRequest) (map[string]string, error) {
+func (m *mockInstanceGetter) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
 	return m.tags, m.tagsErr
 }
 
 func TestIsInstanceMetadataAvailable(t *testing.T) {
 	t.Parallel()
 
-	t.Run("not available", func(t *testing.T) {
-		client := &InstanceMetadataClient{
+	tests := []struct {
+		name        string
+		getMetadata metadataGetter
+		assert      require.BoolAssertionFunc
+	}{
+		{
+			name: "not available",
 			getMetadata: func(ctx context.Context, path string) (string, error) {
 				return "", trace.NotFound("")
 			},
-		}
-		require.False(t, client.IsAvailable(context.Background()))
-	})
+			assert: require.False,
+		},
+		{
+			name: "not on gcp",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "non-numeric id", nil
+			},
+			assert: require.False,
+		},
+		{
+			name: "zero ID",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "0", nil
+			},
+			assert: require.False,
+		},
+		{
+			name: "on mocked gcp",
+			getMetadata: func(ctx context.Context, path string) (string, error) {
+				return "12345678", nil
+			},
+			assert: require.True,
+		},
+	}
 
-	t.Run("on gcp", func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &InstanceMetadataClient{
+				getMetadata: tc.getMetadata,
+			}
+			tc.assert(t, client.IsAvailable(context.Background()))
+		})
+	}
+
+	t.Run("on real gcp", func(t *testing.T) {
 		if os.Getenv("TELEPORT_TEST_GCP") == "" {
 			t.Skip("not on gcp")
 		}
-		client, err := NewInstanceMetadataClient(context.Background())
+		client, err := NewInstanceMetadataClient(nil)
 		require.NoError(t, err)
 		require.True(t, client.IsAvailable(context.Background()))
 	})
@@ -86,7 +119,7 @@ func TestGetTags(t *testing.T) {
 		"instance/name":      "myname",
 		"instance/id":        "12345678",
 	})
-	defaultInstance := &gcp.Instance{
+	defaultInstance := &Instance{
 		ProjectID: "myproject",
 		Zone:      "myzone",
 		Name:      "myname",
@@ -168,8 +201,8 @@ func TestGetTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &InstanceMetadataClient{
-				getMetadata:     tc.getMetadata,
-				instancesClient: tc.instancesClient,
+				getMetadata:    tc.getMetadata,
+				instanceGetter: tc.instancesClient,
 			}
 			tags, err := client.GetTags(context.Background())
 			tc.assertErr(t, err)

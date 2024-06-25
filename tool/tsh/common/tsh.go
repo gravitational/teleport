@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -77,11 +78,14 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -523,6 +527,11 @@ type CLIConf struct {
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
 
+	// DTAutoEnroll allows tests to override the default device
+	// auto-enroll function.
+	// Defaults to [dtenroll.AutoEnroll].
+	DTAutoEnroll client.DTAutoEnrollFunc
+
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
@@ -681,8 +690,10 @@ func initLogger(cf *CLIConf) {
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
-		Context:         ctx,
-		TracingProvider: tracing.NoopProvider(),
+		Context:            ctx,
+		TracingProvider:    tracing.NoopProvider(),
+		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
+		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -1569,18 +1580,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	return trace.Wrap(err)
 }
 
-// cloudAutomaticSamplingRate is the sampling rate at which traces are captured
-// when tracing is automatically enabled for invocations of some tsh commands
-// when performed against a cloud tenant.
-const cloudAutomaticSamplingRate = 0.25
-
-// isCloudTenant determines if the proxy address provided
-// belongs to a cloud tenant. It currently returns true if
-// the tenant is a production tenant.
-func isCloudTenant(proxyAddress string) bool {
-	return strings.HasSuffix(proxyAddress, ".teleport.sh:443")
-}
-
 func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
@@ -1597,14 +1596,11 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
-	// The list of commands that are automatically traced and forward to Cloud.
-	autoForwardedToCloud := []string{"ssh"}
-
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
-	samplingRate := 1.0
+	const samplingRate = 1.0
 
 	switch {
 	// kubectl is a special case because it is the only command that we re-execute
@@ -1642,7 +1638,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
-	case !cf.SampleTraces && !slices.Contains(autoForwardedToCloud, cf.command):
+	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
 	}
@@ -1653,18 +1649,6 @@ func initializeTracing(cf *CLIConf) func() {
 	if err != nil {
 		log.WithError(err).Debug("failed to set up span forwarding.")
 		return func() {}
-	}
-
-	if !cf.SampleTraces {
-		// Automatically enable and forward spans to Cloud if the following conditions are met:
-		// 1) The proxy address resembles that of a Cloud tenant
-		// 2) The command being executed is tsh ssh
-		// 3) The user has not already explicitly provided the --trace flag.
-		if isCloudTenant(tc.WebProxyAddr) {
-			samplingRate = cloudAutomaticSamplingRate
-		} else {
-			return func() {}
-		}
 	}
 
 	var provider *tracing.Provider
@@ -3401,28 +3385,29 @@ func retryWithAccessRequest(
 }
 
 func promptUserForAccessRequestDetails(cf *CLIConf, req types.AccessRequest) error {
-	if cf.RequestMode != accessRequestModeRole {
-		return nil
-	}
-	// If this is a role access request, ensure that it only has one role.
-	switch len(req.GetRoles()) {
-	case 0:
-		return trace.AccessDenied("no roles to request that would grant access")
-	case 1:
-		return nil
-	default:
-		selectedRole, err := prompt.PickOne(
-			cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
-			"Choose role to request",
-			req.GetRoles())
-		if err != nil {
-			return trace.Wrap(err)
+	if cf.RequestMode == accessRequestModeRole {
+		// If this is a role access request, ensure that it only has one role.
+		switch len(req.GetRoles()) {
+		case 0:
+			return trace.AccessDenied("no roles to request that would grant access")
+		case 1:
+			// No need to choose a role, just set request reason.
+		default:
+			selectedRole, err := prompt.PickOne(
+				cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
+				"Choose role to request",
+				req.GetRoles())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			req.SetRoles([]string{selectedRole})
 		}
-		req.SetRoles([]string{selectedRole})
 	}
+
 	if err := setAccessRequestReason(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -3515,6 +3500,31 @@ func onSSHLatency(cf *CLIConf) error {
 	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
+// Executes the given command on the client machine (localhost). If no command is given,
+// executes shell
+func runLocalCommand(hostLogin string, command []string) error {
+	if len(command) == 0 {
+		if hostLogin == "" {
+			user, err := apiutils.CurrentUser()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
+		}
+		shell, err := shell.GetLoginShell(hostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		command = []string{shell}
+	}
+
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -3527,7 +3537,13 @@ func onSSH(cf *CLIConf) error {
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
+
+			var opts []func(*client.SSHOptions)
+			if cf.LocalExec {
+				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
@@ -4062,6 +4078,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+	c.DTAutoEnroll = cf.DTAutoEnroll
 	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).

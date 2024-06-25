@@ -34,7 +34,10 @@ If there is a Teleport configuration file on the host where `tctl` is run,
 `tctl` attempts to authenticate to the Auth Service named in the configuration
 file using an identity stored in its local backend.
 
-`tctl` only authenticates using this method if an identity file is not provided.
+`tctl` authenticates using this method if a configuration file exists at
+`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
+in another location. If the `auth_service` is disabled in the configuration
+file, then the configuration file is ignored.
 
 <Admonition type="note">
 
@@ -57,13 +60,6 @@ the cluster. The `tsh` profile is created when a user runs `tsh login`.
 `tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
 a Teleport configuration file is present. If you are using your `tsh` profile to
 authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
   <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
@@ -245,6 +241,15 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 | - | - | - | - |
 | `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### Examples
+
+```code
+$ tctl alerts list
+ID                                   Severity Expires In Message
+------------------------------------ -------- ---------- ----------------------------------------------------------------
+da36b401-5688-426f-95b8-d0dd1ef27785 LOW      57m0s      "The system is under maintenance, functionality may be limited."
+```
 
 ## tctl auth export
 

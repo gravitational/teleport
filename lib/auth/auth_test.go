@@ -115,11 +115,6 @@ func newTestPack(
 		Authority:              testauthority.New(),
 		Emitter:                p.mockEmitter,
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
-		},
 	}
 	p.a, err = NewServer(authConfig, opts...)
 	if err != nil {
@@ -979,11 +974,6 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
-		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -3763,20 +3753,15 @@ func TestCAGeneration(t *testing.T) {
 		clusterName = "cluster1"
 		HostUUID    = "0000-000-000-0000"
 	)
-	native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	ksConfig := keystore.Config{
-		Software: keystore.SoftwareConfig{
-			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-				return privKey, pubKey, nil
-			},
-		},
-	}
-	keyStore, err := keystore.NewManager(ctx, ksConfig)
-	require.NoError(t, err)
+	keyStore := keystore.NewSoftwareKeystoreForTests(t,
+		keystore.WithRSAKeyPairSource(func() (priv []byte, pub []byte, err error) {
+			return privKey, pubKey, nil
+		}),
+	)
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
