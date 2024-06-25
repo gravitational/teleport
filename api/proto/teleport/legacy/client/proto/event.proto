@@ -22,6 +22,7 @@ import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -157,5 +158,7 @@ message Event {
     teleport.accessmonitoringrules.v1.AccessMonitoringRule AccessMonitoringRule = 54;
     // CrownJewel is a Crown Jewel resource.
     teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
+    // BotInstance is a Machine ID bot instance.
+    teleport.machineid.v1.BotInstance BotInstance = 60;
   }
 }

@@ -2814,6 +2814,45 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
+	case types.KindBotInstance:
+		if rc.ref.Name != "" && rc.ref.SubKind != "" {
+			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
+			bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+				BotName:    rc.ref.SubKind,
+				InstanceId: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
+		}
+
+		var instances []*machineidv1pb.BotInstance
+		startKey := ""
+
+		for {
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				PageSize:  100,
+				PageToken: startKey,
+
+				// Note: empty filter lists all bot instances
+				FilterBotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			instances = append(instances, resp.BotInstances...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+
+			startKey = resp.NextPageToken
+		}
+
+		return &botInstanceCollection{items: instances}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

@@ -857,6 +857,11 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
 }
 
+// BotInstanceServiceClient returns an unadorned client for the bot instance service
+func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
+	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
+}
+
 // WorkloadIdentityServiceClient returns an unadorned client for the workload
 // identity service.
 func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
