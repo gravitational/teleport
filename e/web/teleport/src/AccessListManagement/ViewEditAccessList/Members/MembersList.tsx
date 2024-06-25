@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-import { Flex, Text, Box, ButtonText } from 'design';
-import Table from 'design/DataTable';
-import { UsersTriple, Add } from 'design/Icon';
+import { Flex, Text, Box, ButtonText, ButtonSecondary } from 'design';
+import Table, { StyledPanel } from 'design/DataTable';
+import { UsersTriple, Add, ArrowRight } from 'design/Icon';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import { PagedTableProps } from 'design/DataTable/types';
+import InputSearch from 'design/DataTable/InputSearch';
+import { StyledTable } from 'design/DataTable/StyledTable';
+import { ClientSidePager } from 'design/DataTable/Pager';
+import { getPagerPosition } from 'design/DataTable/Table';
+import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
 
 import {
   AccessList,
@@ -86,12 +93,14 @@ export const AccessListMemberTable = ({
   onDeleteMember = null,
   hideIneligibleReason = false,
   hideReasonCol = false,
+  isReviewing = false,
 }: {
   members: AccessListMember[];
   canEditMembers: boolean;
   onDeleteMember?(m: AccessListMember): void;
   hideIneligibleReason?: boolean;
   hideReasonCol?: boolean;
+  isReviewing?: boolean;
 }) => {
   return (
     <Table
@@ -158,13 +167,18 @@ export const AccessListMemberTable = ({
               onClick={() => onDeleteMember(member)}
               ineligibleReason={member.ineligibleReason}
               hideIneligibleReason={hideIneligibleReason}
+              isReviewing={isReviewing}
             />
           ),
         },
       ]}
       emptyText="No Users Found"
       isSearchable
-      pagination={{ pageSize: 10 }}
+      pagination={{
+        pageSize: 10,
+        pagerPosition: isReviewing ? 'both' : 'top',
+        CustomTable: isReviewing ? CustomTable : undefined,
+      }}
     />
   );
 };
@@ -181,4 +195,83 @@ function sortCustomDate(a: Date, b: Date) {
   }
 
   return 0;
+}
+
+function CustomTable<T>({
+  nextPage,
+  prevPage,
+  renderHeaders,
+  renderBody,
+  data,
+  pagination,
+  searchValue,
+  setSearchValue,
+  fetching,
+  className,
+  style,
+}: PagedTableProps<T>) {
+  const { pagerPosition, paginatedData, currentPage } = pagination;
+  const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
+    pagerPosition,
+    paginatedData[currentPage].length
+  );
+
+  const { isNextDisabled } = useClientSidePager({
+    data,
+    paginatedData,
+    currentPage,
+    pageSize: pagination.pageSize,
+    nextPage,
+    prevPage,
+  });
+
+  return (
+    <>
+      <StyledPanel>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+        {(showTopPager || showBothPager) && (
+          <ClientSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            data={data}
+            {...fetching}
+            {...pagination}
+          />
+        )}
+      </StyledPanel>
+      <StyledTable className={className} style={style}>
+        {renderHeaders()}
+        {renderBody(paginatedData[currentPage])}
+      </StyledTable>
+      <Flex gap={2} justifyContent="space-between" alignItems="center" mt={3}>
+        <HoverTooltip
+          tipContent={
+            !isNextDisabled ? 'More members next page' : 'End of page'
+          }
+        >
+          <ButtonSecondary
+            textTransform="none"
+            width="150px"
+            disabled={isNextDisabled}
+            onClick={nextPage}
+          >
+            <Flex alignItems="center" gap={2}>
+              <Text>View More</Text> <ArrowRight size={16} />
+            </Flex>
+          </ButtonSecondary>
+        </HoverTooltip>
+        {(showBottomPager || showBothPager) && (
+          <ClientSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            data={data}
+            {...pagination}
+          />
+        )}
+      </Flex>
+    </>
+  );
 }

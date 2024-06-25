@@ -1,4 +1,5 @@
 import React from 'react';
+import styled from 'styled-components';
 import { Flex, Text } from 'design';
 
 import {
@@ -37,3 +38,10 @@ export const EditButton = ({
     </Flex>
   );
 };
+
+export const List = styled.ul`
+  padding-left: ${p => p.theme.space[4]}px;
+  margin-bottom: ${p => p.theme.space[3]}px;
+  margin-top: ${p => p.theme.space[3]}px;
+  font-size: ${p => p.theme.fontSizes[1]}px;
+`;

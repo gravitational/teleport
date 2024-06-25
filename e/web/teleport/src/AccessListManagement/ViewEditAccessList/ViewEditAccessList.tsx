@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import styled from 'styled-components';
-import { useParams, useLocation, useHistory } from 'react-router';
+import { useParams, useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import {
@@ -43,6 +43,8 @@ import { OwnersList } from './Owners/OwnersList';
 import { MembersList } from './Members/MembersList';
 import { Specs } from './Specs/Specs';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
+import { ButtonPencil } from './Shared';
+import { EditTitle } from './Specs/EditTitle';
 
 export type AccessListRequiresWithTraitConvenience = AccessListRequires &
   TraitConvenience;
@@ -66,8 +68,6 @@ export function ViewEditAccessList() {
     previousPath?: string;
   }>();
   const { accessListId } = useParams<{ accessListId: string }>();
-  const loc = useLocation<{ reviewed: boolean }>();
-  const history = useHistory();
 
   const attemptObj = useAttempt('processing');
   const { setAttempt, attempt } = attemptObj;
@@ -78,6 +78,7 @@ export function ViewEditAccessList() {
 
   const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [reviewing, setReviewing] = useState(false);
+  const [showEditTitle, setShowEditTitle] = useState(false);
 
   function updateAccessList(newAccessList: AccessList) {
     modifyAccessList(newAccessList);
@@ -172,19 +173,6 @@ export function ViewEditAccessList() {
     });
   }, [accessListId]);
 
-  useEffect(() => {
-    if (!loc.state?.reviewed) {
-      return;
-    }
-
-    // User has finished reviewing.
-    // Re-fetching access list to get the latest.
-
-    history.replace({ state: {} }); // clear state
-    setReviewing(false);
-    fetchAccessList();
-  }, [loc.state]);
-
   if (reviewing) {
     return (
       <ReviewAccessList
@@ -215,6 +203,15 @@ export function ViewEditAccessList() {
         <Flex alignItems="center" mr={3} gap={1}>
           <Text fontSize={5}>{accessList.title}</Text>
           {accessList.isOkta && <OktaBadge />}
+          <ButtonPencil
+            title={
+              !perms.adminWhoCanEdit
+                ? 'You do not have access to edit this access_list'
+                : 'Edit Title'
+            }
+            onClick={() => setShowEditTitle(true)}
+            disabled={!perms.adminWhoCanEdit}
+          />
         </Flex>
         {accessList.description && (
           <Text fontSize={1} css={{ lineHeight: '12px' }}>
@@ -308,6 +305,13 @@ export function ViewEditAccessList() {
           accessListId={accessList.id}
           accessListName={accessList.title}
           onClose={() => setDeleteConfirm(false)}
+        />
+      )}
+      {showEditTitle && (
+        <EditTitle
+          onClose={() => setShowEditTitle(false)}
+          updateAccessList={updateAccessList}
+          accessList={accessList}
         />
       )}
     </FeatureBox>

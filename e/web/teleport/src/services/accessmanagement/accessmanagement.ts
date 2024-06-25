@@ -75,7 +75,7 @@ export const accessManagementService = {
     original: AccessList;
   }): Promise<AccessList> {
     const madeReq: UpsertAccessListRequest = {
-      title: original.title, // cannot be edited.
+      title: req.title || original.title,
       description: original.description, // cannot be edited.
       audit: req.audit
         ? {

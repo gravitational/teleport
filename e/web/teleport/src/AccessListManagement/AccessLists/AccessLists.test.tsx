@@ -168,6 +168,64 @@ describe('upsell links', () => {
     expect(screen.queryByText(/banana/i)).not.toBeInTheDocument();
   });
 
+  test('if router state contains reviewed access list, notication item is rendered and review by badage is not rendered', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2023-01-20'));
+    ecfg.oss.isIgsEnabled = true;
+    jest.spyOn(accessManagementService, 'fetchAccessLists').mockResolvedValue([
+      {
+        ...mockAccessListApple,
+        // due "today"
+        audit: { ...mockAccessListApple.audit, nextDate: new Date() },
+      },
+    ]);
+
+    // Test review by date badge is rendered.
+    const { unmount } = render(
+      <Router history={createMemoryHistory()}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/apple/i);
+    expect(screen.getByText(/review by 01\/20/i)).toBeInTheDocument();
+    expect(screen.queryByText(/submitted review/i)).not.toBeInTheDocument();
+    unmount();
+
+    // Now render with a location state.
+
+    const history = createMemoryHistory({
+      initialEntries: [
+        {
+          state: {
+            reviewedAccessList: {
+              ...mockAccessListApple,
+              audit: {
+                ...mockAccessListApple.audit,
+                nextDate: new Date('2023-12-25'),
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    render(
+      <Router history={history}>
+        <ContextProvider ctx={ctx}>
+          <AccessLists />
+        </ContextProvider>
+      </Router>
+    );
+
+    await screen.findByText(/submitted review for "apple"/i);
+    expect(screen.queryByText(/review by/i)).not.toBeInTheDocument();
+
+    jest.useRealTimers();
+  });
+
   test('search param is respected', async () => {
     ecfg.oss.isIgsEnabled = true;
     jest

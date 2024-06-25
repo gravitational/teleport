@@ -4,6 +4,7 @@ import { useLocation, useHistory } from 'react-router';
 import styled from 'styled-components';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { ButtonPrimary, Box, Indicator, Alert, Flex } from 'design';
+import { Notification } from 'shared/components/Notification';
 import {
   FeatureBox,
   FeatureHeader,
@@ -12,6 +13,7 @@ import {
 import { ApiError } from 'teleport/services/api/parseError';
 import { decodeUrlQueryParam } from 'teleport/components/hooks/useUrlFiltering';
 import { compareByString } from 'teleport/lib/util';
+import { ShieldCheck } from 'design/Icon';
 
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -40,6 +42,7 @@ export function AccessLists() {
   const history = useHistory();
   const location = useLocation<{
     createdList?: AccessList;
+    reviewedAccessList?: AccessList;
     deletedAccessListId?: string;
   }>();
   const searchParams = new URLSearchParams(location.search);
@@ -49,6 +52,16 @@ export function AccessLists() {
 
   const { attempt, setAttempt } = useAttempt('processing');
 
+  const [notificationItem, setNotificationItem] = useState(() => {
+    if (location.state?.reviewedAccessList) {
+      return (
+        <ReviewedNotifciationItem
+          reviewedAccessList={location.state.reviewedAccessList}
+          onRemove={() => setNotificationItem(null)}
+        />
+      );
+    }
+  });
   const [accesses, setAccesses] = useState<AccessListWithModifiedGrants[]>([]);
   const [searchValue, setSearchValue] = useState(
     decodeUrlQueryParam(searchParams.get('search') || '')
@@ -62,10 +75,11 @@ export function AccessLists() {
         setAttempt({ status: 'success' });
 
         // If a location state was set, user came to this view from
-        // either creating or deleting an access list.
+        // either creating, deleting, or reviewing an access list.
         // Because of caching, the list from backend won't be updated
         // right way, so we manually update the list here.
-        const { createdList, deletedAccessListId } = location.state || {};
+        const { createdList, reviewedAccessList, deletedAccessListId } =
+          location.state || {};
         if (createdList) {
           const foundList = fetchedLists.find(l => l.id === createdList.id);
           if (!foundList) {
@@ -75,13 +89,18 @@ export function AccessLists() {
         if (deletedAccessListId) {
           fetchedLists = fetchedLists.filter(l => l.id !== deletedAccessListId);
         }
-
-        fetchedLists.sort((a, b) =>
-          compareByString(
-            a.title.toLocaleLowerCase(),
-            b.title.toLocaleLowerCase()
-          )
-        );
+        if (reviewedAccessList) {
+          const foundIndex = fetchedLists.findIndex(
+            l => l.id === reviewedAccessList.id
+          );
+          if (
+            foundIndex > -1 &&
+            fetchedLists[foundIndex].audit.nextDate !=
+              reviewedAccessList.audit.nextDate
+          ) {
+            fetchedLists[foundIndex] = reviewedAccessList;
+          }
+        }
 
         // Clear loc state afterwards but preserving query.
         history.replace({
@@ -127,7 +146,25 @@ export function AccessLists() {
               : null,
           };
         });
-        setAccesses(updatedAccessLists);
+        // Sort ascending by display title.
+        updatedAccessLists.sort((a, b) =>
+          compareByString(
+            a.title.toLocaleLowerCase(),
+            b.title.toLocaleLowerCase()
+          )
+        );
+
+        // Sort by required reviews by date.
+        const noReviewsRequired = updatedAccessLists.filter(
+          l => !l.needsReviewBy
+        );
+        const requiresReviewSortedByDate = updatedAccessLists
+          .filter(l => l.needsReviewBy)
+          .sort(
+            (a, b) => a.audit.nextDate.getTime() - b.audit.nextDate.getTime()
+          );
+
+        setAccesses([...requiresReviewSortedByDate, ...noReviewsRequired]);
       })
       .catch((e: Error) => {
         if (e instanceof ApiError) {
@@ -178,6 +215,10 @@ export function AccessLists() {
       const strRoles = r.grants.roles.join('').toLowerCase();
       const rolesMatch = splitted.every(s => strRoles.includes(s));
       if (rolesMatch) {
+        return true;
+      }
+
+      if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
         return true;
       }
     });
@@ -257,7 +298,7 @@ export function AccessLists() {
 
   const noPermToCreate = !canUpsertAsAdmin && attempt.status === '';
   return (
-    <FeatureBox>
+    <FeatureBox css={{ position: 'relative' }}>
       {showFeatureHeader && (
         <FeatureHeader alignItems="center" justifyContent="space-between">
           <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
@@ -279,9 +320,16 @@ export function AccessLists() {
         </FeatureHeader>
       )}
       <Box>{MainContent}</Box>
+      {notificationItem}
     </FeatureBox>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  top: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;
 
 const AccessListContainer = styled(Flex)`
   align-items: stretch;
@@ -315,3 +363,29 @@ const StyledInput = styled.input`
   margin-bottom: ${props => props.theme.space[2]}px;
   padding: ${props => props.theme.space[3]}px;
 `;
+
+const ReviewedNotifciationItem = ({
+  reviewedAccessList,
+  onRemove,
+}: {
+  reviewedAccessList: AccessList;
+  onRemove(): void;
+}) => (
+  <NotificationContainer>
+    <Notification
+      key={reviewedAccessList.id}
+      item={{
+        id: reviewedAccessList.id,
+        severity: 'info',
+        content: {
+          title: `Submitted review for "${reviewedAccessList.title}"`,
+          description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
+        },
+      }}
+      Icon={ShieldCheck}
+      getColor={theme => theme.colors.info}
+      onRemove={onRemove}
+      isAutoRemovable={true}
+    />
+  </NotificationContainer>
+);

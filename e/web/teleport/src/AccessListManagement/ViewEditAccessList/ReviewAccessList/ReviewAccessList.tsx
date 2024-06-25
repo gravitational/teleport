@@ -21,6 +21,7 @@ import {
   AccessListMember,
   ReviewAccessListRequest,
   AccessListRequires,
+  AccessList,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 import {
@@ -39,7 +40,6 @@ import {
 import { ReviewMembers } from './ReviewMembers';
 import { Summary } from './Summary';
 import { EditedRecurrence, ReviewStep } from './Shared';
-import FinishedReview from './FinishedReview';
 import { getMembersDeleted } from './utils';
 
 export const views = [
@@ -70,7 +70,6 @@ export function ReviewAccessList({
   isOwner?: boolean;
 }) {
   const history = useHistory();
-  const [nextAuditDate, setNextAuditDate] = useState<Date | null>();
   const [reviewStep, setReviewStep] = useState<ReviewStep>(views[0].step);
   const { attempt, run } = useAttempt('');
 
@@ -95,20 +94,41 @@ export function ReviewAccessList({
     useState<MembershipRequires>(accessList.membershipRequires);
 
   function reviewAccessList() {
+    const review = getEditedAccessListFields({
+      accessList,
+      editedMembers,
+      editedMembershipRequires,
+      editedRecurrence,
+    });
     run(() =>
       accessManagementService
         .reviewAccessList({
-          ...getEditedAccessListFields({
-            accessList,
-            editedMembers,
-            editedMembershipRequires,
-            editedRecurrence,
-          }),
+          ...review,
           name: accessList.id,
           notes: reviewNotes,
           reviewer,
         })
-        .then(setNextAuditDate)
+        .then(nextAuditDate => {
+          // After review, route to access list listing.
+          //
+          // To handle the stale access list after review
+          // (because of cache lag), modify this reviewed
+          // access list fields where applicable
+          // and send it with the router to manually update
+          // the stale access list determined by difference
+          // in audit.nextDate
+          const reviewedAccessList: AccessList = accessList;
+          reviewedAccessList.audit.nextDate = nextAuditDate;
+          reviewedAccessList.members = editedMembers;
+          reviewedAccessList.membersCount = editedMembers.length;
+          if (review.auditRecurrence) {
+            reviewedAccessList.audit.recurrence = review.auditRecurrence;
+          }
+
+          history.replace(cfg.getAccessListManagementRoute(), {
+            reviewedAccessList,
+          });
+        })
     );
   }
 
@@ -178,6 +198,7 @@ export function ReviewAccessList({
               <ReviewMembers
                 editedMembers={editedMembers}
                 onDeleteMember={handleRemoveMember}
+                originalMembers={accessList.members}
               />
             </Box>
           )}
@@ -200,21 +221,9 @@ export function ReviewAccessList({
               />
             </>
           )}
-          {nextAuditDate && (
-            <FinishedReview
-              nextAuditDate={nextAuditDate}
-              onClick={() =>
-                history.replace(
-                  cfg.getAccessListManagementRoute(accessList.id),
-                  {
-                    reviewed: true,
-                  }
-                )
-              }
-            />
-          )}
           <Flex mt={6} mb={8}>
             <ButtonPrimary
+              size="large"
               textTransform="none"
               onClick={() => handleNextButton(validator)}
               mr={3}
@@ -224,6 +233,7 @@ export function ReviewAccessList({
             </ButtonPrimary>
             {reviewStep > 0 && (
               <ButtonSecondary
+                size="large"
                 textTransform="none"
                 onClick={() => setReviewStep(prevStep => prevStep - 1)}
                 disabled={attempt.status === 'processing'}

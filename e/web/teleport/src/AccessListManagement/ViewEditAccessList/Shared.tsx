@@ -45,6 +45,7 @@ export const UserRevokeButtonCell = ({
   onClick,
   ineligibleReason,
   hideIneligibleReason = false,
+  isReviewing = false,
 }: {
   disabled: boolean;
   btnTitle: string;
@@ -54,6 +55,7 @@ export const UserRevokeButtonCell = ({
   // since deleting a member during review isn't
   // a dynamic change.
   hideIneligibleReason?: boolean;
+  isReviewing?: boolean;
 }) => {
   return (
     <Cell align="right">
@@ -68,12 +70,13 @@ export const UserRevokeButtonCell = ({
           </ToolTipText>
         )}
         <ButtonSecondary
+          textTransform="none"
           disabled={disabled}
           title={btnTitle}
           onClick={onClick}
           size="small"
         >
-          Delete
+          {isReviewing ? 'Remove' : 'Delete'}
         </ButtonSecondary>
       </Flex>
     </Cell>

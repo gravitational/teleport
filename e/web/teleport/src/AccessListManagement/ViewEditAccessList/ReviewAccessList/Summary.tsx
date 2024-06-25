@@ -1,6 +1,5 @@
 import React from 'react';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-import styled from 'styled-components';
 import { Box, Text, LabelInput } from 'design';
 import { pluralize } from 'shared/utils/text';
 
@@ -15,7 +14,7 @@ import { AccessListMemberTable } from '../Members/MembersList';
 import { RoleAndTraitLabels } from '../Shared';
 
 import { MembershipRequires } from './ReviewMembershipRequires';
-import { EditButton, EditedRecurrence, ReviewStep } from './Shared';
+import { EditButton, EditedRecurrence, List, ReviewStep } from './Shared';
 import { getMembersDeleted } from './utils';
 
 export function Summary({
@@ -129,7 +128,7 @@ export function ReviewAudit({
           })}
         </li>
         <li>
-          {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} removed
+          {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} revoked
         </li>
       </List>
       {!isOwner && (
@@ -189,10 +188,3 @@ export function getMemberApprovedMsg({
 
   return msg;
 }
-
-const List = styled.ul`
-  padding-left: ${p => p.theme.space[4]}px;
-  margin-bottom: ${p => p.theme.space[3]}px;
-  margin-top: ${p => p.theme.space[3]}px;
-  font-size: ${p => p.theme.fontSizes[1]}px;
-`;
