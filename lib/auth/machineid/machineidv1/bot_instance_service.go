@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// BotServiceConfig holds configuration options for
-// the bots gRPC service.
+// BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
+// service.
 type BotInstanceServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    services.BotInstance
@@ -42,7 +42,7 @@ type BotInstanceServiceConfig struct {
 	Clock      clockwork.Clock
 }
 
-// NewBotService returns a new instance of the BotService.
+// NewBotInstanceService returns a new instance of the BotInstanceService.
 func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, error) {
 	switch {
 	case cfg.Backend == nil:
@@ -66,7 +66,7 @@ func NewBotInstanceService(cfg BotInstanceServiceConfig) (*BotInstanceService, e
 	}, nil
 }
 
-// BotService implements the teleport.machineid.v1.BotInstanceService RPC service.
+// BotInstanceService implements the teleport.machineid.v1.BotInstanceService RPC service.
 type BotInstanceService struct {
 	pb.UnimplementedBotInstanceServiceServer
 
