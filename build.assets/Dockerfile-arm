@@ -93,6 +93,7 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 # will run builds using the Rust toolchains we install here.
 USER ci
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup target add arm-unknown-linux-gnueabihf && \
     rustup --version && \
     cargo --version && \
     rustc --version
