@@ -195,7 +195,7 @@ install_via_zypper() {
   fi
 
   $SUDO rpm --import https://zypper.releases.teleport.dev/gpg
-  $SUDO zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/$CHANNEL/teleport-zypper.repo")
+  $SUDO zypper addrepo --refresh --repo "$(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/$CHANNEL/teleport-zypper.repo")"
   $SUDO zypper --gpg-auto-import-keys refresh teleport
   $SUDO zypper install -y "teleport$TELEPORT_SUFFIX"
 
