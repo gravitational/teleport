@@ -94,8 +94,8 @@ Let's go through installation options of the most popular package managers:
   Same as the node_modules created by npm or Yarn Classic.
     * pnp: no node_modules. Same as pnp in Yarn.
 
-The installation option that is most strict and works with Electron is 
-`linked`/`pnpm`. 
+The installation option that is most strict and works with Electron is
+npm's `linked`, Yarn's `pnpm` and pnpm's `isolated`.
 
 ### So, what package manager should we migrate to?
 Modern package managers offer similar features, so I think the strictness and 
@@ -115,6 +115,8 @@ entirely?
 Yarn also shows a warning `The pnpm linker doesn't support providing different 
 versions to workspaces' peer dependencies` during the installation, but I'm not 
 sure what significance this has.
+
+To sum up: I recommend migrating to pnpm.
 
 ## Migration process
 ### Establishing correct relationships between workspaces
