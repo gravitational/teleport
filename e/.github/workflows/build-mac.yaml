@@ -40,10 +40,6 @@ on:
         type: string
         default: ''
 
-      artifact-name:
-        description: Name of artifact to upload to. If empty, artifacts are not uploaded.
-        type: string
-
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
@@ -54,9 +50,10 @@ on:
 jobs:
   build-release-artifacts:
     environment: ${{ inputs.environment }}
-    runs-on: macos-13-xl-arm64
+    runs-on: macos-13-xlarge
     permissions:
       contents: read
+      id-token: write
     env:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
@@ -143,22 +140,66 @@ jobs:
           make release OS=darwin ARCH=${ARCH} FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
-      - name: Checksum artifacts
-        if: inputs.artifact-name != ''
+      # Generate release server manifests
+      - name: Generate release server manifests
+        env:
+          RELCLI_VERSION: ${{ vars.RELCLI_VERSION }}
+          RELCLI_PATH: /tmp/relcli
+          RELEASE: ${{ inputs.release }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        shell: bash
+        working-directory: build/artifacts
         run: |
-          cd build/artifacts
-          for f in *; do
-            shasum -a 256 "$f" > "$f.sha256"
-            cat "$f.sha256"
-          done
+          # Download the release server CLI tool
+          curl -fsSL -o "${RELCLI_PATH}" "https://cdn.teleport.dev/relcli-${RELCLI_VERSION}-macos-$(uname -m)"
+          chmod +x "${RELCLI_PATH}"
+          ls -lh "${RELCLI_PATH}"
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        if: inputs.artifact-name != ''
+          # Generate the manifest
+          ls -lah
+          # The version of macos on GH-hosted runners has an old version of bash that does
+          # not support associative arrays. Should this ever get bumped, this `case` statement
+          # should be replaced with:
+          # declare -A descarch=([amd64]=Intel [arm64]=ARM)
+          case "${ARCH}" in
+            amd64) descarch="Intel" ;;
+            arm64) descarch="ARM" ;;
+            *) echo "Unknown arch ${ARCH}"; exit 1 ;;
+          esac
+
+          # Always generate a manifest for OSS Teleport
+          "${RELCLI_PATH}" generate-manifest \
+            --path "teleport-v${TELEPORT_VERSION}-darwin-${ARCH}-bin.tar.gz" \
+            --products 'teleport' --os 'darwin' --architecture "$ARCH" \
+            --description "MacOS ${descarch}"
+          
+          # Generate a manifest for enterprise if it was built
+          if [[ "$RELEASE" == 'enterprise' ]]; then
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-ent-v${TELEPORT_VERSION}-darwin-${ARCH}-bin.tar.gz" \
+              --products 'teleport-ent' --os 'darwin' --architecture "$ARCH" \
+              --description "MacOS ${descarch}"
+          fi
+
+          ls -lah
+
+        # Upload to the pending artifacts bucket
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: ${{ inputs.artifact-name }}
-          compression-level: 0 # artifacts are already compressed
-          retention-days: 1 # minimum; only needed until calling workflow downloads the artifacts
-          path: |
-            build/artifacts
-            !**/*-unsigned*
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+  
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          aws s3 cp . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION}/" \
+            --no-progress \
+            --recursive \
+            --exclude '*unsigned*'

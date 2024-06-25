@@ -282,7 +282,6 @@ jobs:
       - name: Generate release server manifests
         working-directory: build/artifacts
         env:
-          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
           RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
         run: |
           docker pull "${RELCLI_IMAGE}"
@@ -362,8 +361,7 @@ jobs:
             fi
 
             # Generate the manifest
-            docker run -u "$(id -u):$(id -g)" \
-              -e RELCLI_BASE_URL -v "$(pwd):/assets" \
+            docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
               "${RELCLI_IMAGE}" generate-manifest \
               --path "/assets/$file" "${p[@]/#/--products=}" --os "$os" --architecture "$a" \
                 --description "$d"

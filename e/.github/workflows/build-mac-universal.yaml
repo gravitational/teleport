@@ -35,15 +35,6 @@ on:
         type: string
         default: ""
 
-      artifact-name:
-        description: Name of artifact to upload to. If empty, artifacts are not uploaded.
-        type: string
-
-      source-artifact-pattern:
-        description: Glob pattern to match artifacts containing architecture-specific builds.
-        type: string
-        required: true
-
       build-packages:
         description: |
           Build Mac packages for Teleport, tsh and Teleport Connect.
@@ -63,9 +54,10 @@ on:
 jobs:
   build-release-artifacts:
     environment: ${{ inputs.environment }}
-    runs-on: macos-13-xl-arm64
+    runs-on: macos-13-xlarge
     permissions:
       contents: read
+      id-token: write
     env:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
@@ -90,7 +82,7 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+          echo "NODE_VERSION=$(make -s -C build.assets print-node-version)" >> "${GITHUB_ENV}"
 
       - name: Print versions
         run: |
@@ -115,13 +107,33 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
-      - name: Download architecture-specific artifacts
-        id: download
-        uses: actions/download-artifact@v4
+      - name: Assume AWS role for downloading the arch-specific artifacts
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          pattern: ${{ inputs.source-artifact-pattern }}
-          merge-multiple: true
-          path: build/artifacts
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-macos-artifact-download-${{ github.run_number }}"
+          role-duration-seconds: 900
+
+      - name: Download architecture-specific artifacts
+        env:
+          DOWNLOAD_DIRECTORY: build/artifacts/
+          S3_PREFIX: s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${{ inputs.release-version }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          mkdir -pv "${DOWNLOAD_DIRECTORY}"
+          cd "${DOWNLOAD_DIRECTORY}"
+
+          aws s3 cp "${S3_PREFIX}/teleport-v${TELEPORT_VERSION}-darwin-amd64-bin.tar.gz" .
+          aws s3 cp "${S3_PREFIX}/teleport-v${TELEPORT_VERSION}-darwin-arm64-bin.tar.gz" .
+          if [[ "${RELEASE}" == enterprise ]]; then
+            aws s3 cp "${S3_PREFIX}/teleport-ent-v${TELEPORT_VERSION}-darwin-amd64-bin.tar.gz" .
+            aws s3 cp "${S3_PREFIX}/teleport-ent-v${TELEPORT_VERSION}-darwin-arm64-bin.tar.gz" .
+          fi
+
+          ls -laht
 
       # --- Build -------------------------------------------------------------
       - name: Build Teleport Tarball
@@ -163,7 +175,7 @@ jobs:
           mkdir -p build/pkg
           cd build/pkg
           pkgutil --expand-full ../tsh-*.pkg tsh
-          echo "CONNECT_TSH_APP_PATH=$PWD/tsh/Payload/tsh.app" >> $GITHUB_ENV
+          echo "CONNECT_TSH_APP_PATH=${PWD}/tsh/Payload/tsh.app" >> "${GITHUB_ENV}"
 
       - name: Build Teleport Connect
         env:
@@ -180,24 +192,81 @@ jobs:
           make release-connect ARCH=universal ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
-      - name: Checksum artifacts
-        if: inputs.artifact-name != ''
+      # Generate release server manifests
+      - name: Generate release server manifests
+        env:
+          RELCLI_VERSION: ${{ vars.RELCLI_VERSION }}
+          RELCLI_PATH: /tmp/relcli
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+          RELEASE: ${{ inputs.release }}
+        shell: bash
+        working-directory: build/artifacts
         run: |
-          cd build/artifacts
-          for f in *; do
-            shasum -a 256 "$f" > "$f.sha256"
-            cat "$f.sha256"
-          done
+          # Download the release server CLI tool
+          curl -fsSL -o "${RELCLI_PATH}" "https://cdn.teleport.dev/relcli-${RELCLI_VERSION}-macos-$(uname -m)"
+          chmod +x "${RELCLI_PATH}"
+          ls -lh "${RELCLI_PATH}"
 
-      - name: Upload artifacts
-        if: inputs.artifact-name != ''
-        uses: actions/upload-artifact@v4
+          ls -lah
+
+          "${RELCLI_PATH}" generate-manifest \
+            --path "teleport-v${TELEPORT_VERSION}-darwin-universal-bin.tar.gz" \
+            --products 'teleport' --os 'darwin' --architecture 'universal' \
+            --description "MacOS Universal"
+
+          "${RELCLI_PATH}" generate-manifest \
+            --path "teleport-${TELEPORT_VERSION}.pkg" \
+            --products 'teleport' --os 'darwin' --architecture 'universal' \
+            --description "MacOS Universal .pkg installer"
+
+          "${RELCLI_PATH}" generate-manifest \
+            --path "tsh-${TELEPORT_VERSION}.pkg" \
+            --products 'teleport' --products 'teleport-ent' \
+            --os 'darwin' --architecture 'universal' \
+            --description "MacOS Universal .pkg installer (tsh client only)"
+
+          if [[ "${RELEASE}" == 'enterprise' ]]; then
+            "${RELCLI_PATH}" generate-manifest \
+              --path "Teleport Connect-${TELEPORT_VERSION}.dmg" \
+              --products 'teleport' --products 'teleport-ent' \
+              --os 'darwin' --architecture 'universal' \
+              --description "Teleport Connect"
+
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-ent-v${TELEPORT_VERSION}-darwin-universal-bin.tar.gz" \
+              --products 'teleport-ent' --os 'darwin' --architecture 'universal' \
+              --description "MacOS Universal"
+
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-ent-${TELEPORT_VERSION}.pkg" \
+              --products 'teleport-ent' --os 'darwin' --architecture 'universal' \
+              --description "MacOS Universal .pkg installer"
+          else
+            # Still publish Connect for non-enterprise releases, but don't 
+            # release it under the "teleport-ent" product
+            "${RELCLI_PATH}" generate-manifest \
+              --path "Teleport Connect-${TELEPORT_VERSION}.dmg" \
+              --products 'teleport' \
+              --os 'darwin' --architecture 'universal' \
+              --description "Teleport Connect"
+          fi
+
+          ls -lah
+
+      # Upload to the pending artifacts bucket
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          name: ${{ inputs.artifact-name }}
-          compression-level: 0 # artifacts are already compressed
-          retention-days: 1 # minimum; only needed until calling workflow downloads the artifacts
-          path: |
-            build/artifacts
-            !**/*-unsigned*
-            !**/*-arm64*
-            !**/*-amd64*
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+  
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          aws s3 sync . "s3://$PENDING_BUCKET_NAME/teleport/tag/${TELEPORT_VERSION}/"
