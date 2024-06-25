@@ -45,8 +45,10 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -278,6 +280,7 @@ $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -340,8 +343,14 @@ $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
+$(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
+# The -buildmode=pie flag requires external cgo linking.
+ifeq ("$(CGO_ENABLED)", "1")
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ./tool/tbot
+else
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+endif
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
