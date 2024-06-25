@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -409,6 +411,55 @@ func (e *Engine) auditUserPermissions(session *common.Session, entries []events.
 	e.Audit.OnPermissionsUpdate(e.Context, session, entries)
 }
 
+// auditResult process backend wire messages and emit result event on
+// appropriate messages.
+func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMessage) {
+	var res common.Result
+
+	switch m := pgMsg.(type) {
+	case *pgproto3.CommandComplete:
+		var err error
+		res.AffectedRecords, err = parseCommandResultAffectedRecords(m.CommandTag)
+		if err != nil {
+			e.Log.WithError(err).Debugf("Unable to define the number affected records from command complete")
+		}
+	case *pgproto3.ErrorResponse:
+		res.Error = common.ConvertError(pgconn.ErrorResponseToPgError(m))
+	default:
+		return
+	}
+
+	e.Audit.OnResult(e.Context, session, res)
+}
+
+// parseCommandResultAffectedRecords parses the command complete to retrieve the
+// affected rows information.
+//
+// https://www.postgresql.org/docs/16/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE
+func parseCommandResultAffectedRecords(commandTag []byte) (uint64, error) {
+	fields := strings.Fields(strings.ToUpper(string(commandTag)))
+	if len(fields) == 0 {
+		return 0, trace.BadParameter("command tag is empty")
+	}
+
+	switch fields[0] {
+	case "INSERT":
+		if len(fields) != 3 {
+			return 0, trace.BadParameter("command INSERT tag is not well formatted")
+		}
+
+		return strconv.ParseUint(fields[2], 10, 64)
+	case "DELETE", "UPDATE", "MERGE", "SELECT", "MOVE", "FETCH", "COPY":
+		if len(fields) != 2 {
+			return 0, trace.BadParameter("command tag %s is not well formatted", fields[0])
+		}
+
+		return strconv.ParseUint(fields[1], 10, 64)
+	default:
+		return 0, nil
+	}
+}
+
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
@@ -448,6 +499,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 			count += 1
 			ctr.Inc()
 			log.Tracef("Received server message: %#v.", message)
+			e.auditResult(sessionCtx, message)
 		}
 	}()
 

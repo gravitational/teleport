@@ -3074,6 +3074,45 @@ message DatabaseSessionQuery {
   ];
 }
 
+// DatabaseSessionCommandResult represents the result of a user command. It is
+// expected that for each user command/query there will be a corresponding
+// result.
+message DatabaseSessionCommandResult {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates if the command was successful or not.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // AfftectedRecords represents the number of records that were affected by the
+  // command.
+  uint64 AffectedRecords = 6 [(gogoproto.jsontag) = "affected_records,omitempty"];
+}
+
 // DatabasePermissionUpdate is emitted when a user database permissions are updated.
 message DatabasePermissionUpdate {
   // Metadata is a common event metadata.
@@ -4125,6 +4164,7 @@ message OneOf {
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.AccessPathChanged AccessPathChanged = 157;
     events.SpannerRPC SpannerRPC = 158;
+    events.DatabaseSessionCommandResult DatabaseSessionCommandResult = 159;
   }
 }
 
