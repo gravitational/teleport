@@ -147,6 +147,19 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 	return dest.Write(ctx, path, data)
 }
 
+func (s *SSHMultiplexerService) getClusterNames(ctx context.Context, clt *authclient.Client) ([]string, error) {
+	allClusterNames := []string{s.identity.Get().ClusterName}
+	leafClusters, err := clt.GetRemoteClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, lc := range leafClusters {
+		allClusterNames = append(allClusterNames, lc.GetName())
+	}
+
+	return allClusterNames, nil
+}
+
 func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
