@@ -148,12 +148,11 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        Ed25519,
-		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
-		JWTCAJWT:     RSA2048,
-		OIDCIdPCAJWT: RSA2048,
-		SAMLIdPCATLS: ECDSAP256,
-		SPIFFECATLS:  ECDSAP256,
-		SPIFFECAJWT:  RSA2048,
+		JWTCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:        ECDSAP256,
+		SAMLIdPCATLS:        ECDSAP256,
+		SPIFFECATLS:         ECDSAP256,
+		SPIFFECAJWT:         ECDSAP256,
 		// TODO(nklaassen): subject key purposes.
 	}
 
@@ -168,12 +167,11 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        ECDSAP256,
-		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
-		JWTCAJWT:     RSA2048,
-		OIDCIdPCAJWT: RSA2048,
-		SAMLIdPCATLS: ECDSAP256,
-		SPIFFECATLS:  ECDSAP256,
-		SPIFFECAJWT:  RSA2048,
+		JWTCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:        ECDSAP256,
+		SAMLIdPCATLS:        ECDSAP256,
+		SPIFFECATLS:         ECDSAP256,
+		SPIFFECAJWT:         ECDSAP256,
 		// TODO(nklaassen): subject key purposes.
 	}
 
@@ -190,12 +188,11 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        ECDSAP256,
-		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
-		JWTCAJWT:     RSA2048,
-		OIDCIdPCAJWT: RSA2048,
-		SAMLIdPCATLS: ECDSAP256,
-		SPIFFECATLS:  ECDSAP256,
-		SPIFFECAJWT:  RSA2048,
+		JWTCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:        ECDSAP256,
+		SAMLIdPCATLS:        ECDSAP256,
+		SPIFFECATLS:         ECDSAP256,
+		SPIFFECAJWT:         ECDSAP256,
 		// TODO(nklaassen): subject key purposes.
 	}
 
