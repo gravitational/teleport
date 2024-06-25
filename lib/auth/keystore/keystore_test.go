@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -33,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -42,7 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	clusterName = "test-cluster"
 )
 
 var (
@@ -266,8 +273,6 @@ func TestManager(t *testing.T) {
 
 	pack := newTestPack(ctx, t)
 
-	const clusterName = "test-cluster"
-
 	for _, backendDesc := range pack.backends {
 		t.Run(backendDesc.name, func(t *testing.T) {
 			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
@@ -409,6 +414,79 @@ func TestManager(t *testing.T) {
 	}
 }
 
+// TestAlgorithmSuites asserts that the keystore generates keys with the
+// expected signature algorithm for all valid signature algorithm suites.
+func TestAlgorithmSuites(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	pack := newTestPack(ctx, t)
+	for _, suite := range []types.SignatureAlgorithmSuite{
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+	} {
+		t.Run(suite.String(), func(t *testing.T) {
+			testAlgorithmSuite(t, ctx, pack, suite)
+		})
+	}
+}
+
+func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite types.SignatureAlgorithmSuite) {
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name, func(t *testing.T) {
+			authPrefGetter := &fakeAuthPreferenceGetter{suite}
+			backendDesc.opts.AuthPreferenceGetter = authPrefGetter
+			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
+			require.NoError(t, err)
+
+			// Delete all keys to clean up the test.
+			t.Cleanup(func() {
+				assert.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			})
+
+			sshKeyPair, err := manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+			sshPubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyPair.PublicKey)
+			require.NoError(t, err)
+			sshPub := sshPubKey.(ssh.CryptoPublicKey).CryptoPublicKey()
+			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, sshPub)
+
+			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName, cryptosuites.DatabaseClientCATLS)
+			require.NoError(t, err)
+			tlsCert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
+			require.NoError(t, err)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.DatabaseClientCATLS)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, tlsCert.PublicKey)
+
+			jwtKeyPair, err := manager.NewJWTKeyPair(ctx, cryptosuites.JWTCAJWT)
+			require.NoError(t, err)
+			jwtPubKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
+			require.NoError(t, err)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.JWTCAJWT)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, jwtPubKey)
+		})
+	}
+}
+
+func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, pubKey crypto.PublicKey) {
+	t.Helper()
+	switch expectedAlgorithm {
+	case cryptosuites.RSA2048:
+		assert.IsType(t, &rsa.PublicKey{}, pubKey)
+	case cryptosuites.ECDSAP256:
+		assert.IsType(t, &ecdsa.PublicKey{}, pubKey)
+	case cryptosuites.Ed25519:
+		assert.IsType(t, ed25519.PublicKey{}, pubKey)
+	default:
+		t.Fatalf("test does not support algorithm %s", expectedAlgorithm.String())
+	}
+}
+
 type testPack struct {
 	backends []*backendDesc
 	clock    clockwork.FakeClock
@@ -441,7 +519,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	testGCPKMSClient := newTestGCPKMSClient(t, gcpKMSDialer)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "test-cluster",
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 
