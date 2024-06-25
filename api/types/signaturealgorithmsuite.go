@@ -37,6 +37,8 @@ func (s *SignatureAlgorithmSuite) toString() string {
 
 func (s *SignatureAlgorithmSuite) fromString(str string) error {
 	switch str {
+	case "":
+		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED
 	case "legacy":
 		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY
 	case "balanced-v1":
@@ -57,7 +59,8 @@ func (s *SignatureAlgorithmSuite) fromString(str string) error {
 
 // UnmarshalJSON marshals a SignatureAlgorithmSuite value to JSON.
 func (s *SignatureAlgorithmSuite) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + s.toString() + `"`), nil
+	out, err := json.Marshal(s.toString())
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
@@ -70,15 +73,9 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	switch v := val.(type) {
 	case string:
 		return trace.Wrap(s.fromString(v))
-	case int32:
-		return trace.Wrap(s.setFromEnum(v))
-	case int64:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	case int:
-		return trace.Wrap(s.setFromEnum(int32(v)))
 	case float64:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	case float32:
+		// json.Unmarshal is documented to unmarshal any JSON number into an
+		// int64 when unmarshaling into an interface.
 		return trace.Wrap(s.setFromEnum(int32(v)))
 	default:
 		return trace.BadParameter("SignatureAlgorithmSuite invalid type %T", val)

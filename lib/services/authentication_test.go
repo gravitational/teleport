@@ -19,6 +19,7 @@
 package services_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -130,4 +131,79 @@ func TestSignatureAlgorithmSuiteRoundtrip(t *testing.T) {
 		})
 	}
 
+}
+
+func TestParseSignatureAlgorithmSuite(t *testing.T) {
+	for _, tc := range []struct {
+		json     string
+		expected types.SignatureAlgorithmSuite
+	}{
+		{
+			json:     `""`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+		},
+		{
+			json:     `"SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+		},
+		{
+			json:     `"legacy"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		{
+			json:     `"SIGNATURE_ALGORITHM_SUITE_LEGACY"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		{
+			json:     `1`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		{
+			json:     `1.0`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		},
+		{
+			json:     `"balanced-v1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+		{
+			json:     `"SIGNATURE_ALGORITHM_SUITE_BALANCED_V1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+		{
+			json:     `2`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+		{
+			json:     `"fips-v1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		},
+		{
+			json:     `"SIGNATURE_ALGORITHM_SUITE_FIPS_V1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		},
+		{
+			json:     `3`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+		},
+		{
+			json:     `"hsm-v1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		},
+		{
+			json:     `"SIGNATURE_ALGORITHM_SUITE_HSM_V1"`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		},
+		{
+			json:     `4`,
+			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		},
+	} {
+		t.Run(tc.json, func(t *testing.T) {
+			raw := fmt.Sprintf(`{"spec":{"signature_algorithm_suite":%s}}`, tc.json)
+			unmarshaled, err := services.UnmarshalAuthPreference([]byte(raw))
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, unmarshaled.GetSignatureAlgorithmSuite())
+		})
+	}
 }
