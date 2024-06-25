@@ -183,6 +183,13 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			return trace.Wrap(err)
 		}
 	}
+
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	isCloud := resp.GetServerFeatures().GetCloud()
+
 	upgrader := c.upgrader
 	var noUpgrader bool
 	if upgrader == "none" {
@@ -205,6 +212,13 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version"})
 		for instances.Next() {
 			instance := instances.Item()
+
+			// The auth and proxy services should be omitted from the inventory list
+			// on Managed Teleport Enterprise (Cloud-Hosted) instances.
+			if isCloud && (instance.HasService(types.RoleAuth) || instance.HasService(types.RoleProxy)) {
+				continue
+			}
+
 			services := make([]string, 0, len(instance.GetServices()))
 			for _, s := range instance.GetServices() {
 				services = append(services, string(s))
