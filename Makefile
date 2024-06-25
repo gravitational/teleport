@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.0-dev.fred-c-linux-0
+VERSION=17.0.0-dev.fred-c-linux-1
 
 DOCKER_IMAGE ?= teleport
 
@@ -149,7 +149,6 @@ export C_ARCH
 ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
 LIBFIDO2_TEST_TAG := libfido2
 ifeq ($(FIDO2),)
-$(info libfido2 found, setting FIDO2=dynamic)
 FIDO2 ?= dynamic
 endif
 endif
