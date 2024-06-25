@@ -108,6 +108,16 @@ func MajorSemver(version string) (string, error) {
 	return fmt.Sprintf("%d.0.0", ver.Major), nil
 }
 
+// MajorSemverWithWildcards returns the major version as a semver string.
+// Ex: 13.4.3 -> 13.x.x
+func MajorSemverWithWildcards(version string) (string, error) {
+	ver, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%d.x.x", ver.Major), nil
+}
+
 func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
 	v1Semver, err := semver.NewVersion(ver1)
 	if err != nil {
