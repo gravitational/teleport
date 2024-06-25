@@ -11,19 +11,18 @@ script: |
     offset := 0
     for n, l in lines {
       line := l[0].text
-      if !inTabItem && text.re_match(`^\s*<TabItem`, line) {
-        fmt.println(line)
+      if !inTabItem && text.re_match(`<TabItem`, line) {
         inTabItem = true
+        continue
       }
   
-      if inTabItem && text.re_match(`^\s*</TabItem`, line) {
-        fmt.println(line)
+      if inTabItem && text.re_match(`</TabItem`, line) {
         inTabItem = false
+        continue
       }
   
       if inTabItem && text.re_match(`^\s*<Tabs`, line) {
-        fmt.println("bad line:", n, line, l)
-        fmt.println(scope[0:l[0].end])
+        fmt.println("found issue on line ", n, ":", l)
         return [{
           begin: l[0].begin,
           end: l[0].end
@@ -33,4 +32,5 @@ script: |
   }
       
   matches := getMatches()
+  fmt.println(matches)
 
