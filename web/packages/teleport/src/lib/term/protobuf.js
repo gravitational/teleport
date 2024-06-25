@@ -32,6 +32,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
+  ERROR: 'e',
   LATENCY: 'l',
 };
 
@@ -60,6 +61,7 @@ export const messageFields = {
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
       challengeResponse: MessageTypeEnum.WEBAUTHN_CHALLENGE.charCodeAt(0),
+      error: MessageTypeEnum.ERROR.charCodeAt(0),
     },
   },
 };

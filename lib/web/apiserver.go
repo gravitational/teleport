@@ -3964,6 +3964,7 @@ func (h *Handler) writeErrToWebSocket(ws *websocket.Conn, err error) {
 		return
 	}
 	errEnvelope := terminal.Envelope{
+		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketError,
 		Payload: trace.UserMessage(err),
 	}
