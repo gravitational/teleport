@@ -375,6 +375,7 @@ exports[`rendering of Session Recordings 1`] = `
   justify-content: space-between;
   padding: 0 0 16px 0;
   max-height: 40px;
+  margin-top: 4px;
 }
 
 .c15 {

@@ -388,6 +388,7 @@ exports[`active sessions CTA 1`] = `
   justify-content: space-between;
   padding: 0 0 16px 0;
   max-height: 40px;
+  margin-top: 4px;
 }
 
 .c26 svg {
@@ -1498,6 +1499,7 @@ exports[`loaded 1`] = `
   justify-content: space-between;
   padding: 0 0 16px 0;
   max-height: 40px;
+  margin-top: 4px;
 }
 
 .c21 svg {
@@ -2570,6 +2572,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   justify-content: space-between;
   padding: 0 0 16px 0;
   max-height: 40px;
+  margin-top: 4px;
 }
 
 .c21 svg {
