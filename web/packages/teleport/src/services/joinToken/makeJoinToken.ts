@@ -65,7 +65,7 @@ export default function makeToken(json): JoinToken {
     isStatic,
     safeName,
     method,
-    roles: roles || [],
+    roles: roles?.sort() || [],
     suggestedLabels: labels,
     internalResourceId: extractInternalResourceId(labels),
     expiry: expiry ? new Date(expiry) : null,

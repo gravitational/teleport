@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { useEffect, useState } from 'react';
+import { isAfter, addHours } from 'date-fns';
 import {
   Box,
   Text,
@@ -68,7 +69,17 @@ export const JoinTokens = () => {
 
   async function handleSave(content: string): Promise<void> {
     const token = await ctx.joinTokenService.createJoinToken({ content });
-    const items = [token, ...joinTokensAttempt.data.items];
+    let items = [...joinTokensAttempt.data.items];
+    if (resources.status === 'creating') {
+      items.push(token);
+    } else {
+      items = items.map(item => {
+        if (item.id === token.id) {
+          return token;
+        }
+        return item;
+      });
+    }
     setJoinTokensAttempt({
       data: { ...joinTokensAttempt.data, items },
       status: 'success',
@@ -137,18 +148,23 @@ export const JoinTokens = () => {
                 key: 'expiry',
                 headerText: 'Expires in',
                 isSortable: true,
-                render: ({ expiryText }) => (
-                  <Cell>
-                    <Flex alignItems="center" gap={2}>
-                      <Text>{expiryText}</Text>
-                      {expiryText === 'never' && (
-                        <HoverTooltip tipContent="This token is statically configured in your teleport configuration file and cannot be deleted via the Web UI. Static tokens are inherently insecure because they never expire and, if stolen, can be used by an attacker to join any resource to your cluster.">
-                          <Warning size="small" color="error.main" />
-                        </HoverTooltip>
-                      )}
-                    </Flex>
-                  </Cell>
-                ),
+                render: ({ expiry, expiryText, isStatic, id, method }) => {
+                  const now = new Date();
+                  const isLongLived =
+                    isAfter(expiry, addHours(now, 4)) && method === 'token';
+                  return (
+                    <Cell>
+                      <Flex alignItems="center" gap={2}>
+                        <Text>{expiryText}</Text>
+                        {(isLongLived || isStatic) && (
+                          <HoverTooltip tipContent="Long-lived and static tokens are less secure. We recommend using a different join method other than token for long-lived access.">
+                            <Warning size="small" color="error.main" />
+                          </HoverTooltip>
+                        )}
+                      </Flex>
+                    </Cell>
+                  );
+                },
               },
               {
                 altKey: 'options-btn',
@@ -264,10 +280,11 @@ const StyledLabel = styled(Label)`
   height: 20px;
   margin: 1px 0;
   margin-right: ${props => props.theme.space[2]}px;
+  background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  color: ${props => props.theme.colors.text.main};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
   line-height: 20px;
 `;
 
@@ -351,6 +368,7 @@ function Directions({
           >
             <ButtonSecondary
               width="100px"
+              px={2}
               size="large"
               css={`
                 border-color: ${props => props.theme.colors.spotBackground[0]};
@@ -422,7 +440,7 @@ const ActionCell = ({
       <Cell align="right">
         <HoverTooltip
           justifyContentProps={{ justifyContent: 'end' }}
-          tipContent="Statically configured tokens cannot be editted or deleted via the web UI. You must remove them from your teleport configuration file."
+          tipContent="Statically configured tokens cannot be editted or deleted via the web UI. Static tokens are less secure and it is recommended that you remove them from your teleport configuration file."
         >
           <MenuButton buttonProps={{ disabled: true }} />
         </HoverTooltip>

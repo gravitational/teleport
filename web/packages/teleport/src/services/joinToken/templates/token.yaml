@@ -25,19 +25,4 @@ spec:
   roles: 
     - Node
     - App
-  join_method: gcp
-  # Only set bot name when the token is used for MachineID.
-  # When set, the token must have the "Bot" role as well.
-  bot_name: my-bot
-  # SuggestedLabels is a set of labels that resources should set when using this
-  # token to enroll themselves in the cluster.
-  # Currently, only node-join scripts create a configuration according to the suggestion.
-  suggested_labels:
-    teams: ["sales-eng", "eng", "qa"]
-    application: ["demo-product"]
-  # SuggestedAgentMatcherLabels is a set of labels to be used by discovery agents to match on resources.
-  # When an agent uses this token, the agent should monitor resources that match those labels.
-  # For databases, this means adding the labels to `db_service.resources.labels`.
-  # Currently, only node-join scripts create a configuration according to the suggestion.
-  suggested_agent_matcher_labels:
-    teams: ["sales-eng"]
+  join_method: token

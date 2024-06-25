@@ -155,30 +155,24 @@ func (h *Handler) createTokenFromYAMLHandle(w http.ResponseWriter, r *http.Reque
 
 	extractedRes, err := ExtractResourceAndValidate(yaml.Content)
 	if err != nil {
-		fmt.Println("----er11")
-		fmt.Printf("%+v\n", err)
-		fmt.Println("----er11")
 		return nil, trace.Wrap(err)
 	}
 
 	token, err := services.UnmarshalProvisionToken(extractedRes.Raw)
 	if err != nil {
-		fmt.Println("----er22")
-		fmt.Printf("%+v\n", err)
-		fmt.Println("----er22")
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println("----tok")
-	fmt.Printf("%+v\n", token)
-	fmt.Println("----tok")
+	if token.GetJoinMethod() == types.JoinMethodToken && token.Expiry().IsZero() {
+		token.SetExpiry(time.Now().UTC().Add(defaults.NodeJoinTokenTTL))
+	}
 
 	clt, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = clt.CreateToken(r.Context(), token)
+	err = clt.UpsertToken(r.Context(), token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
