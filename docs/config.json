@@ -1059,6 +1059,10 @@
               "slug": "/application-access/guides/tcp/"
             },
             {
+              "title": "VNet",
+              "slug": "/application-access/guides/vnet/"
+            },
+            {
               "title": "API Access",
               "slug": "/application-access/guides/api-access/"
             },
