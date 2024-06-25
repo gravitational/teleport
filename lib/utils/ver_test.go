@@ -39,6 +39,21 @@ func TestMeetsMinVersion_emptyOrInvalid(t *testing.T) {
 	}
 }
 
+func TestMeetsMaxVersion_emptyOrInvalid(t *testing.T) {
+	// See TestMaxVersions for more comprehensive tests.
+
+	if !MeetsMaxVersion("", "v1.2.3") {
+		t.Error("MeetsMaxVersion with an empty gotVer should always succeed")
+	}
+
+	if !MeetsMaxVersion("banana", "v1.2.3") {
+		t.Error("banana with an invalid version should always succeed")
+	}
+	if !MeetsMaxVersion("v1.2.3", "banana") {
+		t.Error("MeetsMaxVersion with an invalid version should always succeed")
+	}
+}
+
 func TestMajorSemver(t *testing.T) {
 	t.Parallel()
 

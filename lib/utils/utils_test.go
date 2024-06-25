@@ -166,6 +166,39 @@ func TestMinVersions(t *testing.T) {
 	}
 }
 
+// TestMaxVersions tests versions compatibility checking
+func TestMaxVersions(t *testing.T) {
+	t.Parallel()
+
+	type tc struct {
+		info      string
+		client    string
+		maxClient string
+	}
+	successTestCases := []tc{
+		{info: "client same as max version", client: "1.0.0", maxClient: "1.0.0"},
+		{info: "client older than max version", client: "1.1.0", maxClient: "1.2.0"},
+		{info: "pre-releases clients are ok", client: "1.0.0-alpha.1", maxClient: "1.0.0"},
+	}
+	for _, testCase := range successTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			require.NoError(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			assert.True(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to succeed")
+		})
+	}
+
+	failTestCases := []tc{
+		{info: "client newer than max version", client: "1.3.0", maxClient: "1.1.0"},
+		{info: "newer pre-releases are no ok", client: "1.1.0", maxClient: "1.1.0-alpha.1"},
+	}
+	for _, testCase := range failTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			fixtures.AssertBadParameter(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
+		})
+	}
+}
+
 // TestClickableURL tests clickable URL conversions
 func TestClickableURL(t *testing.T) {
 	t.Parallel()
