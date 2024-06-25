@@ -142,7 +142,7 @@ The ability to download recordings for offline viewing will be available in a fu
 
 ### Will Teleport be updated automatically?
 
-The Teleport Auth Service and Teleport Proxy Service for managed Teleport Enterprise instances
+The Teleport Auth Service and Teleport Proxy Service for managed Teleport Enterprise clusters
 are automatically kept up to date with patches and minor releases following the release schedule
 described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 
@@ -152,10 +152,10 @@ described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 - Teleport Auth Service and Teleport Proxy Service updates are pushed to Teleport cloud accounts
   during your scheduled maintenance window.
 - The Teleport Auth Service and Proxy Service will not be automatically upgraded to the next
-   major version with Teleport agents on older major versions. 
+   major version with Teleport Agents on older major versions. 
 - Teleport Agents are only updated automatically if you enroll them in automatic updates.
 
-If you have Teleport Agents connected to a managed Teleport Enterprise instance
+If you have Teleport Agents connected to a managed Teleport Enterprise cluster
 that are more than one major version behind, you might experience compatibility
 issues unless your Teleport Agents are enrolled in automatic updates. See the [Upgrading
 Overview](../../upgrading/overview.mdx) for more information.
@@ -166,7 +166,7 @@ connected agents?](#how-can-i-find-version-information-on-connected-agents).
 For more information about automatic updates and compatibility issues, contact
 [Teleport support](https://goteleport.com/support/).
 
-### Why wasn't my managed Teleport Enterprise instance upgraded to the latest major version?
+### Why wasn't my managed Teleport Enterprise cluster upgraded to the latest major version?
 
 The Teleport control plane supports Teleport Agents that are on the same major version or one major version behind.
 If your Teleport Agents are not up to date, we will withhold major version upgrades in order to prevent connectivity
