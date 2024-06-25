@@ -31,10 +31,6 @@ on:
         type: string
         required: true
 
-env:
-  RELCLI_URL: 'https://cdn.teleport.dev/relcli-prod-02bf88c-20231030T134419-windows.exe'
-  RELCLI_SHA256: 'e296a736334fd35882624e636c6ab1b0de9f7ebf952fad83135b5060e3cfb48e'
-
 jobs:
   build:
     permissions:
@@ -298,7 +294,23 @@ jobs:
           Install-BuildRequirements -InstallDirectory "C:\toolchains" -TeleportSourceDirectory "$(Get-Location)"
           Write-Version-Objects -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG"
           Build-Artifacts -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
-
+      - name: Get the release server CLI
+        env:
+          RELCLI_URL: 'https://cdn.teleport.dev/relcli-${{ vars.RELCLI_VERSION }}-windows.exe'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          . "build.assets/windows/build.ps1"
+          Get-Relcli -Url "$env:RELCLI_URL" -Workspace "$env:RELCLI_DIR"
+      - name: Register the artifact with the release server
+        env:
+          RELEASE_REPO: ${{ inputs.oss-teleport-repo }}
+          ARTIFACT_VERSION: ${{ inputs.artifact-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          . "build.assets/windows/build.ps1"
+          Generate-Artifacts -Workspace "$env:RELCLI_DIR" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
       - name: Assume AWS S3 artifact upload role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
@@ -313,22 +325,3 @@ jobs:
           ARTIFACT_TAG: ${{ inputs.artifact-version }}
         run: |
           aws s3 cp "$env:ARTIFACT_DIRECTORY" "s3://$env:ARTIFACT_BUCKET/teleport/tag/$env:ARTIFACT_TAG/" --recursive --no-progress
-      - name: Get the release server CLI
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          . "build.assets/windows/build.ps1"
-          Get-Relcli -Url "$env:RELCLI_URL" -Sha256 "$env:RELCLI_SHA256" -Workspace "$env:RELCLI_DIR"
-      - name: Register the artifact with the release server
-        env:
-          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
-          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
-          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
-          RELEASE_REPO: ${{ inputs.oss-teleport-repo }}
-          ARTIFACT_VERSION: ${{ inputs.artifact-version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference = 'SilentlyContinue'
-          . "build.assets/windows/build.ps1"
-          Write-Host "Registering artifacts with release server at $env:RELCLI_BASE_URL"
-          Register-Artifacts -Workspace "$env:RELCLI_DIR" -Outputs "$env:ARTIFACT_DIRECTORY"
