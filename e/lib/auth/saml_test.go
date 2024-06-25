@@ -75,11 +75,13 @@ func TestCreateSAMLUser(t *testing.T) {
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	// Dry-run creation of SAML user.
-	user, err := sas.createSAMLUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "samlService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
+	user, err := sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+		CreateUserParams: auth.CreateUserParams{
+			ConnectorName: "samlService",
+			Username:      "foo@example.com",
+			Roles:         []string{"admin"},
+			SessionTTL:    1 * time.Minute,
+		},
 	}, true)
 	require.NoError(t, err)
 	require.Equal(t, "foo@example.com", user.GetName())
@@ -89,11 +91,13 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = sas.createSAMLUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "samlService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
+	_, err = sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+		CreateUserParams: auth.CreateUserParams{
+			ConnectorName: "samlService",
+			Username:      "foo@example.com",
+			Roles:         []string{"admin"},
+			SessionTTL:    1 * time.Minute,
+		},
 	}, false)
 	require.NoError(t, err)
 
@@ -103,11 +107,13 @@ func TestCreateSAMLUser(t *testing.T) {
 
 	// Create the same user again and validate that the user was
 	// successfully updated
-	user2, err := sas.createSAMLUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "samlService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
+	user2, err := sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+		CreateUserParams: auth.CreateUserParams{
+			ConnectorName: "samlService",
+			Username:      "foo@example.com",
+			Roles:         []string{"admin"},
+			SessionTTL:    1 * time.Minute,
+		},
 	}, false)
 	require.NoError(t, err)
 	require.NotEqual(t, user.GetRevision(), user2.GetRevision())

@@ -2,12 +2,15 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	saml2 "github.com/russellhaering/gosaml2"
 
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
@@ -350,4 +353,34 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	return redirectURL.String()
+}
+
+// samlSLOHandle handles the `LogoutResponse` from a SAML IdP after single logout.
+func (p *Plugin) samlSLOHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) string {
+	logger := p.Log.WithField("auth", "saml")
+	logger.Debug("Single logout start.")
+
+	relayState := r.FormValue("RelayState")
+	username, connectorName, _ := strings.Cut(relayState, ",")
+
+	errorRedirectURL := client.SAMLSingleLogoutFailedRedirectURL + fmt.Sprintf("?connectorName=%s", url.QueryEscape(connectorName))
+
+	samlResponse := r.FormValue("SAMLResponse")
+	if samlResponse == "" {
+		logger.Error("Missing SAMLResponse form value in request")
+		return errorRedirectURL
+	}
+
+	logoutResponse, err := saml2.DecodeUnverifiedLogoutResponse(samlResponse)
+	if err != nil {
+		logger.Error(err, "Failed to decode LogoutResponse.")
+		return errorRedirectURL
+	}
+
+	if !strings.Contains(logoutResponse.Status.StatusCode.Value, "Success") {
+		logger.Error(fmt.Sprintf("SAML Single Logout for user '%s' failed with status code '%s'", username, logoutResponse.Status.StatusCode.Value))
+		return errorRedirectURL
+	}
+
+	return client.DefaultLoginURL
 }

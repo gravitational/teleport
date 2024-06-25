@@ -276,7 +276,14 @@ func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth
 	return &p, nil
 }
 
-func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUserParams, dryRun bool) (types.User, error) {
+// CreateSAMLUserParams are the parameters used for generating a SAML user's identity.
+type CreateSAMLUserParams struct {
+	auth.CreateUserParams
+	// SingleLogoutURL is the SAML IdP's SLO (single logout) URL to initiate SLO, if applicable.
+	SingleLogoutURL string
+}
+
+func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *CreateSAMLUserParams, dryRun bool) (types.User, error) {
 	expires := sas.auth.GetClock().Now().UTC().Add(p.SessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v. Dry run: %v.", p.ConnectorName, p.Username, p.Roles, dryRun)
@@ -294,8 +301,9 @@ func (sas *SAMLAuthService) createSAMLUser(ctx context.Context, p *auth.CreateUs
 			Traits: p.Traits,
 			SAMLIdentities: []types.ExternalIdentity{
 				{
-					ConnectorID: p.ConnectorName,
-					Username:    p.Username,
+					ConnectorID:         p.ConnectorName,
+					Username:            p.Username,
+					SAMLSingleLogoutURL: p.SingleLogoutURL,
 				},
 			},
 			CreatedBy: types.CreatedBy{
@@ -608,7 +616,31 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			SessionTTL:    types.Duration(params.SessionTTL),
 		}
 
-		user, err = sas.createSAMLUser(ctx, params, diagCtx.Info.TestFlow)
+		createSAMLUserParams := &CreateSAMLUserParams{
+			CreateUserParams: auth.CreateUserParams{
+				ConnectorName: params.ConnectorName,
+				Username:      params.Username,
+				KubeGroups:    params.KubeGroups,
+				KubeUsers:     params.KubeUsers,
+				Roles:         params.Roles,
+				Traits:        params.Traits,
+				SessionTTL:    params.SessionTTL,
+			},
+		}
+
+		if connector.GetSingleLogoutURL() != "" {
+			provider.IdentityProviderSLOURL = connector.GetSingleLogoutURL()
+			createSAMLUserParams.SingleLogoutURL, err = generateSingleLogoutURL(
+				provider,
+				connector,
+				assertionInfo,
+			)
+			if err != nil {
+				return nil, loginIP, trace.Wrap(err, "Failed to generate SAML SLO URL")
+			}
+		}
+
+		user, err = sas.createSAMLUser(ctx, createSAMLUserParams, diagCtx.Info.TestFlow)
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create user from provided parameters.")
 		}
@@ -811,4 +843,21 @@ func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWr
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
+}
+
+// generateSingleLogoutURL generates a URL with a SAML LogoutRequest encoded in the query parameters. When the user opens this URL in the browser, it will initate
+// SAML SLO (Single log-out) and log them out of the identity provider.
+func generateSingleLogoutURL(provider *saml2.SAMLServiceProvider, connector types.SAMLConnector, assertionInfo *saml2.AssertionInfo) (string, error) {
+	logoutRequest, err := provider.BuildLogoutRequestDocument(assertionInfo.NameID, assertionInfo.SessionIndex)
+	if err != nil {
+		return "", trace.Wrap(err, "Failed to build logout request.")
+	}
+	logoutRequest.Root().CreateAttr("Destination", connector.GetSingleLogoutURL())
+
+	URL, err := provider.BuildLogoutURLRedirect(fmt.Sprintf("%s,%s", assertionInfo.NameID, connector.GetDisplay()), logoutRequest)
+	if err != nil {
+		return "", trace.Wrap(err, "Failed to build single-logout URL.")
+	}
+
+	return URL, nil
 }
