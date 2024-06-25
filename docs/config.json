@@ -29,41 +29,12 @@
               "slug": "/upgrading/overview/"
             },
             {
-              "title": "Teleport Cloud Agents (Linux)",
-              "slug": "/upgrading/cloud-linux/",
-              "forScopes": [
-                "cloud"
-              ]
+                "title": "Set up Automatic Agent Updates",
+                "slug": "/upgrading/automatic-agent-updates/"
             },
             {
-              "title": "Teleport Cloud Agents (Kubernetes)",
-              "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": [
-                "cloud"
-              ]
-            },
-            {
-              "title": "Self-Hosted Linux",
-              "slug": "/upgrading/self-hosted-linux/",
-              "forScopes": [
-                "enterprise",
-                "oss"
-              ]
-            },
-            {
-              "title": "Self-Hosted Kubernetes",
-              "slug": "/upgrading/self-hosted-kubernetes/",
-              "forScopes": [
-                "enterprise",
-                "oss"
-              ]
-            },
-            {
-              "title": "Self-Hosted Automatic Upgrades",
-              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
-              "forScopes": [
-                "enterprise"
-              ]
+                "title": "Updating Reference",
+                "slug": "/upgrading/reference/"
             }
           ]
         },
@@ -74,10 +45,7 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": [
-            "cloud",
-            "enterprise"
-          ]
+          "forScopes": ["cloud", "enterprise"]
         },
         {
           "title": "Upcoming Releases",
@@ -86,14 +54,6 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
-        },
-        {
-          "title": "Teleport Assist",
-          "slug": "/ai-assist/",
-          "forScopes": [
-            "oss",
-            "team"
-          ]
         }
       ]
     },
@@ -112,81 +72,59 @@
         {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
-          "forScopes": [
-            "cloud"
-          ],
+          "forScopes": ["cloud"],
           "entries": [
             {
               "title": "Get Started",
               "slug": "/choose-an-edition/teleport-cloud/get-started/",
-              "forScopes": [
-                "cloud"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
-              "forScopes": [
-                "cloud"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "External Audit Storage",
               "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
-              "forScopes": [
-                "cloud"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "Downloads",
               "slug": "/choose-an-edition/teleport-cloud/downloads/",
-              "forScopes": [
-                "cloud"
-              ]
+              "forScopes": ["cloud"]
             },
             {
               "title": "FAQ",
               "slug": "/choose-an-edition/teleport-cloud/faq/",
-              "forScopes": [
-                "cloud"
-              ]
+              "forScopes": ["cloud"]
             }
           ]
         },
         {
           "title": "Teleport Enterprise",
           "slug": "/choose-an-edition/teleport-enterprise/introduction/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "forScopes": ["enterprise"],
           "entries": [
             {
               "title": "HSM",
               "slug": "/choose-an-edition/teleport-enterprise/hsm/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "AWS KMS",
               "slug": "/choose-an-edition/teleport-enterprise/aws-kms/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "Google Cloud KMS",
               "slug": "/choose-an-edition/teleport-enterprise/gcp-kms/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "Enterprise License File",
               "slug": "/choose-an-edition/teleport-enterprise/license/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             }
           ]
         }
@@ -199,143 +137,93 @@
         {
           "title": "Introduction",
           "slug": "/deploy-a-cluster/introduction/",
-          "forScopes": [
-            "oss",
-            "enterprise"
-          ]
+          "forScopes": ["oss", "enterprise"]
         },
-        {
-          "title": "Linux Demo",
-          "slug": "/deploy-a-cluster/linux-demo/"
-        },
+	{
+	  "title": "Linux Demo",
+	  "slug": "/deploy-a-cluster/linux-demo/"
+	},
         {
           "title": "High Availability Deployments",
           "slug": "/deploy-a-cluster/high-availability/",
-          "forScopes": [
-            "oss",
-            "enterprise"
-          ]
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Deploy with Helm",
           "slug": "/deploy-a-cluster/helm-deployments/",
-          "forScopes": [
-            "oss",
-            "enterprise"
-          ],
+          "forScopes": ["oss", "enterprise"],
           "entries": [
             {
               "title": "Deploy Teleport on Kubernetes",
               "slug": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "AWS EKS Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/aws/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Google Cloud GKE Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/gcp/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Azure AKS Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/azure/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "DigitalOcean Kubernetes Cluster",
               "slug": "/deploy-a-cluster/helm-deployments/digitalocean/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Customize Deployment Config",
               "slug": "/deploy-a-cluster/helm-deployments/custom/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Migrating from v11 to v12",
               "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Kubernetes 1.25 and PSP removal",
               "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             }
           ]
         },
         {
           "title": "Deploy to your Cloud",
           "slug": "/deploy-a-cluster/deployments/",
-          "forScopes": [
-            "oss",
-            "enterprise"
-          ],
+          "forScopes": ["oss", "enterprise"],
           "entries": [
             {
               "title": "AWS HA Terraform",
               "slug": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "AWS Single-Instance Terraform",
               "slug": "/deploy-a-cluster/deployments/aws-starter-cluster-terraform/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "AWS Multi-Region Proxy Deployment",
               "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "GCP",
               "slug": "/deploy-a-cluster/deployments/gcp/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "IBM",
               "slug": "/deploy-a-cluster/deployments/ibm/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             }
           ]
         }
@@ -384,10 +272,7 @@
             {
               "title": "Dual Authorization",
               "slug": "/access-controls/guides/dual-authz/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Impersonation",
@@ -396,18 +281,12 @@
             {
               "title": "Moderated Sessions",
               "slug": "/access-controls/guides/moderated-sessions/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Hardware Key Support",
               "slug": "/access-controls/guides/hardware-key-support/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Headless WebAuthn",
@@ -416,177 +295,113 @@
             {
               "title": "IP Pinning ",
               "slug": "/access-controls/guides/ip-pinning/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
-          "forScopes": [
-            "oss",
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "Active Directory (ADFS)",
               "slug": "/access-controls/sso/adfs/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Azure Active Directory",
               "slug": "/access-controls/sso/azuread/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "GitHub",
               "slug": "/access-controls/sso/github-sso/",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "GitLab",
               "slug": "/access-controls/sso/gitlab/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Google Workspace",
               "slug": "/access-controls/sso/google-workspace/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "OIDC",
               "slug": "/access-controls/sso/oidc/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Okta",
               "slug": "/access-controls/sso/okta/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "OneLogin",
               "slug": "/access-controls/sso/one-login/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Teleport as an IdP",
           "slug": "/access-controls/idps/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "SAML Identity Provider Guide",
               "slug": "/access-controls/idps/saml-guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "GCP Workforce Identity Federation",
               "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Set Up Login Rules",
               "slug": "/access-controls/login-rules/guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Login Rules Reference",
               "slug": "/access-controls/login-rules/reference/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Kubernetes Operator",
               "slug": "/access-controls/login-rules/kubernetes/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -635,36 +450,40 @@
         {
           "title": "Access Lists",
           "slug": "/access-controls/access-lists/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Getting Started with Access Lists",
               "slug": "/access-controls/access-lists/guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Reference",
               "slug": "/access-controls/access-lists/reference/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Teleport Policy",
-          "slug": "/access-controls/access-graph/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "slug": "/access-controls/teleport-policy/getting-started-policy/",
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
+            {
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/policy-integrations/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/policy-connections/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Usage",
+              "slug" : "/access-controls/teleport-policy/policy-how-to-use/",
+              "forScopes":["enterprise","cloud"]
+            },
             {
               "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
@@ -702,157 +521,101 @@
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
-          "forScopes": [
-            "oss",
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "Role Requests",
               "slug": "/access-controls/access-requests/role-requests/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Resource Requests",
               "slug": "/access-controls/access-requests/resource-requests/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Configure Access Requests",
               "slug": "/access-controls/access-requests/access-request-configuration/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Access Requests in Teleport Community Edition",
               "slug": "/access-controls/access-requests/oss-role-requests/",
-              "forScopes": [
-                "oss"
-              ]
+              "forScopes": ["oss"]
             }
           ]
         },
         {
           "title": "Access Request Plugins",
           "slug": "/access-controls/access-request-plugins/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Mattermost",
               "slug": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Microsoft Teams",
               "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "PagerDuty",
               "slug": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Opsgenie",
               "slug": "/access-controls/access-request-plugins/opsgenie/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "ServiceNow",
               "slug": "/access-controls/access-request-plugins/servicenow/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Slack",
               "slug": "/access-controls/access-request-plugins/ssh-approval-slack/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Email",
               "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Discord",
               "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Notification Routing Rules",
               "slug": "/access-controls/access-request-plugins/notification-routing-rules/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
         {
           "title": "Compliance Frameworks",
           "slug": "/access-controls/compliance-frameworks/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "FedRAMP",
               "slug": "/access-controls/compliance-frameworks/fedramp/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "SOC 2",
               "slug": "/access-controls/compliance-frameworks/soc2/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -893,10 +656,7 @@
             {
               "title": "Kubernetes Operator in teleport-cluster Helm chart",
               "slug": "/management/dynamic-resources/teleport-operator-helm/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss","enterprise"]
             },
             {
               "title": "Standalone Kubernetes Operator",
@@ -935,10 +695,7 @@
             {
               "title": "Run Teleport with Self-Signed Certificates",
               "slug": "/management/admin/self-signed-certs/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Uninstall Teleport",
@@ -953,10 +710,7 @@
             {
               "title": "Scaling",
               "slug": "/management/operations/scaling/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Backup and Restore",
@@ -973,17 +727,12 @@
             {
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
-              "forScopes": [
-                "enterprise"
-              ]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "Database CA Migrations",
@@ -1042,38 +791,22 @@
             {
               "title": "Health Monitoring",
               "slug": "/management/diagnostics/monitoring/",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Metrics",
               "slug": "/management/diagnostics/metrics/",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Collecting Profiles",
               "slug": "/management/diagnostics/profiles/",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             },
             {
               "title": "Distributed Tracing",
               "slug": "/management/diagnostics/tracing/",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         },
@@ -1154,10 +887,7 @@
             {
               "title": "Via AWS EC2",
               "slug": "/agents/join-services-to-your-cluster/aws-ec2/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Via AWS IAM",
@@ -1270,10 +1000,7 @@
             {
               "title": "Google Cloud Web Console Access",
               "slug": "/access-controls/idps/saml-gcp-workforce-identity-federation/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Google Cloud CLI Access",
@@ -1344,30 +1071,11 @@
         {
           "title": "Protect Okta Applications and Groups ",
           "slug": "/application-access/okta/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "Okta Service",
-              "slug": "/application-access/okta/guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
-              "title": "Okta Service Hosted Integration",
+              "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/application-access/okta/architecture/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -1384,10 +1092,7 @@
             {
               "title": "Reference",
               "slug": "/application-access/okta/reference/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -1442,10 +1147,7 @@
             {
               "title": "Recording Proxy Mode",
               "slug": "/server-access/guides/recording-proxy-mode/",
-              "forScopes": [
-                "oss",
-                "enterprise"
-              ]
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "BPF Session Recording",
@@ -1788,10 +1490,6 @@
           "slug": "/desktop-access/active-directory/"
         },
         {
-          "title": "Active Directory (Manual)",
-          "slug": "/desktop-access/active-directory-manual/"
-        },
-        {
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
@@ -2008,10 +1706,7 @@
         {
           "title": "How to Build an Access Request Plugin",
           "slug": "/api/access-plugin/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ]
+          "forScopes": ["enterprise", "cloud"]
         },
         {
           "title": "Automatically Register Teleport Agents",
@@ -2080,10 +1775,7 @@
         {
           "title": "Storage Backends",
           "slug": "/reference/backends/",
-          "forScopes": [
-            "oss",
-            "enterprise"
-          ]
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Join Methods",
@@ -2141,12 +1833,12 @@
               "slug": "/reference/helm-reference/teleport-plugin-jira/"
             },
             {
-              "title": "teleport-plugin-pagerduty",
-              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
-            },
-            {
               "title": "teleport-plugin-mattermost",
               "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             },
             {
               "title": "teleport-plugin-slack",
@@ -2180,10 +1872,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
-        {
-          "title": "Teleport Agents",
-          "slug": "/architecture/agents/"
-        },
+	{
+	  "title": "Teleport Agents",
+	  "slug": "/architecture/agents/"
+	},
         {
           "title": "Session Recording",
           "slug": "/architecture/session-recording/"
@@ -2195,17 +1887,12 @@
         {
           "title": "Proxy Peering",
           "slug": "/architecture/proxy-peering/",
-          "forScopes": [
-            "enterprise"
-          ]
+          "forScopes": ["enterprise"]
         },
         {
           "title": "Agent Update Management",
           "slug": "/architecture/agent-update-management/",
-          "forScopes": [
-            "enterprise",
-            "cloud"
-          ]
+          "forScopes": ["enterprise", "cloud"]
         }
       ]
     }
@@ -2227,7 +1914,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "15.4.0",
+      "version": "15.4.4",
       "major_version": "15",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2246,13 +1933,18 @@
       }
     },
     "fedramp": {
-      "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
+      "control_url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_1/home?keyword="
     },
     "fluentd": {
       "version": "1.12.4"
     },
     "helm": {
       "version": "3.4.2"
+    },
+    "jamf": {
+      "api_endpoint": "https://yourtenant.jamfcloud.com",
+      "client_id": "your-client-id",
+      "client_secret": "your-client-secret"
     },
     "kubernetes": {
       "major_version": "1",
@@ -2271,18 +1963,18 @@
     },
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
-      "major_version": "15",
-      "version": "15.4.4",
+      "major_version": "17",
+      "version": "17.0.0-dev",
       "url": "teleport.example.com",
-      "golang": "1.21",
+      "golang": "1.22",
       "plugin": {
-        "version": "15.4.4"
+        "version": "13.3.7"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.4.4",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.4.4",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.4.4",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.4.4"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.3.7",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7"
     },
     "terraform": {
       "version": "1.0.0"
@@ -2300,13 +1992,8 @@
   },
   "redirects": [
     {
-      "source": "/architecture/users/",
-      "destination": "/architecture/authorization/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/ssh_sso/",
-      "destination": "/access-controls/sso/",
+      "source": "/desktop-access/active-directory-manual/",
+      "destination": "/desktop-access/active-directory/",
       "permanent": true
     },
     {
@@ -2332,316 +2019,6 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/guides/migration/",
-      "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/guides/joining-nodes-aws/",
-      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/reference/license/",
-      "destination": "/choose-an-edition/teleport-enterprise/license/",
-      "permanent": true
-    },
-    {
-      "source": "/intro/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/api-reference/",
-      "destination": "/api/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/server-access/guides/tsh/",
-      "destination": "/connect-your-client/tsh/",
-      "permanent": true
-    },
-    {
-      "source": "/cluster/",
-      "destination": "/kubernetes-access/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/application-access/guides/jwt/",
-      "destination": "/application-access/jwt/",
-      "permanent": true
-    },
-    {
-      "source": "/getting-started/digitalocean/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/getting-started/agent/",
-      "destination": "/kubernetes-access/getting-started/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/getting-started/cluster/",
-      "destination": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/getting-started/local/",
-      "destination": "/kubernetes-access/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/aws/",
-      "destination": "/deploy-a-cluster/helm-deployments/aws/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/custom/",
-      "destination": "/deploy-a-cluster/helm-deployments/custom/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/digitalocean/",
-      "destination": "/deploy-a-cluster/helm-deployments/digitalocean/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/gcp/",
-      "destination": "/deploy-a-cluster/helm-deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/",
-      "destination": "/reference/helm-reference/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/teleport-cluster/",
-      "destination": "/reference/helm-reference/teleport-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
-      "destination": "/reference/helm-reference/teleport-kube-agent/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/guides/u2f/",
-      "destination": "/access-controls/guides/webauthn/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/",
-      "destination": "/access-controls/access-requests/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-jira-server/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-jira/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/ssh-approval-slack/",
-      "destination": "/access-controls/access-request-plugins/ssh-approval-slack/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/resource-requests/",
-      "destination": "/access-controls/access-requests/resource-requests/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/workflow/role-requests/",
-      "destination": "/access-controls/access-requests/role-requests/",
-      "permanent": true
-    },
-    {
-      "source": "/user-manual/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/fedramp/",
-      "destination": "/access-controls/compliance-frameworks/fedramp/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/soc2/",
-      "destination": "/access-controls/compliance-frameworks/soc2/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/",
-      "destination": "/access-controls/sso/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/adfs/",
-      "destination": "/access-controls/sso/adfs/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/azuread/",
-      "destination": "/access-controls/sso/azuread/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/github-sso/",
-      "destination": "/access-controls/sso/github-sso/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/gitlab/",
-      "destination": "/access-controls/sso/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/google-workspace/",
-      "destination": "/access-controls/sso/google-workspace/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/oidc/",
-      "destination": "/access-controls/sso/oidc/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/okta/",
-      "destination": "/access-controls/sso/okta/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/one-login/",
-      "destination": "/access-controls/sso/one-login/",
-      "permanent": true
-    },
-    {
-      "source": "/database-access/guides/gui-clients/",
-      "destination": "/connect-your-client/gui-clients/",
-      "permanent": true
-    },
-    {
-      "source": "/use-teleport/teleport-connect/",
-      "destination": "/connect-your-client/teleport-connect/",
-      "permanent": true
-    },
-    {
-      "source": "/use-teleport/tsh/",
-      "destination": "/connect-your-client/tsh/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/",
-      "destination": "/deploy-a-cluster/deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/aws-terraform/",
-      "destination": "/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/digitalocean/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/gcp/",
-      "destination": "/deploy-a-cluster/deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/deployments/ibm/",
-      "destination": "/deploy-a-cluster/deployments/ibm/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/aws/",
-      "destination": "/deploy-a-cluster/helm-deployments/aws/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/custom/",
-      "destination": "/deploy-a-cluster/helm-deployments/custom/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/digitalocean/",
-      "destination": "/deploy-a-cluster/helm-deployments/digitalocean/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/gcp/",
-      "destination": "/deploy-a-cluster/helm-deployments/gcp/",
-      "permanent": true
-    },
-    {
-      "source": "/getting-started/kubernetes-cluster/",
-      "destination": "/deploy-a-cluster/helm-deployments/kubernetes-cluster/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/helm-deployments/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
-      "permanent": true
-    },
-    {
-      "source": "/getting-started/linux-server/",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/cloud/architecture/",
-      "destination": "/choose-an-edition/teleport-cloud/architecture/",
-      "permanent": true
-    },
-    {
-      "source": "/cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
-      "permanent": true
-    },
-    {
-      "source": "/cloud/faq/",
-      "destination": "/choose-an-edition/teleport-cloud/faq/",
       "permanent": true
     },
     {
@@ -2677,11 +2054,6 @@
     {
       "source": "/machine-id/reference/cli/",
       "destination": "/reference/cli/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/",
-      "destination": "/management/admin/",
       "permanent": true
     },
     {
@@ -3015,6 +2387,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/teleport-policy/",
+      "destination": "/access-controls/teleport-policy/getting-started-policy/",
+      "permanent": true
+    },
+    {
       "source": "/try-out-teleport/",
       "destination": "/",
       "permanent": true
@@ -3291,7 +2668,7 @@
     },
     {
       "source": "/management/operations/self-hosted-automatic-agent-updates/",
-      "destination": "/upgrading/self-hosted-automatic-agent-updates/",
+      "destination": "/upgrading/",
       "permanent": true
     },
     {
@@ -3307,11 +2684,6 @@
     {
       "source": "/server-access/guides/restricted-session/",
       "destination": "/server-access/guides/",
-      "permanent": true
-    },
-    {
-      "source": "/access-graph/",
-      "destination": "/access-controls/access-graph/",
       "permanent": true
     },
     {
