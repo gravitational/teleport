@@ -43,10 +43,6 @@ func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, creds
 		return nil, trace.Wrap(err)
 	}
 
-	//nolint:staticcheck // interceptors are deprecated in favor of StatsHandler,
-	//  however we want to avoid tracing stream RPCs as they produce overly long traces,
-	//  and there is no functionality to filter streams out when using StatsHandler.
-	//  https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4575
 	otelOpt := grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 		otelgrpc.WithFilter(filters.All(
 			filters.Not(filters.HealthCheck()),
