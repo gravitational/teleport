@@ -17,6 +17,7 @@
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Copy binaries from local directory
@@ -39,7 +40,7 @@
             dest: /tmp/teleport-ent-v{{teleport_version}}-linux-arm64-bin.tar.gz
         - name: Unpack teleport binaries
           unarchive:
-            extra_opts: ["--strip-components=1", "--show-stored-names"]
+            extra_opts: ['--strip-components=1', '--show-stored-names']
             exclude:
               - "examples/*"
               - "README.md"
@@ -52,6 +53,7 @@
             owner: "{{ 'root' if 'node' in group_names else 'teleport' }}"
             group: "{{ 'root' if 'node' in group_names else 'teleport' }}"
 
+
 # Scale down all auth servers but the first one
 # The new auth server will run migrations, so during upgrade
 # there should be only one auth server available
@@ -61,6 +63,7 @@
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Stop teleport
@@ -74,6 +77,7 @@
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Restart teleport
@@ -87,6 +91,7 @@
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Restart teleport
@@ -94,12 +99,14 @@
         name: teleport
         state: restarted
 
+
 - hosts: "proxy"
   name: Restart the proxies
   become: true
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Restart teleport
@@ -113,6 +120,7 @@
   remote_user: admin
   become_method: sudo
   tasks:
+
     - include: vars.yaml
 
     - name: Restart teleport
