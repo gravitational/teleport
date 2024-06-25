@@ -305,3 +305,17 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       teleport-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
+
+  build-install-scripts:
+    name: Build install scripts
+    if: ${{ !inputs.cloud-only }}
+    needs: setup
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build-install-scripts.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}

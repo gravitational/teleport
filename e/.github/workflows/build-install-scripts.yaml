@@ -1,0 +1,123 @@
+---
+name: Build Helm charts
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+        type: string
+
+      environment:
+        description: GitHub environment to build in.
+        type: string
+        default: build-stage
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      teleport-version:
+        type: string
+      environment:
+        type: string
+        default: build-stage
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # "Build" the assets
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+
+      - name: Copy the scripts to the release directory
+        env:
+          RELEASE_VERSION: ${{ inputs.teleport-version }}
+        run: |
+          mkdir -p build/artifacts
+          cp ./assets/install-scripts/install.sh ./build/artifacts/install-v${RELEASE_VERSION}.sh
+          cp ./assets/install-scripts/install-connect.sh ./build/artifacts/install-connect-v${RELEASE_VERSION}.sh
+          cp ./assets/install-scripts/license-check.sh ./build/artifacts/license-check-v${RELEASE_VERSION}.sh
+      
+      # Generate the manifests
+      - name: Assume AWS ECR pull role
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
+          role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
+          role-session-name: "pull-relcli-build-install-scripts-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+  
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Generate release server manifests
+        working-directory: build/artifacts
+        env:
+          RELCLI_IMAGE: ${{ vars.RELCLI_IMAGE }}
+          RELEASE_VERSION: ${{ inputs.teleport-version }}
+        run: |
+          docker pull "${RELCLI_IMAGE}"
+
+          ls -lah
+
+          # Generate the manifests
+          docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
+            "${RELCLI_IMAGE}" generate-manifest \
+            --path "/assets/install-v${RELEASE_VERSION}.sh" --os "linux" --architecture "universal" \
+            --description "Linux install script"
+          
+          docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
+            "${RELCLI_IMAGE}" generate-manifest \
+            --path "/assets/install-connect-v${RELEASE_VERSION}.sh" --os "linux" --architecture "universal" \
+            --description "Linux Connect install script"
+
+          docker run -u "$(id -u):$(id -g)" -v "$(pwd):/assets" \
+            "${RELCLI_IMAGE}" generate-manifest \
+            --path "/assets/license-check-v${RELEASE_VERSION}.sh" --os "linux" --architecture "universal" \
+            --description "Linux license check script"
+
+          ls -lah
+
+      # Upload the files
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: upload-artifacts-${{ github.run_number }}
+          role-duration-seconds: 3600
+          
+      - name: Copy artifacts to S3 bucket
+        working-directory: build/artifacts
+        env:
+          PENDING_BUCKET_NAME: ${{ vars.ARTIFACT_SOURCE_BUCKET}}
+          RELEASE_VERSION: ${{ inputs.teleport-version }}
+        run: |
+          aws s3 cp . "s3://$PENDING_BUCKET_NAME/teleport/tag/${RELEASE_VERSION}/" --recursive
