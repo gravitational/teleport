@@ -34,16 +34,16 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 	newPrivateKey := func() crypto.Signer {
 		_, privateBytes, err := jwt.GenerateKeyPair()
 		require.NoError(t, err)
-		privateKey, err := utils.ParsePrivateKey(privateBytes)
+		privateKey, err := keys.ParsePrivateKey(privateBytes)
 		require.NoError(t, err)
 		return privateKey
 	}
