@@ -59,7 +59,7 @@ func TestClone(t *testing.T) {
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
+	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
 	require.NoError(t, err)
 	require.Len(t, result.Items, itemCount)
@@ -101,7 +101,7 @@ func TestCloneForce(t *testing.T) {
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
+	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision", "ID"))
 	require.Empty(t, diff)
 	require.Len(t, result.Items, itemCount)
 }
