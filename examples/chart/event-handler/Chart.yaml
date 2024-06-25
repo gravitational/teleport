@@ -1,4 +1,4 @@
-.version: &version "16.0.2"
+.version: &version "16.0.0-dev.camh.ff.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
