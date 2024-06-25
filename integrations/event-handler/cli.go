@@ -214,7 +214,7 @@ type CLI struct {
 	Config kong.ConfigFlag `help:"Path to TOML configuration file" optional:"true" short:"c" type:"existingfile" env:"FDFWD_CONFIG"`
 
 	// Debug is a debug logging mode flag
-	Debug bool `help:"Debug logging" short:"d"`
+	Debug bool `help:"Debug logging" short:"d" env:"FDFWD_DEBUG"`
 
 	// Version is the version print command
 	Version struct{} `cmd:"true" help:"Print plugin version"`

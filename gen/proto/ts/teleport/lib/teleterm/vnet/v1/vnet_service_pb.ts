@@ -21,6 +21,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 import { ServiceType } from "@protobuf-ts/runtime-rpc";
+import { WireType } from "@protobuf-ts/runtime";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
 import { UnknownFieldHandler } from "@protobuf-ts/runtime";
@@ -56,6 +57,26 @@ export interface StopRequest {
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.StopResponse
  */
 export interface StopResponse {
+}
+/**
+ * Request for ListDNSZones.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ */
+export interface ListDNSZonesRequest {
+}
+/**
+ * Response for ListDNSZones.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ */
+export interface ListDNSZonesResponse {
+    /**
+     * dns_zones is a deduplicated list of DNS zones.
+     *
+     * @generated from protobuf field: repeated string dns_zones = 1;
+     */
+    dnsZones: string[];
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
@@ -157,10 +178,83 @@ class StopResponse$Type extends MessageType<StopResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.StopResponse
  */
 export const StopResponse = new StopResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDNSZonesRequest$Type extends MessageType<ListDNSZonesRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest", []);
+    }
+    create(value?: PartialMessage<ListDNSZonesRequest>): ListDNSZonesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ListDNSZonesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesRequest): ListDNSZonesRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ListDNSZonesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest
+ */
+export const ListDNSZonesRequest = new ListDNSZonesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListDNSZonesResponse$Type extends MessageType<ListDNSZonesResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse", [
+            { no: 1, name: "dns_zones", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListDNSZonesResponse>): ListDNSZonesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.dnsZones = [];
+        if (value !== undefined)
+            reflectionMergePartial<ListDNSZonesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDNSZonesResponse): ListDNSZonesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string dns_zones */ 1:
+                    message.dnsZones.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListDNSZonesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string dns_zones = 1; */
+        for (let i = 0; i < message.dnsZones.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.dnsZones[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse
+ */
+export const ListDNSZonesResponse = new ListDNSZonesResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.vnet.v1.VnetService
  */
 export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetService", [
     { name: "Start", options: {}, I: StartRequest, O: StartResponse },
-    { name: "Stop", options: {}, I: StopRequest, O: StopResponse }
+    { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
+    { name: "ListDNSZones", options: {}, I: ListDNSZonesRequest, O: ListDNSZonesResponse }
 ]);

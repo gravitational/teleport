@@ -19,7 +19,6 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
-import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { ResourceFilter } from 'teleport/services/agents';
@@ -69,40 +68,44 @@ export function SearchPanel({
   }
 
   return (
-    <StyledPanel onSubmit={handleOnSubmit}>
-      <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex as="form" style={{ width: '70%' }} alignItems="center">
-          <StyledFlex
-            mr={3}
-            alignItems="center"
-            width="100%"
-            className={disableSearch ? 'disabled' : ''}
-          >
-            {showSearchBar && (
-              <InputSearch searchValue={query} setSearchValue={setQuery}>
-                {!hideAdvancedSearch && (
-                  <AdvancedSearchToggle
-                    isToggled={isAdvancedSearch}
-                    onToggle={onToggle}
-                    px={3}
-                  />
-                )}
-              </InputSearch>
-            )}
-          </StyledFlex>
-        </Flex>
-        <Flex alignItems="center">
-          {pageIndicators && (
-            <PageIndicatorText
-              from={pageIndicators.from}
-              to={pageIndicators.to}
-              count={pageIndicators.total}
-            />
+    <Flex
+      justifyContent="space-between"
+      alignItems="center"
+      width="100%"
+      onSubmit={handleOnSubmit}
+      mb={3}
+    >
+      <Flex as="form" style={{ width: '100%' }} alignItems="center">
+        <StyledFlex
+          mr={3}
+          alignItems="center"
+          width="100%"
+          className={disableSearch ? 'disabled' : ''}
+        >
+          {showSearchBar && (
+            <InputSearch searchValue={query} setSearchValue={setQuery}>
+              {!hideAdvancedSearch && (
+                <AdvancedSearchToggle
+                  isToggled={isAdvancedSearch}
+                  onToggle={onToggle}
+                  px={3}
+                />
+              )}
+            </InputSearch>
           )}
-          {extraChildren}
-        </Flex>
+        </StyledFlex>
       </Flex>
-    </StyledPanel>
+      <Flex alignItems="center">
+        {pageIndicators && (
+          <PageIndicatorText
+            from={pageIndicators.from}
+            to={pageIndicators.to}
+            count={pageIndicators.total}
+          />
+        )}
+        {extraChildren}
+      </Flex>
+    </Flex>
   );
 }
 
