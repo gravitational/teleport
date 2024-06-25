@@ -659,11 +659,24 @@
         },
         {
           "title": "Teleport Policy",
-          "slug": "/access-controls/access-graph/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "slug": "/access-controls/teleport-policy/getting-started-policy/",
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
+            {
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/policy-integrations/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/policy-connections/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Usage",
+              "slug" : "/access-controls/teleport-policy/policy-how-to-use/",
+              "forScopes":["enterprise","cloud"]
+            },
             {
               "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
