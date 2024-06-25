@@ -10,7 +10,7 @@ CGOFLAG ?= CGO_ENABLED=1
 GITTAG ?= v$(VERSION)
 DOCKER_IMAGE ?= teleport-ent
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-BINS = teleport tctl tsh tbot
+BINS = teleport tctl tsh tbot fdpass-teleport
 BINARIES ?= $(addprefix $(BUILDDIR)/,$(BINS))
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
 
@@ -63,6 +63,8 @@ CHECK_RUST := $(shell rustc --version 2>/dev/null)
 with_rdpclient := no
 RDPCLIENT_ENT_MESSAGE := without-Windows-RDP-client
 
+RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
+
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
@@ -70,7 +72,7 @@ CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
-CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
+CARGO_TARGET := --target=$(CARGO_TARGET_$(OS)_$(ARCH))
 
 # If set to 1, Windows RDP client is not built.
 RDPCLIENT_SKIP_BUILD ?= 0
@@ -261,6 +263,11 @@ teleport-hot-reload:
 		--build="make -C e build/teleport" \
 		--command="build/teleport $(TELEPORT_ARGS)"
 
+.PHONY: $(BUILDDIR)/fdpass-teleport
+$(BUILDDIR)/fdpass-teleport:
+	cd ../tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
+	install ../tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
+
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
 	$(MAKE) -C ../ ensure-webassets-e
@@ -408,6 +415,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
 	$(MAKE) ARCH=universal build-archive
 endif
 
