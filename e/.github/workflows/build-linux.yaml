@@ -54,24 +54,6 @@ on:
         type: boolean
         default: false
 
-      arch:
-        description: "Architecture for OS package builds"
-        required: false
-        type: string
-
-      builder:
-        # This needs to be encoded as JSON, as parameters can opnly be strings, numbers
-        # or booleans, and we need to pass an array or object if we're running on a
-        # self-hosted runner.
-        description: |
-          JSON-encoded labels and groups for selecting the action runner to use when
-          executing this workflow. This allows callers to select self-hosted runners
-          (e.g. for arm64) or any of the github-supplied runners (e.g. ubuntu-latest)
-          depending on the build requirements.
-          Example - `toJSON({"group": "prod", "labels": ["self-hosted", "X64"]})`
-        required: true
-        type: string
-
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
@@ -79,15 +61,80 @@ on:
         type: string
         default: build-stage
 
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      ent-teleport-ref:
+        type: string
+      release:
+        type: string
+        required: true
+      release-target:
+        type: string
+        required: true
+      build-connect:
+        type: boolean
+        default: false
+      build-deb:
+        type: boolean
+        default: false
+      build-rpm:
+        type: boolean
+        default: false
+      environment:
+        type: string
+        default: build-stage
+
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      arch: ${{ steps.determine-arch.outputs.arch }}
+      builder: ${{ steps.select-builder.outputs.builder }}
+    steps:
+      - name: Select builder
+        id: select-builder
+        env:
+          BUILD_CONNECT: ${{ inputs.build-connect }}
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        # arm64 needs an arm64 runner, which we self-host.
+        # Teleport Connect builds need to use a GitHub runner as they use UID 1000 which
+        # is needed for the Teleport Connect builder image. Self-hosted runners use 1001.
+        # TODO(camscale): Make the connect builder work with UID 1001 as well as 1000.
+        run: |
+          if [[ "$RELEASE_TARGET" == *-arm64* ]]; then
+            echo 'builder={"group": "prod", "labels": ["self-hosted", "linux", "arm64"]}'
+          else
+            echo 'builder="ubuntu-22.04-16core"'
+          fi >> "${GITHUB_OUTPUT}"
+      - name: Determine architecture
+        id: determine-arch
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        run: |
+          case "${RELEASE_TARGET}" in
+          *amd64*) echo 'arch=amd64' ;;
+          *arm64*) echo 'arch=arm64' ;;
+          *arm*) echo 'arch=arm' ;;
+          *386*) echo 'arch=386' ;;
+          esac >> "${GITHUB_OUTPUT}"
+
   build-release-artifacts:
     permissions:
       contents: read
       id-token: write # required for aws-actions/configure-aws-credentials for OIDC
 
-    runs-on: ${{ fromJSON(inputs.builder) }}
+    runs-on: ${{ fromJSON(needs.setup.outputs.builder) }}
 
     environment: ${{ inputs.environment }}
+
+    needs: setup
 
     env:
       # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
@@ -198,7 +245,7 @@ jobs:
       - name: Build Debian package
         if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'false'
         env:
-          ARCH: ${{ inputs.arch }}
+          ARCH: ${{ needs.setup.outputs.arch }}
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           RELEASE: ${{ inputs.release }}
@@ -213,7 +260,7 @@ jobs:
       - name: Build FIPS Debian package
         if: inputs.build-deb && steps.determine-fips.outputs.is-fips == 'true'
         env:
-          ARCH: ${{ inputs.arch }}
+          ARCH: ${{ needs.setup.outputs.arch }}
           FIPS: yes
           RUNTIME: fips
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
@@ -240,7 +287,7 @@ jobs:
       - name: Build RPM package
         if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'false'
         env:
-          ARCH: ${{ inputs.arch }}
+          ARCH: ${{ needs.setup.outputs.arch }}
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           RELEASE: ${{ inputs.release }}
@@ -256,7 +303,7 @@ jobs:
       - name: Build FIPS RPM package
         if: inputs.build-rpm && steps.determine-fips.outputs.is-fips == 'true'
         env:
-          ARCH: ${{ inputs.arch }}
+          ARCH: ${{ needs.setup.outputs.arch }}
           FIPS: yes
           RUNTIME: fips
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
@@ -306,51 +353,51 @@ jobs:
             p=''; os=''; a=''; d='' v='' pkg=''
             case "$file" in
               # Teleport connect
-              teleport-connect-*-x64.tar.gz) p="$both"; os=linux; a=amd64; d="$tc64" ;;
-              teleport-connect-*.x86_64.rpm) p="$both"; os=linux; a=amd64; pkg=RPM; d="$tc64 RPM" ;;
-              teleport-connect_*_amd64.deb) p="$both"; os=linux; a=amd64; pkg=DEB; d="$tc64 DEB" ;;
+              teleport-connect-*-x64.tar.gz) p=("${both[@]}"); os=linux; a=amd64; d="$tc64" ;;
+              teleport-connect-*.x86_64.rpm) p=("${both[@]}"); os=linux; a=amd64; pkg=RPM; d="$tc64 RPM" ;;
+              teleport-connect_*_amd64.deb) p=("${both[@]}"); os=linux; a=amd64; pkg=DEB; d="$tc64 DEB" ;;
 
               # tarballs: teleport-ent-* must be before teleport-*
-              teleport-ent-*-linux-386-bin.tar.gz) p=teleport-ent; os=linux; a=386 ;;
-              teleport-ent-*-linux-amd64-bin.tar.gz) p=teleport-ent; os=linux; a=amd64 ;;
-              teleport-ent-*-linux-amd64-centos7-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel" ;;
-              teleport-ent-*-linux-amd64-centos7-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$rhel, $fips" ;;
-              teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$fips" ;;
-              teleport-ent-*-linux-arm-bin.tar.gz) p=teleport-ent; os=linux; a=arm ;;
-              teleport-ent-*-linux-arm64-bin.tar.gz) p=teleport-ent; os=linux; a=arm64 ;;
-              teleport-ent-*-linux-arm64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=arm64; v="$fips" ;;
+              teleport-ent-*-linux-386-bin.tar.gz) p=(teleport-ent); os=linux; a=386 ;;
+              teleport-ent-*-linux-amd64-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64 ;;
+              teleport-ent-*-linux-amd64-centos7-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$rhel" ;;
+              teleport-ent-*-linux-amd64-centos7-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$rhel, $fips" ;;
+              teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=amd64; v="$fips" ;;
+              teleport-ent-*-linux-arm-bin.tar.gz) p=(teleport-ent); os=linux; a=arm ;;
+              teleport-ent-*-linux-arm64-bin.tar.gz) p=(teleport-ent); os=linux; a=arm64 ;;
+              teleport-ent-*-linux-arm64-fips-bin.tar.gz) p=(teleport-ent); os=linux; a=arm64; v="$fips" ;;
 
-              teleport-*-linux-386-bin.tar.gz) p=teleport; os=linux; a=386 ;;
-              teleport-*-linux-amd64-bin.tar.gz) p=teleport; os=linux; a=amd64 ;;
-              teleport-*-linux-amd64-centos7-bin.tar.gz) p=teleport; os=linux; a=amd64; v="$rhel" ;;
-              teleport-*-linux-arm-bin.tar.gz) p=teleport; os=linux; a=arm ;;
-              teleport-*-linux-arm64-bin.tar.gz) p=teleport; os=linux; a=arm64 ;;
+              teleport-*-linux-386-bin.tar.gz) p=(teleport); os=linux; a=386 ;;
+              teleport-*-linux-amd64-bin.tar.gz) p=(teleport); os=linux; a=amd64 ;;
+              teleport-*-linux-amd64-centos7-bin.tar.gz) p=(teleport); os=linux; a=amd64; v="$rhel" ;;
+              teleport-*-linux-arm-bin.tar.gz) p=(teleport); os=linux; a=arm ;;
+              teleport-*-linux-arm64-bin.tar.gz) p=(teleport); os=linux; a=arm64 ;;
 
               # rpm: teleport-ent-* must be before teleport-*
-              teleport-ent-*-fips.x86_64.rpm) p=teleport-ent; os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
-              teleport-ent-*-fips.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM; v="$rhel, $fips" ;;
-              teleport-ent-*.arm.rpm) p=teleport-ent; os=linux; a=arm; pkg=RPM ;;
-              teleport-ent-*.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM ;;
-              teleport-ent-*.i386.rpm) p=teleport-ent; os=linux; a=386; pkg=RPM ;;
-              teleport-ent-*.x86_64.rpm) p=teleport-ent; os=linux a=amd64; pkg=RPM ;;
+              teleport-ent-*-fips.x86_64.rpm) p=(teleport-ent); os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*-fips.arm64.rpm) p=(teleport-ent); os=linux; a=arm64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*.arm.rpm) p=(teleport-ent); os=linux; a=arm; pkg=RPM ;;
+              teleport-ent-*.arm64.rpm) p=(teleport-ent); os=linux; a=arm64; pkg=RPM ;;
+              teleport-ent-*.i386.rpm) p=(teleport-ent); os=linux; a=386; pkg=RPM ;;
+              teleport-ent-*.x86_64.rpm) p=(teleport-ent); os=linux a=amd64; pkg=RPM ;;
 
-              teleport-*.arm.rpm) p=teleport; os=linux; a=arm; pkg=RPM ;;
-              teleport-*.arm64.rpm) p=teleport; os=linux; a=arm64; pkg=RPM ;;
-              teleport-*.i386.rpm) p=teleport; os=linux; a=386; pkg=RPM ;;
-              teleport-*.x86_64.rpm) p=teleport; os=linux a=amd64; pkg=RPM ;;
+              teleport-*.arm.rpm) p=(teleport); os=linux; a=arm; pkg=RPM ;;
+              teleport-*.arm64.rpm) p=(teleport); os=linux; a=arm64; pkg=RPM ;;
+              teleport-*.i386.rpm) p=(teleport); os=linux; a=386; pkg=RPM ;;
+              teleport-*.x86_64.rpm) p=(teleport); os=linux a=amd64; pkg=RPM ;;
 
               # deb: teleport-ent-* must be before teleport-*
-              teleport-ent_*-fips_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB; v="$fips" ;;
-              teleport-ent_*-fips_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB; v="$fips" ;;
-              teleport-ent_*_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB ;;
-              teleport-ent_*_arm.deb) p=teleport-ent; os=linux; a=arm; pkg=DEB ;;
-              teleport-ent_*_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB ;;
-              teleport-ent_*_i386.deb) p=teleport-ent; os=linux; a=386; pkg=DEB ;;
+              teleport-ent_*-fips_amd64.deb) p=(teleport-ent); os=linux; a=amd64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*-fips_arm64.deb) p=(teleport-ent); os=linux; a=arm64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*_amd64.deb) p=(teleport-ent); os=linux; a=amd64; pkg=DEB ;;
+              teleport-ent_*_arm.deb) p=(teleport-ent); os=linux; a=arm; pkg=DEB ;;
+              teleport-ent_*_arm64.deb) p=(teleport-ent); os=linux; a=arm64; pkg=DEB ;;
+              teleport-ent_*_i386.deb) p=(teleport-ent); os=linux; a=386; pkg=DEB ;;
 
-              teleport_*_amd64.deb) p=teleport; os=linux; a=amd64; pkg=DEB ;;
-              teleport_*_arm.deb) p=teleport; os=linux; a=arm; pkg=DEB ;;
-              teleport_*_arm64.deb) p=teleport; os=linux; a=arm64; pkg=DEB ;;
-              teleport_*_i386.deb) p=teleport; os=linux; a=386; pkg=DEB ;;
+              teleport_*_amd64.deb) p=(teleport); os=linux; a=amd64; pkg=DEB ;;
+              teleport_*_arm.deb) p=(teleport); os=linux; a=arm; pkg=DEB ;;
+              teleport_*_arm64.deb) p=(teleport); os=linux; a=arm64; pkg=DEB ;;
+              teleport_*_i386.deb) p=(teleport); os=linux; a=386; pkg=DEB ;;
 
               *) echo "Unknown filename: $file"; exit 1 ;;
             esac

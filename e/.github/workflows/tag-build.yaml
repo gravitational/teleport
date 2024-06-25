@@ -114,17 +114,17 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
-      id-token: write
-    uses: ./.github/workflows/release-linux.yaml
+      id-token: write # required for aws-actions/configure-aws-credentials in called workflow
+    uses: ./.github/workflows/build-linux.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      release: enterprise
       release-target: ${{ format('release-{0}', matrix.arch) }}${{ matrix.fips && '-fips' || '' }}
-      release-artifacts: true
       build-connect: ${{ matrix.build-connect || false }}
-      build-os-packages: true
-      release-version: ${{ needs.setup.outputs.version }}
+      build-deb: true
+      build-rpm: true
       environment: ${{ inputs.environment }}
 
   build-darwin:
