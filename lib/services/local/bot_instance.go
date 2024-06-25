@@ -36,12 +36,14 @@ const (
 	botInstancePrefix = "bot_instance"
 )
 
+// BotInstanceService exposes backend functionality for storing bot instances.
 type BotInstanceService struct {
 	service *generic.ServiceWrapper[*machineidv1.BotInstance]
 
 	clock clockwork.Clock
 }
 
+// NewBotInstanceService creates a new BotInstanceService with the given backend.
 func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*BotInstanceService, error) {
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindBotInstance,
@@ -57,6 +59,10 @@ func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*Bot
 	}, nil
 }
 
+// CreateBotInstance inserts a new BotInstance into the backend.
+//
+// Note that new BotInstances must have a nil metadata field; this will be
+// generated automatically from the spec upon insert.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 	if err := services.ValidateBotInstance(instance); err != nil {
 		return nil, trace.Wrap(err)
@@ -80,12 +86,16 @@ func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *ma
 	return created, trace.Wrap(err)
 }
 
+// GetBotInstance retreives a specific bot instance given a bot name and
+// instance ID.
 func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
 	serviceWithPrefix := b.service.WithPrefix(botName)
 	instance, err := serviceWithPrefix.GetResource(ctx, instanceID)
 	return instance, trace.Wrap(err)
 }
 
+// ListBotInstances lists all bot instances matching the given bot name filter.
+// If an empty bot name is provided, all bot instances will be fetched.
 func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string) ([]*machineidv1.BotInstance, string, error) {
 	// If botName is empty, return instances for all bots by not using a service prefix
 	if botName == "" {
@@ -98,6 +108,8 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName strin
 	return r, nextToken, trace.Wrap(err)
 }
 
+// DeleteBotInstance deletes a specific bot instance matching the given bot name
+// and instance ID.
 func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
 	serviceWithPrefix := b.service.WithPrefix(botName)
 	return trace.Wrap(serviceWithPrefix.DeleteResource(ctx, instanceID))
@@ -106,7 +118,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, botName, ins
 // PatchBotInstance uses the supplied function to patch the bot instance
 // matching the given (botName, instanceID) key and persists the patched
 // resource. It will make multiple attempts if a `CompareFailed` error is
-// raised.
+// raised, automatically re-applying `updateFn()`.
 func (b *BotInstanceService) PatchBotInstance(
 	ctx context.Context,
 	botName, instanceID string,

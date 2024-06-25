@@ -36,6 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
+// newBotInstance creates (but does not insert) a bot instance that is ready for
+// insertion into the backend. If any modifier functions are provided, they will
+// be executed on the instance before it is returned.
 func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *machineidv1.BotInstance {
 	id := uuid.New()
 
@@ -56,12 +59,15 @@ func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *mach
 	return bi
 }
 
+// withBotInstanceTTL apples a TTL to the bot instance
 func withBotInstanceTTL(d time.Duration) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
 		bi.Spec.Ttl = durationpb.New(d)
 	}
 }
 
+// withBotInstanceInvalidMetadata modifies a BotInstance such that it should
+// raise an error during an insert attempt.
 func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
 		bi.Metadata = &headerv1.Metadata{
@@ -110,6 +116,8 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	return resources
 }
 
+// TestBotInstanceCreateMetadata ensures bot instance metadata is constructed
+// correctly when a new bot instance is inserted into the backend.
 func TestBotInstanceCreateMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -173,6 +181,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 	}
 }
 
+// TestBotInstanceInvalidGetters ensures proper behavior for an invalid
+// GetBotInstance call.
 func TestBotInstanceInvalidGetters(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +205,8 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 }
 
+// TestBotInstanceCRUD tests backend CRUD functionality for the bot instance
+// service.
 func TestBotInstanceCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -249,6 +261,8 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.Error(t, service.DeleteBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId))
 }
 
+// TestBotInstanceList verifies list and filtering functionality for bot
+// instances.
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
@@ -281,7 +295,18 @@ func TestBotInstanceList(t *testing.T) {
 		require.Contains(t, bIds, ins.Spec.InstanceId)
 	}
 
+	allIds := map[string]struct{}{}
+	for i := range aIds {
+		allIds[i] = struct{}{}
+	}
+	for i := range bIds {
+		allIds[i] = struct{}{}
+	}
+
 	// Listing an empty bot name ("") should return all instances.
 	allInstances := listInstances(t, ctx, service, "")
 	require.Len(t, allInstances, 7)
+	for _, ins := range allInstances {
+		require.Contains(t, allIds, ins.Spec.InstanceId)
+	}
 }
