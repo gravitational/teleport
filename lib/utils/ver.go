@@ -37,6 +37,18 @@ func MeetsMinVersion(gotVer, minVer string) bool {
 	return !trace.IsBadParameter(err)
 }
 
+// MeetsMaxVersion returns true if gotVer is empty or at most maxVer.
+func MeetsMaxVersion(gotVer, maxVer string) bool {
+	if gotVer == "" {
+		return true // Ignore empty versions.
+	}
+
+	err := CheckMaxVersion(gotVer, maxVer)
+
+	// Non BadParameter errors are semver parsing errors.
+	return !trace.IsBadParameter(err)
+}
+
 // CheckMinVersion compares a version with a minimum version supported.
 func CheckMinVersion(currentVersion, minVersion string) error {
 	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
@@ -46,6 +58,20 @@ func CheckMinVersion(currentVersion, minVersion string) error {
 
 	if currentSemver.LessThan(*minSemver) {
 		return trace.BadParameter("incompatible versions: %v < %v", currentVersion, minVersion)
+	}
+
+	return nil
+}
+
+// CheckMaxVersion compares a version with a maximum version supported.
+func CheckMaxVersion(currentVersion, maxVersion string) error {
+	currentSemver, maxSemver, err := versionStringToSemver(currentVersion, maxVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if maxSemver.LessThan(*currentSemver) {
+		return trace.BadParameter("incompatible versions: %v > %v", currentVersion, maxVersion)
 	}
 
 	return nil
