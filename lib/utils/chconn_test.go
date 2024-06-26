@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
@@ -94,7 +95,7 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
-	_, private, err := MarshalPrivateKey(privateKey)
+	private, err := keys.MarshalPrivateKey(privateKey)
 	require.NoError(t, err)
 
 	signer, err := ssh.ParsePrivateKey(private)

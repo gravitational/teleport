@@ -595,7 +595,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		hs.Close()
 	})
 	go func() {
-		err := lp.StartHTTPAccessProxy(context.Background())
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp

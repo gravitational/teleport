@@ -89,9 +89,10 @@ export function createFileLoggerService(
     transports: [
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
-        maxFiles: 5,
+        maxFiles: opts.dev ? 5 : 3,
         dirname: opts.dir,
         filename: `${opts.name}.log`,
+        tailable: true,
       }),
     ],
   });

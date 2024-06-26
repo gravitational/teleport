@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	toolcommon "github.com/gravitational/teleport/tool/common"
@@ -169,6 +170,24 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	// we wont actually run this agent, just make a config file to test with.
+	fileConfigAgent := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "false",
+				ListenAddress: authProcess.Config.Auth.ListenAddr.String(),
+			},
+		},
+		SSH: config.SSH{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+	}
+
 	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
@@ -181,8 +200,14 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	tests := []struct {
 		desc           string
 		authServerFlag []string
+		configFileFlag string
 		want           []utils.NetAddr
 	}{
+		{
+			desc:           "ignores agent config file and loads profile setting",
+			configFileFlag: mustWriteFileConfig(t, fileConfigAgent),
+			want:           []utils.NetAddr{*proxyAddr},
+		},
 		{
 			desc: "sets default web proxy addr without auth server flag",
 			want: []utils.NetAddr{*proxyAddr},
@@ -208,6 +233,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			ccf := &common.GlobalCLIFlags{}
 			ccf.AuthServerAddr = tt.authServerFlag
+			ccf.ConfigFile = tt.configFileFlag
 
 			cfg := &servicecfg.Config{}
 			cfg.TeleportHome = tmpHomePath

@@ -53,6 +53,10 @@ spec:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
                       type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
+                      type: string
                     username:
                       description: Username is username supplied by external identity
                         provider
@@ -67,6 +71,10 @@ spec:
                     connector_id:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
+                      type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
                       type: string
                     username:
                       description: Username is username supplied by external identity
@@ -88,6 +96,10 @@ spec:
                     connector_id:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
+                      type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
                       type: string
                     username:
                       description: Username is username supplied by external identity

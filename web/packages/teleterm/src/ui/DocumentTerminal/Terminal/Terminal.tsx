@@ -51,7 +51,7 @@ type TerminalProps = {
 };
 
 export function Terminal(props: TerminalProps) {
-  const refElement = useRef<HTMLElement>();
+  const refElement = useRef<HTMLDivElement>();
   const refCtrl = useRef<XTermCtrl>();
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());

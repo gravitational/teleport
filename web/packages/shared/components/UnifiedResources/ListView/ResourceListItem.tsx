@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -31,7 +31,10 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
-import { getBackgroundColor } from '../shared/getBackgroundColor';
+import {
+  BackgroundColorProps,
+  getBackgroundColor,
+} from '../shared/getBackgroundColor';
 
 export function ResourceListItem({
   name,
@@ -93,7 +96,7 @@ export function ResourceListItem({
           `}
           tipContent={selected ? 'Deselect' : 'Select'}
         >
-          <StyledCheckbox checked={selected} onChange={selectResource} />
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}
@@ -293,7 +296,7 @@ const RowContainer = styled(Box)`
   }
 `;
 
-const RowInnerContainer = styled(Flex)`
+const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   display: grid;
   grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   column-gap: ${props => props.theme.space[3]}px;

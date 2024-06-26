@@ -32,6 +32,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
+  ERROR: 'e',
   LATENCY: 'l',
   KUBE_EXEC: 'k',
 };
@@ -62,6 +63,7 @@ export const messageFields = {
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
       challengeResponse: MessageTypeEnum.WEBAUTHN_CHALLENGE.charCodeAt(0),
       kubeExec: MessageTypeEnum.KUBE_EXEC.charCodeAt(0),
+      error: MessageTypeEnum.ERROR.charCodeAt(0),
     },
   },
 };

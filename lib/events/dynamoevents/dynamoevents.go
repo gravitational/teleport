@@ -643,18 +643,26 @@ func reverseStrings(slice []string) []string {
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]event, string, error) {
+	if fromUTC.After(toUTC) {
+		return nil, "", trace.BadParameter("from date is after to date")
+	}
 	checkpoint, err := getCheckpointFromStartKey(startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	if checkpoint.Date != "" {
-		if t, err := time.Parse(time.DateOnly, checkpoint.Date); err == nil {
-			d := fromUTC.Unix()
-			// if fromUTC at 00:00:00 is bigger than the cursor,
-			// reset the cursor and advance to next day.
-			if time.Unix(d-d%(24*3600), 0).After(t) {
+	if startKey != "" {
+		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
+			if fromUTC.After(createdAt) {
+				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
+				// This is a guard check when iterating over the events using sliding window
+				// and the previous cursor no longer fits the new window.
 				checkpoint = checkpointKey{}
+			}
+			if createdAt.After(toUTC) {
+				// if the cursor is after the end of the window, we can return early since we
+				// won't find any events.
+				return nil, "", nil
 			}
 		}
 	}

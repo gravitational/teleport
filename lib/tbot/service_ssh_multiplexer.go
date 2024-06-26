@@ -237,6 +237,18 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		if err != nil {
 			return nil, nil, "", nil, trace.Wrap(err, "loading proxy templates")
 		}
+		for _, t := range tshConfig.ProxyTemplates {
+			s.log.DebugContext(
+				ctx,
+				"Loaded proxy template",
+				"template", t.Template,
+				"proxy", t.Proxy,
+				"host", t.Host,
+				"cluster", t.Cluster,
+				"query", t.Query,
+				"search", t.Search,
+			)
+		}
 	}
 
 	// Generate our initial identity and write the artifacts to the destination.

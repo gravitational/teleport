@@ -194,10 +194,6 @@ exports[`render clusters 1`] = `
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c14 tbody tr:hover {
@@ -225,9 +221,9 @@ exports[`render clusters 1`] = `
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
 .c13 {
@@ -264,15 +260,14 @@ exports[`render clusters 1`] = `
 .c9 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
 .c11 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -1702,5 +1697,8 @@ exports[`render clusters 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c8"
+  />
 </div>
 `;

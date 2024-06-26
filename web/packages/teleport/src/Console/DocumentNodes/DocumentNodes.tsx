@@ -83,14 +83,13 @@ export default function DocumentNodes(props: Props) {
   return (
     <Document visible={visible}>
       <Container mx="auto" mt="4" px="5">
-        <Box justifyContent="space-between" mb="2" alignItems="end">
-          <ClusterDropdown
-            clusterLoader={consoleCtx.clustersService}
-            onChange={onChangeCluster}
-            clusterId={doc.clusterId}
-            onError={setClusterDropdownError}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={consoleCtx.clustersService}
+          onChange={onChangeCluster}
+          clusterId={doc.clusterId}
+          onError={setClusterDropdownError}
+          mb={2}
+        />
         {clusterDropdownError && <Danger>{clusterDropdownError}</Danger>}
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>

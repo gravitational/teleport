@@ -92,9 +92,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 &&
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
+    [ "$(git rev-parse HEAD)" = '170bee2b82cdb7b2ed25af301f62cb6efdd40ec1' ] && \
     cmake3 \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -118,9 +118,9 @@ ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib-devel.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.14.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '1a9d335c8f0e821f9eff27482fdda96e59a4f577' ] && \
+    [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
     scl enable ${DEVTOOLSET} "\
       CFLAGS=-pthread cmake3 \
           -DBUILD_EXAMPLES=OFF \
@@ -278,7 +278,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.3 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.14.0 \
+    /usr/local/lib64/libfido2.so.1.15.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.3 \
     /usr/local/lib64/libudev.a \
@@ -286,7 +286,7 @@ COPY --from=libfido2 \
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.14.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.15.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
 # Update ld.

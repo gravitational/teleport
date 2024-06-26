@@ -266,7 +266,23 @@ export const Notifications = () => {
             id: crypto.randomUUID(),
             severity: 'info',
             content:
-              'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
+              'Long continuous strings. /Users/test/Library/ApplicationSupport/foobarbazio/barbazfoobarioloremoipsumoconfigurationobaziofoobazi/baz/lorem/ipsum/Electron/configuration.json',
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content: {
+              title:
+                'A very long title with a very long address that spans multiple lines tcp-postgres.foo.bar.baz.cloud.gravitational.io and some more text on another line',
+              description:
+                'Long continuous strings. /Users/test/Library/ApplicationSupport/foobarbazio/barbazfoobarioloremoipsumoconfigurationobaziofoobazi/baz/lorem/ipsum/Electron/configuration.json',
+            },
           }}
           Icon={Info}
           getColor={theme => theme.colors.info}

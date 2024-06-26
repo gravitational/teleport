@@ -92,6 +92,7 @@ function NodeList(props: Props) {
             pathname={pathname}
             replaceHistory={replaceHistory}
             disabled={fetchStatus === 'loading'}
+            bigInputSize={true}
           />
         ),
       }}

@@ -39,6 +39,7 @@ import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { LoginClose } from './Login/LoginClose';
 import { Login } from './Login';
 import { Welcome } from './Welcome';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
 
 import { ConsoleWithContext as Console } from './Console';
 import { Player } from './Player';
@@ -142,6 +143,12 @@ export function getSharedPublicRoutes() {
       title="Password Reset"
       path={cfg.routes.userReset}
       render={() => <Welcome NewCredentials={NewCredentials} />}
+    />,
+    <Route
+      key="saml-slo-failed"
+      title="SAML Single Logout Failed"
+      path={cfg.routes.samlSloFailed}
+      component={SingleLogoutFailed}
     />,
   ];
 }

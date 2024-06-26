@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -80,7 +81,7 @@ type InitConfig struct {
 
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
-	KeyStoreConfig keystore.Config
+	KeyStoreConfig servicecfg.KeystoreConfig
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -288,6 +289,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1114,20 +1118,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		}
 	}
 	return nil
-}
-
-// Identity alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type Identity = state.Identity
-
-// IdentityID alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type IdentityID = state.IdentityID
-
-// ReadLocalIdentity left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-func ReadLocalIdentity(dataDir string, id state.IdentityID) (*Identity, error) {
-	return state.ReadLocalIdentity(dataDir, id)
 }
 
 // GenerateIdentity generates identity for the auth server

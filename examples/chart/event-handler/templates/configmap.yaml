@@ -10,6 +10,7 @@ data:
     timeout = {{ .Values.eventHandler.timeout | toJson }}
     batch = {{ .Values.eventHandler.batch }}
     window-size = {{ default "24h" .Values.eventHandler.windowSize | quote }}
+    debug = {{ default "false" .Values.eventHandler.debug }}
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"

@@ -14,16 +14,16 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gravitational/trace v1.4.0
 	github.com/hashicorp/go-hclog v1.6.3
-	github.com/hashicorp/go-retryablehttp v0.7.5 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
-	golang.org/x/mod v0.17.0
-	golang.org/x/oauth2 v0.20.0
-	helm.sh/helm/v3 v3.15.1
+	golang.org/x/mod v0.18.0
+	golang.org/x/oauth2 v0.21.0
+	helm.sh/helm/v3 v3.15.2
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.30.1
+	k8s.io/apiextensions-apiserver v0.30.2
 )
 
 require (
@@ -57,13 +57,13 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.30.1 // indirect
+	k8s.io/apimachinery v0.30.2 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect

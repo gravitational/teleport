@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/spacelift"
@@ -327,6 +328,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -335,28 +342,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.KeyStoreConfig.PKCS11 != (keystore.PKCS11Config{}) {
+	keystoreOpts := &keystore.Options{
+		HostUUID:     cfg.HostUUID,
+		ClusterName:  cfg.ClusterName,
+		CloudClients: cfg.CloudClients,
+	}
+	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.PKCS11.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.GCPKMS != (keystore.GCPKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
-	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
 		if !modules.GetModules().Features().HSM {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
-		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
-		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
 	}
-	cfg.KeyStoreConfig.Logger = log
-	keyStore, err := keystore.NewManager(context.Background(), cfg.KeyStoreConfig)
+	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -412,6 +418,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 	}
 
 	as := Server{
@@ -586,6 +593,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.BotInstance
 }
 
 // SecReportsClient returns the security reports client.
@@ -4252,7 +4260,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
-	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	cryptoPubKey, err := keys.ParsePublicKey(req.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

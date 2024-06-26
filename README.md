@@ -147,7 +147,8 @@ Ensure you have installed correct versions of necessary dependencies:
   `Rust` and `Cargo` versions in
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
+* For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
+  `pkg-config` installed locally
 * To build the web UI:
   * [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
   * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
@@ -195,18 +196,26 @@ maintainer, ask the team for access.
 make build/tsh TOUCHID=yes
 ```
 
-To build `tsh` with `libfido`:
+`tsh` dynamically links against libfido2 by default, to support development
+environments, as long as the library itself can be found:
 
-  ```shell
-  make build/tsh FIDO2=dynamic
-  ```
+```shell
+$ brew install libfido2 pkg-config  # Replace with your package manager of choice
 
-  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
+$ make build/tsh
+> libfido2 found, setting FIDO2=dynamic
+> (...)
+```
 
-    ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
-    make build/tsh FIDO2=dynamic
-    ```
+Release binaries are linked statically against libfido2. You may switch the
+linking mode using the FIDO2 variable:
+
+```shell
+make build/tsh FIDO2=dynamic # dynamic linking
+make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter`
+                             # or `build.assets/macos/build-fido2-macos.sh`.
+make build/tsh FIDO2=off     # doesn't link libfido2 in any way
+```
 
 #### Build output and run locally
 

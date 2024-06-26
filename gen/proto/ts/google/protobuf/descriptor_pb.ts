@@ -1420,6 +1420,12 @@ export interface EnumValueOptions {
      */
     debugRedact?: boolean;
     /**
+     * Information about the support window of a feature value.
+     *
+     * @generated from protobuf field: optional google.protobuf.FieldOptions.FeatureSupport feature_support = 4;
+     */
+    featureSupport?: FieldOptions_FeatureSupport;
+    /**
      * The parser stores options it doesn't recognize here. See above.
      *
      * @generated from protobuf field: repeated google.protobuf.UninterpretedOption uninterpreted_option = 999;
@@ -3837,6 +3843,7 @@ class EnumValueOptions$Type extends MessageType<EnumValueOptions> {
             { no: 1, name: "deprecated", kind: "scalar", opt: true, T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "features", kind: "message", T: () => FeatureSet },
             { no: 3, name: "debug_redact", kind: "scalar", opt: true, T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "feature_support", kind: "message", T: () => FieldOptions_FeatureSupport },
             { no: 999, name: "uninterpreted_option", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => UninterpretedOption }
         ]);
     }
@@ -3860,6 +3867,9 @@ class EnumValueOptions$Type extends MessageType<EnumValueOptions> {
                     break;
                 case /* optional bool debug_redact */ 3:
                     message.debugRedact = reader.bool();
+                    break;
+                case /* optional google.protobuf.FieldOptions.FeatureSupport feature_support */ 4:
+                    message.featureSupport = FieldOptions_FeatureSupport.internalBinaryRead(reader, reader.uint32(), options, message.featureSupport);
                     break;
                 case /* repeated google.protobuf.UninterpretedOption uninterpreted_option */ 999:
                     message.uninterpretedOption.push(UninterpretedOption.internalBinaryRead(reader, reader.uint32(), options));
@@ -3885,6 +3895,9 @@ class EnumValueOptions$Type extends MessageType<EnumValueOptions> {
         /* optional bool debug_redact = 3; */
         if (message.debugRedact !== undefined)
             writer.tag(3, WireType.Varint).bool(message.debugRedact);
+        /* optional google.protobuf.FieldOptions.FeatureSupport feature_support = 4; */
+        if (message.featureSupport)
+            FieldOptions_FeatureSupport.internalBinaryWrite(message.featureSupport, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         /* repeated google.protobuf.UninterpretedOption uninterpreted_option = 999; */
         for (let i = 0; i < message.uninterpretedOption.length; i++)
             UninterpretedOption.internalBinaryWrite(message.uninterpretedOption[i], writer.tag(999, WireType.LengthDelimited).fork(), options).join();

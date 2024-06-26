@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -82,11 +81,6 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		Backend:                tt.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)

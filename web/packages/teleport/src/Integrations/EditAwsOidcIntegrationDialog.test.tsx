@@ -47,7 +47,7 @@ test('user acknowledging script was ran when s3 bucket fields are edited', async
 
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
-  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(
     screen.queryByRole('button', { name: /generate command/i })
   ).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ test('user acknowledging script was ran when s3 bucket fields are edited', async
   expect(
     screen.queryByRole('button', { name: /generate command/i })
   ).not.toBeInTheDocument();
-  expect(screen.getByTestId('checkbox')).toBeInTheDocument();
+  expect(screen.getByLabelText(/I ran the command/i)).toBeInTheDocument();
   expect(screen.getByTestId('scriptbox')).toBeInTheDocument();
 
   // Click on checkbox should enable save button and disable edit button.
@@ -120,7 +120,7 @@ test('render warning on save when leaving s3 fields empty', async () => {
 
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
-  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
   expect(
     screen.queryByRole('button', { name: /generate command/i })
@@ -136,14 +136,14 @@ test('render warning on save when leaving s3 fields empty', async () => {
     ).toBeEnabled()
   );
 
-  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   userEvent.click(screen.getByRole('button', { name: /generate command/i }));
   await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
-  userEvent.click(screen.getByTestId('checkbox'));
+  userEvent.click(screen.getByLabelText(/I ran the command/i));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
   );
@@ -202,14 +202,14 @@ test('render warning on save when deleting existing s3 fields', async () => {
     ).toBeEnabled()
   );
 
-  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   userEvent.click(screen.getByRole('button', { name: /generate command/i }));
   await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
-  userEvent.click(screen.getByTestId('checkbox'));
+  userEvent.click(screen.getByLabelText(/I ran the command/i));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
   );
@@ -286,7 +286,7 @@ test('edit submit called with proper fields', async () => {
   userEvent.click(screen.getByRole('button', { name: /generate command/i }));
   await screen.findByRole('button', { name: /edit/i });
 
-  userEvent.click(screen.getByTestId('checkbox'));
+  userEvent.click(screen.getByLabelText(/I ran the command/i));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
   );

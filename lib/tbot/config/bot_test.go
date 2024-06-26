@@ -36,6 +36,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -207,7 +208,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	tlsPublicKeyPEM, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	tlsPublicKey, err := tlsca.ParsePublicKeyPEM(tlsPublicKeyPEM)
+	tlsPublicKey, err := keys.ParsePublicKey(tlsPublicKeyPEM)
 	require.NoError(t, err)
 
 	// Note: it'd be nice to make this more universally useful in our tests at

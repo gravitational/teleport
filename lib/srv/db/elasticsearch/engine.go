@@ -120,7 +120,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("database username required for Elasticsearch")
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	mssql "github.com/microsoft/go-mssqldb"
@@ -409,7 +410,7 @@ func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreferenc
 	})
 }
 
-func (m *mockDBAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+func (m *mockDBAuth) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	return &tls.Config{}, nil
 }
 

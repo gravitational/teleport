@@ -71,7 +71,7 @@ func FromKeys(certPEM, keyPEM []byte) (*CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(keyPEM) != 0 {
-		ca.Signer, err = ParsePrivateKeyPEM(keyPEM)
+		ca.Signer, err = keys.ParsePrivateKey(keyPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

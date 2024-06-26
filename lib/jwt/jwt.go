@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -559,7 +559,11 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	public, private, err := utils.MarshalPrivateKey(privateKey)
+	public, err := keys.MarshalPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	private, err := keys.MarshalPrivateKey(privateKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -417,6 +418,8 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
 }
 
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
+
 // getServerWithResolver attempts to locate a node matching the provided host and port in
 // the provided site. The resolver argument is used in certain tests to mock DNS resolution
 // and can generally be left nil.
@@ -433,10 +436,11 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 	}
 
 	routeMatcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
-		Host:            host,
-		Port:            port,
-		CaseInsensitive: caseInsensitiveRouting,
-		Resolver:        resolver,
+		Host:                      host,
+		Port:                      port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		Resolver:                  resolver,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

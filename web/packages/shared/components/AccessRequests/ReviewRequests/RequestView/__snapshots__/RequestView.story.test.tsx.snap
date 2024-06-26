@@ -442,7 +442,6 @@ exports[`loaded approved role based request state 1`] = `
             <span
               class="c7"
               font-size="0"
-              font-weight="bold"
               kind="success"
               style="font-weight: bold;"
             >
@@ -706,7 +705,6 @@ exports[`loaded approved role based request state 1`] = `
         <span
           class="c38"
           font-size="0"
-          font-weight="bold"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -725,7 +723,6 @@ exports[`loaded approved role based request state 1`] = `
         <span
           class="c39"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -744,7 +741,6 @@ exports[`loaded approved role based request state 1`] = `
         <span
           class="c38"
           font-size="0"
-          font-weight="bold"
           kind="success"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1166,7 +1162,6 @@ exports[`loaded denied role based request state 1`] = `
             <span
               class="c7"
               font-size="0"
-              font-weight="bold"
               kind="danger"
               style="font-weight: bold;"
             >
@@ -1399,7 +1394,6 @@ exports[`loaded denied role based request state 1`] = `
         <span
           class="c37"
           font-size="0"
-          font-weight="bold"
           kind="danger"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1418,7 +1412,6 @@ exports[`loaded denied role based request state 1`] = `
         <span
           class="c38"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -1978,7 +1971,6 @@ exports[`loaded pending role based request state 1`] = `
             <span
               class="c7"
               font-size="0"
-              font-weight="bold"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -2199,7 +2191,6 @@ exports[`loaded pending role based request state 1`] = `
               >
                 <label
                   class="c41"
-                  font-size="0"
                 >
                   Message
                   <textarea
@@ -2245,7 +2236,6 @@ exports[`loaded pending role based request state 1`] = `
         <span
           class="c53"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2264,7 +2254,6 @@ exports[`loaded pending role based request state 1`] = `
         <span
           class="c53"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -2935,7 +2924,6 @@ exports[`loaded pending search based request state 1`] = `
             <span
               class="c7"
               font-size="0"
-              font-weight="bold"
               kind="warning"
               style="font-weight: bold;"
             >
@@ -3262,7 +3250,6 @@ exports[`loaded pending search based request state 1`] = `
               >
                 <label
                   class="c45"
-                  font-size="0"
                 >
                   Message
                   <textarea
@@ -3308,7 +3295,6 @@ exports[`loaded pending search based request state 1`] = `
         <span
           class="c57"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
@@ -3327,7 +3313,6 @@ exports[`loaded pending search based request state 1`] = `
         <span
           class="c57"
           font-size="0"
-          font-weight="bold"
           kind="warning"
           style="min-height: 10px; min-width: 10px;"
           width="10px"

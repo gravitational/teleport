@@ -165,20 +165,21 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware != nil {
-		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	if l.cfg.Middleware != nil {
+		if err := l.cfg.Middleware.OnStart(ctx, l); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.startHTTPAccessProxy(ctx))
+	}
+
 	return trace.Wrap(l.start(ctx))
 }
 
 // start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
 func (l *LocalProxy) start(ctx context.Context) error {
-	if l.cfg.Middleware != nil {
-		err := l.cfg.Middleware.OnStart(ctx, l)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -342,23 +343,26 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
+// startHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	l.cfg.Log.Info("Starting HTTP access proxy")
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
-	defaultProxy := l.makeHTTPReverseProxy(l.getCert())
 
 	server := &http.Server{
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if l.cfg.Middleware != nil {
+				if err := l.cfg.Middleware.OnNewConnection(ctx, l); err != nil {
+					l.cfg.Log.WithError(err).Error("Middleware failed to handle client request.")
+					trace.WriteError(rw, trace.Wrap(err))
+					return
+				}
+			}
+
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 				return
 			}
@@ -371,7 +375,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				req.Header.Del("X-Forwarded-Host")
 			}
 
-			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+			proxy, err := l.getHTTPReverseProxyForReq(req)
 			if err != nil {
 				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
 				trace.WriteError(rw, trace.Wrap(err))
@@ -396,47 +400,23 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	return nil
 }
 
-func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
 	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return defaultProxy, nil
-		}
+	if trace.IsNotImplemented(err) {
+		return l.makeHTTPReverseProxy(l.getCert()), nil
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	l.cfg.Log.Debug("overwrote certs")
 	return l.makeHTTPReverseProxy(certs...), nil
 }
 
-// getCerts returns the local proxy's configured TLS certificates.
-// For thread-safety, it is important that the returned slice and its contents
-// are not be mutated by callers, therefore this method is not exported.
+// getCert returns the local proxy's configured TLS certificate.
 func (l *LocalProxy) getCert() tls.Certificate {
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
 	return l.cfg.Cert
-}
-
-// CheckCertExpiry checks the proxy certificates for expiration and runs given checking function.
-func (l *LocalProxy) CheckCert(checkCert func(cert *x509.Certificate) error) error {
-	l.cfg.Log.Debug("checking local proxy certs")
-	l.certMu.RLock()
-	defer l.certMu.RUnlock()
-
-	if len(l.cfg.Cert.Certificate) == 0 {
-		return trace.NotFound("local proxy has no TLS certificates configured")
-	}
-
-	cert, err := utils.TLSCertLeaf(l.cfg.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check for cert expiration.
-	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(checkCert(cert))
 }
 
 // CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.

@@ -298,7 +298,8 @@ func deriveTeleportEqual_14(this, that *DatabaseTLS) bool {
 		this != nil && that != nil &&
 			this.Mode == that.Mode &&
 			this.CACert == that.CACert &&
-			this.ServerName == that.ServerName
+			this.ServerName == that.ServerName &&
+			this.TrustSystemCertPool == that.TrustSystemCertPool
 }
 
 // deriveTeleportEqual_15 returns whether this and that are equal.

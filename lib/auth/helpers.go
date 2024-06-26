@@ -44,7 +44,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -274,6 +273,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: cfg.ClusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.NewWithClock(cfg.Clock),
@@ -285,13 +291,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
 		Clock:                  cfg.Clock,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
-		HostUUID:    uuid.New().String(),
-		AccessLists: accessLists,
+		ClusterName:            clusterName,
+		HostUUID:               uuid.New().String(),
+		AccessLists:            accessLists,
 	},
 		WithClock(cfg.Clock),
 	)
@@ -337,12 +339,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: cfg.ClusterName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	err = srv.AuthServer.SetClusterName(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)

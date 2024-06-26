@@ -1606,11 +1606,18 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	SecReportsClient() *secreport.Client
 
-	// BotServiceClient returns a client for security reports.
+	// BotServiceClient returns a client for the Machine ID Bot Service.
 	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
+
+	// BotInstanceServiceClient returns a client for interacting with Machine ID
+	// Bot Instances.
+	// Clients connecting to older Teleport versions, still get a bot service client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client

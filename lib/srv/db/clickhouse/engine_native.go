@@ -35,7 +35,7 @@ func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

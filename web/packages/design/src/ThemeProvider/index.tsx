@@ -39,6 +39,24 @@ function themePreferenceToTheme(themePreference: Theme) {
   return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
 }
 
+// because unspecified can exist but only used as a fallback and not an option,
+// we need to get the current/next themes with getPrefersDark in mind.
+// TODO (avatus) when we add user settings page, we can add a Theme.SYSTEM option
+// and remove the checks for unspecified
+export function getCurrentTheme(currentTheme: Theme): Theme {
+  if (currentTheme === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? Theme.DARK : Theme.LIGHT;
+  }
+
+  return currentTheme;
+}
+
+export function getNextTheme(currentTheme: Theme): Theme {
+  return getCurrentTheme(currentTheme) === Theme.LIGHT
+    ? Theme.DARK
+    : Theme.LIGHT;
+}
+
 export function getPrefersDark(): boolean {
   return (
     window.matchMedia &&

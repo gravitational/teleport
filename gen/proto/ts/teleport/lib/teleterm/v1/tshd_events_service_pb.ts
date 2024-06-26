@@ -83,10 +83,6 @@ export interface GatewayCertExpired {
 /**
  * VnetCertExpired describes which app the user was trying to reach with an expired cert.
  *
- * As this message originates from within a local proxy used by VNet, the proxy is not able to say
- * under which address the user was trying to reach the app. Best it can do is point at the cluster
- * to which the app belongs and the name of the app.
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.VnetCertExpired
  */
 export interface VnetCertExpired {
@@ -96,6 +92,12 @@ export interface VnetCertExpired {
      * @generated from protobuf field: string target_uri = 1;
      */
     targetUri: string;
+    /**
+     * public_addr is the public address of the app that the user tried to access.
+     *
+     * @generated from protobuf field: string public_addr = 2;
+     */
+    publicAddr: string;
 }
 /**
  * Response for Relogin.
@@ -170,6 +172,12 @@ export interface CannotProxyVnetConnection {
      * @generated from protobuf field: string error = 2;
      */
     error: string;
+    /**
+     * public_addr is the public address of the app that the user tried to access.
+     *
+     * @generated from protobuf field: string public_addr = 3;
+     */
+    publicAddr: string;
 }
 /**
  * Response for SendNotification.
@@ -416,12 +424,14 @@ export const GatewayCertExpired = new GatewayCertExpired$Type();
 class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
     constructor() {
         super("teleport.lib.teleterm.v1.VnetCertExpired", [
-            { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<VnetCertExpired>): VnetCertExpired {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
+        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<VnetCertExpired>(this, message, value);
         return message;
@@ -433,6 +443,9 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
             switch (fieldNo) {
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
+                    break;
+                case /* string public_addr */ 2:
+                    message.publicAddr = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -449,6 +462,9 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
+        /* string public_addr = 2; */
+        if (message.publicAddr !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -612,13 +628,15 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
     constructor() {
         super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
         message.error = "";
+        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<CannotProxyVnetConnection>(this, message, value);
         return message;
@@ -633,6 +651,9 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
                     break;
                 case /* string error */ 2:
                     message.error = reader.string();
+                    break;
+                case /* string public_addr */ 3:
+                    message.publicAddr = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -652,6 +673,9 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         /* string error = 2; */
         if (message.error !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.error);
+        /* string public_addr = 3; */
+        if (message.publicAddr !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.publicAddr);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

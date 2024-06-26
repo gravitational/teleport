@@ -24,7 +24,6 @@ import (
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -665,27 +664,6 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
-// createCertificateBlob creates Certificate BLOB
-// It has following structure:
-//
-//	CertificateBlob {
-//		PropertyID: u32, little endian,
-//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
-//		Length: u32, little endian
-//		Value: certificate data
-//	}
-func createCertificateBlob(certData []byte) []byte {
-	buf := new(bytes.Buffer)
-	buf.Grow(len(certData) + 12)
-	// PropertyID for certificate is 32
-	binary.Write(buf, binary.LittleEndian, int32(32))
-	binary.Write(buf, binary.LittleEndian, int32(1))
-	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
-	buf.Write(certData)
-
-	return buf.Bytes()
-}
-
 // Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
 // TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -748,7 +726,7 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
 		"caCertPEM":          string(keyPair.Cert),
 		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
 		"provisionToken":     tokenStr,
 		"internalResourceID": internalResourceID,

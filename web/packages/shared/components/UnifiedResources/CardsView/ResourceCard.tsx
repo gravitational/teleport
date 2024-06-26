@@ -20,7 +20,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -31,7 +31,10 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
-import { getBackgroundColor } from '../shared/getBackgroundColor';
+import {
+  BackgroundColorProps,
+  getBackgroundColor,
+} from '../shared/getBackgroundColor';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -72,8 +75,8 @@ export function ResourceCard({
 
   const [hovered, setHovered] = useState(false);
 
-  const innerContainer = useRef<HTMLElement | null>(null);
-  const labelsInnerContainer = useRef<HTMLElement>(null);
+  const innerContainer = useRef<HTMLDivElement | null>(null);
+  const labelsInnerContainer = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -173,7 +176,7 @@ export function ResourceCard({
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <StyledCheckbox
+            <CheckboxInput
               css={`
                 position: absolute;
                 top: 16px;
@@ -291,7 +294,7 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
-const CardOuterContainer = styled(Box)`
+const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
@@ -333,7 +336,7 @@ const CardOuterContainer = styled(Box)`
  * layout; we may need to globally set the card height to fixed size on the
  * outer container.
  */
-const CardInnerContainer = styled(Flex)`
+const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
@@ -356,7 +359,7 @@ const SingleLineBox = styled(Box)`
  * single row, or all labels. It hides the internal container's overflow if more
  * than one row of labels exist, but is not yet visible.
  */
-const LabelsContainer = styled(Box)`
+const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
   overflow: hidden;
 `;

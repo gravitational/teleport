@@ -27,14 +27,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSignAndVerify(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -73,9 +73,9 @@ func TestSignAndVerify(t *testing.T) {
 func TestPublicOnlyVerifyAzure(t *testing.T) {
 	publicBytes, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
-	publicKey, err := utils.ParsePublicKey(publicBytes)
+	publicKey, err := keys.ParsePublicKey(publicBytes)
 	require.NoError(t, err)
 
 	// Create a new key that can sign and verify tokens.
@@ -118,9 +118,9 @@ func TestPublicOnlyVerifyAzure(t *testing.T) {
 func TestPublicOnlyVerify(t *testing.T) {
 	publicBytes, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
-	publicKey, err := utils.ParsePublicKey(publicBytes)
+	publicKey, err := keys.ParsePublicKey(publicBytes)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -175,7 +175,7 @@ func TestPublicOnlyVerify(t *testing.T) {
 func TestKey_SignAndVerifyPROXY(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -250,7 +250,7 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -314,7 +314,7 @@ func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 func TestExpiry(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
 	require.NoError(t, err)
-	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	privateKey, err := keys.ParsePrivateKey(privateBytes)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())

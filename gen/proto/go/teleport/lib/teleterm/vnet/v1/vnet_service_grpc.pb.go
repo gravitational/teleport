@@ -35,8 +35,9 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	VnetService_Start_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
-	VnetService_Stop_FullMethodName  = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
+	VnetService_Start_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
+	VnetService_Stop_FullMethodName         = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
+	VnetService_ListDNSZones_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -49,6 +50,16 @@ type VnetServiceClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
+	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
+	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+	//
+	// This is fetched independently of what the Electron app thinks the current state of the cluster
+	// looks like, since the VNet admin process also fetches this data independently of the Electron
+	// app.
+	//
+	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+	// be fetched (due to e.g., a network error or an expired cert).
+	ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error)
 }
 
 type vnetServiceClient struct {
@@ -79,6 +90,16 @@ func (c *vnetServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...g
 	return out, nil
 }
 
+func (c *vnetServiceClient) ListDNSZones(ctx context.Context, in *ListDNSZonesRequest, opts ...grpc.CallOption) (*ListDNSZonesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDNSZonesResponse)
+	err := c.cc.Invoke(ctx, VnetService_ListDNSZones_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VnetServiceServer is the server API for VnetService service.
 // All implementations must embed UnimplementedVnetServiceServer
 // for forward compatibility
@@ -89,6 +110,16 @@ type VnetServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	// Stop stops VNet.
 	Stop(context.Context, *StopRequest) (*StopResponse, error)
+	// ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
+	// includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+	//
+	// This is fetched independently of what the Electron app thinks the current state of the cluster
+	// looks like, since the VNet admin process also fetches this data independently of the Electron
+	// app.
+	//
+	// Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+	// be fetched (due to e.g., a network error or an expired cert).
+	ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error)
 	mustEmbedUnimplementedVnetServiceServer()
 }
 
@@ -101,6 +132,9 @@ func (UnimplementedVnetServiceServer) Start(context.Context, *StartRequest) (*St
 }
 func (UnimplementedVnetServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedVnetServiceServer) ListDNSZones(context.Context, *ListDNSZonesRequest) (*ListDNSZonesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDNSZones not implemented")
 }
 func (UnimplementedVnetServiceServer) mustEmbedUnimplementedVnetServiceServer() {}
 
@@ -151,6 +185,24 @@ func _VnetService_Stop_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_ListDNSZones_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDNSZonesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).ListDNSZones(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_ListDNSZones_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).ListDNSZones(ctx, req.(*ListDNSZonesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VnetService_ServiceDesc is the grpc.ServiceDesc for VnetService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -165,6 +217,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Stop",
 			Handler:    _VnetService_Stop_Handler,
+		},
+		{
+			MethodName: "ListDNSZones",
+			Handler:    _VnetService_ListDNSZones_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

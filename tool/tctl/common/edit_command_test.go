@@ -33,22 +33,20 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
 	log := utils.NewSlogLoggerForTests()
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt *authclient.Client)
+		edit func(t *testing.T, clt *authclient.Client)
 	}{
 		{
 			kind: types.KindGithubConnector,
@@ -78,12 +76,12 @@ func TestEditResources(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			test.edit(t, fc, rootClient)
+			test.edit(t, rootClient)
 		})
 	}
 }
 
-func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -118,7 +116,7 @@ func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *authclien
 	}
 
 	// Edit the connector and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/github"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/github"}, withEditor(editor))
 	require.NoError(t, err, "expected editing github connector to succeed")
 
 	actual, err := clt.GetGithubConnector(ctx, expected.GetName(), true)
@@ -128,12 +126,12 @@ func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt *authclien
 
 	// Try editing the connector a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/github"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/github"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditRole(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditRole(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
@@ -156,7 +154,7 @@ func testEditRole(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	}
 
 	// Edit the role and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "role/test-role"}, withEditor(editor))
 	require.NoError(t, err, "expected editing role to succeed")
 
 	actual, err := clt.GetRole(ctx, expected.GetName())
@@ -166,12 +164,12 @@ func testEditRole(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 
 	// Try editing the role a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "role/test-role"}, withEditor(editor))
 	assert.Error(t, err, "stale role was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditUser(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditUser(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewUser("llama")
@@ -195,7 +193,7 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 	}
 
 	// Edit the user and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "user/llama"}, withEditor(editor))
 	require.NoError(t, err, "expected editing role to succeed")
 
 	actual, err := clt.GetUser(ctx, expected.GetName(), true)
@@ -205,12 +203,12 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
 
 	// Try editing the user a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "user/llama"}, withEditor(editor))
 	assert.Error(t, err, "stale user was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultClusterNetworkingConfig()
@@ -233,7 +231,7 @@ func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *a
 	}
 
 	// Edit the cnc and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "cluster_networking_config"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "cluster_networking_config"}, withEditor(editor))
 	require.NoError(t, err, "expected editing cnc to succeed")
 
 	actual, err := clt.GetClusterNetworkingConfig(ctx)
@@ -245,12 +243,12 @@ func testEditClusterNetworkingConfig(t *testing.T, fc *config.FileConfig, clt *a
 
 	// Try editing the cnc a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "cluster_networking_config"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "cluster_networking_config"}, withEditor(editor))
 	assert.Error(t, err, "stale cnc was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultAuthPreference()
@@ -272,7 +270,7 @@ func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *authclient
 	}
 
 	// Edit the cap and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "cap"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "cap"}, withEditor(editor))
 	require.NoError(t, err, "expected editing cap to succeed")
 
 	actual, err := clt.GetAuthPreference(ctx)
@@ -283,12 +281,12 @@ func testEditAuthPreference(t *testing.T, fc *config.FileConfig, clt *authclient
 
 	// Try editing the cap a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "cap"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "cap"}, withEditor(editor))
 	assert.Error(t, err, "stale cap was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected := types.DefaultSessionRecordingConfig()
@@ -310,7 +308,7 @@ func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *au
 	}
 
 	// Edit the src and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "session_recording_config"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "session_recording_config"}, withEditor(editor))
 	require.NoError(t, err, "expected editing src to succeed")
 
 	actual, err := clt.GetSessionRecordingConfig(ctx)
@@ -321,7 +319,7 @@ func testEditSessionRecordingConfig(t *testing.T, fc *config.FileConfig, clt *au
 
 	// Try editing the src a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "session_recording_config"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "session_recording_config"}, withEditor(editor))
 	assert.Error(t, err, "stale src was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
@@ -340,13 +338,12 @@ func TestEditEnterpriseResources(t *testing.T) {
 		},
 	})
 	log := utils.NewSlogLoggerForTests()
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		kind string
-		edit func(t *testing.T, fc *config.FileConfig, clt *authclient.Client)
+		edit func(t *testing.T, clt *authclient.Client)
 	}{
 		{
 			kind: types.KindOIDCConnector,
@@ -360,12 +357,12 @@ func TestEditEnterpriseResources(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			test.edit(t, fc, rootClient)
+			test.edit(t, rootClient)
 		})
 	}
 }
 
-func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 	expected, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
@@ -399,7 +396,7 @@ func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *authclient.
 	}
 
 	// Edit the connector and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/oidc"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/oidc"}, withEditor(editor))
 	require.NoError(t, err, "expected editing oidc connector to succeed")
 
 	actual, err := clt.GetOIDCConnector(ctx, expected.GetName(), false)
@@ -412,12 +409,12 @@ func testEditOIDCConnector(t *testing.T, fc *config.FileConfig, clt *authclient.
 
 	// Try editing the connector a second time. This time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/oidc"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/oidc"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
-func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *authclient.Client) {
+func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
@@ -468,7 +465,7 @@ func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *authclient.
 	}
 
 	// Edit the connector and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/saml"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/saml"}, withEditor(editor))
 	require.NoError(t, err, "expected editing saml connector to succeed")
 
 	actual, err := clt.GetSAMLConnector(ctx, expected.GetName(), true)
@@ -481,7 +478,7 @@ func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt *authclient.
 
 	// Try editing the connector a second time this, time the revisions will not match
 	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "connector/saml"}, withEditor(editor))
+	_, err = runEditCommand(t, clt, []string{"edit", "connector/saml"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }

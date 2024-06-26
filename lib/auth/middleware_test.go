@@ -730,6 +730,22 @@ func TestValidateClientVersion(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
 			},
 		},
+		{
+			name:          "pre-release client allowed",
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1, PreRelease: "dev.abcd.123"}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "pre-release client rejected",
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2, PreRelease: "dev.abcd.123"}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+			},
+		},
 	}
 
 	for _, tt := range cases {

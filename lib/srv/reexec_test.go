@@ -37,6 +37,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -249,20 +251,24 @@ func TestLocalPortForwardCommand(t *testing.T) {
 	require.Equal(t, "Hello, world", string(body))
 }
 
-func TestRemotePortForwardCommand(t *testing.T) {
-	t.Parallel()
+func testRemotePortForwardCommand(t *testing.T, login string) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 	scx.ExecType = teleport.TCPIPForwardRequest
+	if login != "" {
+		scx.Identity.Login = login
+	}
 
 	// Start forwarding subprocess.
 	controlConn, controlFD := newSocketPair(t)
 	command, err := ConfigureCommand(scx, controlFD)
 	require.NoError(t, err)
+	require.NoError(t, command.Start())
 	t.Cleanup(func() {
 		require.NoError(t, command.Process.Kill())
+		_, err := command.Process.Wait()
+		require.NoError(t, err)
 	})
-	require.NoError(t, command.Start())
 
 	// Request a listener from the forwarder.
 	replyConn, replyFD := newSocketPair(t)
@@ -283,4 +289,26 @@ func TestRemotePortForwardCommand(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "Hello, world", string(body))
+}
+
+func TestRemotePortForwardCommand(t *testing.T) {
+	t.Parallel()
+	testRemotePortForwardCommand(t, "")
+}
+
+// TestRootRemotePortForwardCommand tests that remote port forwarding works
+// for a user different than the one running a node (which we need to run
+// as root to create).
+func TestRootRemotePortForwardCommand(t *testing.T) {
+	utils.RequireRoot(t)
+
+	login := utils.GenerateLocalUsername(t)
+	_, err := host.UserAdd(login, nil, "", "", "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
+	testRemotePortForwardCommand(t, login)
 }

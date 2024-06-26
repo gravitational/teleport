@@ -143,7 +143,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -199,12 +199,12 @@ func checkJWTKeys(cai types.CertAuthority) error {
 	for _, pair := range ca.GetTrustedJWTKeyPairs() {
 		// TODO(nic): validate PKCS11 private keys
 		if len(pair.PrivateKey) > 0 && pair.PrivateKeyType == types.PrivateKeyType_RAW {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = keys.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -240,7 +240,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)

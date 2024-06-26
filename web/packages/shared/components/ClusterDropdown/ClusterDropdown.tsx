@@ -38,6 +38,7 @@ export interface ClusterDropdownProps {
    * messages. Even if using the internal "loadClusters", we will pass the error back to be consumed by the parent.
    */
   onError: (errorMessage: string) => void;
+  mb?: number;
 }
 
 interface ClusterLoader {
@@ -60,6 +61,7 @@ export function ClusterDropdown({
   clusterId,
   onChange,
   onError,
+  mb = 0,
 }: ClusterDropdownProps) {
   const initialClusters = clusterLoader.clusters;
   const [options, setOptions] = React.useState<Option[]>(
@@ -146,7 +148,7 @@ export function ClusterDropdown({
   }
 
   return (
-    <Flex textAlign="center" alignItems="center">
+    <Flex textAlign="center" alignItems="center" mb={mb}>
       <HoverTooltip tipContent={'Select cluster'}>
         <ButtonSecondary
           px={2}

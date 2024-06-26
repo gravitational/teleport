@@ -50,7 +50,7 @@ export function SearchBarConnected() {
 }
 
 function SearchBar() {
-  const containerRef = useRef<HTMLElement>();
+  const containerRef = useRef<HTMLDivElement>();
   const { getAccelerator } = useKeyboardShortcutFormatters();
   const {
     activePicker,
@@ -107,7 +107,7 @@ function SearchBar() {
   // clicking on a button outside of the search bar will trigger onBlur and will not trigger
   // onClickOutside.
   const closeIfAnotherElementReceivedFocus = makeEventListener(
-    (event: FocusEvent) => {
+    (event: React.FocusEvent) => {
       const elementReceivingFocus = event.relatedTarget;
 
       if (!(elementReceivingFocus instanceof Node)) {

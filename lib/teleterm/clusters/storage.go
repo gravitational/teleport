@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -291,6 +293,8 @@ func (s *Storage) makeDefaultClientConfig() *client.Config {
 	// true.
 	cfg.AllowStdinHijack = true
 
+	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
+	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg
 }
 

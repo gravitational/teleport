@@ -6,7 +6,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/trace v1.4.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/oauth2 v0.20.0
+	golang.org/x/oauth2 v0.21.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

@@ -1046,7 +1046,7 @@ func TestX11Forward(t *testing.T) {
 // TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
 // with the connecting user's file permissions (where needed), rather than root.
 func TestRootX11ForwardPermissions(t *testing.T) {
-	requireRoot(t)
+	utils.RequireRoot(t)
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
@@ -2961,13 +2961,6 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	require.NoError(t, err)
 	t.Cleanup(caWatcher.Close)
 	return caWatcher
-}
-
-func requireRoot(t *testing.T) {
-	t.Helper()
-	if os.Geteuid() != 0 {
-		t.Skip("This test will be skipped because tests are not being run as root.")
-	}
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.

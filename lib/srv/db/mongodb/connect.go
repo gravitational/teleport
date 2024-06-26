@@ -132,7 +132,7 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
 func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session, clientCfg *options.ClientOptions) ([]topology.ConnectionOption, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,7 +192,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
 	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
 
-	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx)
+	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -68,9 +68,19 @@ type TableColumnBase<T> = {
   isNonRender?: boolean;
 };
 
+export type PagerPosition = 'top' | 'bottom' | 'both';
+
 export type PaginationConfig<T> = {
   pageSize?: number;
-  pagerPosition?: 'top' | 'bottom';
+  /**
+   * "undefined" will show both pagers if data on current page is some
+   * sufficient length.
+   *
+   * Otherwise, it will only show the top pager.
+   *
+   * "both" will show both regardless of data length.
+   */
+  pagerPosition?: PagerPosition;
   CustomTable?: (p: PagedTableProps<T>) => JSX.Element;
 };
 

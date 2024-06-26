@@ -44,7 +44,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	processManager, err := vnet.SetupAndRun(cf.Context, appProvider)
+	processManager, err := vnet.SetupAndRun(cf.Context, &vnet.SetupAndRunConfig{AppProvider: appProvider})
 	if err != nil {
 		return trace.Wrap(err)
 	}

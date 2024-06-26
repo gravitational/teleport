@@ -37,7 +37,7 @@ export const StaticListItem = styled.li`
   border-radius: 4px;
 `;
 
-export const ListItem = styled(StaticListItem)`
+export const ListItem = styled(StaticListItem)<{ isActive?: boolean }>`
   cursor: pointer;
   background: ${props =>
     props.isActive ? props.theme.colors.spotBackground[0] : null};
