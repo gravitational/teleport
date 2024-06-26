@@ -41,21 +41,15 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 const testuser = "teleport-testuser"
 const testgroup = "teleport-testgroup"
 
-func requireRoot(t *testing.T) {
-	t.Helper()
-	if !isRoot() {
-		t.Skip("This test will be skipped because tests are not being run as root.")
-	}
-}
-
 func TestRootHostUsersBackend(t *testing.T) {
-	requireRoot(t)
+	utils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
 	usersbk := srv.HostUsersProvisioningBackend{}
 	sudoersbk := srv.HostSudoersProvisioningBackend{
@@ -213,7 +207,7 @@ func cleanupUsersAndGroups(users []string, groups []string) func() {
 }
 
 func TestRootHostUsers(t *testing.T) {
-	requireRoot(t)
+	utils.RequireRoot(t)
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
