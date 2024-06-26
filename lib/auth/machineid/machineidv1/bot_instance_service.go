@@ -165,8 +165,8 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	b.logger.DebugContext(
 		ctx,
 		"Received bot instance heartbeat",
-		"bot.name", botName,
-		"bot.instance", botInstanceID,
+		"bot_name", botName,
+		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.Heartbeat),
 	)
 	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
