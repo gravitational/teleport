@@ -21,7 +21,6 @@ package tbot
 import (
 	"context"
 	"log/slog"
-	"math"
 	"os"
 	"runtime"
 	"time"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -95,79 +93,31 @@ func (s *heartbeatService) OneShot(ctx context.Context) error {
 }
 
 func (s *heartbeatService) Run(ctx context.Context) error {
-	ticker := time.NewTicker(s.interval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-
 	isStartup := true
-	for {
-		var err error
-		for attempt := 1; attempt <= s.retryLimit; attempt++ {
-			s.log.InfoContext(
-				ctx,
-				"Attempting to send heartbeat",
-				"attempt", attempt,
-				"retry_limit", s.retryLimit,
-			)
-			err = s.heartbeat(ctx, isStartup)
-			if err == nil {
-				isStartup = false
-				break
-			}
-
-			// If the cluster does not support Bot Instance heartbeats, we
-			// do not retry.
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name:       "submit-heartbeat",
+		log:        s.log,
+		interval:   s.interval,
+		retryLimit: s.retryLimit,
+		f: func(ctx context.Context) error {
+			err := s.heartbeat(ctx, isStartup)
 			// TODO(noah): Remove NotImplemented check at V18 assuming V17 first
 			// major with heartbeating.
 			if trace.IsNotImplemented(err) {
-				s.log.WarnContext(
+				s.log.DebugContext(
 					ctx,
-					"Cluster does not support Bot Instance heartbeats. Will not attempt to send further heartbeats",
+					"Cluster does not support Bot Instance heartbeats",
 				)
 				return nil
 			}
-
-			if attempt != s.retryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.WarnContext(
-					ctx,
-					"Sending heartbeat failed. Waiting to retry",
-					"attempt", attempt,
-					"retry_limit", s.retryLimit,
-					"backoff", backoffTime,
-					"error", err,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
+			if err != nil {
+				return trace.Wrap(err, "submitting heartbeat")
 			}
-		}
-		if err != nil {
-			s.log.WarnContext(
-				ctx,
-				"All retry attempts exhausted sending heartbeat. Waiting for next heartbeat",
-				"retry_limit", s.retryLimit,
-				"interval", s.interval,
-			)
-		} else {
-			s.log.InfoContext(
-				ctx,
-				"Sent heartbeat. Waiting for next heartbeat",
-				"interval", s.interval,
-			)
-		}
-
-		select {
-		case <-ctx.Done():
+			isStartup = false
 			return nil
-		case <-ticker.C:
-			continue
-		}
-	}
+		},
+	})
+	return trace.Wrap(err)
 }
 
 func (s *heartbeatService) String() string {
