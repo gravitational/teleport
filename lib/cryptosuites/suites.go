@@ -179,7 +179,7 @@ var (
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
-		// TODO(nklaassen): define remaing key purposes.
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -200,7 +200,7 @@ var (
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
-		// TODO(nklaassen): define remaing key purposes.
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
