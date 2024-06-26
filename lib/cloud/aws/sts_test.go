@@ -36,7 +36,7 @@ func Test_convertSTSError(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       error
-		wantErrorAs error
+		wantErrorAs interface{}
 	}{
 		{
 			name:        "no error",
