@@ -733,8 +733,13 @@ RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
+
+CHANGELOG := $(TOOLINGDIR)/bin/changelog
+$(CHANGELOG): $(wildcard $(TOOLINGDIR)/cmd/changelog/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/changelog
+
 .PHONY: tooling
-tooling: ensure-gotestsum $(DIFF_TEST)
+tooling: ensure-gotestsum $(DIFF_TEST) $(CHANGELOG)
 
 #
 # Runs all Go/shell tests, called by CI/CD.
@@ -1637,5 +1642,5 @@ rustup-install-target-toolchain: rustup-set-version
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
 # See ./build.assets/changelog.sh
 .PHONY: changelog
-changelog:
-	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
+changelog: $(CHANGELOG)
+	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) $(TOOLINGDIR)/bin/changelog
