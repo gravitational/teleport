@@ -58,7 +58,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
 	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
-		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultCloudChannelName)}}
+		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
 	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
