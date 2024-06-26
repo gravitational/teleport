@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -209,7 +210,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
-	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	features := func() proto.Features {
+		return proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.K8s): {Enabled: true},
+			},
+		}
+	}
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
