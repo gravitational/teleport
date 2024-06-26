@@ -79,6 +79,9 @@ describe('app launcher path is properly formed', () => {
     global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
     jest.spyOn(api, 'get').mockResolvedValue({});
     jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'grafana.localhost',
+    });
     jest.spyOn(service, 'createAppSession').mockResolvedValue({
       cookieValue: 'cookie-value',
       subjectCookieValue: 'subject-cookie-value',
