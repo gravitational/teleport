@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package lib
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
