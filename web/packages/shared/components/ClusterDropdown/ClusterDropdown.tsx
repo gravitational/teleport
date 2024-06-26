@@ -150,15 +150,7 @@ export function ClusterDropdown({
   return (
     <Flex textAlign="center" alignItems="center" mb={mb}>
       <HoverTooltip tipContent={'Select cluster'}>
-        <ButtonSecondary
-          px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
-          textTransform="none"
-          size="small"
-          onClick={handleOpen}
-        >
+        <ButtonSecondary size="small" onClick={handleOpen}>
           Cluster: {selectedOption.label}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonSecondary>

@@ -107,7 +107,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
             Reopen
           </ButtonPrimary>
           <ButtonSecondary type="button" onClick={props.onCancel}>
-            Start new session
+            Start New Session
           </ButtonSecondary>
         </DialogFooter>
       </form>

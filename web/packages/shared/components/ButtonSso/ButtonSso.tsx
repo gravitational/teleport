@@ -30,7 +30,7 @@ const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
   const { color, Icon } = getSSOIcon(ssoType);
 
   return (
-    <StyledButton color={color} block {...rest} ref={ref}>
+    <StyledButton size="extra-large" color={color} block {...rest} ref={ref}>
       {Boolean(Icon) && (
         <IconBox>
           <Icon data-testid="icon" color="white" />
