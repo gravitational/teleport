@@ -153,7 +153,6 @@ describe('okta PluginEnroll.tsx', () => {
       /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
     );
     fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
-    await userEvent.click(screen.getByLabelText('I understand'));
 
     // Test plugin install.
     await userEvent.click(
@@ -473,8 +472,6 @@ async function fillInFirstStepInputs() {
     /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
   );
   fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
-
-  await userEvent.click(screen.getByLabelText('I understand'));
 }
 
 function renderPluginEnroll(pluginType: PluginKind, search?: string) {

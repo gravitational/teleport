@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
 import { Text, Link, Flex, Box } from 'design';
-import { CheckboxInput } from 'design/Checkbox';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
@@ -26,8 +25,7 @@ import { CtaEvent, IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { BaseView } from 'teleport/components/Wizard/flow';
-import { OutlineInfo } from 'design/Alert/Alert';
-import { useRule } from 'shared/components/Validation';
+import { OutlineWarn } from 'design/Alert/Alert';
 
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
@@ -44,7 +42,6 @@ import { FormDataField } from './MultiStep/Okta/types';
 import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
-import { OutlineInfoIcon } from './OutlineInfoIcon';
 
 export type View = BaseView<{
   title: string;
@@ -397,11 +394,6 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     FormMixin: () => {
       const [url, setUrl] = useState('');
       const [token, setToken] = useState('');
-      const [checkedWarning, setCheckedWarning] = useState(false);
-
-      const { valid: hasCheckedWarning } = useRule(() => ({
-        valid: checkedWarning,
-      }));
 
       return (
         <>
@@ -428,32 +420,48 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="00QCjAl4MlV-WPXM...0HmjFx-vbGua"
             toolTipContent="Okta API tokens are used to authenticate requests to Okta APIs"
           />
-          <OutlineInfo css={{ justifyContent: 'normal', maxWidth: '620px' }}>
+          <OutlineWarn
+            css={{ justifyContent: 'normal', maxWidth: '620px' }}
+            linkColor="buttons.link.default"
+          >
             <Box>
-              <OutlineInfoIcon size={18} />
-            </Box>
-            <Box>
-              <Box mb={2}>
-                Enabling this integration will make Teleport take ownership over
-                Okta assignments and potentially make changes within Okta based
-                on Teleport configuration.
+              <Box>
+                Enabling Okta integration will make Teleport take ownership over
+                app and group assignments in Okta and can make changes within
+                Okta based on Teleport's RBAC configuration.
+                <br />
+                <br />
+                Specifically, access to Okta apps is governed by Teleport roles{' '}
+                <Link
+                  target="_blank"
+                  href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+                >
+                  app_labels
+                </Link>
+                {'. '}
+                Ensure that your users do not have roles with wildcard{' '}
+                <Link
+                  target="_blank"
+                  href="https://goteleport.com/docs/application-access/controls/#configuring-application-labels-in-roles"
+                >
+                  app_labels
+                </Link>
+                , which otherwise will result into those users being assigned to
+                all Okta applications.
+                <br />
+                <br />
+                To limit the scope of this integration, you can constrain Okta
+                access token to a subset of apps and groups by using{' '}
+                <Link
+                  target="_blank"
+                  href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm"
+                >
+                  Okta resource set
+                </Link>
+                .
               </Box>
-              <label>
-                {!hasCheckedWarning && (
-                  <Text fontSize={0} color="error.main">
-                    Checkmark required
-                  </Text>
-                )}
-                <Flex alignItems="center" gap={1} ml={-1}>
-                  <CheckboxInput
-                    checked={checkedWarning}
-                    onChange={e => setCheckedWarning(e.target.checked)}
-                  />
-                  <Text bold>I understand</Text>
-                </Flex>
-              </label>
             </Box>
-          </OutlineInfo>
+          </OutlineWarn>
         </>
       );
     },
