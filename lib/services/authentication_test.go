@@ -20,14 +20,17 @@ package services_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -135,75 +138,87 @@ func TestSignatureAlgorithmSuiteRoundtrip(t *testing.T) {
 
 func TestParseSignatureAlgorithmSuite(t *testing.T) {
 	for _, tc := range []struct {
-		json     string
+		rawValue string
 		expected types.SignatureAlgorithmSuite
 	}{
 		{
-			json:     `""`,
+			rawValue: `""`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
 		},
 		{
-			json:     `"SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED"`,
+			rawValue: `"SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
 		},
 		{
-			json:     `"legacy"`,
+			rawValue: `"legacy"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
 		},
 		{
-			json:     `"SIGNATURE_ALGORITHM_SUITE_LEGACY"`,
+			rawValue: `"SIGNATURE_ALGORITHM_SUITE_LEGACY"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
 		},
 		{
-			json:     `1`,
+			rawValue: `1`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
 		},
 		{
-			json:     `1.0`,
+			rawValue: `1.0`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
 		},
 		{
-			json:     `"balanced-v1"`,
+			rawValue: `"balanced-v1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 		{
-			json:     `"SIGNATURE_ALGORITHM_SUITE_BALANCED_V1"`,
+			rawValue: `"SIGNATURE_ALGORITHM_SUITE_BALANCED_V1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 		{
-			json:     `2`,
+			rawValue: `2`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 		{
-			json:     `"fips-v1"`,
+			rawValue: `"fips-v1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
 		},
 		{
-			json:     `"SIGNATURE_ALGORITHM_SUITE_FIPS_V1"`,
+			rawValue: `"SIGNATURE_ALGORITHM_SUITE_FIPS_V1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
 		},
 		{
-			json:     `3`,
+			rawValue: `3`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
 		},
 		{
-			json:     `"hsm-v1"`,
+			rawValue: `"hsm-v1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 		},
 		{
-			json:     `"SIGNATURE_ALGORITHM_SUITE_HSM_V1"`,
+			rawValue: `"SIGNATURE_ALGORITHM_SUITE_HSM_V1"`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 		},
 		{
-			json:     `4`,
+			rawValue: `4`,
 			expected: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 		},
 	} {
-		t.Run(tc.json, func(t *testing.T) {
-			raw := fmt.Sprintf(`{"spec":{"signature_algorithm_suite":%s}}`, tc.json)
-			unmarshaled, err := services.UnmarshalAuthPreference([]byte(raw))
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, unmarshaled.GetSignatureAlgorithmSuite())
+		t.Run(tc.rawValue, func(t *testing.T) {
+			t.Run("json", func(t *testing.T) {
+				rawJSON := fmt.Sprintf(`{"spec":{"signature_algorithm_suite":%s}}`, tc.rawValue)
+				unmarshaled, err := services.UnmarshalAuthPreference([]byte(rawJSON))
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, unmarshaled.GetSignatureAlgorithmSuite())
+			})
+
+			t.Run("yaml", func(t *testing.T) {
+				rawYAML := fmt.Sprintf(`spec: { signature_algorithm_suite: %s }`, tc.rawValue)
+
+				decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(rawYAML), defaults.LookaheadBufSize)
+				var authPref types.AuthPreferenceV2
+				err := decoder.Decode(&authPref)
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, authPref.GetSignatureAlgorithmSuite())
+			})
 		})
 	}
 }

@@ -57,10 +57,10 @@ func (s *SignatureAlgorithmSuite) fromString(str string) error {
 	return nil
 }
 
-// UnmarshalJSON marshals a SignatureAlgorithmSuite value to JSON.
-func (s *SignatureAlgorithmSuite) MarshalJSON() ([]byte, error) {
-	out, err := json.Marshal(s.toString())
-	return out, trace.Wrap(err)
+// MarshalText marshals a SignatureAlgorithmSuite value to text. This gets used
+// by json.Marshal.
+func (s *SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
+	return []byte(s.toString()), nil
 }
 
 // UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
