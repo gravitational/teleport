@@ -18,7 +18,7 @@ annotations:
 
 Deploying Teleport behind Cloudflare, whether using its proxy ("orange-clouding") or tunnels
 (`cloudflared`) should work with Teleport version 15.1 or higher. See the
-[TLS Routing FAQ](../architecture/tls-routing.mdx#will-tls-routing-work-behind-my-reverse-proxy) for more details.
+[TLS Routing FAQ](../reference/architecture/tls-routing.mdx) for more details.
 
 #### Prior to Teleport version 13.0
 
@@ -49,4 +49,4 @@ To use Teleport behind a reverse proxy prior to Teleport version 13.0, you shoul
 
 You can get an example `v1` config file using `teleport configure --version=v1 --public-addr=teleport.example.com:443` (change the public address to your own domain)
 
-If disabling TLS routing, consult the [list of default ports](../reference/networking.mdx#ports-without-tls-routing) to use for connecting different Teleport services.
+If disabling TLS routing, consult the [list of default ports](../reference/operations/networking.mdx) to use for connecting different Teleport services.

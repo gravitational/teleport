@@ -1,0 +1,31 @@
+---
+title: Configure Teleport
+description: Use configuration files and dynamic resources to adjust access controls, enroll infrastructure resources, and edit cluster-wide settings.
+---
+
+You can use configuration files and dynamic resources to adjust access controls,
+enroll infrastructure resources, and edit cluster-wide settings.
+
+{/*TOPICS*/}
+
+## Infrastructure as Code Guides
+
+Guides to using Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code. ([more info](configure-teleport/dynamic-resources.mdx))
+
+- [Creating Access Lists with IaC](configure-teleport/dynamic-resources/access-list.mdx): Use Infrastructure-as-Code tooling to create Teleport AccessLists.
+- [Kubernetes Operator in teleport-cluster Helm chart](configure-teleport/dynamic-resources/teleport-operator-helm.mdx): Deploy the operator alongside your Helm-deployed Teleport Cluster.
+- [Manage Teleport with Infrastructure as Code](configure-teleport/dynamic-resources/overview.mdx): An introduction to Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code.
+- [Managing Users And Roles With IaC](configure-teleport/dynamic-resources/user-and-role.mdx): Use infrastructure-as-code tooling to create Teleport users and roles.
+- [Registering Agentless OpenSSH Servers with IaC](configure-teleport/dynamic-resources/agentless-ssh-servers.mdx): Use infrastructure-as-code tooling to register Agentless OpenSSH servers in Teleport.
+- [Set up the Teleport Terraform Provider](configure-teleport/dynamic-resources/terraform-provider.mdx): How to manage dynamic resources using the Teleport Terraform provider.
+- [Standalone Kubernetes Operator](configure-teleport/dynamic-resources/teleport-operator-standalone.mdx): Run a standalone operator against a remote Teleport cluster such as Teleport Cloud.
+- [Teleport Kubernetes Operator](configure-teleport/dynamic-resources/teleport-operator.mdx): Easily manage Teleport resources from Kubernetes
+
+## Teleport API Introduction
+
+Introduction to the Teleport gRPC API. ([more info](configure-teleport/api.mdx))
+
+- [API Getting Started Guide](configure-teleport/api/getting-started.mdx): Get started working with the Teleport API programmatically using Go.
+- [Automatically Register Resources with Teleport](configure-teleport/api/automatically-register-agents.mdx): Learn how to use the Teleport API to start agents automatically when you add resources to your infrastructure.
+- [Generate Teleport Roles from an External RBAC System](configure-teleport/api/rbac.mdx): Use Teleport's API to automatically generate Teleport roles based on third-party RBAC policies
+- [How to Build an Access Request Plugin](configure-teleport/api/access-plugin.mdx): Manage Access Requests using custom workflows with the Teleport API

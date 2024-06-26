@@ -1,0 +1,21 @@
+---
+title: Teleport Agents
+description: How to use Teleport Agents, which enable users to connect to resources in your infrastructure.
+---
+
+{/*TOPICS*/}
+
+- [Deploy Teleport Agents with Terraform](agents/deploy-agents-terraform.mdx): In this guide, we will show you how to deploy a pool of Teleport agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
+- [Protect Infrastructure with Teleport](agents/introduction.mdx): Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent.
+
+## Join Agents to your Teleport Cluster
+
+Methods you can use to established trust between a newly deployed Teleport agent and your Teleport cluster so you can protect resources. ([more info](agents/join-services-to-your-cluster.mdx))
+
+- [Join Methods for Teleport Agents](agents/join-services-to-your-cluster/overview.mdx): An overview of the available methods for registering the Proxy Service, Database Service, and other Teleport services with your cluster.
+- [Join Services with GCP](agents/join-services-to-your-cluster/gcp.mdx): Use the GCP join method to add services to your Teleport cluster.
+- [Join Services with a Secure Token](agents/join-services-to-your-cluster/join-token.mdx): This guide shows you how to join a Teleport instance to your cluster using a join token in order to proxy access to resources in your infrastructure.
+- [Joining Services via AWS EC2 Identity Document](agents/join-services-to-your-cluster/aws-ec2.mdx): Use the EC2 join method to add services to your Teleport cluster on AWS
+- [Joining Services via AWS IAM Role](agents/join-services-to-your-cluster/aws-iam.mdx): Use the IAM join method to add services to your Teleport cluster on AWS
+- [Joining Services via Azure Managed Identity](agents/join-services-to-your-cluster/azure.mdx): Use the Azure join method to join Teleport services to your Teleport cluster on Azure
+- [Joining Services via Kubernetes ServiceAccount Token](agents/join-services-to-your-cluster/kubernetes.mdx): Use Kubernetes ServiceAccount tokens to join services running in the same Kubernetes cluster as the Auth Service.

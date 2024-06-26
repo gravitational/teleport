@@ -1,0 +1,126 @@
+---
+title: Predicate Language
+description: How to use Teleport's predicate language to define filter conditions.
+---
+
+Teleport's predicate language is used to define conditions for filtering in dynamic configuration resources.
+It is also used as a query language to filter and search through a [list of select resources](#resource-filtering).
+
+The predicate language uses a slightly different syntax depending on whether it is used in:
+
+- [Role resources](#scoping-allowdeny-rules-in-role-resources)
+- [Resource filtering](#resource-filtering)
+- [Label expressions](#label-expressions)
+
+## Scoping allow/deny rules in role resources
+
+Some fields in Teleport's role resources use the predicate language to define
+the scope of a role's permissions:
+
+- [Dynamic Impersonation](../../admin-guides/access-controls/impersonation.mdx)
+- [RBAC for sessions](../rbac/teleport-roles.mdx)
+
+When used in role resources, the predicate language supports the following operators:
+
+| Operator | Meaning                                          | Example                                                  |
+|----------|--------------------------------------------------|----------------------------------------------------------|
+| &&       | and (all conditions must match)                  | `contains(field1, field2) && equals(field2, "val")`      |
+| \|\|     | or  (any one condition should match)             | `contains(field1, field2) \|\| contains(field1, "val2")` |
+| !        | not (used with functions, more about this below) | `!equals(field1, field2)`                                |
+
+The language also supports the following functions:
+
+| Functions                      | Description                                                                           |
+|--------------------------------|---------------------------------------------------------------------------------------|
+| `contains(<field>, <field2>)`  | checks if the value from `<field2>` is included in the list of strings from `<field>` |
+| `contains(<field>, "<value>")` | checks if `<value>` is included in the list of strings from `<field>`                 |
+| `equals(<field>, <field2>)`    | checks if the value from `<field2>` is equal to the value from `<field>`              |
+| `equals(<field>, "<value>")`   | checks if `<value>` is equal to the value from `<field>`                              |
+
+## Resource filtering
+
+Both the [`tsh`](../cli/tsh.mdx) and [`tctl`](../cli/tctl.mdx) CLI tools allow you to filter nodes,
+applications, databases, and Kubernetes resources using the `--query` flag. The `--query` flag allows you to
+perform more sophisticated searches using the predicate language.
+
+For common resource fields, we defined shortened field names that can easily be accessed by:
+
+| Short Field       | Actual Field Equivalent                                                                | Example                      |
+|-------------------|----------------------------------------------------------------------------------------|------------------------------|
+| `labels["<key>"]` | `resource.metadata.labels` + `resource.spec.dynamic_labels`                            | `labels["env"] == "staging"` |
+| `name`            | `resource.spec.hostname` (only applies to server resource) or `resource.metadata.name` | `name == "jenkins"`          |
+
+The language supports the following operators:
+
+| Operator | Meaning                              | Example                                                |
+|----------|--------------------------------------|--------------------------------------------------------|
+| ==       | equal to                             | `labels["env"] == "prod"` or ``labels[`env`] == "prod"`` |
+| !=       | not equal to                         | `labels["env"] != "prod"`                              |
+| &&       | and (all conditions must match)      | `labels["env"] == "prod" && labels["os"] == "mac"`     |
+| \|\|     | or  (any one condition should match) | `labels["env"] == "dev" \|\| labels["env"] == "qa"`    |
+| !        | not (used with functions)            | `!equals(labels["env"], "prod")`                       |
+
+The language also supports the following functions:
+
+| Functions (with examples)                    | Description                                                |
+|----------------------------------------------|------------------------------------------------------------|
+| `equals(labels["env"], "prod")`              | resources with label key `env` equal to label value `prod` |
+| `exists(labels["env"])`                      | resources with a label key `env`; label value unchecked    |
+| `!exists(labels["env"])`                     | resources without a label key `env`; label value unchecked |
+| `search("foo", "bar", "some phrase")`        | fuzzy match against common resource fields                 |
+| `hasPrefix(name, "foo")`                     | resources with a name that starts with the prefix `foo`    |
+| `split(labels["foo"], ",")`                  | converts a delimited string into a list                    |
+| `contains(split(labels["foo"], ","), "bar")` | determines if a value exists in a list                     |
+
+See some [examples](../cli.mdx) of the different ways you can filter resources.
+
+## Label expressions
+
+<Admonition type="warning">
+Label expressions are available starting in Teleport version `13.1.1`.
+All components of your Teleport cluster must be upgraded to version `13.1.1`
+or newer before you will be able to use label expressions.
+This includes the Auth Service and **all** Teleport agents.
+</Admonition>
+
+Label expressions can be used in Teleport roles to define access to resources
+with custom logic.
+Check out the Access Controls
+[reference page](../rbac/teleport-roles.mdx)
+for an overview of label expressions and where they can be used.
+
+Label expressions support a predicate language with the following fields
+available:
+
+| Field              | Type                    | Description |
+|--------------------|-------------------------|-------------|
+| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (server, application, etc.) being accessed. |
+| `user.spec.traits` | `map[string][]string`   | All traits of the user accessing the resource (referred to as `external` or `internal` in role template expressions). |
+
+The language supports the following functions:
+
+| Syntax | Return type | Description | Example |
+|--------|-------------|-------------|---------|
+| `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
+| `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
+| `regexp.replace(list,` `re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"],` `"^env-(.*)$", "$1"), labels["env"])`
+| `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]),` `labels["owner"])`
+| `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]),` `labels["owner"])`
+| `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]),` `labels["owner"])`
+| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression | `contains(labels_matching("^project-(team\|label)$"),` `"security")`
+| `contains_any(list, items)` | Boolean | Returns true if `list` contains an exact match for any element of `items` | `contains_any(user.spec.traits["projects"],` `labels_matching("project-*"))` |
+| `contains_all(list, items)` | Boolean | Returns true if `list` contains an exact match for all elements of `items` | `contains_all(user.spec.traits["projects"],` `labels_matching("project-*"))` |
+
+Above, any argument named `list` can accept a list of values (like the list of
+values for a specific user trait) or a single value (like the value of a
+resource label or a string literal).
+
+The language also supports the following operators:
+
+| Operator | Meaning                             | Example |
+|----------|-------------------------------------|---------|
+| ==       | equal to                            | `labels["env"] == "staging"` |
+| !=       | not equal to                        | `labels["env"] != "production"` |
+| \|\|      | or (any one condition should match) | `labels["env"] == "staging" \|\| labels["env"] == "test"` |
+| &&       | and (all conditions must match)     | `labels["env"] == "staging" && labels["team"] == "dev"` |
+| !        | not (logical negation)              | `!regexp.match(user.spec.traits["teams"], "contractor")` |
