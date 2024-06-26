@@ -21,7 +21,12 @@ import session from 'teleport/services/websession';
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
-import { User, UserContext, ResetPasswordType } from './types';
+import {
+  User,
+  UserContext,
+  ResetPasswordType,
+  ExcludeUserField,
+} from './types';
 
 const cache = {
   userContext: null as UserContext,
@@ -61,8 +66,10 @@ const service = {
    * @param user
    * @returns user
    */
-  updateUser(user: User) {
-    return api.put(cfg.getUsersUrl(), user).then(makeUser);
+  updateUser(user: User, excludeUserField: ExcludeUserField) {
+    return api
+      .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
+      .then(makeUser);
   },
 
   /**
@@ -72,8 +79,10 @@ const service = {
    * @param user
    * @returns user
    */
-  createUser(user: User) {
-    return api.post(cfg.getUsersUrl(), user).then(makeUser);
+  createUser(user: User, excludeUserField: ExcludeUserField) {
+    return api
+      .post(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
+      .then(makeUser);
   },
 
   createResetPasswordToken(name: string, type: ResetPasswordType) {
@@ -102,5 +111,24 @@ const service = {
       .then(res => res.logins);
   },
 };
+
+function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
+  const userReq = { ...user };
+  switch (excludeUserField) {
+    case ExcludeUserField.AllTraits: {
+      delete userReq.allTraits;
+      break;
+    }
+    case ExcludeUserField.Traits: {
+      delete userReq.traits;
+      break;
+    }
+    default: {
+      excludeUserField satisfies never;
+    }
+  }
+
+  return userReq;
+}
 
 export default service;

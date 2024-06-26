@@ -21,11 +21,15 @@ import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  ExcludeUserField,
+  type User,
+  type UserTraits,
+} from 'teleport/services/user';
 
 import { ResourceKind } from '../ResourceKind';
 
 import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
-import type { User, UserTraits } from 'teleport/services/user';
 
 // useUserTraits handles:
 //  - retrieving the latest user (for the dynamic traits) from the backend
@@ -152,9 +156,6 @@ export function useUserTraits() {
 
       case ResourceKind.Database:
         let newDynamicDbUsers = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbUsers = new Set(dynamicTraits.databaseUsers);
-        }
         traitOpts.databaseUsers.forEach(o => {
           if (!staticTraits.databaseUsers.includes(o.value)) {
             newDynamicDbUsers.add(o.value);
@@ -162,9 +163,6 @@ export function useUserTraits() {
         });
 
         let newDynamicDbNames = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbNames = new Set(dynamicTraits.databaseNames);
-        }
         traitOpts.databaseNames.forEach(o => {
           if (!staticTraits.databaseNames.includes(o.value)) {
             newDynamicDbNames.add(o.value);
@@ -259,13 +257,16 @@ export function useUserTraits() {
     setAttempt({ status: 'processing' });
     try {
       await ctx.userService
-        .updateUser({
-          ...user,
-          traits: {
-            ...user.traits,
-            ...newDynamicTraits,
+        .updateUser(
+          {
+            ...user,
+            traits: {
+              ...user.traits,
+              ...newDynamicTraits,
+            },
           },
-        })
+          ExcludeUserField.AllTraits
+        )
         .catch((error: Error) => {
           emitErrorEvent(`error updating user traits: ${error.message}`);
           throw error;

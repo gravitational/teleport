@@ -17,7 +17,7 @@
 import { ReactElement, useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 
-import { User } from 'teleport/services/user';
+import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
 export default function useUsers({
@@ -74,14 +74,16 @@ export default function useUsers({
   }
 
   function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
+    return ctx.userService
+      .updateUser(u, ExcludeUserField.Traits)
+      .then(result => {
+        setUsers([result, ...users.filter(i => i.name !== u.name)]);
+      });
   }
 
   function onCreate(u: User) {
     return ctx.userService
-      .createUser(u)
+      .createUser(u, ExcludeUserField.Traits)
       .then(result => setUsers([result, ...users]))
       .then(() => ctx.userService.createResetPasswordToken(u.name, 'invite'));
   }
