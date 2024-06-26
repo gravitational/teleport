@@ -6081,6 +6081,28 @@ message PluginOAuth2AuthorizationCodeCredentials {
 // PluginStatus is the user-facing status for the plugin instance.
 message PluginStatusV1 {
   PluginStatusCode code = 1;
+  // error_message is a human-readable error message that can be displayed to the user.
+  string error_message = 2;
+  // last_sync_time is the last time the plugin was run.
+  google.protobuf.Timestamp last_sync_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // details contains provider-specific plugin status details.
+  oneof details {
+    // gitlab is the status details for the Gitlab plugin.
+    PluginGitlabStatusV1 gitlab = 4;
+  }
+}
+
+// PluginGitlabStatusV1 is the status details for the Gitlab plugin.
+message PluginGitlabStatusV1 {
+  // imported_users is the number of users imported from Gitlab.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Gitlab.
+  uint32 imported_groups = 2;
+  // imported_projects is the number of projects imported from Gitlab.
+  uint32 imported_projects = 3;
 }
 
 enum PluginStatusCode {
