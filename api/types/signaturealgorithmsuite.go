@@ -20,22 +20,43 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (s *SignatureAlgorithmSuite) toString() string {
+// MarshalText marshals a SignatureAlgorithmSuite value to text. This gets used
+// by json.Marshal.
+func (s *SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
 	switch *s {
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
-		return "legacy"
+		return []byte("legacy"), nil
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
-		return "balanced-v1"
+		return []byte("balanced-v1"), nil
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
-		return "fips-v1"
+		return []byte("fips-v1"), nil
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
-		return "hsm-v1"
+		return []byte("hsm-v1"), nil
 	default:
-		return s.String()
+		return []byte(s.String()), nil
 	}
 }
 
-func (s *SignatureAlgorithmSuite) fromString(str string) error {
+// UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
+// string format or numeric types matching an enum value.
+func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	switch v := val.(type) {
+	case string:
+		return trace.Wrap(s.setFromString(v))
+	case float64:
+		// json.Unmarshal is documented to unmarshal any JSON number into an
+		// int64 when unmarshaling into an interface.
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SignatureAlgorithmSuite invalid type %T", val)
+	}
+}
+
+func (s *SignatureAlgorithmSuite) setFromString(str string) error {
 	switch str {
 	case "":
 		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED
@@ -55,31 +76,6 @@ func (s *SignatureAlgorithmSuite) fromString(str string) error {
 		}
 	}
 	return nil
-}
-
-// MarshalText marshals a SignatureAlgorithmSuite value to text. This gets used
-// by json.Marshal.
-func (s *SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
-	return []byte(s.toString()), nil
-}
-
-// UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
-// string format or numeric types matching an enum value.
-func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
-	var val any
-	if err := json.Unmarshal(data, &val); err != nil {
-		return trace.Wrap(err)
-	}
-	switch v := val.(type) {
-	case string:
-		return trace.Wrap(s.fromString(v))
-	case float64:
-		// json.Unmarshal is documented to unmarshal any JSON number into an
-		// int64 when unmarshaling into an interface.
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	default:
-		return trace.BadParameter("SignatureAlgorithmSuite invalid type %T", val)
-	}
 }
 
 func (s *SignatureAlgorithmSuite) setFromEnum(val int32) error {
