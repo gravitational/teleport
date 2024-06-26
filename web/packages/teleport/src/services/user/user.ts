@@ -25,7 +25,12 @@ import { WebauthnAssertionResponse } from '../auth';
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
-import { User, UserContext, ResetPasswordType, ExludeUserField } from './types';
+import {
+  User,
+  UserContext,
+  ResetPasswordType,
+  ExcludeUserField,
+} from './types';
 
 const cache = {
   userContext: null as UserContext,
@@ -65,7 +70,7 @@ const service = {
    * @param user
    * @returns user
    */
-  updateUser(user: User, excludeUserField: ExludeUserField) {
+  updateUser(user: User, excludeUserField: ExcludeUserField) {
     return api
       .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
       .then(makeUser);
@@ -80,7 +85,7 @@ const service = {
    */
   createUser(
     user: User,
-    excludeUserField: ExludeUserField,
+    excludeUserField: ExcludeUserField,
     webauthnResponse?: WebauthnAssertionResponse
   ) {
     return api
@@ -129,14 +134,14 @@ const service = {
   },
 };
 
-function withExcludedField(user: User, excludeUserField: ExludeUserField) {
+function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
   const userReq = { ...user };
   switch (excludeUserField) {
-    case 'allTraits': {
+    case ExcludeUserField.AllTraits: {
       delete userReq.allTraits;
       break;
     }
-    case 'traits': {
+    case ExcludeUserField.Traits: {
       delete userReq.traits;
       break;
     }
