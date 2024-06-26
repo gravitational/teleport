@@ -1328,6 +1328,8 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
+	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
