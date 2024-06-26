@@ -134,9 +134,12 @@ export interface User {
   allTraits?: AllUserTraits;
 }
 
-// Backend does not allow User field "traits" and "allTraits"
-// to be specified when creating or updating a user.
-export type ExludeUserField = 'traits' | 'allTraits';
+// Backend does not allow User fields "traits" and "allTraits"
+// both to be specified in the same request when creating or updating a user.
+export enum ExcludeUserField {
+  Traits = 'traits',
+  AllTraits = 'allTraits',
+}
 
 // UserTraits contain fields that define traits for local accounts.
 export interface UserTraits {
