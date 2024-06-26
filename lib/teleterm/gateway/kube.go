@@ -131,9 +131,9 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 			cert, err := k.cfg.OnExpiredCert(ctx, k)
 			return cert, trace.Wrap(err)
 		},
-		Clock:   k.cfg.Clock,
-		Logger:  k.cfg.Log,
-		Context: k.closeContext,
+		Clock:        k.cfg.Clock,
+		Logger:       k.cfg.Log,
+		CloseContext: k.closeContext,
 	}), nil
 }
 
