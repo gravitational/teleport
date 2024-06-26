@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package lib
 
 // This is an alternative main package that gets included when the `debug` tag
 // is set. When built with this debug tag, the protoc plugin reads its input

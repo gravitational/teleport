@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package lib
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
+	"text/template"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
@@ -34,7 +38,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsYAML)
+}
+
+func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsDocsPage)
+}
+
+func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
@@ -52,7 +64,12 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	for _, fileDesc := range gen.AllFiles().File {
 		file := gen.addFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
+			if err := generateSchema(
+				file,
+				"resources.teleport.dev",
+				out,
+				gen.Response,
+			); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -152,7 +169,166 @@ var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
 	},
 }
 
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+// crdFormatFunc formats the given CRD into a document. It returns the document
+// as a byte slice, plus the file extension for the document.
+type crdFormatFunc func(apiextv1.CustomResourceDefinition) ([]byte, string, error)
+
+func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
+	doc, err := yaml.Marshal(crd)
+	if err != nil {
+		return nil, "", err
+	}
+	return doc, "yaml", nil
+}
+
+var crdDocTmpl string = strings.ReplaceAll(`{{- $kind := .Spec.Names.Kind}}
+{{- $group := .Spec.Group -}}
+---
+title: {{ $kind }}
+description: Provides a comprehensive list of fields in the {{ $kind }} resource available through the Teleport Kubernetes operator.
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields available to configure in
+the BACKTICK{{ $kind }}BACKTICK resource, which you can apply after installing
+the Teleport Kubernetes operator.
+
+{{ range .Spec.Versions}}
+## {{$group}}/{{.Name}}
+
+**apiVersion:** {{$group}}/{{.Name}}
+
+{{- range propertyTable "" .Schema.OpenAPIV3Schema }}
+{{- if ne .Name "" }}
+### {{.Name}}
+{{- end }}
+
+|Field|Type|Description|
+|---|---|---|
+{{- range .Fields }}
+|{{.Name}}|{{.Type}}|{{.Description}}|
+{{- end }}
+{{ end }}
+
+{{- end}}
+`, "BACKTICK", "`")
+
+type PropertyTable struct {
+	Name   string
+	Fields []PropertyTableField
+}
+
+type PropertyTableField struct {
+	Name        string
+	Type        string
+	Description string
+}
+
+func (t PropertyTable) Len() int {
+	return len(t.Fields)
+}
+
+func (t PropertyTable) Swap(i, j int) {
+	t.Fields[i], t.Fields[j] = t.Fields[j], t.Fields[i]
+}
+
+func (t PropertyTable) Less(i, j int) bool {
+	return strings.Compare(t.Fields[i].Name, t.Fields[j].Name) == -1
+}
+
+// The description of the Conditions field of a custom resource. This is
+// boilerplate for Kubernetes CRDs, and not appropriate to exposte in
+// user-facing documentation.
+const conditionsDescription = "Conditions represent the latest available observations of an object's state"
+
+func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]PropertyTable, error) {
+	switch props.Type {
+	case "object":
+		tab := PropertyTable{
+			Name: currentFieldName,
+		}
+		fields := []PropertyTableField{}
+		tables := []PropertyTable{}
+		var i int
+		for k, v := range props.Properties {
+			// Don't document the Conditions field, which is for
+			// internal use.
+			if v.Description == conditionsDescription {
+				continue
+			}
+			var tp string
+			switch v.Type {
+			case "object":
+				tp = "object"
+				if v.Properties == nil || len(v.Properties) == 0 {
+					break
+				}
+				extra, err := propertyTable(
+					fmt.Sprintf("`%v`", k),
+					&v,
+				)
+				if err != nil {
+					return nil, err
+				}
+				tp = fmt.Sprintf("[object](#%v)", k)
+				tables = append(tables, extra...)
+			case "array":
+				var subtp string
+				if v.Items.Schema.Type == "object" {
+					extra, err := propertyTable(
+						fmt.Sprintf("`%v` values", k),
+						v.Items.Schema,
+					)
+					if err != nil {
+						return nil, err
+					}
+					tables = append(tables, extra...)
+					subtp = fmt.Sprintf("[object](#%v-values)", k)
+				} else {
+					subtp = v.Items.Schema.Type
+				}
+				tp = fmt.Sprintf("[]%v", subtp)
+			default:
+				tp = v.Type
+			}
+			fields = append(fields, PropertyTableField{
+				Name:        k,
+				Type:        tp,
+				Description: v.Description,
+			})
+			i++
+		}
+		tab.Fields = fields
+		sort.Sort(tab)
+		tables = append([]PropertyTable{tab}, tables...)
+		return tables, nil
+	}
+	return nil, nil
+}
+
+func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
+	var buf bytes.Buffer
+	templ := template.New("docs")
+	templ = templ.Funcs(template.FuncMap{
+		"propertyTable": propertyTable,
+	})
+	templ, err := templ.Parse(crdDocTmpl)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	err = templ.Execute(&buf, crd)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return buf.Bytes(), "mdx", nil
+}
+
+func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
@@ -220,11 +396,11 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, err := yaml.Marshal(crd)
+		data, ext, err := format(crd)
 		if err != nil {
-			return trace.Wrap(err, "marshaling CRD")
+			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
+		name := fmt.Sprintf("%s_%s.%v", groupName, root.pluralName, ext)
 		content := string(data)
 		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
 	}

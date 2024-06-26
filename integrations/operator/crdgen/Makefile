@@ -1,10 +1,14 @@
 build:
-	go build -o protoc-gen-crd
+	cd cmd/protoc-gen-crd; go build -o protoc-gen-crd
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
+
+.PHONY: build-docs
+build-docs:
+	cd cmd/protoc-gen-crd-docs; go build -o protoc-gen-crd-docs
 
 .PHONY: test
 test: build
