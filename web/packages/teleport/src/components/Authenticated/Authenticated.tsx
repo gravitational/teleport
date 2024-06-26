@@ -53,7 +53,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
     const checkIfUserIsAuthenticated = async () => {
       if (!session.isValid()) {
         logger.warn('invalid session');
-        session.logout(true /* rememberLocation */);
+        session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
 
@@ -63,7 +63,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
           logger.warn('invalid session');
-          session.logout(true /* rememberLocation */);
+          session.clearBrowserSession(true /* rememberLocation */);
           // No need to update attempt, as `logout` will
           // redirect user to login page.
           return;
@@ -122,7 +122,7 @@ function startActivityChecker(ttl = 0) {
   // ie. browser still openend but all app tabs closed.
   if (isInactive(adjustedTtl)) {
     logger.warn('inactive session');
-    session.logout();
+    session.logoutWithoutSlo();
     return;
   }
 
@@ -132,7 +132,7 @@ function startActivityChecker(ttl = 0) {
   const intervalId = setInterval(() => {
     if (isInactive(adjustedTtl)) {
       logger.warn('inactive session');
-      session.logout();
+      session.logoutWithoutSlo();
     }
   }, ACTIVITY_CHECKER_INTERVAL_MS);
 
