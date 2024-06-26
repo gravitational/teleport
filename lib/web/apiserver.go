@@ -1272,8 +1272,9 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 	return webclient.AuthenticationSettings{
 		Type: constants.SAML,
 		SAML: &webclient.SAMLSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:                connector.GetName(),
+			Display:             connector.GetDisplay(),
+			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
 		SecondFactor:        cap.GetSecondFactor(),
