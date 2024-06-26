@@ -39,6 +39,21 @@ export function AppLauncher() {
     const port = location.port ? `:${location.port}` : '';
 
     try {
+      // Attempt to resolve the fqdn of the app, if we can't then an error
+      // will be returned preventing a redirect to a potentially arbitrary
+      // address. Compare the resolved fqdn with the one that was passed,
+      // if they don't match then the public address was used to find the
+      // resolved fqdn, and the passed fdqn isn't valid.
+      const resolvedApp = await service.getAppFqdn({
+        fqdn: params.fqdn,
+        clusterId: params.clusterId,
+        publicAddr: params.publicAddr,
+        arn: params.arn,
+      });
+      if (resolvedApp.fqdn !== params.fqdn) {
+        throw Error(`Failed to match applications with FQDN ${params.fqdn}`);
+      }
+
       let path = '';
       if (queryParams.has('path')) {
         path = queryParams.get('path');
