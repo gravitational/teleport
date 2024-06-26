@@ -195,6 +195,7 @@ var (
 		DatabaseCATLS:        RSA2048,
 		DatabaseClientCATLS:  RSA2048,
 		OpenSSHCASSH:         ECDSAP256,
+		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
 		SAMLIdPCATLS:         ECDSAP256,
 		SPIFFECATLS:          ECDSAP256,
