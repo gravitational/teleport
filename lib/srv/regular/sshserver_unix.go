@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build unix
+// +build unix
 
 /*
  * Teleport
@@ -23,8 +23,6 @@ package regular
 import (
 	"net"
 	"os"
-	"os/user"
-	"strconv"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
@@ -34,33 +32,7 @@ import (
 
 // validateListenerSocket checks that the socket and listener file descriptor
 // sent from the forwarding process have the expected properties.
-func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
-	// Get the credentials of the client connected to the socket.
-	var cred *unix.Ucred
-	var err error
-	if err := controlSyscallConn(controlConn, func(fd uintptr) error {
-		cred, err = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
-		return err
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check that the user connected to the socket is who we expect.
-	usr, err := user.Lookup(scx.Identity.Login)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if expectedUid, err := strconv.Atoi(usr.Uid); err != nil {
-		return trace.Wrap(err)
-	} else if int(cred.Uid) != expectedUid {
-		return trace.AccessDenied("unexpected user UID for the socket: %v", cred.Uid)
-	}
-	if expectedGid, err := strconv.Atoi(usr.Gid); err != nil {
-		return trace.Wrap(err)
-	} else if int(cred.Gid) != expectedGid {
-		return trace.AccessDenied("unexpected user GID for the socket: %v", cred.Gid)
-	}
-
+func validateListenerSocket(_ *srv.ServerContext, _ *net.UnixConn, listenerFD *os.File) error {
 	if err := controlSyscallConn(listenerFD, func(fd uintptr) error {
 		// Verify the socket type
 		if sockType, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_TYPE); err != nil {
