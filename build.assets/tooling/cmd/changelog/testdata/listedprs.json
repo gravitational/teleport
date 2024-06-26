@@ -1,0 +1,110 @@
+[
+    {
+        "body": "Backport #43245 to branch/v16\r\n\r\nchangelog: Add audit event field describing if the \"MFA for admin actions\" requirement changed\r\n",
+        "number": 43541,
+        "title": "[v16] audit when the MFA for admin actions requirement is changed",
+        "url": "https://github.com/gravitational/teleport/pull/43541"
+    },
+    {
+        "body": "Backport #43433 to branch/v16\r\n\r\nchangelog: Display errors in the web UI console for SSH and Kubernetes sessions.\r\n",
+        "number": 43485,
+        "title": "[v16] Display websocket errors in the UI",
+        "url": "https://github.com/gravitational/teleport/pull/43485"
+    },
+    {
+        "body": "Backport #43442, #43444 and #43445  to branch/v16.\r\n\r\nChangelog: Update go-retryablehttp to v0.7.7 (fixes CVE-2024-6104)",
+        "number": 43474,
+        "title": "[v16] chore: Bump github.com/hashicorp/go-retryablehttp to v0.7.7",
+        "url": "https://github.com/gravitational/teleport/pull/43474"
+    },
+    {
+        "body": "Backport #43371 to branch/v16\r\n\r\nchangelog: Fixes an issue preventing accurate inventory reporting of the updater after it is removed\r\n",
+        "number": 43454,
+        "title": "[v16] Update updater inventory reporting after removal",
+        "url": "https://github.com/gravitational/teleport/pull/43454"
+    },
+    {
+        "body": "Backport #43159 to branch/v16\r\n\r\nchangelog: Fix input searching logic for Connect's access request listing view\r\n",
+        "number": 43429,
+        "title": "[v16] Connect: fix access request searching logic",
+        "url": "https://github.com/gravitational/teleport/pull/43429"
+    },
+    {
+        "body": "Backport #42169 to branch/v16\r\n\r\nchangelog: Debug setting available for event-handler via configuration or FDFWD_DEBUG environment variable.\r\n",
+        "number": 43408,
+        "title": "[v16] Add debug logging configuration and env option for eventhandler",
+        "url": "https://github.com/gravitational/teleport/pull/43408"
+    },
+    {
+        "body": "Backport #41933 to branch/v16\r\n\r\nchangelog: Fix Headless auth for sso users, including when local auth is disabled.\r\n",
+        "number": 43361,
+        "title": "[v16] Allow headless auth when local auth is disabled",
+        "url": "https://github.com/gravitational/teleport/pull/43361"
+    },
+    {
+        "body": "Backport #43330 to branch/v16\r\n\r\nchangelog: Add configuration for custom CAs in the event-handler helm chart.\r\n",
+        "number": 43340,
+        "title": "[v16] allow setting TLS material in event-handler helm chart",
+        "url": "https://github.com/gravitational/teleport/pull/43340"
+    },
+    {
+        "body": "Backport #43195.\r\n\r\nManually backported due to conflicts in generated protobufs.\r\n\r\nchangelog: VNet panel in Teleport Connect now lists custom DNS zones and DNS zones from leaf clusters",
+        "number": 43312,
+        "title": "[v16] Display full list of DNS zones in VNet panel",
+        "url": "https://github.com/gravitational/teleport/pull/43312"
+    },
+    {
+        "body": "Backport #42961 to branch/v16\r\n\r\nchangelog: Fixed an issue with Database Access Controls preventing users from making additional database connections depending on their permissions.\r\n",
+        "number": 43303,
+        "title": "[v16] DAC: properly handle empty permissions scenario",
+        "url": "https://github.com/gravitational/teleport/pull/43303"
+    },
+    {
+        "body": "Backport #43270 to branch/v16\r\n\r\nchangelog: Fixed bug that caused gRPC connections to be disconnected when their certificate expired even though DisconnectCertExpiry was false.\r\n",
+        "number": 43290,
+        "title": "[v16] Fix gRPC connections being disconnected regardless of DisconnectCertExpiry",
+        "url": "https://github.com/gravitational/teleport/pull/43290"
+    },
+    {
+        "body": "Backport #43267 to branch/v16\r\n\r\nchangelog: Fixed Connect My Computer in Teleport Connect failing with \"bind: invalid argument\"\r\n",
+        "number": 43287,
+        "title": "[v16] Disable debug service in agents ran by Connect My Computer",
+        "url": "https://github.com/gravitational/teleport/pull/43287"
+    },
+    {
+        "body": "Backport #43278 to branch/v16\r\n\r\nchangelog: Fix a bug where a Teleport instance running only Jamf or Discovery service would never have a healthy  `/readyz` endpoint.\r\n",
+        "number": 43283,
+        "title": "[v16] Mark Discovery service healthy on startup",
+        "url": "https://github.com/gravitational/teleport/pull/43283"
+    },
+    {
+        "body": "Backport #43213 to branch/v16\r\n\r\nchangelog: Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs.\r\n",
+        "number": 43257,
+        "title": "[v16] ami: Add install section to teleport-acm unit file",
+        "url": "https://github.com/gravitational/teleport/pull/43257"
+    },
+    {
+        "body": "Backport #43225 to branch/v16.\r\n\r\nChangelog: Patched timing variability in curve25519-dalek",
+        "number": 43246,
+        "title": "[v16] chore: Bump curve25519-dalek to v4.1.3",
+        "url": "https://github.com/gravitational/teleport/pull/43246"
+    },
+    {
+        "body": "Backport #43076 to branch/v16\r\n\r\nchangelog: Fix setting request reason for automatic ssh access requests.\r\n",
+        "number": 43178,
+        "title": "[v16] Fix setting request reason for automatic ssh access requests.",
+        "url": "https://github.com/gravitational/teleport/pull/43178"
+    },
+    {
+        "body": "Backport #43082 to branch/v16\r\n\r\nchangelog: Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs.\r\n",
+        "number": 43161,
+        "title": "[v16] Rotate Connect logs in ascending order",
+        "url": "https://github.com/gravitational/teleport/pull/43161"
+    },
+    {
+        "body": "backport  #42161 to branch/v16\r\n\r\nchangelog: Adds `tctl desktop bootstrap` for bootstrapping AD environments to work with Desktop Access.",
+        "number": 43150,
+        "title": "[v16] Adds `tctl desktop bootstrap`, updates docs.",
+        "url": "https://github.com/gravitational/teleport/pull/43150"
+    }
+]

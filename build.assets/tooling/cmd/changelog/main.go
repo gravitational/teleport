@@ -155,8 +155,22 @@ func getTimestamps(dir string, entDir string, lastVersion string) (lastRelease, 
 	return since, sinceEnt, entTime, nil
 }
 
+func prereqCheck() error {
+	if err := git.GitIsAvailable(); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func main() {
 	kingpin.Parse()
+
+	if err := prereqCheck(); err != nil {
+		log.Fatal(err)
+	}
 
 	workDir, err := os.Getwd()
 	if err != nil {
@@ -187,11 +201,11 @@ func main() {
 	}
 
 	// Generate changelogs
-	ossCL, err := parseChangelogPRs(workDir, branch, timeLastRelease, eotTimestamp)
+	ossCL, err := generateChangelog(workDir, branch, timeLastRelease, eotTimestamp)
 	if err != nil {
 		log.Fatal(err)
 	}
-	entCL, err := parseChangelogPRs(entDir, branch, timeLastEntRelease, timeLastEntMod)
+	entCL, err := generateChangelog(entDir, branch, timeLastEntRelease, timeLastEntMod)
 	if err != nil {
 		log.Fatal(err)
 	}

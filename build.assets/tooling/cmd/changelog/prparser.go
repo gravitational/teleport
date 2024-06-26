@@ -12,7 +12,9 @@ import (
 )
 
 var (
-	clPattern = regexp.MustCompile("[Cc]hangelog: +(.*)$")
+	// clPattern will match a changelog format with the summary as a subgroup.
+	// e.g. will match a line "changelog: this is a changelog" with subgroup "this is a changelog".
+	clPattern = regexp.MustCompile(`[Cc]hangelog: +(.*)`)
 )
 
 // pr is the expected output format of our search query
@@ -43,7 +45,7 @@ func ghListPullRequests(dir, searchQuery string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// dateRangeFormat takes in a date range and will format it for Github search syntax
+// dateRangeFormat takes in a date range and will format it for Github search syntax.
 // to can be empty and the format will be to search everything after from
 func dateRangeFormat(from, to string) string {
 	if to == "" {
@@ -52,8 +54,29 @@ func dateRangeFormat(from, to string) string {
 	return fmt.Sprintf("%s..%s", from, to)
 }
 
-// toChangelog will take the output from the search and format it into a changelog
+// findChangelog will parse a body of a PR to find a changelog.
+func findChangelog(commentBody string) (found bool, summary string) {
+	// If a match is found then we should get a non empty slice
+	// 0 index will be the whole match including "changelog: *"
+	// 1 index will be the subgroup match which does not include "changelog: "
+	m := clPattern.FindStringSubmatch(commentBody)
+	if len(m) > 1 {
+		return true, m[1]
+	}
+	return false, ""
+}
+
+func prettierSummary(cl string) string {
+	cl = strings.TrimSpace(cl)
+	if !strings.HasSuffix(cl, ".") {
+		cl += "."
+	}
+	return cl
+}
+
+// toChangelog will take the output from the search and format it into a changelog.
 func toChangelog(data string) (string, error) {
+	// data should be in the format of a list of PR's
 	var list []pr
 	dec := json.NewDecoder(strings.NewReader(data))
 	err := dec.Decode(&list)
@@ -63,20 +86,18 @@ func toChangelog(data string) (string, error) {
 
 	cl := ""
 	for _, p := range list {
-		line := ""
-		if clPattern.Match([]byte(p.Body)) {
-			line += clPattern.FindString(p.Body)
-		} else {
-			line += fmt.Sprintf("* NOCL: %s. ", p.Title)
+		found, clSummary := findChangelog(p.Body)
+		if !found { // No summary found in body use title
+			clSummary = fmt.Sprintf("NOCL: %s. ", p.Title)
 		}
-		line += fmt.Sprintf("[#%d](%s)", p.Number, p.Url)
-		cl += line + "\n"
+		clSummary = prettierSummary(clSummary)
+		cl += fmt.Sprintf("* %s [#%d](%s)\n", clSummary, p.Number, p.Url)
 	}
 	return cl, nil
 }
 
-// parseChangelogPRs will
-func parseChangelogPRs(dir, branch, fromTime, toTime string) (string, error) {
+// generateChangelog will pull a PRs from branch between two points in time and generate a changelog from them.
+func generateChangelog(dir, branch, fromTime, toTime string) (string, error) {
 	// searchQuery is based off of Github's search syntax
 	searchQuery := fmt.Sprintf("base:%s merged:%s -label:no-changelog", branch, dateRangeFormat(fromTime, toTime))
 
