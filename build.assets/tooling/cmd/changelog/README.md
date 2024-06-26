@@ -59,21 +59,23 @@ One preferred way of using this script is to run `make changelog` from the
 base branch and save it: `make changelog > /tmp/changelog`. If any PRs are
 merged to the base branch after you have created your release PR but before
 you have merged it, you can see any new entries with:
-#
-    git checkout branch/vNN
-    diff -u /tmp/changelog $(make changelog)
-#
+
+```
+git checkout branch/vNN
+diff -u /tmp/changelog $(make changelog)
+```
 If there are changes, you can update your changelog and rebase your branch:
-#
-    git pull on branch/vNN
-    make changelog > /tmp/changelog
-    git checkout release/XX.Y.Z
-    git rebase branch/vNN
-    <include /tmp/changelog in CHANGELOG.md>
-    git add CHANGELOG.md && git commit --amend --no-edit && git push -f
-#
+```
+git pull on branch/vNN
+make changelog > /tmp/changelog
+git checkout release/XX.Y.Z
+git rebase branch/vNN
+<include /tmp/changelog in CHANGELOG.md>
+git add CHANGELOG.md && git commit --amend --no-edit && git push -f
+```
+
 Ensure you update the PR body with the new changelog, doable on the command
 line with `gh`:
-#
-    gh pr edit --body-file /tmp/changelog
-#
+```
+gh pr edit --body-file /tmp/changelog
+```
