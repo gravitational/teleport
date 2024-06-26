@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box, Text } from 'design';
+import { Indicator, Box } from 'design';
 import { Danger } from 'design/Alert';
 
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
@@ -83,15 +83,13 @@ export default function DocumentNodes(props: Props) {
   return (
     <Document visible={visible}>
       <Container mx="auto" mt="4" px="5">
-        <Box justifyContent="space-between" mb="2" alignItems="end">
-          <Text fontSize={1}>Clusters:</Text>
-          <ClusterDropdown
-            clusterLoader={consoleCtx.clustersService}
-            onChange={onChangeCluster}
-            clusterId={doc.clusterId}
-            onError={setClusterDropdownError}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={consoleCtx.clustersService}
+          onChange={onChangeCluster}
+          clusterId={doc.clusterId}
+          onError={setClusterDropdownError}
+          mb={2}
+        />
         {clusterDropdownError && <Danger>{clusterDropdownError}</Danger>}
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>
