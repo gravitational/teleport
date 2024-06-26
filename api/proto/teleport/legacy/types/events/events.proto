@@ -6222,6 +6222,17 @@ message AuthPreferenceUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AdminActionsMFA indicates whether MFA for admin actions was altered
+  // while updating the authentication preference.
+  AdminActionsMFAStatus AdminActionsMFA = 5 [(gogoproto.jsontag) = "admin_actions_mfa_changed"];
+}
+
+enum AdminActionsMFAStatus {
+  ADMIN_ACTIONS_MFA_STATUS_UNSPECIFIED = 0;
+  ADMIN_ACTIONS_MFA_STATUS_UNCHANGED = 1;
+  ADMIN_ACTIONS_MFA_STATUS_ENABLED = 2;
+  ADMIN_ACTIONS_MFA_STATUS_DISABLED = 3;
 }
 
 // ClusterNetworkingConfigUpdate is emitted when the cluster networking config is updated.
