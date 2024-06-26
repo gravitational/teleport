@@ -26,6 +26,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -39,7 +40,7 @@ const defaultSuite = types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEG
 type KeyPurpose int
 
 const (
-	keyPurposeUnspecified KeyPurpose = iota
+	KeyPurposeUnspecified KeyPurpose = iota
 
 	// UserCATLS represents the TLS key for the user CA.
 	UserCATLS
@@ -100,6 +101,21 @@ const (
 	algorithmMax
 )
 
+func (a Algorithm) String() string {
+	switch a {
+	case algorithmUnspecified:
+		return "algorithm unspecified"
+	case RSA2048:
+		return "RSA2048"
+	case ECDSAP256:
+		return "ECDSAP256"
+	case Ed25519:
+		return "Ed25519"
+	default:
+		return fmt.Sprintf("unknown algorithm %d", a)
+	}
+}
+
 // suite defines the cryptographic signature algorithm used for each unique key purpose.
 type suite map[KeyPurpose]Algorithm
 
@@ -132,11 +148,12 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        Ed25519,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
+		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
+		JWTCAJWT:     RSA2048,
+		OIDCIdPCAJWT: RSA2048,
+		SAMLIdPCATLS: ECDSAP256,
+		SPIFFECATLS:  ECDSAP256,
+		SPIFFECAJWT:  RSA2048,
 		// TODO(nklaassen): subject key purposes.
 	}
 
@@ -151,11 +168,12 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        ECDSAP256,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
+		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
+		JWTCAJWT:     RSA2048,
+		OIDCIdPCAJWT: RSA2048,
+		SAMLIdPCATLS: ECDSAP256,
+		SPIFFECATLS:  ECDSAP256,
+		SPIFFECAJWT:  RSA2048,
 		// TODO(nklaassen): subject key purposes.
 	}
 
@@ -172,11 +190,12 @@ var (
 		DatabaseCATLS:       RSA2048,
 		DatabaseClientCATLS: RSA2048,
 		OpenSSHCASSH:        ECDSAP256,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
+		// TODO(nklaassen): update JWT algorithms to ECDSAP256 once supported.
+		JWTCAJWT:     RSA2048,
+		OIDCIdPCAJWT: RSA2048,
+		SAMLIdPCATLS: ECDSAP256,
+		SPIFFECATLS:  ECDSAP256,
+		SPIFFECAJWT:  RSA2048,
 		// TODO(nklaassen): subject key purposes.
 	}
 

@@ -39,7 +39,7 @@ func TestSuites(t *testing.T) {
 			authPrefGetter := &fakeAuthPrefGetter{
 				suite: suite,
 			}
-			for purpose := keyPurposeUnspecified + 1; purpose < keyPurposeMax; purpose++ {
+			for purpose := KeyPurposeUnspecified + 1; purpose < keyPurposeMax; purpose++ {
 				alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
 				require.NoError(t, err)
 				assert.Greater(t, alg, algorithmUnspecified)
