@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.2-dev.fred-manifests-4
+VERSION=16.0.2-dev.fred-manifests-5
 
 DOCKER_IMAGE ?= teleport
 
