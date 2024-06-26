@@ -230,7 +230,7 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

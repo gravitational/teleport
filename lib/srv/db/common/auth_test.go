@@ -90,9 +90,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := auth.GetAzureCacheForRedisToken(context.TODO(), &Session{
-				Database: newAzureRedisDatabase(t, test.resourceID),
-			})
+			token, err := auth.GetAzureCacheForRedisToken(context.TODO(), newAzureRedisDatabase(t, test.resourceID))
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -121,11 +119,11 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(context.TODO(), &Session{
-		DatabaseUser: "some-user",
-		DatabaseName: "some-database",
-		Database:     newRedshiftServerlessDatabase(t),
-	})
+	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(context.TODO(),
+		newRedshiftServerlessDatabase(t),
+		"some-user",
+		"some-database",
+	)
 	require.NoError(t, err)
 	require.Equal(t, "IAM:some-user", dbUser)
 	require.Equal(t, "some-password", dbPassword)
@@ -233,11 +231,10 @@ func TestAuthGetTLSConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tlsConfig, err := auth.GetTLSConfig(context.TODO(), &Session{
-				Identity:     tlsca.Identity{},
-				DatabaseUser: "default",
-				Database:     test.sessionDatabase,
-			})
+			tlsConfig, err := auth.GetTLSConfig(context.TODO(),
+				time.Now().Add(time.Hour),
+				test.sessionDatabase,
+				"defaultUser")
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectServerName, tlsConfig.ServerName)
@@ -463,24 +460,22 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	tests := map[string]struct {
-		sessionCtx     *Session
-		checkGetAuthFn func(t *testing.T, auth Auth, sessionCtx *Session)
+		checkGetAuthFn func(t *testing.T, auth Auth)
 		checkSTS       func(t *testing.T, stsMock *mocks.STSMock)
 	}{
 		"Redshift": {
-			sessionCtx: &Session{
-				DatabaseUser: "some-user",
-				DatabaseName: "some-database",
-				Database: newRedshiftDatabase(t,
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "some-user"
+				databaseName := "some-database"
+				database := newRedshiftDatabase(t,
 					withCA(fixtures.SAMLOktaCertPEM),
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
 						ExternalID: "externalRedshift",
-					})),
-			},
-			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
-				t.Helper()
-				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, sessionCtx)
+					}))
+
+				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, database, databaseUser, databaseName)
 				require.NoError(t, err)
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
@@ -492,19 +487,18 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"Redshift with IAM role": {
-			sessionCtx: &Session{
-				DatabaseUser: "role/some-role",
-				DatabaseName: "some-database",
-				Database: newRedshiftDatabase(t,
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "role/some-role"
+				databaseName := "some-database"
+				database := newRedshiftDatabase(t,
 					withCA(fixtures.SAMLOktaCertPEM),
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
 						ExternalID: "externalRedshift",
-					})),
-			},
-			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
-				t.Helper()
-				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, sessionCtx)
+					}))
+
+				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, database, databaseUser, databaseName)
 				require.NoError(t, err)
 				require.Equal(t, "IAM:some-role", dbUser)
 				require.Equal(t, "some-password-for-some-role", dbPassword)
@@ -516,18 +510,17 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"Redshift Serverless": {
-			sessionCtx: &Session{
-				DatabaseUser: "some-user",
-				DatabaseName: "some-database",
-				Database: newRedshiftServerlessDatabase(t,
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "some-user"
+				databaseName := "some-database"
+				database := newRedshiftServerlessDatabase(t,
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
 						ExternalID: "externalRedshiftServerless",
-					})),
-			},
-			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
-				t.Helper()
-				dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
+					}))
+
+				dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(ctx, database, databaseUser, databaseName)
 				require.NoError(t, err)
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
@@ -540,18 +533,15 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"RDS Proxy": {
-			sessionCtx: &Session{
-				DatabaseUser: "some-user",
-				DatabaseName: "some-database",
-				Database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "some-user"
+				database := newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
 						ExternalID: "externalRDSProxy",
-					})),
-			},
-			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
-				t.Helper()
-				token, err := auth.GetRDSAuthToken(ctx, sessionCtx)
+					}))
+				token, err := auth.GetRDSAuthToken(ctx, database, databaseUser)
 				require.NoError(t, err)
 				require.Contains(t, token, "DBUser=some-user")
 			},
@@ -562,18 +552,15 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"ElastiCache Redis": {
-			sessionCtx: &Session{
-				DatabaseUser: "some-user",
-				DatabaseName: "some-database",
-				Database: newElastiCacheRedisDatabase(t,
+			checkGetAuthFn: func(t *testing.T, auth Auth) {
+				t.Helper()
+				databaseUser := "some-user"
+				database := newElastiCacheRedisDatabase(t,
 					withAssumeRole(types.AssumeRole{
 						RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
 						ExternalID: "externalElastiCacheRedis",
-					})),
-			},
-			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
-				t.Helper()
-				token, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+					}))
+				token, err := auth.GetElastiCacheRedisToken(ctx, database, databaseUser)
 				require.NoError(t, err)
 				u, err := url.Parse(token)
 				require.NoError(t, err)
@@ -617,7 +604,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			tt.checkGetAuthFn(t, auth, tt.sessionCtx)
+			tt.checkGetAuthFn(t, auth)
 			tt.checkSTS(t, stsMock)
 		})
 	}
@@ -694,10 +681,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, &Session{
-				Database:     tt.db,
-				DatabaseUser: tt.username,
-			})
+			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, tt.db, tt.username)
 			tt.expectErr(t, err)
 			require.Equal(t, tt.expectedKeyId, keyId)
 			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
