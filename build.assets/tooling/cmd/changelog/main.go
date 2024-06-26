@@ -201,11 +201,19 @@ func main() {
 	}
 
 	// Generate changelogs
-	ossCL, err := generateChangelog(workDir, branch, timeLastRelease, eotTimestamp)
+	ossCLGen := &changelogGenerator{
+		isEnt: false,
+		dir:   topDir,
+	}
+	entCLGen := &changelogGenerator{
+		isEnt: true,
+		dir:   entDir,
+	}
+	ossCL, err := ossCLGen.generateChangelog(branch, timeLastRelease, eotTimestamp)
 	if err != nil {
 		log.Fatal(err)
 	}
-	entCL, err := generateChangelog(entDir, branch, timeLastEntRelease, timeLastEntMod)
+	entCL, err := entCLGen.generateChangelog(branch, timeLastEntRelease, timeLastEntMod)
 	if err != nil {
 		log.Fatal(err)
 	}
