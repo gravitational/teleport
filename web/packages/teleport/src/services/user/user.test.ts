@@ -21,7 +21,7 @@ import cfg from 'teleport/config';
 
 import user from './user';
 import { makeTraits } from './makeUser';
-import { PasswordState, User } from './types';
+import { ExcludeUserField, PasswordState, User } from './types';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -390,7 +390,7 @@ test('excludeUserFields when updating user', async () => {
     allTraits: {},
   };
 
-  await user.updateUser(userReq, 'allTraits');
+  await user.updateUser(userReq, ExcludeUserField.AllTraits);
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -399,7 +399,7 @@ test('excludeUserFields when updating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.updateUser(userReq, 'traits');
+  await user.updateUser(userReq, ExcludeUserField.Traits);
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -418,7 +418,7 @@ test('excludeUserFields when creating user', async () => {
     allTraits: {},
   };
 
-  await user.createUser(userReq, 'allTraits');
+  await user.createUser(userReq, ExcludeUserField.AllTraits);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
@@ -432,7 +432,7 @@ test('excludeUserFields when creating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.createUser(userReq, 'traits');
+  await user.createUser(userReq, ExcludeUserField.Traits);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {

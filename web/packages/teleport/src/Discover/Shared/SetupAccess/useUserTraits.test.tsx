@@ -33,6 +33,7 @@ import {
 } from 'teleport/Discover/Fixtures/fixtures';
 import TeleportContext from 'teleport/teleportContext';
 import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import { ExcludeUserField } from 'teleport/services/user';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -134,7 +135,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
         ...mockUser,
         traits: { ...mockUser.traits, ...expected },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
 
     // Test that updating meta correctly updated the dynamic traits.
@@ -228,7 +229,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
           kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
         },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
   });
 
@@ -303,7 +304,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
         ...mockUser,
         traits: { ...mockUser.traits, ...expected },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
 
     // Test that updating meta correctly updated the dynamic traits.
@@ -386,7 +387,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
           databaseUsers: ['apple'],
         },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
   });
 
@@ -453,7 +454,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
         ...mockUser,
         traits: { ...mockUser.traits, ...expected },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
 
     // Test that updating meta correctly updated the dynamic traits.
@@ -544,7 +545,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
           awsRoleArns: [dynamicTraits.awsRoleArns[0]],
         },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
 
     // Test that app's awsRoles field got updated with the dynamic trait.
@@ -616,7 +617,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
           logins: ['banana', 'carrot'],
         },
       },
-      'allTraits'
+      ExcludeUserField.AllTraits
     );
   });
 });
