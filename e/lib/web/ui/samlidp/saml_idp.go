@@ -1,6 +1,10 @@
-package ui
+package samlidp
 
-import "github.com/gravitational/teleport/api/types"
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 // CreateSAMLIdPServiceProviderRequest is the request from the UI to create a `saml_idp_service_provider`.
 type CreateSAMLIdPServiceProviderRequest struct {
@@ -18,4 +22,28 @@ type CreateSAMLIdPServiceProviderRequest struct {
 	// Preset is used to define service provider profile that will have a custom behavior
 	// processed by Teleport.
 	Preset string `json:"preset,omitempty"`
+}
+
+// TransformToProtoType transforms SAMLIdPServiceProvider to
+// proto SAMLIdPServiceProviderV1.
+func TransformToProtoType(req CreateSAMLIdPServiceProviderRequest) (*types.SAMLIdPServiceProviderV1, error) {
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: req.Name,
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: req.EntityDescriptor,
+			EntityID:         req.EntityID,
+			ACSURL:           req.ACSURL,
+			AttributeMapping: req.AttributeMapping,
+			Preset:           req.Preset,
+		},
+	}
+	if err := sp.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sp, nil
 }

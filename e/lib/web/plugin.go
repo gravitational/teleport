@@ -267,8 +267,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.POST("/webapi/saml/slo", h.WithMetaRedirect(p.samlSLOHandle))
 
-	// Endpoints for using Teleport as SAML IdP.
-	h.POST("/enterprise/samlidp", h.WithAuth(p.upsertSAMLIdPServiceProviderHandle))
+	// Teleport SAML IdP API
+	h.GET("/enterprise/samlidp/:name", h.WithAuth(p.getSAMLIdPServiceProviderHandle))
+	h.POST("/enterprise/samlidp", h.WithAuth(p.createSAMLIdPServiceProviderHandle))
+	h.PUT("/enterprise/samlidp/:name", h.WithAuth(p.updateSAMLIdPServiceProviderHandle))
+	h.DELETE("/enterprise/samlidp/:name", h.WithAuth(p.deleteSAMLIdPServiceProviderHandle))
 
 	// OIDC callback handlers
 	h.GET("/webapi/oidc/login/web", h.WithRedirect(p.oidcLoginWeb))

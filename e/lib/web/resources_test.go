@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -262,129 +261,12 @@ func TestSAMLConnector(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
-func TestUpsertSAMLIdpServiceProvider_InvalidInputs(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
-
-	var testCases = []struct {
-		name             string
-		appName          string
-		entityDescriptor string
-		entityID         string
-		acsURL           string
-		attributeMapping []*types.SAMLAttributeMapping
-		errVal           string
-		preset           string
-	}{
-		{
-			name:             "missing app name",
-			appName:          "",
-			entityDescriptor: entityDescriptor,
-			entityID:         "",
-			acsURL:           "",
-			attributeMapping: []*types.SAMLAttributeMapping{},
-			errVal:           "missing parameter Name",
-		},
-		{
-			name:             "missing entity descriptor and entity ID",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "",
-			acsURL:           "https://example.com/saml/acs",
-			attributeMapping: []*types.SAMLAttributeMapping{},
-			errVal:           types.ErrEmptyEntityDescriptorAndEntityID.Message,
-		},
-		{
-			name:             "missing entity descriptor and ACS URL",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "https://example.com/saml/metadata",
-			acsURL:           "",
-			attributeMapping: []*types.SAMLAttributeMapping{},
-			errVal:           types.ErrEmptyEntityDescriptorAndACSURL.Message,
-		},
-		{
-			name:             "missing attribute name",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "https://example.com/saml/metadata",
-			acsURL:           "https://example.com/saml/metadata",
-			attributeMapping: []*types.SAMLAttributeMapping{{Name: "", NameFormat: "", Value: "user.spec.roles"}},
-			errVal:           "attribute name is required",
-		},
-		{
-			name:             "missing attribute value",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "https://example.com/saml/metadata",
-			acsURL:           "https://example.com/saml/metadata",
-			attributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: ""}},
-			errVal:           "attribute value is required",
-		},
-		{
-			name:             "duplicate attribute name and value",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "https://example.com/saml/metadata",
-			acsURL:           "https://example.com/saml/metadata",
-			attributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: "user.spec.roles"}, {Name: "roles", NameFormat: "", Value: "user.spec.roles"}},
-			errVal:           types.ErrDuplicateAttributeName.Message,
-		},
-		{
-			name:             "unsupported preset name",
-			appName:          "newSAMLApp",
-			entityDescriptor: "",
-			entityID:         "https://example.com/saml/metadata",
-			acsURL:           "https://example.com/saml/metadata",
-			preset:           "unsupported-preset",
-			errVal:           types.ErrUnsupportedPresetName.Message,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := upsertSAMLIdPServiceProvider(
-				context.Background(),
-				m,
-				enterpriseui.CreateSAMLIdPServiceProviderRequest{
-					Name:             tc.appName,
-					EntityDescriptor: tc.entityDescriptor,
-					EntityID:         tc.entityID,
-					ACSURL:           tc.acsURL,
-					AttributeMapping: tc.attributeMapping,
-					Preset:           tc.preset,
-				})
-			require.ErrorContains(t, err, tc.errVal)
-		})
-	}
-}
-
-const entityDescriptor = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.739Z" entityID="https://test.com/saml/metadata">
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.738823Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
- <KeyDescriptor use="encryption">
-	<KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
-	 <X509Data xmlns="http://www.w3.org/2000/09/xmldsig#">
-		<X509Certificate xmlns="http://www.w3.org/2000/09/xmldsig#">abcdefg</X509Certificate>
-	 </X509Data>
-	</KeyInfo>
-	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"></EncryptionMethod>
-	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc"></EncryptionMethod>
-	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"></EncryptionMethod>
-	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"></EncryptionMethod>
- </KeyDescriptor>
- <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
- <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://test.com/saml/acs" index="1"></AssertionConsumerService>
- <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://test.com/saml/acs" index="2"></AssertionConsumerService>
-</SPSSODescriptor>
-</EntityDescriptor>`
-
 type mockedResourceAPIGetter struct {
-	mockGetGithubConnectors          func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	mockGetSAMLConnector             func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
-	mockGetSAMLConnectors            func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-	mockGetOIDCConnector             func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-	mockGetOIDCConnectors            func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
-	mockCreateSAMLIdPServiceProvider func(ctx context.Context, sp types.SAMLIdPServiceProvider) error
-	mockGetSAMLIdPServiceProvider    func(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+	mockGetGithubConnectors func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockGetSAMLConnector    func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	mockGetSAMLConnectors   func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	mockGetOIDCConnector    func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
+	mockGetOIDCConnectors   func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -425,22 +307,6 @@ func (m *mockedResourceAPIGetter) GetOIDCConnectors(ctx context.Context, withSec
 	}
 
 	return nil, trace.NotImplemented("mockGetOIDCConnectors not implemented")
-}
-
-func (m *mockedResourceAPIGetter) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if m.mockCreateSAMLIdPServiceProvider != nil {
-		return m.mockCreateSAMLIdPServiceProvider(ctx, sp)
-	}
-
-	return trace.NotImplemented("mockCreateSAMlIdPServiceProvider not implemented")
-}
-
-func (m *mockedResourceAPIGetter) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	if m.mockGetSAMLIdPServiceProvider != nil {
-		return m.mockGetSAMLIdPServiceProvider(ctx, name)
-	}
-
-	return nil, trace.NotImplemented("mockGetSAMlIdPServiceProvider not implemented")
 }
 
 func TestOIDCConnector(t *testing.T) {

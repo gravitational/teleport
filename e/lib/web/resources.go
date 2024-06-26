@@ -9,7 +9,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -130,51 +129,6 @@ func (p *Plugin) updateOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 	return item, trace.Wrap(err)
 }
 
-func (p *Plugin) upsertSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req enterpriseui.CreateSAMLIdPServiceProviderRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upsertedItem, err := upsertSAMLIdPServiceProvider(r.Context(), clt, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return upsertedItem, nil
-}
-
-func upsertSAMLIdPServiceProvider(ctx context.Context, clt resourcesAPIGetter, req enterpriseui.CreateSAMLIdPServiceProviderRequest) (*ui.ResourceItem, error) {
-	sp := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: req.Name,
-			},
-		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: req.EntityDescriptor,
-			EntityID:         req.EntityID,
-			ACSURL:           req.ACSURL,
-			AttributeMapping: req.AttributeMapping,
-			Preset:           req.Preset,
-		},
-	}
-	if err := sp.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewResourceItem(sp)
-}
-
 type resourcesAPIGetter interface {
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
@@ -186,8 +140,4 @@ type resourcesAPIGetter interface {
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
-	// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
-	CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error
-	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
-	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 }
