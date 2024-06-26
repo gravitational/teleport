@@ -20,39 +20,18 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1";
 
-// AuthorizedKey represents a authorized key entry for a certain local user.
-message AuthorizedKey {
-  // metadata is the AuthorizedKey's metadata.
-  teleport.header.v1.Metadata metadata = 1;
-  // kind is a resource kind
-  string kind = 2;
-  // sub_kind is an optional resource sub kind, used in some resources
-  string sub_kind = 3;
-  // version is version
-  string version = 4;
-  // Spec is an AuthorizedKey specification.
-  AuthorizedKeySpec spec = 5;
-}
-
-// AuthorizedKeySpec is the authorized key spec.
-message AuthorizedKeySpec {
-  // host_id is the node identifier and must match the credentials used.
-  string host_id = 1;
-  // key_fingerprint is the SHA256 SSH public key fingerprint.
-  string key_fingerprint = 2;
-  // host_user is the user who can be accessed using the fingerprint above.
-  string host_user = 3;
-}
-
-// PrivateKey represents a private key entry for a certain local user.
+// The `PrivateKey` message represents a private key entry for a specific local user.
+// It serves as a reference to a private key located on a user's laptop. Note that it *NEVER* contains the private key itself.
+// Instead, it stores metadata related to the key, including the fingerprint of the public key, the device trust identifier, and the public key mode.
+// The Teleport Access Graph uses this metadata to assess whether a particular private key is authorized to access a user on the node without using Teleport.
 message PrivateKey {
   // metadata is the PrivateKey's metadata.
   teleport.header.v1.Metadata metadata = 1;
-  // kind is a resource kind
+  // kind is a resource kind.
   string kind = 2;
-  // sub_kind is an optional resource sub kind, used in some resources
+  // sub_kind is an optional resource sub kind, used in some resources.
   string sub_kind = 3;
-  // version is version
+  // version is version.
   string version = 4;
   // Spec is a PrivateKey specification.
   PrivateKeySpec spec = 5;
@@ -62,8 +41,9 @@ message PrivateKey {
 message PrivateKeySpec {
   // device_id is the device trust identifier of the device that owns the key.
   string device_id = 1;
-  // key_fingerprint is the SHA256 SSH public key fingerprint.
-  string key_fingerprint = 2;
+  // public_key_fingerprint is the SHA256 of the SSH public key corresponding to
+  // the private key.
+  string public_key_fingerprint = 2;
   // public_key_mode is the public key mode.
   PublicKeyMode public_key_mode = 3;
 }
@@ -82,6 +62,6 @@ enum PublicKeyMode {
   // that contains the public key.
   PUBLIC_KEY_MODE_PUB_FILE = 2;
   // PUBLIC_KEY_MODE_PROTECTED is a state where the private key is password protected and we could not extract the public key from it
-  // or from the file.
+  // or from the .pub file.
   PUBLIC_KEY_MODE_PROTECTED = 3;
 }
