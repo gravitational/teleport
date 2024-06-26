@@ -158,11 +158,15 @@ repository is cloned. This makes the lockfile always look the same, regardless
 of teleport.e being cloned or not. 
 After our workspaces become “isolated”, code in teleport.e will no longer be 
 able to import these dependencies. 
-This problem can be solved by re-exporting them from `packages/e-imports`.
-For example, `import Highlight from ‘react-highlight’` can become 
+This problem could be solved by re-exporting them from `packages/e-imports`.
+For example, `import Highlight from ‘react-highlight’` would become 
 `import Highlight from '@gravitational/e-imports/react-highlight'`.
-The ergonomics of this solution are not ideal, but the only other option is to 
-move these dependencies to the root `package.json`.
+However, the ergonomics of this solution is not ideal, as importing packages 
+from `@gravitational/e-imports` would be too cumbersome for developers.
+Instead, we will move these dependencies to the root `package.json`, making
+them explicitly available everywhere. We don't have too many packages used 
+exclusively by teleport.e, so this should be acceptable.
+The `e-imports` workspace will be removed.
 
 This part should be done before the actual package manager upgrade.
 
@@ -176,6 +180,11 @@ version is required).
    different package manager. 
 2. Convert the lockfile to a new format (`pnpm import`).
 3. Update CI, Makefile and package.json scripts.
+
+The dev teams will be notified of the transition via Slack, along with examples 
+of the updated commands. 
+For example: 
+>`yarn start-teleport` is now `pnpm run start-teleport`
 
 ### Backports
 For the best developer experience, we should change the manager in all release 
