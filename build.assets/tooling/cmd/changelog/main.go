@@ -211,6 +211,8 @@ func main() {
 	}
 
 	fmt.Println(ossCL)
-	fmt.Println("Enterprise:")
-	fmt.Println(entCL)
+	if entCL != "" {
+		fmt.Println("Enterprise:")
+		fmt.Println(entCL)
+	}
 }
