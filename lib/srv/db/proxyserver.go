@@ -42,10 +42,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -616,7 +617,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
 	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
 
-	privateKey, err := native.GeneratePrivateKey()
+	privateKey, err := cryptosuites.GenerateKey(ctx, s.cfg.AccessPoint, cryptosuites.ProxyToDatabaseAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -637,7 +638,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := privateKey.TLSCertificate(response.Cert)
+	cert, err := keys.TLSCertificateForSigner(privateKey, response.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
