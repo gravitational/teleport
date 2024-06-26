@@ -64,4 +64,18 @@ else
   fi
 fi
 
+APPARMOR_PROFILE_DEST="/etc/apparmor.d/teleport-connect"
+
+# Install apparmor profile.
+if [ -d "/etc/apparmor.d" ]; then
+  cp -f "$APP/resources/apparmor-profile" "$APPARMOR_PROFILE_DEST"
+
+  if hash apparmor_parser 2>/dev/null; then
+    # Extra flags taken from dh_apparmor:
+    # > By using '-W -T' we ensure that any abstraction updates are also pulled in.
+    # https://wiki.debian.org/AppArmor/Contribute/FirstTimeProfileImport
+    apparmor_parser --replace --write-cache --skip-read-cache "$APPARMOR_PROFILE_DEST"
+  fi
+fi
+
 # vim: syntax=sh
