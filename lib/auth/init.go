@@ -292,9 +292,6 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
-
-	// VersionInternal is a service that manages teleport version.
-	VersionInternal services.VersionInternal
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -340,9 +337,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := services.ValidateAndUpdateTeleportVersion(ctx, teleport.Version, asrv.Services.VersionInternal); err != nil {
 		return trace.Wrap(err)
 	}
 

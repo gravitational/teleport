@@ -75,7 +75,7 @@ func (s *StateV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UnknownVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
+// UnknownLocalVersion is a sentinel value used to distinguish between InitialLocalVersion being missing from
 // state due to malformed input and InitialLocalVersion being missing due to the state having been created before
 // teleport started recording InitialLocalVersion.
 const UnknownLocalVersion = "unknown"
@@ -88,6 +88,10 @@ type StateSpecV2 struct {
 	// InitialLocalVersion records the version of teleport that initially
 	// wrote this state to disk.
 	InitialLocalVersion string `json:"initial_local_version,omitempty"`
+
+	// LocalVersions records the version of teleport that was upgraded
+	// from the last launch.
+	LocalVersion string `json:"local_version,omitempty"`
 }
 
 // IdentityV2 specifies local host identity.
