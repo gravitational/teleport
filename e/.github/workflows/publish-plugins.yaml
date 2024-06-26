@@ -71,29 +71,6 @@ jobs:
         run: |
           aws s3 cp "s3://$PENDING_BUCKET/teleport-plugins/tag/$ARTIFACT_TAG/" "$LOCAL_ARTIFACTS_PATH" --recursive
 
-      # Binary artifact promotion
-      # These will soon be replaced with release server steps
-      - name: Assume AWS role for uploading the artifacts
-        # This step is only supported in production as there is no staging version of Houston
-        if: ${{ inputs.environment == 'publish-prod' }}
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          role-to-assume: ${{ vars.HOUSTON_UPLOAD_AWS_ROLE }}
-          role-session-name: "tag-publish-plugins-houston-upload-${{ github.run_attempt }}"
-          role-duration-seconds: 900
-
-      - name: Upload artifacts to Houston
-        # This step is only supported in production as there is no staging version of Houston
-        if: ${{ inputs.environment == 'publish-prod' }}
-        env:
-          HOUSTON_BUCKET: ${{ vars.HOUSTON_BUCKET }}
-        run: |
-          aws s3 sync --acl public-read "$LOCAL_ARTIFACTS_PATH" "s3://$HOUSTON_BUCKET/teleport-plugins/${ARTIFACT_TAG##v}/" \
-            --include "*" \
-            --exclude "*.tgz*"  # Exclude helm chart artifacts
-
       # Terraform promotion
       - name: Assume AWS role for syncing the Terraform artifacts
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2

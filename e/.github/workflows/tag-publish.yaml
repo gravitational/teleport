@@ -10,7 +10,7 @@ on:
         default: gravitational/teleport
 
       oss-teleport-ref:
-        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        description: Git SHA, tag or branch of the revision of OSS teleport to publish.
         type: string
         required: true
 
@@ -122,20 +122,6 @@ jobs:
       teleport-version: ${{ needs.setup.outputs.version }}
       environment: ${{ inputs.environment }}
 
-  publish-to-houston:
-    name: Publish to Houston
-    # No staging version of Houston is available, and Houston will be
-    # terminated soon.
-    if: ${{ !inputs.cloud-only && inputs.environment == 'publish-prod' }}
-    needs: setup
-    secrets: inherit
-    permissions:
-      id-token: write
-    uses: ./.github/workflows/publish-to-houston.yaml
-    with:
-      teleport-version: ${{ needs.setup.outputs.version }}
-      environment: ${{ inputs.environment }}
-
   publish-kube-agent-updater-oci:
     name: Publish kube agent updater OCI images
     if: ${{ !inputs.cloud-only }}
@@ -205,28 +191,12 @@ jobs:
 
   publish-release:
     name: Publish release
-    # This janky logic is because `needs` does not support conditionals.
-    # Instead, all the `needs` logic must be packed into `if`.
-    # This can, and should be removed once the publish-to-houston step is removed
-    if: |
-      always()
-      && !inputs.cloud-only
-      && needs.setup.result == 'success'
-      && needs.publish-distroless-oci.result == 'success'
-      && needs.publish-hardened-amis.result == 'success'
-      && needs.publish-helm.result == 'success'
-      && needs.publish-kube-agent-updater-oci.result == 'success'
-      && needs.publish-operator-oci.result == 'success'
-      && needs.publish-os-packages.result == 'success'
-      && needs.publish-plugins.result == 'success'
-      && needs.publish-spacelift-runner.result == 'success'
-      && contains(fromJSON('["success", "skipped"]'), needs.publish-to-houston.result)
+    if: ${{ !inputs.cloud-only }}
     needs:
       - setup
       - publish-distroless-oci
       - publish-hardened-amis
       - publish-helm
-      - publish-to-houston
       - publish-kube-agent-updater-oci
       - publish-operator-oci
       - publish-os-packages
