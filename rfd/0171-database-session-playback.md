@@ -213,17 +213,27 @@ Example of player visualization:
 ```code
 mydatabse=# SELECT id, name FROM events;
 SUCCESS
-(Returned 3 rows)
+(3 rows returned)
 
 mydatabase=# INSERT INTO events (name) VALUES ('session.query');
 SUCCESS
 (1 row inserted)
 
 mydatabase=# SELECT with_error;
-ERROR: column "with_error" does not exist
+ERROR: column "with_error" does not exist (SQLSTATE 42703)
 
 mydatabase=# ALTER SYSTEM SET client_min_messages = 'notice';
 SUCCESS
+
+mydatabase=# SELECT greet('hello');
+SUCCESS
+(1 row)
+
+mydatabase=# call greet_procedure('hello');
+SUCCESS
+
+mydatabase=# call error_procedure('hello');
+ERROR: procedure error_procedure() does not exist (SQLSTATE 42883)
 
 (session end)
 ```
@@ -248,17 +258,17 @@ mydatabase=# ALTER SYSTEM SET client_min_messages = 'notice';
 (session end)
 ```
 
-### Performance considerations
+#### Web UI
 
-Recording queries and responses will increase storage requirements and
-potentially impact CPU and memory usage. To reduce these, the following measures
-will be taken:
+Since the database session recording is going to be translated into the same
+format as SSH sessions, it can be reproduced on the Web UI without requiring a
+new player.
 
-- The recording mode will be similar to `node` (async), where the recording is
-  always done on the node side, persisted into the local filesystem, and
-  uploaded to the auth server after the session ends.
-- Server response events will be generated and recorded in a separate goroutine,
-  avoiding delayed message delivery to the clients.
+Given that the player (which contains the translator) is executed on the proxy
+side, only the `SessionPrint` events are sent to the browser. The Web UI will be
+required to verify if the proxy can replay the session based on the database
+protocol before showing the “Play” button, avoiding redirecting users to the
+player with sessions that won't be able to be reproduced.
 
 ### References
 
