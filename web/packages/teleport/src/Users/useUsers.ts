@@ -77,15 +77,17 @@ export default function useUsers({
   }
 
   function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
+    return ctx.userService
+      .updateUser(u, 'traits' /* exclude field */)
+      .then(result => {
+        setUsers([result, ...users.filter(i => i.name !== u.name)]);
+      });
   }
 
   async function onCreate(u: User) {
     const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u, webauthnResponse)
+      .createUser(u, 'traits' /* exclude field */, webauthnResponse)
       .then(result => setUsers([result, ...users]))
       .then(() =>
         ctx.userService.createResetPasswordToken(
