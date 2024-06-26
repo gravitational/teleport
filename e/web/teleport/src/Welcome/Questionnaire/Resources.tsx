@@ -1,7 +1,7 @@
 import { Flex, LabelInput, Text } from 'design';
 import React from 'react';
 import Image from 'design/Image';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 
@@ -41,7 +41,7 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
         }}
       >
         <ResourceWrapper isSelected={isSelected} invalid={!valid}>
-          <StyledCheckbox
+          <CheckboxInput
             size="small"
             aria-labelledby="resources"
             data-testid={`check-${resource.value}`}
