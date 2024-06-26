@@ -89,7 +89,7 @@ func TestGetAgentVersion(t *testing.T) {
 			ping: func(ctx context.Context) (proto.PingResponse, error) {
 				return proto.PingResponse{ServerVersion: "10"}, nil
 			},
-			clusterFeatures: proto.Features{AutomaticUpgrades: true},
+			clusterFeatures: proto.Features{AutomaticUpgrades: true, Cloud: true},
 			channelVersion:  "v1.2.3",
 			expectedVersion: "1.2.3",
 			errorAssert:     require.NoError,
