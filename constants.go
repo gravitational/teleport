@@ -842,6 +842,10 @@ const (
 	// for remote port forwarding.
 	RemoteForwardSubCommand = "remoteforward"
 
+	// AgentForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for agent forwarding.
+	AgentForwardSubCommand = "agentforward"
+
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"

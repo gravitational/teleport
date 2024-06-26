@@ -691,9 +691,9 @@ func handleRemotePortForward(ctx context.Context, addr string, file *os.File) er
 	return trace.NewAggregate(err, err2)
 }
 
-// runForward reads in the command to run from the parent process (over a
+// runPortForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
-func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
+func runPortForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -788,15 +788,144 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 // RunLocalForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
 func RunLocalForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleLocalPortForward)
+	errw, code, err = runPortForward(handleLocalPortForward)
 	return errw, code, trace.Wrap(err)
 }
 
 // RunRemoteForward reads in the command to run from the parent process (over a
 // pipe) then listens for port forwarding.
 func RunRemoteForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleRemotePortForward)
+	errw, code, err = runPortForward(handleRemotePortForward)
 	return errw, code, trace.Wrap(err)
+}
+
+func RunAgentForward() (errw io.Writer, code int, err error) {
+	errw, code, err = runAgentForward()
+	return errw, code, trace.Wrap(err)
+}
+
+func runAgentForward() (errw io.Writer, code int, err error) {
+	// errorWriter is used to return any error message back to the client.
+	// Use stderr so that it's not forwarded to the remote client.
+	errorWriter := os.Stderr
+
+	// Parent sends the command payload in the third file descriptor.
+	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
+	if cmdfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
+	}
+
+	// Parent receives any errors on the sixth file descriptor.
+	errfd := os.NewFile(ErrorFile, fdName(ErrorFile))
+	if errfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("error pipe not found")
+	}
+
+	defer func() {
+		writeChildError(errfd, err)
+	}()
+
+	// Read in the command payload.
+	var c ExecCommand
+	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// If PAM is enabled, open a PAM context. This has to be done before anything
+	// else because PAM is sometimes used to create the local user used to
+	// launch the shell under.
+	if c.PAMConfig != nil {
+		// Open the PAM context.
+		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+			ServiceName: c.PAMConfig.ServiceName,
+			Login:       c.Login,
+			Stdin:       os.Stdin,
+			Stdout:      io.Discard,
+			Stderr:      io.Discard,
+			// Set Teleport specific environment variables that PAM modules
+			// like pam_script.so can pick up to potentially customize the
+			// account/session.
+			Env: c.PAMConfig.Environment,
+		})
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		defer pamContext.Close()
+	}
+
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+	}
+
+	// build forwarder from first extra file that was passed to command
+	ffd := os.NewFile(FirstExtraFile, "forwarder")
+	if ffd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
+	}
+
+	fconn, err := uds.FromFile(ffd)
+	ffd.Close()
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	defer fconn.Close()
+
+	// Set the open XServer unix socket's owner to the localuser
+	// to prevent a potential privilege escalation vulnerability.
+	uid, err := strconv.Atoi(localUser.Uid)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	gid, err := strconv.Atoi(localUser.Gid)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// Create a temp directory to hold the agent socket.
+	sockDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	defer listener.Close()
+
+	if err := os.Lchown(socketPath, uid, gid); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// Update the agent forwarding socket with more restrictive permissions.
+	if err := os.Chmod(socketPath, teleport.FileMaskOwnerOnly); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// To prevent a privilege escalation attack, this must occur
+	// after the socket permissions are updated.
+	if err := os.Lchown(sockDir, uid, gid); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	unixListener, _ := listener.(*net.UnixListener)
+	if unixListener == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("expected listener to be of type *net.UnixListener, but was %T", listener)
+	}
+
+	listenerFD, err := unixListener.File()
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if _, _, err = fconn.WriteWithFDs(nil, []*os.File{listenerFD}); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	<-context.Background().Done()
+	return
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -835,6 +964,8 @@ func RunAndExit(commandType string) {
 		w, code, err = RunLocalForward()
 	case teleport.RemoteForwardSubCommand:
 		w, code, err = RunRemoteForward()
+	case teleport.AgentForwardSubCommand:
+		w, code, err = RunAgentForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
@@ -855,7 +986,7 @@ func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case teleport.ExecSubCommand, teleport.LocalForwardSubCommand, teleport.RemoteForwardSubCommand,
-			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand:
+			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand, teleport.AgentForwardSubCommand:
 			return true
 		}
 	}
@@ -1075,6 +1206,8 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		subCommand = teleport.LocalForwardSubCommand
 	case teleport.TCPIPForwardRequest:
 		subCommand = teleport.RemoteForwardSubCommand
+	case teleport.AgentForwardSubCommand:
+		subCommand = teleport.AgentForwardSubCommand
 	default:
 		subCommand = teleport.ExecSubCommand
 	}

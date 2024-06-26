@@ -1309,41 +1309,6 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*sshutils.TC
 	}, nil
 }
 
-// serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
-func (s *Server) serveAgent(ctx *srv.ServerContext) error {
-	// gather information about user and process. this will be used to set the
-	// socket path and permissions
-	systemUser, err := user.Lookup(ctx.Identity.Login)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	pid := os.Getpid()
-
-	socketDir := "teleport"
-	socketName := fmt.Sprintf("teleport-%v.socket", pid)
-
-	// start an agent server on a unix socket.  each incoming connection
-	// will result in a separate agent request.
-	agentServer := teleagent.NewServer(ctx.Parent().StartAgentChannel)
-	err = agentServer.ListenUnixSocket(socketDir, socketName, systemUser)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx.Parent().SetEnv(teleport.SSHAuthSock, agentServer.Path)
-	ctx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
-	ctx.Parent().AddCloser(agentServer)
-	ctx.Debugf("Starting agent server for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, agentServer.Path)
-	go func() {
-		if err := agentServer.Serve(); err != nil {
-			ctx.Errorf("agent server for user %q stopped: %v", ctx.Identity.TeleportUser, err)
-		}
-	}()
-
-	return nil
-}
-
 // HandleRequest processes global out-of-band requests. Global out-of-band
 // requests are processed in order (this way the originator knows which
 // request we are responding to). If Teleport does not support the request
@@ -1906,7 +1871,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// processing requests.
 		err := s.handleAgentForwardNode(req, serverContext)
 		if err != nil {
-			s.Logger.Warn(err)
+			s.Logger.WithError(err).Warn("Agent forwarding request failed")
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
@@ -1924,19 +1889,19 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 // handleAgentForwardNode will create a unix socket and serve the agent running
 // on the client on it.
-func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardNode(_ *ssh.Request, scx *srv.ServerContext) error {
 	// check if the user's RBAC role allows agent forwarding
-	err := s.authHandlers.CheckAgentForward(ctx)
+	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Enable agent forwarding for the broader connection-level
 	// context.
-	ctx.Parent().SetForwardAgent(true)
+	scx.Parent().SetForwardAgent(true)
 
 	// serve an agent on a unix socket on this node
-	err = s.serveAgent(ctx)
+	err = s.serveAgent(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1944,12 +1909,99 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 	return nil
 }
 
+// serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
+func (s *Server) serveAgent(scx *srv.ServerContext) error {
+	l, err := s.startAgentForwardingListener(scx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// start an agent server on a unix socket.  each incoming connection
+	// will result in a separate agent request.
+	agentServer := teleagent.NewServer(scx.Parent().StartAgentChannel)
+	agentServer.SetListener(l)
+	scx.Parent().SetEnv(teleport.SSHAuthSock, l.Addr().String())
+	scx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", os.Getpid()))
+	scx.Parent().AddCloser(agentServer)
+	scx.Debugf("Starting agent server for Teleport user %v and socket %v.", scx.Identity.TeleportUser, agentServer.Path)
+	go func() {
+		if err := agentServer.Serve(); err != nil {
+			scx.Errorf("agent server for user %q stopped: %v", scx.Identity.TeleportUser, err)
+		}
+	}()
+
+	return nil
+}
+
+func (s *Server) startAgentForwardingListener(scx *srv.ServerContext) (*net.UnixListener, error) {
+	// Create the socket to communicate over.
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer localConn.Close()
+	defer remoteConn.Close()
+
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+
+	// Create command to re-exec Teleport which prepares an agent forwarding socket.
+	// The reason it's not done directly is because the PAM stack needs to be called
+	// from the child process.
+	_, cmdCtx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cmdCtx.ExecType = teleport.AgentForwardSubCommand
+	cmd, err := srv.ConfigureCommand(cmdCtx, remoteFD)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Propagate stderr from the spawned Teleport process to log any errors.
+	cmd.Stderr = os.Stderr
+
+	// Start the child process that will be used to listen for connections.
+	if err := cmd.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		// Ensure unexpected cmd failures get logged.
+		if err := cmd.Wait(); err != nil {
+			s.Logger.Warnf("Agent forwarder process exited early with unexpected error: %v", err)
+		}
+	}()
+
+	fbuf := make([]*os.File, 1)
+	if _, fn, err := localConn.ReadWithFDs(nil, fbuf); err != nil {
+		return nil, trace.Wrap(err)
+	} else if fn == 0 {
+		return nil, trace.BadParameter("agent forwarding process did not return an agent forwarding listener file descriptor")
+	}
+
+	listener, err := net.FileListener(fbuf[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unixListener, ok := listener.(*net.UnixListener)
+	if !ok {
+		return nil, trace.BadParameter("listener is not a UnixListener")
+	}
+
+	return unixListener, nil
+}
+
 // handleAgentForwardProxy will forward the clients agent to the proxy (when
 // the proxy is running in recording mode). When running in normal mode, this
 // request will do nothing. To maintain interoperability, agent forwarding
 // requests should never fail, all errors should be logged and we should
 // continue processing requests.
-func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForwardProxy(_ *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
 	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {

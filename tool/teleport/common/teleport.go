@@ -107,6 +107,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	agentForward := app.Command(teleport.AgentForwardSubCommand, "Used internally by Teleport to re-exec itself to open an agent forwarding socket.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -633,6 +634,8 @@ Examples:
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
+	case agentForward.FullCommand():
+		srv.RunAndExit(teleport.AgentForwardSubCommand)
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():
