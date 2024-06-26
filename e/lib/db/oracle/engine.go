@@ -101,7 +101,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 func (e *Engine) createAuditPuller(ctx context.Context, cfg types.OracleOptions) (*audit.Puller, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.WithUser(cfg.AuditUser))
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.GetExpiry(), e.session.Database, cfg.AuditUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,7 +119,7 @@ func (e *Engine) createAuditPuller(ctx context.Context, cfg types.OracleOptions)
 }
 
 func (e *Engine) connectToOracleDB(ctx context.Context, sessionCtx *common.Session) (*protocol.Conn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

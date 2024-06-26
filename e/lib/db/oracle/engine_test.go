@@ -145,7 +145,7 @@ func (a *authMock) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 	return &types.AuthPreferenceV2{}, nil
 }
 
-func (a *authMock) GetTLSConfig(ctx context.Context, sessionCtx *common.Session) (*tls.Config, error) {
+func (a *authMock) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	return &tls.Config{
 		InsecureSkipVerify: true,
 	}, nil
