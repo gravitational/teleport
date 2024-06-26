@@ -32,7 +32,7 @@ import (
 
 var (
 	// pattern precompiled regular expression to parse teleport version.
-	pattern = regexp.MustCompile("(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(-(?P<suffix>\\w+))?")
+	pattern = regexp.MustCompile(`(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(-(?P<suffix>\w+))?`)
 
 	// errMajorVersionUpgrade default error for restricting upgrade major version
 	errMajorVersionUpgrade = errors.New("upgrade major version must be iterative. See: https://goteleport.com/docs/upgrading/overview/#component-compatibility")
@@ -52,9 +52,9 @@ type VersionInternal interface {
 	UpsertTeleportVersion(ctx context.Context, version types.Version) (types.Version, error)
 }
 
-// ValidateMajorVersion validates that the major version persistent in the backend
+// ValidateAndUpdateTeleportVersion validates that the major version persistent in the backend
 // meets our upgrade compatibility guide.
-func ValidateMajorVersion(ctx context.Context, currentVersion string, service VersionInternal) error {
+func ValidateAndUpdateTeleportVersion(ctx context.Context, currentVersion string, service VersionInternal) error {
 	v, err := service.GetTeleportVersion(ctx)
 	if trace.IsNotFound(err) {
 		return setVersion(ctx, currentVersion, service)

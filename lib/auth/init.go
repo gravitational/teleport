@@ -342,7 +342,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := services.ValidateMajorVersion(ctx, teleport.Version, asrv.Services.VersionInternal); err != nil {
+	if err := services.ValidateAndUpdateTeleportVersion(ctx, teleport.Version, asrv.Services.VersionInternal); err != nil {
 		return trace.Wrap(err)
 	}
 
