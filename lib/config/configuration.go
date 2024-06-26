@@ -782,9 +782,9 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = sw
 	default:
 		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		logFile, err := os.OpenFile(loggerConfig.Output, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
+			return trace.Wrap(err, "failed to open the log file for writing")
 		}
 		w = logFile
 	}
