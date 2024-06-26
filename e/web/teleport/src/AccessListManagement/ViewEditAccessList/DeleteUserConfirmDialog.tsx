@@ -7,6 +7,7 @@ import Dialog, {
   DialogFooter,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { OutlineWarn } from 'design/Alert/Alert';
 
 import {
   AccessList,
@@ -73,13 +74,14 @@ export function DeleteUserConfirmDialog({
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mb="6">
+        <Text typography="paragraph" mb="4">
           Are you sure you want to delete {kind}{' '}
           <Text as="span" bold color="text.main">
             {username}
           </Text>{' '}
           ?
         </Text>
+        {accessList.isOkta && kind === 'Member' && <DeleteMemberWarning />}
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={handleOnDelete}>
@@ -92,3 +94,17 @@ export function DeleteUserConfirmDialog({
     </Dialog>
   );
 }
+
+export const DeleteMemberWarning = ({
+  isReviewing = false,
+}: {
+  isReviewing?: boolean;
+}) => (
+  <OutlineWarn>
+    {isReviewing
+      ? 'Changes made here will be reflected in Okta. '
+      : 'This change will be reflected in Okta. '}
+    {isReviewing ? 'Members removed' : 'This user'} will also be unassigned from
+    the targeted Okta group or application.
+  </OutlineWarn>
+);

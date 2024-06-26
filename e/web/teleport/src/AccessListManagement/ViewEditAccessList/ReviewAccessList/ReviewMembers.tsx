@@ -9,6 +9,7 @@ import {
 
 import { TraitConvenience } from '../../Traits';
 import { AccessListMemberTable } from '../Members/MembersList';
+import { DeleteMemberWarning } from '../DeleteUserConfirmDialog';
 
 import { List } from './Shared';
 import { getMembersDeleted } from './utils';
@@ -20,22 +21,26 @@ type Props = {
   editedMembers: AccessListMember[];
   onDeleteMember(member: AccessListMember): void;
   originalMembers: AccessListMember[];
+  isOkta: boolean;
 };
 
 export function ReviewMembers({
   editedMembers,
   onDeleteMember,
   originalMembers,
+  isOkta,
 }: Props) {
   const numMembersDeleted = getMembersDeleted(
     originalMembers,
     editedMembers
   ).length;
+
   return (
     <>
       <Text fontSize={4} mb={3}>
         Members
       </Text>
+      {isOkta && <DeleteMemberWarning isReviewing={true} />}
       <AccessListMemberTable
         members={editedMembers}
         canEditMembers={true}

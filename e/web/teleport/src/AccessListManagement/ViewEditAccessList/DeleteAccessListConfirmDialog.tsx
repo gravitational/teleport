@@ -1,6 +1,7 @@
 import React from 'react';
 import { useHistory } from 'react-router';
-import { ButtonSecondary, ButtonWarning, Text, Alert } from 'design';
+import { Link as InternalLink } from 'react-router-dom';
+import { ButtonSecondary, ButtonWarning, Text, Alert, Box } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -8,6 +9,7 @@ import Dialog, {
   DialogFooter,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { OutlineWarn } from 'design/Alert/Alert';
 
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
@@ -16,9 +18,11 @@ export function DeleteAccessListConfirmDialog({
   accessListName,
   accessListId,
   onClose,
+  isOkta,
 }: {
   accessListName: string;
   accessListId: string;
+  isOkta: boolean;
   onClose(): void;
 }) {
   const history = useHistory();
@@ -52,13 +56,29 @@ export function DeleteAccessListConfirmDialog({
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <Text typography="paragraph" mb="6">
+        <Text typography="paragraph" mb="4">
           Are you sure you want to delete{' '}
           <Text as="span" bold color="text.main">
             {accessListName}
           </Text>{' '}
           ?
         </Text>
+        {isOkta && (
+          <OutlineWarn linkColor="buttons.link.default">
+            <Box>
+              This change will be reflected in Okta. All members from this
+              Access List will also be unassigned from the targeted Okta group
+              or application. <br />
+              <br />
+              To prevent Teleport from making modifications within Okta, ensure
+              that the{' '}
+              <InternalLink to={cfg.oss.routes.integrations}>
+                Okta integration
+              </InternalLink>{' '}
+              has been deleted.
+            </Box>
+          </OutlineWarn>
+        )}
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>

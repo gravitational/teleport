@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
 import { Text, Link, Flex, Box } from 'design';
+import { CheckboxInput } from 'design/Checkbox';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
@@ -25,6 +26,8 @@ import { CtaEvent, IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { BaseView } from 'teleport/components/Wizard/flow';
+import { OutlineInfo } from 'design/Alert/Alert';
+import { useRule } from 'shared/components/Validation';
 
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
@@ -41,6 +44,7 @@ import { FormDataField } from './MultiStep/Okta/types';
 import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
+import { OutlineInfoIcon } from './OutlineInfoIcon';
 
 export type View = BaseView<{
   title: string;
@@ -393,6 +397,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     FormMixin: () => {
       const [url, setUrl] = useState('');
       const [token, setToken] = useState('');
+      const [checkedWarning, setCheckedWarning] = useState(false);
+
+      const { valid: hasCheckedWarning } = useRule(() => ({
+        valid: checkedWarning,
+      }));
+
       return (
         <>
           <FieldInput
@@ -407,6 +417,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             mb={3}
           />
           <FieldInput
+            mb={5}
             width="500px"
             label="API Token"
             name={FormDataField.ApiToken}
@@ -417,6 +428,32 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="00QCjAl4MlV-WPXM...0HmjFx-vbGua"
             toolTipContent="Okta API tokens are used to authenticate requests to Okta APIs"
           />
+          <OutlineInfo css={{ justifyContent: 'normal', maxWidth: '620px' }}>
+            <Box>
+              <OutlineInfoIcon size={18} />
+            </Box>
+            <Box>
+              <Box mb={2}>
+                Enabling this integration will make Teleport take ownership over
+                Okta assignments and potentially make changes within Okta based
+                on Teleport configuration.
+              </Box>
+              <label>
+                {!hasCheckedWarning && (
+                  <Text fontSize={0} color="error.main">
+                    Checkmark required
+                  </Text>
+                )}
+                <Flex alignItems="center" gap={1} ml={-1}>
+                  <CheckboxInput
+                    checked={checkedWarning}
+                    onChange={e => setCheckedWarning(e.target.checked)}
+                  />
+                  <Text bold>I understand</Text>
+                </Flex>
+              </label>
+            </Box>
+          </OutlineInfo>
         </>
       );
     },

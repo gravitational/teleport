@@ -153,6 +153,7 @@ describe('okta PluginEnroll.tsx', () => {
       /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
     );
     fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+    await userEvent.click(screen.getByLabelText('I understand'));
 
     // Test plugin install.
     await userEvent.click(
@@ -200,7 +201,7 @@ describe('okta PluginEnroll.tsx', () => {
       screen.queryByText(/integrated successfully/i)
     ).not.toBeInTheDocument();
 
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Test plugin validation api call.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
@@ -272,7 +273,7 @@ describe('okta PluginEnroll.tsx', () => {
     cfg.isIgsEnabled = true;
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Go to next step.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
@@ -293,7 +294,9 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(groupFilter, { key: 'Enter' });
 
     // Define a app filter.
-    fireEvent.click(screen.getAllByText(/import all direct assignments/i)[0]);
+    fireEvent.click(
+      screen.getAllByText(/import all apps with direct assignments/i)[0]
+    );
     const appFilter = screen.getByLabelText('input-app');
     fireEvent.change(appFilter, { target: { value: 'app-*' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
@@ -314,7 +317,7 @@ describe('okta PluginEnroll.tsx', () => {
     cfg.isIgsEnabled = true;
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Go to next step.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
@@ -341,7 +344,7 @@ describe('okta PluginEnroll.tsx', () => {
     jest.spyOn(pluginsService, 'cleanupPlugin').mockResolvedValue(null);
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Go to next step.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
@@ -366,7 +369,7 @@ describe('okta PluginEnroll.tsx', () => {
     cfg.isIgsEnabled = true;
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Go to next step.
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
@@ -401,7 +404,9 @@ describe('okta PluginEnroll.tsx', () => {
     await screen.findByText(/the following filters are invalid: group-/i);
 
     // Define a invalid app filter.
-    fireEvent.click(screen.getByText(/import all direct assignments/i));
+    fireEvent.click(
+      screen.getByText(/import all apps with direct assignments/i)
+    );
     const appFilter = screen.getByLabelText('input-app');
     fireEvent.change(appFilter, { target: { value: 'app-' } });
     fireEvent.keyDown(appFilter, { key: 'Enter' });
@@ -421,7 +426,7 @@ describe('okta PluginEnroll.tsx', () => {
       .mockRejectedValue(new Error('some validation error'));
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Test the api call error.
     await userEvent.click(
@@ -441,7 +446,7 @@ describe('okta PluginEnroll.tsx', () => {
       .mockRejectedValue(new Error('some create error'));
 
     renderPluginEnroll('okta');
-    fillInFirstStepInputs();
+    await fillInFirstStepInputs();
 
     // Test the api call error.
     await userEvent.click(
@@ -456,7 +461,7 @@ describe('okta PluginEnroll.tsx', () => {
   });
 });
 
-function fillInFirstStepInputs() {
+async function fillInFirstStepInputs() {
   // Enter input fields
 
   const orgUrlInput = screen.getByPlaceholderText(
@@ -468,6 +473,8 @@ function fillInFirstStepInputs() {
     /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
   );
   fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+
+  await userEvent.click(screen.getByLabelText('I understand'));
 }
 
 function renderPluginEnroll(pluginType: PluginKind, search?: string) {

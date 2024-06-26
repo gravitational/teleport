@@ -48,7 +48,7 @@ export const CreateFilters = ({
           }
           value={filters || []}
           noOptionsMessage={() => null}
-          label={`Filter by ${filterKind === FormDataField.AppFilters ? 'App' : 'Group'} Name(s) - Regex supported`}
+          label={`Filter by ${filterKind === FormDataField.AppFilters ? 'App' : 'Group'} Name(s) - Regex and glob supported`}
           rule={validFilters}
           formatCreateLabel={userInput => `Apply filter: ${userInput}`}
           stylesConfig={filterCreateCss(theme)}

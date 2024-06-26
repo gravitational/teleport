@@ -1,13 +1,13 @@
 import React from 'react';
 import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
-import { Info } from 'design/Icon';
 import styled from 'styled-components';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { PluginOktaSpec } from 'teleport/services/integrations';
 import { Mark } from 'teleport/Discover/Shared';
 import cfg from 'teleport/config';
 
+import { OutlineInfoIcon } from '../../OutlineInfoIcon';
 import { Header } from '../Shared';
 import { usePlugin } from '../usePlugin';
 
@@ -143,7 +143,7 @@ export function SetUpScim() {
         </StyledBox>
         <OutlineInfo css={{ justifyContent: 'normal' }}>
           <Box>
-            <ReviewBannerIcon size={18} />
+            <OutlineInfoIcon size={18} />
           </Box>
           <Box>
             <Text bold>
@@ -159,15 +159,6 @@ export function SetUpScim() {
     </Box>
   );
 }
-
-const ReviewBannerIcon = styled(Info)`
-  background-color: ${p => p.theme.colors.link};
-  border-radius: 100px;
-  height: 32px;
-  width: 32px;
-  color: ${p => p.theme.colors.text.primaryInverse};
-  margin-right: ${p => p.theme.space[2]}px;
-`;
 
 export const StyledBox = styled(Box).attrs({
   p: 4,

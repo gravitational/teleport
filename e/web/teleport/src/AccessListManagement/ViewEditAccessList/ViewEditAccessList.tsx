@@ -302,6 +302,7 @@ export function ViewEditAccessList() {
       {MainContent}
       {deleteConfirm && (
         <DeleteAccessListConfirmDialog
+          isOkta={accessList.isOkta}
           accessListId={accessList.id}
           accessListName={accessList.title}
           onClose={() => setDeleteConfirm(false)}

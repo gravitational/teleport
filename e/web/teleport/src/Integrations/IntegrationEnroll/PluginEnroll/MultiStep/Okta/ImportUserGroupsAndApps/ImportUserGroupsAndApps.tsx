@@ -332,7 +332,8 @@ export function ImportUserGroupsAndApps() {
               <StyledBox>
                 <Flex justifyContent="space-between" alignItems="center" mb={2}>
                   <Text fontSize={4} mb={1}>
-                    Step 2: Import Okta User Groups as Access Lists
+                    Step 2: Import User Groups with Direct Assignments as Access
+                    Lists
                   </Text>
                   <Toggle
                     isToggled={importAllUserGroups}
@@ -344,9 +345,18 @@ export function ImportUserGroupsAndApps() {
                       filterGroupsAttempt.status === 'processing'
                     }
                   >
-                    <Box ml={2}>Import All User Groups</Box>
+                    <Box ml={2}>
+                      Import All User Groups with Direct Assignments
+                    </Box>
                   </Toggle>
                 </Flex>
+                <Text mb={2}>
+                  Teleport will import and sync any Okta user groups with direct
+                  assignments to Teleport Access Lists.
+                  <br />
+                  <b>Note:</b> You will not see a user group if there are no
+                  direct assignments.
+                </Text>
                 {filterGroupsAttempt.statusText && (
                   <FailedAttempt
                     attempt={filterGroupsAttempt}
@@ -382,7 +392,7 @@ export function ImportUserGroupsAndApps() {
               <StyledBox>
                 <Flex justifyContent="space-between" alignItems="center">
                   <Text fontSize={4} mb={1}>
-                    Step 3: Import Direct Assignments as Access Lists
+                    Step 3: Import Apps with Direct Assignments as Access Lists
                   </Text>
                   <Toggle
                     isToggled={importAllApps}
@@ -394,12 +404,12 @@ export function ImportUserGroupsAndApps() {
                       filterAppsAttempt.status === 'processing'
                     }
                   >
-                    <Box ml={2}>Import All Direct Assignments</Box>
+                    <Box ml={2}>Import All Apps with Direct Assignments</Box>
                   </Toggle>
                 </Flex>
                 <Text mb={2}>
-                  Teleport will import and sync any applications with direct
-                  assignments to Teleport Access Lists.
+                  Teleport will import and sync any Okta applications with
+                  direct assignments to Teleport Access Lists.
                   <br />
                   <b>Note:</b> You will not see an application if there are no
                   direct assignments.

@@ -199,6 +199,7 @@ export function ReviewAccessList({
                 editedMembers={editedMembers}
                 onDeleteMember={handleRemoveMember}
                 originalMembers={accessList.members}
+                isOkta={accessList.isOkta}
               />
             </Box>
           )}
