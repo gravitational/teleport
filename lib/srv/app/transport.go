@@ -264,10 +264,11 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 				// Replace occurrences of the rewrite host in the URL.
 				u.Scheme = "https"
 				u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
-				u.Path = strings.Replace(u.Path, rewriteHost, t.app.GetPublicAddr(), -1)
-				u.RawQuery = strings.Replace(u.RawQuery, rewriteHost, t.app.GetPublicAddr(), -1)
-				u.Fragment = strings.Replace(u.Fragment, rewriteHost, t.app.GetPublicAddr(), -1)
-				break
+				if t.app.GetRewrite().FullHeaderRewrite {
+					u.Path = strings.Replace(u.Path, rewriteHost, t.app.GetPublicAddr(), -1)
+					u.RawQuery = strings.Replace(u.RawQuery, rewriteHost, t.app.GetPublicAddr(), -1)
+					u.Fragment = strings.Replace(u.Fragment, rewriteHost, t.app.GetPublicAddr(), -1)
+				}
 			}
 		}
 		resp.Header.Set("Location", u.String())
