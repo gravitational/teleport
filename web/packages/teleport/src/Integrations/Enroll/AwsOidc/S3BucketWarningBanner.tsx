@@ -38,7 +38,7 @@ export const S3BucketWarningBanner = ({
         <BellIcon size={18} />
       </Box>
       <Flex gap={2}>
-        <Box>
+        <Box flex={1}>
           <Text mb={2}>
             It is recommended to use an S3 bucket to host the public keys.
           </Text>
@@ -56,17 +56,13 @@ export const S3BucketWarningBanner = ({
           }
         >
           {reviewing ? (
-            <ButtonBorder onClick={onClose} width="80px">
-              Ok
-            </ButtonBorder>
+            <Box>
+              <ButtonBorder onClick={onClose}>Ok</ButtonBorder>
+            </Box>
           ) : (
             <>
-              <ButtonBorder onClick={onContinue} width="130px">
-                Continue
-              </ButtonBorder>
-              <ButtonText onClick={onClose} width="100px">
-                Cancel
-              </ButtonText>
+              <ButtonBorder onClick={onContinue}>Continue</ButtonBorder>
+              <ButtonText onClick={onClose}>Cancel</ButtonText>
             </>
           )}
         </Flex>

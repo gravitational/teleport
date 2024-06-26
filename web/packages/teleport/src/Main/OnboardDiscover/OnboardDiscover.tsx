@@ -75,7 +75,7 @@ export function OnboardDiscover({
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary width="100%" size="large" onClick={handleOnboard}>
-          add my first resource
+          Add my first resource
         </ButtonPrimary>
         <ButtonText pt={2} width="100%" size="large" onClick={handleClose}>
           I'll do that later

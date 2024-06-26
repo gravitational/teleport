@@ -46,6 +46,7 @@ const StyledButtonLink = styled.a`
   &:hover,
   &:focus {
     color: ${({ theme }) => theme.colors.buttons.link.hover};
+    box-shadow: none;
   }
 
   &:active {

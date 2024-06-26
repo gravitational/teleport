@@ -265,7 +265,7 @@ export function NewMfaDeviceForm({
             onClick={e => onBtnClick(e, validator)}
           >
             {mfaType.value === 'webauthn' && !credential
-              ? 'Create an MFA method'
+              ? 'Create an MFA Method'
               : submitButtonText}
           </ButtonPrimary>
         </OnboardCard>
