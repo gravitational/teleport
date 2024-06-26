@@ -6097,6 +6097,7 @@ message PluginStatusV1 {
   oneof details {
     // gitlab is the status details for the Gitlab plugin.
     PluginGitlabStatusV1 gitlab = 4;
+    PluginEntraIDStatusV1 entra_id = 5;
   }
 }
 
@@ -6108,6 +6109,14 @@ message PluginGitlabStatusV1 {
   uint32 imported_groups = 2;
   // imported_projects is the number of projects imported from Gitlab.
   uint32 imported_projects = 3;
+}
+
+// PluginEntraIDStatusV1 is the status details for the Entra ID plugin.
+message PluginEntraIDStatusV1 {
+  // imported_users is the number of users imported from Entra ID.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Entra ID.
+  uint32 imported_groups = 2;
 }
 
 enum PluginStatusCode {
