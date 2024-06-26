@@ -26,7 +26,7 @@ jobs:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
-          oss-teleport-ref: master
+          oss-teleport-ref: ${{ github.base_ref }}
           edition: enterprise
           ent-teleport-ref: ${{ github.event.pull_request.head.ref }}
           ent-fetch-depth: 0
