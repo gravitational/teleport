@@ -177,18 +177,19 @@ func printHierarchicalData(data map[string]any, indent string, depth int) {
 func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) error {
 	var services []types.SystemRole
 	var err error
+	var omitControlPlane bool
 	if c.services != "" {
 		services, err = types.ParseTeleportRoles(c.services)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	} else {
+		resp, err := client.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		omitControlPlane = resp.GetServerFeatures().GetCloud()
 	}
-
-	resp, err := client.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	isCloud := resp.GetServerFeatures().GetCloud()
 
 	upgrader := c.upgrader
 	var noUpgrader bool
@@ -215,7 +216,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 
 			// The auth and proxy services should be omitted from the inventory list
 			// on Managed Teleport Enterprise (Cloud-Hosted) instances.
-			if isCloud && (instance.HasService(types.RoleAuth) || instance.HasService(types.RoleProxy)) {
+			if omitControlPlane && (instance.HasService(types.RoleAuth) || instance.HasService(types.RoleProxy)) {
 				continue
 			}
 
