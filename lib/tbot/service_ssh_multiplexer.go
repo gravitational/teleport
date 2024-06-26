@@ -160,14 +160,24 @@ func (s *SSHMultiplexerService) getClusterNames(ctx context.Context, clt *authcl
 	return allClusterNames, nil
 }
 
-func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
+func (s *SSHMultiplexerService) writeArtifacts(
+	ctx context.Context,
+	proxyHost string,
+	id *identity.Identity,
+	authClient *authclient.Client,
+) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
+
+	clusterNames, err := s.getClusterNames(ctx, authClient)
+	if err != nil {
+		return trace.Wrap(err, "fetching cluster names")
+	}
 
 	// Generate known hosts
 	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
-		[]string{id.ClusterName},
+		clusterNames,
 		proxyHost,
 	)
 	if err != nil {
@@ -201,10 +211,9 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
 	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
-		ClusterNames:    []string{id.ClusterName},
+		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),
 		ProxyCommand:    proxyCommand,
-		Data:            `%h:%p`,
 		MuxSocketPath:   filepath.Join(absPath, sshMuxSocketName),
 		AgentSocketPath: filepath.Join(absPath, agentSocketName),
 	})
@@ -372,7 +381,9 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	return id, nil
 }
 
-func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHost string) error {
+func (s *SSHMultiplexerService) identityRenewalLoop(
+	ctx context.Context, proxyHost string, authClient *authclient.Client,
+) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
@@ -392,7 +403,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHo
 			id, err = s.generateIdentity(ctx)
 			if err == nil {
 				s.identity.Set(id)
-				err = s.writeArtifacts(ctx, proxyHost, id)
+				err = s.writeArtifacts(ctx, proxyHost, id, authClient)
 				if err == nil {
 					break
 				}
@@ -577,7 +588,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	})
 	// Handle identity renewal
 	eg.Go(func() error {
-		return s.identityRenewalLoop(egCtx, proxyHost)
+		return s.identityRenewalLoop(egCtx, proxyHost, authClient)
 	})
 
 	return eg.Wait()
@@ -604,7 +615,13 @@ func (s *SSHMultiplexerService) handleConn(
 	}()
 
 	// The first thing downstream will send is the multiplexing request which is
-	// the "[host]:[port]|[?cluster_name]\x00" format.
+	// in the "[host]:[port]|[cluster_name]\x00" format.
+	// cluster_name can be zero-length, indicating that the default cluster
+	// should be used.
+	//
+	// We choose this format because | is not an acceptable character in
+	// hostnames or ports through OpenSSH.
+	// https://github.com/openssh/openssh-portable/commit/7ef3787c84b6b524501211b11a26c742f829af1a
 	buf := bufio.NewReader(downstream)
 	req, err := buf.ReadString('\x00')
 	if err != nil {
