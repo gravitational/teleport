@@ -170,6 +170,9 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -538,6 +541,10 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
 	c.Version = V2
 	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
