@@ -1,5 +1,5 @@
 build:
-	go build -o protoc-gen-crd
+	cd cmd/protoc-gen-crd; go build -o protoc-gen-crd
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
