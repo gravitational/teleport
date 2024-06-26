@@ -472,7 +472,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				wheel:  C.PointerWheelNone,
 			},
 		); errCode != C.ErrCodeSuccess {
-			return trace.Errorf("MouseButton: client_write_rdp_pointer: %v", errCode)
+			return trace.Errorf("MouseButton:  client_write_rdp_pointer: %v", errCode)
 		}
 	case tdp.MouseWheel:
 		var wheel C.CGOPointerWheel
