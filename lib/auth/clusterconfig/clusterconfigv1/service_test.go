@@ -1387,7 +1387,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 		require.NoError(t, err, "creating test service")
 
 		t.Run("auth preference", func(t *testing.T) {
-			expectedEvent := &apievents.AuthPreferenceUpdate{
+			mfaUnchangedEvent := apievents.AuthPreferenceUpdate{
 				Metadata: apievents.Metadata{
 					Type: events.AuthPreferenceUpdateEvent,
 					Code: events.AuthPreferenceUpdateCode,
@@ -1399,13 +1399,20 @@ func TestAuditEventsEmitted(t *testing.T) {
 					User:     "llama",
 					UserKind: apievents.UserKind_USER_KIND_HUMAN,
 				},
+				AdminActionsMFA: apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED,
 			}
+
+			mfaEnabledEvent := mfaUnchangedEvent
+			mfaEnabledEvent.AdminActionsMFA = apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_ENABLED
+
+			mfaDisabledEvent := mfaUnchangedEvent
+			mfaDisabledEvent.AdminActionsMFA = apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_DISABLED
 
 			p, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})
 			require.NoError(t, err)
 
 			evt := <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
 			p.SetLockingMode(constants.LockingModeStrict)
 
@@ -1413,13 +1420,32 @@ func TestAuditEventsEmitted(t *testing.T) {
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
 			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
-			require.Empty(t, cmp.Diff(expectedEvent, evt))
+			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
+
+			p.Spec.SecondFactor = constants.SecondFactorWebauthn
+			p.Spec.Webauthn = &types.Webauthn{
+				RPID: "example.com",
+			}
+
+			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(&mfaEnabledEvent, evt))
+
+			p.Spec.SecondFactor = constants.SecondFactorOTP
+
+			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
+			require.NoError(t, err)
+
+			evt = <-env.emitter.C()
+			require.Empty(t, cmp.Diff(&mfaDisabledEvent, evt))
 		})
 
 		t.Run("cluster networking config", func(t *testing.T) {
@@ -1532,6 +1558,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 					User:     "llama",
 					UserKind: apievents.UserKind_USER_KIND_HUMAN,
 				},
+				AdminActionsMFA: apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED,
 			}
 
 			_, err := env.ResetAuthPreference(ctx, &clusterconfigpb.ResetAuthPreferenceRequest{})

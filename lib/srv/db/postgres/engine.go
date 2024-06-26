@@ -483,7 +483,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,22 +499,22 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
-		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshift:
-		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx)
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshiftServerless:
-		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
+		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeCloudSQL:
-		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -538,7 +538,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 			}
 		}
 	case types.DatabaseTypeAzure:
-		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetAzureAccessToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -553,7 +553,7 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

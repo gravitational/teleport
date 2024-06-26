@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type softwareKeyStore struct {
@@ -40,14 +40,7 @@ type softwareConfig struct {
 	rsaKeyPairSource RSAKeyPairSource
 }
 
-func (cfg *softwareConfig) checkAndSetDefaults() {
-	if cfg.rsaKeyPairSource == nil {
-		cfg.rsaKeyPairSource = native.GenerateKeyPair
-	}
-}
-
 func newSoftwareKeyStore(config *softwareConfig) *softwareKeyStore {
-	config.checkAndSetDefaults()
 	return &softwareKeyStore{
 		rsaKeyPairSource: config.rsaKeyPairSource,
 	}
@@ -59,30 +52,29 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 	return "raw software keys"
 }
 
-// generateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
-// private key, and can be passed to getSigner later to get the same
-// crypto.Signer.
-func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
-	priv, _, err := s.rsaKeyPairSource()
+// generateRSA creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getSigner later to get
+// an equivalent crypto.Signer.
+func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
+		privateKeyPEM, _, err := s.rsaKeyPairSource()
+		if err != nil {
+			return nil, nil, err
+		}
+		signer, err := keys.ParsePrivateKey(privateKeyPEM)
+		return privateKeyPEM, signer, trace.Wrap(err)
+	}
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 	if err != nil {
 		return nil, nil, err
 	}
-	signer, err := s.getSignerWithoutPublicKey(ctx, priv)
-	if err != nil {
-		return nil, nil, err
-	}
-	return priv, signer, trace.Wrap(err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(signer)
+	return privateKeyPEM, signer, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
 func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
-	return s.getSignerWithoutPublicKey(ctx, rawKey)
-}
-
-func (s *softwareKeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
-	signer, err := keys.ParsePrivateKey(rawKey)
-	return signer, trace.Wrap(err)
+	return keys.ParsePrivateKey(rawKey)
 }
 
 // canSignWithKey returns true if the given key is a raw key.
