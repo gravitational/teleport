@@ -1,0 +1,95 @@
+---
+title: Deploy Teleport Agents with Terraform
+description: Learn how to use Terraform to deploy Teleport Agents and protect resources in your infrastructure.
+---
+
+{/*TODO: Prerequsites. Refer to the earlier guides*/}
+{/*TODO: Make sure we explain all fields and resources*/}
+
+## Step 1/ . Set up a module for deploying Agents
+
+1. Navigate to the directory for the root Terraform module that manages Teleport
+   resources.
+1. Create a directory in the root directory called `agents`.
+1. In `agents`, create a file called `main.tf` with the following content:
+
+   (!examples/agent-pool-terraform/main.tf!)
+
+## Step 2/ . Create Teleport tokens
+
+  (!examples/agent-pool-terraform/teleport/outputs.tf!)
+  (!examples/agent-pool-terraform/teleport/required_providers.tf!)
+  (!examples/agent-pool-terraform/teleport/inputs.tf!)
+  (!examples/agent-pool-terraform/teleport/token.tf!)
+
+## Step 3/ . Create resources for your cloud provider
+
+1. In your root Terraform module, create a directory called `cloud` for
+   resources to deploy to your cloud provider.
+
+1. Follow the remaining instructions in this section based on your cloud
+   provider. In the `cloud` directory, create a file called
+   `required_providers.tf` with the following content:
+
+
+
+  <Tabs>
+  <TabItem label="AWS">
+
+  (!examples/agent-pool-terraform/aws/required_providers.tf!)
+
+  </TabItem>
+  <TabItem label="Google Cloud">
+
+  (!examples/agent-pool-terraform/gcp/required_providers.tf!)
+
+  </TabItem>
+  <TabItem label="Azure">
+
+  (!examples/agent-pool-terraform//azure/required_providers.tf!)
+
+  </TabItem>
+  </Tabs>
+
+
+  <Tabs>
+  <TabItem label="AWS">
+
+  (!examples/agent-pool-terraform/aws/ec2-instance.tf!)
+
+  </TabItem>
+  <TabItem label="Google Cloud">
+
+  (!examples/agent-pool-terraform/gcp/gcp-instance.tf!)
+
+  </TabItem>
+  <TabItem label="Azure">
+
+  (!examples/agent-pool-terraform/azure/azure-instance.tf!)
+
+  </TabItem>
+  </Tabs>
+
+The configuration you created runs the following user data script on each agent
+instance:
+
+(!examples/agent-pool-terraform/teleport/userdata!)
+
+  <Tabs>
+  <TabItem label="AWS">
+
+  (!examples/agent-pool-terraform/aws/inputs.tf!)
+
+  </TabItem>
+  <TabItem label="Google Cloud">
+
+  (!examples/agent-pool-terraform/gcp/inputs.tf!)
+
+  </TabItem>
+  <TabItem label="Azure">
+
+  (!examples/agent-pool-terraform/azure/inputs.tf!)
+  </TabItem>
+  </Tabs>
+
+
