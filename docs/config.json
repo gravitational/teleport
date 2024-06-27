@@ -133,13 +133,6 @@
               ]
             },
             {
-              "title": "Downloads",
-              "slug": "/choose-an-edition/teleport-cloud/downloads/",
-              "forScopes": [
-                "cloud"
-              ]
-            },
-            {
               "title": "FAQ",
               "slug": "/choose-an-edition/teleport-cloud/faq/",
               "forScopes": [
@@ -2681,11 +2674,6 @@
       "permanent": true
     },
     {
-      "source": "/cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
-      "permanent": true
-    },
-    {
       "source": "/cloud/faq/",
       "destination": "/choose-an-edition/teleport-cloud/faq/",
       "permanent": true
@@ -2946,8 +2934,8 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "source": "/choose-an-edition/teleport-cloud/downloads/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
