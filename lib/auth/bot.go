@@ -28,9 +28,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -168,6 +170,19 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	return nil
 }
 
+// newBotInstance constructs a new bot instance from a spec and initial authentication
+func newBotInstance(spec *machineidv1.BotInstanceSpec, initialAuth *machineidv1.BotInstanceStatusAuthentication) *machineidv1.BotInstance {
+	return &machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec:    spec,
+		Status: &machineidv1.BotInstanceStatus{
+			InitialAuthentication: initialAuth,
+			LatestAuthentications: []*machineidv1.BotInstanceStatusAuthentication{initialAuth},
+		},
+	}
+}
+
 // generateInitialBotCerts is used to generate bot certs and overlaps
 // significantly with `generateUserCerts()`. However, it omits a number of
 // options (impersonation, access requests, role requests, actual cert renewal,
@@ -175,7 +190,10 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 // care if the current identity is Nop.  This function does not validate the
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
-func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username, loginIP string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
+func (a *Server) generateInitialBotCerts(
+	ctx context.Context, botName, username, loginIP string, pubKey []byte,
+	expires time.Time, renewable bool, initialAuth *machineidv1.BotInstanceStatusAuthentication,
+) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -216,6 +234,28 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username,
 	var generation uint64
 	if renewable {
 		generation = 1
+		initialAuth.Generation = 1
+	}
+
+	var botInstanceID string
+	if experiment.Enabled() {
+		uuid, err := uuid.NewRandom()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		bi := newBotInstance(&machineidv1.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: uuid.String(),
+
+			// TODO: set TTL? should we rely on the known expiration instead?
+			// (auth may overwrite the value now or later)
+		}, initialAuth)
+
+		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Generate certificate
@@ -230,6 +270,7 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username,
 		generation:    generation,
 		loginIP:       loginIP,
 		botName:       botName,
+		botInstanceID: botInstanceID,
 	}
 
 	if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
