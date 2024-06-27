@@ -7,8 +7,34 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/trace"
+)
+
+const (
+	// timeNow is a convenience variable to signal that search should include PRs up to current time
+	timeNow = ""
+)
+
+type parsedPR struct {
+	// Summary is the changelog summary extracted from a PR
+	Summary  string
+	PRNumber int
+	URL      string
+}
+
+const (
+	ossCLTemplate = `
+{{- range . -}}
+* {{.Summary}} [#{{.PRNumber}}]({{.URL}})
+{{ end -}}
+`
+	entCLTemplate = `
+{{- range . -}}
+* {{.Summary}}
+{{ end -}}
+`
 )
 
 var (
@@ -16,8 +42,8 @@ var (
 	// e.g. will match a line "changelog: this is a changelog" with subgroup "this is a changelog".
 	clPattern = regexp.MustCompile(`[Cc]hangelog: +(.*)`)
 
-	// timeNow is a convenience variable to signal that search should include PRs up to current time
-	timeNow = ""
+	ossCLParsed = template.Must(template.New("oss cl").Parse(ossCLTemplate))
+	entCLParsed = template.Must(template.New("enterprise cl").Parse(entCLTemplate))
 )
 
 // pr is the expected output format of our search query
@@ -25,7 +51,7 @@ type pr struct {
 	Body   string `json:"body,omitempty"`
 	Number int    `json:"number,omitempty"`
 	Title  string `json:"title,omitempty"`
-	Url    string `json:"url,omitempty"`
+	URL    string `json:"url,omitempty"`
 }
 
 type changelogGenerator struct {
@@ -33,7 +59,7 @@ type changelogGenerator struct {
 	dir   string
 }
 
-// dateRangeFormat takes in a date range and will format it for Github search syntax.
+// dateRangeFormat takes in a date range and will format it for GitHub search syntax.
 // to can be empty and the format will be to search everything after from
 func dateRangeFormat(from, to string) string {
 	if to == "" {
@@ -63,7 +89,7 @@ func prettierSummary(cl string) string {
 }
 
 // ghListPullRequests is a wrapper around the `gh` command to list PRs
-// searchQuery should follow the Github search syntax
+// searchQuery should follow the GitHub search syntax
 func (c *changelogGenerator) ghListPullRequests(searchQuery string) (string, error) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -82,34 +108,57 @@ func (c *changelogGenerator) ghListPullRequests(searchQuery string) (string, err
 	return strings.TrimSpace(stdout.String()), nil
 }
 
-// toChangelog will take the output from the search and format it into a changelog.
-func (c *changelogGenerator) toChangelog(data string) (string, error) {
+// parsePRList parses raw output from gh cli
+func parsePRList(data string) ([]parsedPR, error) {
+	parsedList := []parsedPR{}
+
 	// data should be in the format of a list of PR's
 	var list []pr
 	dec := json.NewDecoder(strings.NewReader(data))
 	err := dec.Decode(&list)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return parsedList, trace.Wrap(err)
 	}
 
-	cl := ""
 	for _, p := range list {
 		found, clSummary := findChangelog(p.Body)
 		if found {
-			clSummary = prettierSummary(clSummary)
-			if c.isEnt {
-				cl += fmt.Sprintf("* %s\n", clSummary)
-			} else {
-				cl += fmt.Sprintf("* %s [#%d](%s)\n", clSummary, p.Number, p.Url)
+			parsed := parsedPR{
+				Summary:  prettierSummary(clSummary),
+				PRNumber: p.Number,
+				URL:      p.URL,
 			}
+			parsedList = append(parsedList, parsed)
 		}
 	}
-	return cl, nil
+	return parsedList, nil
+}
+
+// toChangelog will take the output from the search and format it into a changelog.
+func (c *changelogGenerator) toChangelog(data string) (string, error) {
+	parsedList, err := parsePRList(data)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var tmpl *template.Template
+	if c.isEnt {
+		tmpl = entCLParsed
+	} else {
+		tmpl = ossCLParsed
+	}
+
+	var buff bytes.Buffer
+	if err := tmpl.Execute(&buff, parsedList); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return buff.String(), nil
 }
 
 // generateChangelog will pull a PRs from branch between two points in time and generate a changelog from them.
 func (c *changelogGenerator) generateChangelog(branch, fromTime, toTime string) (string, error) {
-	// searchQuery is based off of Github's search syntax
+	// searchQuery is based off of GitHub's search syntax
 	searchQuery := fmt.Sprintf("base:%s merged:%s -label:no-changelog", branch, dateRangeFormat(fromTime, toTime))
 
 	data, err := c.ghListPullRequests(searchQuery)
