@@ -596,8 +596,8 @@ func (s *SSHMultiplexerService) handleConn(
 
 	// The first thing downstream will send is the multiplexing request which is
 	// in the "[host]:[port]|[cluster_name]\x00" format.
-	// cluster_name can be zero-length, indicating that the default cluster
-	// should be used.
+	// The "|[cluster_name]" section is optional and if omitted, the cluster
+	// associated with the bot will be used.
 	//
 	// We choose this format because | is not an acceptable character in
 	// hostnames or ports through OpenSSH.
