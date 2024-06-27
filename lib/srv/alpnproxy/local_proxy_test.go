@@ -540,11 +540,14 @@ func TestKubeMiddleware(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, rw.Status())
 		require.Contains(t, rw.Buffer().String(), "context deadline exceeded")
 
+		// just let the reissuing goroutine some time to replace certs.
+		time.Sleep(10 * time.Millisecond)
+
 		// but certificate still was reissued.
 		certs, err := km.OverwriteClientCerts(req)
 		require.NoError(t, err)
 		require.Len(t, certs, 1)
-		require.Equal(t, newCert, certs[0])
+		require.Equal(t, newCert, certs[0], "certificate was not reissued")
 	})
 
 	testCases := []struct {
