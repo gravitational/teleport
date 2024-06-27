@@ -19,15 +19,15 @@ const (
 
 type parsedPR struct {
 	// Summary is the changelog summary extracted from a PR
-	Summary  string
-	PRNumber int
-	URL      string
+	Summary string
+	Number  int
+	URL     string
 }
 
 const (
 	ossCLTemplate = `
 {{- range . -}}
-* {{.Summary}} [#{{.PRNumber}}]({{.URL}})
+* {{.Summary}} [#{{.Number}}]({{.URL}})
 {{ end -}}
 `
 	entCLTemplate = `
@@ -124,9 +124,9 @@ func parsePRList(data string) ([]parsedPR, error) {
 		found, clSummary := findChangelog(p.Body)
 		if found {
 			parsed := parsedPR{
-				Summary:  prettierSummary(clSummary),
-				PRNumber: p.Number,
-				URL:      p.URL,
+				Summary: prettierSummary(clSummary),
+				Number:  p.Number,
+				URL:     p.URL,
 			}
 			parsedList = append(parsedList, parsed)
 		}
