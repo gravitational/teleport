@@ -49,7 +49,7 @@ With this RFD we want to address two distinct personas, each with their own stor
 #### The existing advanced user
 
 > I am an existing Teleport user who uses Terraform to manage my Teleport resources.
-> I want to protect about IDP compromise with MFA4A while keeping my Terraform pipeline working.
+> I want to protect against IDP compromise with MFA4A while keeping my Terraform pipeline working.
 > My Terraform code is commited in a git repo and applied in CI pipelines, either via a CI runner (GitHub
 > Actions/GitLab CI) or via a dedicated service (Terraform Cloud/Spacelift).
 
@@ -113,23 +113,20 @@ Implementation-wise, this would reuse the
 same [in-process tbot library](https://github.com/gravitational/teleport/tree/rfd/173-terraform-machine-id/integrations/operator/embeddedtbot)
 we used for the Teleport operator.
 
-##### Note regarding CGO
-
-The Terraform provider is currently built without CGO but `tbot` depends on `lib/auth`, which depends on `lib/services`
-which depends on CGO. As CGO is not supported in Hashicorp Terraform Cloud, the embedded tbot
-will rely on the work currently done by @rosstimothy and the MachineID team to remove the CGO dependency from tbot.
-
 #### Resource bootstrapping
 
 We will automatically create the resources required by the Terraform provider before executing Terraform:
 - the `terraform-provider` role (this is an upsert so we can add new rules after a provider update). This resource does
   not expire.
-- the `terraform-provider-<user>-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
-  This resource expires.
-- the `terraform-provider-<user>-<random hash>` secret random provision token allowing to join as
-  the `terraform-provider-<user>-<random hash>` bot. This resource expires but will be consumed automatically on join.
+- the `terraform-provider-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
+  This resource expires by default after 1h.
+- the `terraform-provider-<random hash>` secret random provision token allowing to join as
+  the `terraform-provider-<random hash>` bot. This resource expires by default after 1h but will be consumed
+  automatically on join.
 
-##### Discarded appraoches
+Every bootstrapped resource will be annotated with `teleport.dev/created-by: tctl-terraform-env`
+
+##### Discarded approaches
 
 Creating those resources requires passing an MFA challenge, this means being built with libfido2 and CGO.
 This would make the provider unable to run on Hashicorp Cloud Platform, which is requested by many Teleport users.
@@ -144,7 +141,7 @@ Two alternatives were considered but discarded:
 
 ##### Proposed approach
 
-We will add a `tctl terraform-helper` command which will
+We will add a `tctl terraform env` command which will
 - upsert the terraform role
 - create a temporary bot (1hour) and token
 - run a oneshot tbot to retrieve certificates
@@ -153,7 +150,7 @@ We will add a `tctl terraform-helper` command which will
 The full flow will look like
 
 ```
-$ eval $(tctl terraform-local-helper)
+$ eval $(tctl terraform env)
 - Creating/Updating the "terraform-provider-helper” role
 - Creating a temporary bot "terraform-provider-hugo.hervieux@goteleport.com-b9a853e0”
 - Obtaining certificates for the bot
@@ -162,7 +159,7 @@ $ terraform plan ...
 $ terraform apply ...
 ```
 
-`tctl terraform-local-helper` will:
+`tctl terraform env` will:
 - get a client from the current-profile
 - ping the cluster to validate the user client and recover the user's name
 - generate a random secret token (16 bytes of hex-encoded random, the Teleport default)
@@ -183,7 +180,7 @@ $ terraform apply ...
 
 #### Backward compatibility
 
-By default, when `joining` values are not set, the provided uses the existing `identity_*` values.
+By default, when `joining` values are not set, the provider uses the existing `identity_*` values.
 This ensures compatibility with existing setups.
 
 `joining`, and the `identity_` settings are mutually exclusive and the provider will refuse to start if
@@ -198,7 +195,7 @@ You must set only one.
 - passing certificates directly with `identity_*`, `key_*` or `profile_*` is used when you already have Teleport credentials for the provider.
 ```
 
-The `tctl terraform-local-helper` command uses the `TF_TELEPORT_IDENTITY_FILE_BASE64` environment variable which is
+The `tctl terraform env` command uses the `TF_TELEPORT_IDENTITY_FILE_BASE64` environment variable which is
 already supported by the Terraform Provider. This helper can be backported to v15 and v14.
 
 ### Security
@@ -216,7 +213,7 @@ filesystem. Exfiltrating the MachineID certs requires dumping the process memory
 
 #### Risks
 
-The main risk is the amount of resources created by `tctl terraform-local-helper`. Each invocation will
+The main risk is the amount of resources created by `tctl terraform env`. Each invocation will
 create a bot resource. Too many resource could create noise or affect Teleport's performance. This risk is mitigated
 by:
 - the fact the helper is only usable on local laptop. It requires a valid `~/.tsh` profile and the ability to pass an
@@ -237,7 +234,7 @@ This will allow tokens (even secret ones) and bots to be shared by multiple inst
 
 ### Privacy
 
-The fact a user ran a `tctl terraform-local-helper` is disclosed via the bot resource.
+The fact a user ran a `tctl terraform env` is disclosed via the bot resource.
 Someone able to read roles, users or bots could infer when Terraform commands are executed.
 This information is already available to admins via the audit log.
 
@@ -250,7 +247,7 @@ e.g. [Terraform Cloud](https://github.com/gravitational/teleport/issues/26345).
 This greatly improves the UX of the "getting started" personas as the provider will hide all the complexity and shorten
 the time to value for IaC adoption. The
 whole [setup Terraform provider page](https://github.com/gravitational/teleport/blob/master/docs/pages/management/dynamic-resources/terraform-provider.mdx)
-becomes a 3-step guide: run `tsh login`, `eval $(tctl terraform-local-helper)` and create the `main.tf`.
+becomes a 3-step guide: run `tsh login`, `eval $(tctl terraform env)` and create the `main.tf`.
 
 Two documentation guides will be published:
 
@@ -315,11 +312,11 @@ Anonymization step would check the usage/integration value against a hardcoded l
 
 Write integration tests for:
 - `joining` with an existing bot
-- `tctl terraform-local-helper` running against a Teleport cluster
+- `tctl terraform env` running against a Teleport cluster
 
 Manual test (in the test plan) for:
 - running the provider in GitHub actions with `joining`
-- running `tctl terraform-local-helper` against a cluster with MFA4A
+- running `tctl terraform env` against a cluster with MFA4A
 
 ### Future work
 
