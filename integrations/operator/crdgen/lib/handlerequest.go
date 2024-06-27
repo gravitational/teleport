@@ -38,6 +38,10 @@ func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	return handleRequest(req, formatAsYAML)
 }
 
+func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsDocsPage)
+}
+
 func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
@@ -165,6 +169,13 @@ type crdFormatFunc func(apiextv1.CustomResourceDefinition) ([]byte, error)
 
 func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
 	return yaml.Marshal(crd)
+}
+
+var crdDocTmpl := `
+`
+
+func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
+
 }
 
 func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
