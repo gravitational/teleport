@@ -52,7 +52,12 @@ func HandleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	for _, fileDesc := range gen.AllFiles().File {
 		file := gen.addFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
+			if err := generateSchema(
+				file,
+				"resources.teleport.dev",
+				formatAsYAML,
+				gen.Response,
+			); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -152,7 +157,13 @@ var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
 	},
 }
 
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+type crdFormatFunc func(apiextv1.CustomResourceDefinition) ([]byte, error)
+
+func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
+	return yaml.Marshal(crd)
+}
+
+func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
@@ -220,10 +231,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, err := yaml.Marshal(crd)
-		if err != nil {
-			return trace.Wrap(err, "marshaling CRD")
-		}
+		data, err := format(crd)
 		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)
 		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
