@@ -886,10 +886,6 @@
           "slug": "/agents/introduction/"
         },
         {
-          "title": "Deploy Agents via Terraform",
-          "slug": "/agents/deploy-agents-terraform/"
-        },
-        {
           "title": "Join Services to Your Cluster",
           "slug": "/agents/join-services-to-your-cluster/",
           "entries": [
