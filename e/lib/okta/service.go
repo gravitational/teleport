@@ -150,7 +150,7 @@ type Config struct {
 	// ConnectorService is the SAML connector service.
 	ConnectorService SAMLConnectorService
 
-	// DisableAppGroupSync allows to disable OKTA application and group sync.
+	// DisableAppGroupSync allows to disable Okta application and group sync.
 	DisableAppGroupSync bool
 }
 
@@ -462,7 +462,7 @@ type Service struct {
 	// connectorService is the SAML connector service.
 	connectorService SAMLConnectorService
 
-	// disableOktaAppGroupSync allows to disable OKTA application and group sync.
+	// disableOktaAppGroupSync allows to disable Okta application and group sync.
 	// when only SCIM or user sync integration is needed.
 	disableOktaAppGroupSync bool
 }
@@ -942,11 +942,11 @@ func SelectSCIMToken(staticCredentials []types.PluginStaticCredentials) (types.P
 // containing an Okta API token.  Returns a NotFound error if no such credential
 // exists.
 func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is set only when OKTA app sync is disabled.
+	// CredPurposeOktaAPITokenWithSCIMOnlyIntegration is set only when Okta app sync is disabled.
 	// For backward compatibility, when Teleport is downgraded to a version that doesn't support
 	// stopping app group sync via the feature flag (AppGroupSyncDisabled), we will rely on the behavior
 	// of preventing starting the Okta Plugin due to the missing credential.
-	if v, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeOKTAAPITokenWithSCIMOnlyIntegration); err == nil {
+	if v, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeOktaAPITokenWithSCIMOnlyIntegration); err == nil {
 		return v, nil
 	}
 	// For now, we'll just choose the first eligible static credential until we

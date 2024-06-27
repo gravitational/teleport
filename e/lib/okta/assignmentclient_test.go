@@ -325,7 +325,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
-		// Test the OKTA API is called only once for the same user and app
+		// Test the Okta API is called only once for the same user and app
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
 		var wg sync.WaitGroup
@@ -349,7 +349,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
-		// Test the OKTA API is called only once for the same user and group
+		// Test the Okta API is called only once for the same user and group
 		// when multiple concurrent calls are made to the assignmentClient
 		// for the same user and app.
 		var wg sync.WaitGroup
@@ -379,7 +379,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
-		// Check if for other user the OKTA API will not be called again and cached value will be used.
+		// Check if for other user the Okta API will not be called again and cached value will be used.
 		ok, err := assignmentClient.userAssignedToGroup(ctx, "username2", "testGroup1")
 		require.NoError(t, err)
 		require.False(t, ok)

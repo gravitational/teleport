@@ -28,10 +28,10 @@ const (
 	// field will be a stringified bcrypt hash of the bearer token.
 	CredPurposeSCIMToken = "scim-bearer-token"
 
-	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
+	// CredPurposeOktaAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
 	// app groups sync. Due to backward compatibility when teleport was downgraded to version where the
 	// AppGroupSyncDisabled flag is not supported we need to prevent plugin from starting.
-	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOktaAPITokenWithSCIMOnlyIntegration
 	// that are only set when AppGroupSyncDisabled is set to true.
-	CredPurposeOKTAAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
+	CredPurposeOktaAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
 )

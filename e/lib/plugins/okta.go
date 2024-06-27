@@ -30,7 +30,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				return nil, trace.Wrap(err)
 			}
 			// There is no API token to call API and only SCIM integration was enabled.
-			// SCIM updates propagated to Teleport by OKTA happens only when groups/users are updated in OKTA
+			// SCIM updates propagated to Teleport by Okta happens only when groups/users are updated in Okta
 			// Report RUNNING status and not really emitting plugin status by okta client during calling okta API.
 			return func() error {
 				if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
@@ -84,7 +84,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 
 // shouldDisabledAppGroupSync check if app user sync should be disabled.
 // This is done by checking the label of the token credentials. If the label
-// is set to CredPurposeOKTAAPITokenWithSCIMOnlyIntegration, then the app group
+// is set to CredPurposeOktaAPITokenWithSCIMOnlyIntegration, then the app group
 // sync should be disabled.
 //
 // Why not use the proto SyncSettings.AppGroupSyncDisabled field?
@@ -93,5 +93,5 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 // when a new field was added.
 func shouldDisabledAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
 	v, ok := tokenCreds.GetLabel(okta.CredPurposeLabel)
-	return ok && v == okta.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	return ok && v == okta.CredPurposeOktaAPITokenWithSCIMOnlyIntegration
 }

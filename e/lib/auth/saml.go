@@ -793,12 +793,12 @@ func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User
 		// it will miss the SAML connector attribute mapping evaluation.
 		// For backward compatibility, we need to add the attributes from the connector to the user
 		// to ensure that the user has the correct roles and traits.
-		// NOTE that in case of OKTA SCIM sync handler a user attributes can be different from the SAML assertion
+		// NOTE that in case of Okta SCIM sync handler a user attributes can be different from the SAML assertion
 		// So for backward compatibility even calculating assertion during SCIM user creation is not enough.
 		if err := sas.addAttributesFromConnector(userState, params); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Users create via SCIM or OKTA user sync don't have correct roles propagated.
+		// Users create via SCIM or Okta user sync don't have correct roles propagated.
 		// Revaluate roles and propagate them to the user so user roles will be visible in the UI.
 		if err := sas.propagateRolesToPermanentSSOUser(ctx, params); err != nil {
 			return nil, trace.Wrap(err)

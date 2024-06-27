@@ -25,7 +25,7 @@ func SetUserRolesAndTraits(user types.User, groups []string, connector traitsMap
 	foundUserMapping := false
 	fondGroupMapping := false
 
-	// OKTA connector should have a mapping for username and groups.
+	// Okta connector should have a mapping for username and groups.
 	// Not standard traits are not supported.
 	for _, v := range mapping {
 		if v.Trait == oktaUsernameTrait {

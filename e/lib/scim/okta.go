@@ -111,17 +111,17 @@ func (s *oktaShim) accessListPredicate(_ context.Context, accessList *accesslist
 }
 
 func (s *oktaShim) userPredicate(ctx context.Context, user types.User) bool {
-	if ok := s.userCreatedByOKTAConnector(user); ok {
+	if ok := s.userCreatedByOktaConnector(user); ok {
 		// User was created by the same connector.
 		// This can happen when SCIM user provisioning is enabled but a SAML transient user still exists in
-		// backend. The OKTA SCIM user provisioning will update SAML user to SCIM user without
+		// backend. The Okta SCIM user provisioning will update SAML user to SCIM user without
 		// waiting for SAML user expiration.
 		return true
 	}
 	return okta.MatchByLabels[types.User](s.plugin.Spec.GetOkta().OrgUrl)(user)
 }
 
-func (s *oktaShim) userCreatedByOKTAConnector(user types.User) bool {
+func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
 	userConnector := user.GetCreatedBy().Connector
 	if userConnector == nil || userConnector.ID == "" {
 		return false
@@ -235,9 +235,9 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 	client, err := s.oktaClient(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			// If okta client creation failed due to not found error the OKTA API credentials are not set.
+			// If okta client creation failed due to not found error the Okta API credentials are not set.
 			// In this case user traits to role mapping is not possible because we can't fetch groups from Okta.
-			// (OKTA SCIM user push does not include groups)
+			// (Okta SCIM user push does not include groups)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -247,7 +247,7 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 	if !ok {
 		return trace.BadParameter("missing Okta user ID")
 	}
-	// OKTA groups are not directly available during user SCIM push so we need to fetch them from API.
+	// Okta groups are not directly available during user SCIM push so we need to fetch them from API.
 	groups, _, err := client.User.ListUserGroups(ctx, oktaUserID)
 	if err != nil {
 		return trace.Wrap(err)

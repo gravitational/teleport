@@ -315,7 +315,7 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.
 	}
 
 	// Unlocking should be also called during user creation.
-	// Deactivated user is not returned from OKTA v1/users API thus after deactivation will be locked and removed from
+	// Deactivated user is not returned from Okta v1/users API thus after deactivation will be locked and removed from
 	// Teleport. But if user will be activated again after a user was deleted from Teleport backend
 	// we need to unlock all okta locks during user creation.
 	if !UserHasLockableStatus(oktaUser) {

@@ -99,7 +99,7 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 	input := fixtures.SAMLOktaConnectorV2
 
 	oktaUserTraits := map[string][]string{"okta/org": {"dev"}}
-	mustCreateOKTAPermanentUser(t, ctx, s, oktaUserTraits, "ops@gravitational.io")
+	mustCreateOktaPermanentUser(t, ctx, s, oktaUserTraits, "ops@gravitational.io")
 
 	connector := prepareSSOConnectorSetup(t, input, ctx, s)
 
@@ -118,7 +118,7 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 		require.Equal(t, []string{"admin"}, userIdentity.Groups)
 
 		// Check that the user has the correct traits
-		// propagated from permanent SAML user created by OKTA service during user sync
+		// propagated from permanent SAML user created by Okta service during user sync
 		// and traits from the SAML assertion.
 		want := wrappers.Traits(oktaUserTraits)
 		want["groups"] = []string{"Everyone"}
@@ -126,7 +126,7 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 	})
 }
 
-func mustCreateOKTAPermanentUser(t *testing.T, ctx context.Context, s *webSuite, traits map[string][]string, userName string) {
+func mustCreateOktaPermanentUser(t *testing.T, ctx context.Context, s *webSuite, traits map[string][]string, userName string) {
 	newUser, err := types.NewUser(userName)
 	require.NoError(t, err)
 	newUser.SetStaticLabels(map[string]string{
