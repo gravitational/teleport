@@ -63,8 +63,7 @@ func getForkedBranch(dir string) (string, error) {
 
 // getBranch will return branch if parsed otherwise will attempt to find it
 // Branch should be in the format "branch/v*"
-func getBranch(dir string) (string, error) {
-	branch := *baseBranch
+func getBranch(branch, dir string) (string, error) {
 	if branch == "" { // flag and env var not set, attempt to find
 		// get ref
 		ref, err := git.RunCmd(dir, "symbolic-ref", "HEAD")
@@ -115,9 +114,9 @@ func makePrintVersion(dir string) (string, error) {
 	return "v" + out, nil
 }
 
-func getLastVersion(dir string) (string, error) {
-	if *baseTag != "" {
-		return *baseTag, nil
+func getLastVersion(baseTag, dir string) (string, error) {
+	if baseTag != "" {
+		return baseTag, nil
 	}
 
 	// get root dir of repo
@@ -181,12 +180,12 @@ func main() {
 	entDir := filepath.Join(topDir, "e")
 
 	// Figure out the branch and last version released for that branch
-	branch, err := getBranch(workDir)
+	branch, err := getBranch(*baseBranch, workDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	lastVersion, err := getLastVersion(workDir)
+	lastVersion, err := getLastVersion(*baseTag, workDir)
 	if err != nil {
 		log.Fatal(trace.Wrap(err, "failed to determine last version"))
 	}
