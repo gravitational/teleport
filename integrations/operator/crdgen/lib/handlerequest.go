@@ -34,7 +34,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func HandleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsYAML)
+}
+
+func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
@@ -55,7 +59,7 @@ func HandleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 			if err := generateSchema(
 				file,
 				"resources.teleport.dev",
-				formatAsYAML,
+				out,
 				gen.Response,
 			); err != nil {
 				return trace.Wrap(err)
