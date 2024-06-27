@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net"
 	"net/url"
 	"os"
@@ -48,7 +47,6 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -385,72 +383,22 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 ) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
-
-	ticker := time.NewTicker(s.botCfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		var err error
-		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			s.log.InfoContext(
-				ctx,
-				"Attempting to renew identity",
-				"attempt", attempt,
-				"retry_limit", renewalRetryLimit,
-			)
-			var id *identity.Identity
-			id, err = s.generateIdentity(ctx)
-			if err == nil {
-				s.identity.Set(id)
-				err = s.writeArtifacts(ctx, proxyHost, authClient)
-				if err == nil {
-					break
-				}
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name: "identity-renewal",
+		f: func(ctx context.Context) error {
+			id, err := s.generateIdentity(ctx)
+			if err != nil {
+				return trace.Wrap(err, "generating identity")
 			}
-
-			if attempt != renewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.WarnContext(
-					ctx,
-					"Identity renewal attempt failed. Waiting to retry",
-					"attempt", attempt,
-					"retry_limit", renewalRetryLimit,
-					"backoff", backoffTime,
-					"error", err,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			s.log.WarnContext(
-				ctx,
-				"All retry attempts exhausted renewing identity. Waiting for next normal renewal cycle",
-				"retry_limit", renewalRetryLimit,
-				"interval", s.botCfg.RenewalInterval,
-			)
-		} else {
-			s.log.InfoContext(
-				ctx,
-				"Renewed identity. Waiting for next identity renewal",
-				"interval", s.botCfg.RenewalInterval,
-			)
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			continue
-		case <-reloadCh:
-			continue
-		}
-	}
+			s.identity.Set(id)
+			return s.writeArtifacts(ctx, proxyHost, authClient)
+		},
+		interval:   s.botCfg.RenewalInterval,
+		retryLimit: renewalRetryLimit,
+		log:        s.log,
+		reloadCh:   reloadCh,
+	})
+	return trace.Wrap(err)
 }
 
 func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
