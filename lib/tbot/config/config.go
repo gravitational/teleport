@@ -284,11 +284,12 @@ func (conf *OnboardingConfig) Token() (string, error) {
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".
 type BotConfig struct {
-	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage    *StorageConfig   `yaml:"storage,omitempty"`
-	Outputs    Outputs          `yaml:"outputs,omitempty"`
-	Services   ServiceConfigs   `yaml:"services,omitempty"`
+	Version       Version          `yaml:"version"`
+	Onboarding    OnboardingConfig `yaml:"onboarding,omitempty"`
+	Storage       *StorageConfig   `yaml:"storage,omitempty"`
+	Outputs       Outputs          `yaml:"outputs,omitempty"`
+	LegacyOutputs []LegacyOutput   `yaml:"-"`
+	Services      ServiceConfigs   `yaml:"services,omitempty"`
 
 	Debug      bool   `yaml:"debug"`
 	AuthServer string `yaml:"auth_server,omitempty"`
@@ -364,12 +365,28 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	// Here we do something a little unusual - we're partway through migrating
-	// outputs to become services. For migrated outputs, we'll remove them from
-	// the outputs list and add them to the services list.
+	// outputs to become services. For outputs which are still legacy, we put
+	// them into LegacyOutputs, and for those which are services, we put them
+	// into Services.
 	for _, output := range conf.Outputs {
 		switch output := output.(type) {
 		case *KubernetesOutput:
 			conf.Services = append(conf.Services, output)
+		case LegacyOutput:
+			conf.LegacyOutputs = append(conf.LegacyOutputs, output)
+		default:
+			return trace.BadParameter("unrecognized output type: %T", output)
+		}
+	}
+
+	for _, output := range conf.LegacyOutputs {
+		if err := output.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
 
@@ -382,11 +399,14 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
-	for _, output := range conf.Outputs {
-		if err := output.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
+	for _, output := range conf.LegacyOutputs {
 		addDestinationToKnownPaths(output.GetDestination())
+	}
+	for _, svc := range conf.Services {
+		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		if ok {
+			addDestinationToKnownPaths(v.GetDestination())
+		}
 	}
 
 	// Check for identical destinations being used. This is a deeply
@@ -401,13 +421,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error",
 				"path", path,
 			)
-		}
-	}
-
-	// Validate configured services
-	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
 
@@ -542,6 +555,7 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 			}
 			out = append(out, v)
 		case KubernetesOutputType:
+			// Migrated.
 			v := &KubernetesOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
@@ -620,27 +634,23 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 }
 
-// GetOutputByPath attempts to fetch a Destination by its filesystem path.
-// Only valid for filesystem destinations; returns nil if no matching
-// Destination exists.
-func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
-	for _, output := range conf.Outputs {
-		destImpl := output.GetDestination()
+type Initable interface {
+	GetDestination() bot.Destination
+	Init(ctx context.Context) error
+	Describe() []FileDescription
+}
 
-		destDir, ok := destImpl.(*DestinationDirectory)
-		if !ok {
-			continue
-		}
-
-		// Note: this compares only paths as written in the config file. We
-		// might want to compare .Abs() if that proves to be confusing (though
-		// this may have its own problems)
-		if destDir.Path == path {
-			return output, nil
+func (conf *BotConfig) GetInitables() []Initable {
+	var out []Initable
+	for _, output := range conf.LegacyOutputs {
+		out = append(out, output)
+	}
+	for _, service := range conf.Services {
+		if v, ok := service.(Initable); ok {
+			out = append(out, v)
 		}
 	}
-
-	return nil, nil
+	return out
 }
 
 // newTestConfig creates a new minimal bot configuration from defaults for use

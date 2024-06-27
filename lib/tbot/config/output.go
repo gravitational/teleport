@@ -31,7 +31,7 @@ import (
 // Output is an interface that represents configurable Outputs for a bot.
 // These outputs are the core unit of generating artifacts in tbot and are the
 // element users configure to control what is output.
-type Output interface {
+type LegacyOutput interface {
 	// GetDestination returns the bot.Destination that the Output writing to.
 	//
 	// This can be useful for extracting content that has been written in
@@ -65,6 +65,8 @@ type Output interface {
 	// files with the correct permissions
 	Describe() []FileDescription
 }
+
+type Output interface{}
 
 // ListSubdirectories lists all subdirectories that will be used by the given
 // templates. Primarily used for on-the-fly directory creation.

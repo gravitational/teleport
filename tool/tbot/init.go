@@ -44,8 +44,12 @@ const RootUID = "0"
 const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
+type describer interface {
+	Describe() []config.FileDescription
+}
+
 // getInitArtifacts returns a map of all desired artifacts for the destination
-func getInitArtifacts(output config.Output) map[string]bool {
+func getInitArtifacts(output describer) map[string]bool {
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
 
@@ -424,40 +428,38 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var output config.Output
+	var destinationHolder config.DestinationHolder
 	var err error
-	// First, resolve the correct output. If using a config file with only
-	// 1 destination we can assume we want to init that one; otherwise,
+	destinationHolders := botConfig.DestinationHolders()
+	// First, resolve the correct output/service. If using a config file with
+	// only 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
 	if cf.InitDir == "" {
-		if len(botConfig.Outputs) == 1 {
-			output = botConfig.Outputs[0]
+		if len(destinationHolders) == 1 {
+			destinationHolder = destinationHolders[0]
 		} else {
-			return trace.BadParameter("An output to initialize must be specified with --init-dir")
+			return trace.BadParameter("An output or service to initialize must be specified with --init-dir")
 		}
 	} else {
-		output, err = botConfig.GetOutputByPath(cf.InitDir)
-		if err != nil {
-			return trace.WrapWithMessage(err, "Could not find specified destination %q", cf.InitDir)
+		for _, v := range destinationHolders {
+			d := v.GetDestination()
+			dirDest, ok := d.(*config.DestinationDirectory)
+			if ok && dirDest.Path == cf.InitDir {
+				destinationHolder = v
+				break
+			}
 		}
-
-		if output == nil {
-			// TODO: in the future if/when other backends are supported,
-			// destination might be nil because the user tried to enter a non
-			// filesystem path, so this error message could be misleading.
-			return trace.NotFound("Cannot initialize destination %q because "+
-				"it has not been configured.", cf.InitDir)
+		if destinationHolder == nil {
+			return trace.NotFound("Could not find specified destination %q", cf.InitDir)
 		}
 	}
 
-	destImpl := output.GetDestination()
-
-	destDir, ok := destImpl.(*config.DestinationDirectory)
+	destDir, ok := destinationHolder.GetDestination().(*config.DestinationDirectory)
 	if !ok {
 		return trace.BadParameter("`tbot init` only supports directory destinations")
 	}
 
-	log.InfoContext(ctx, "Initializing destination", "destination", destImpl)
+	log.InfoContext(ctx, "Initializing destination", "destination", destDir)
 
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
@@ -480,11 +482,11 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		if err != nil {
 			if destDir.ACLs == botfs.ACLRequired {
 				// ACLs were specifically requested (vs "try" mode), so fail.
-				return trace.Wrap(err, aclTestFailedMessage, destImpl)
+				return trace.Wrap(err, aclTestFailedMessage, destDir)
 			}
 
 			// Otherwise, fall back to no ACL with a warning.
-			log.WarnContext(ctx, aclTestFailedMessage, "destination", destImpl, "error", err)
+			log.WarnContext(ctx, aclTestFailedMessage, "destination", destDir, "error", err)
 			aclOpts = nil
 
 			// We'll also need to re-fetch the owner as the defaults are
@@ -510,7 +512,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Next, resolve what we want and what we already have.
-	desired := getInitArtifacts(output)
+	desired := getInitArtifacts(destDir)
 	existing, err := getExistingArtifacts(destDir.Path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -587,7 +589,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	log.InfoContext(
 		ctx,
 		"Destination has been initialized. Note that these files will be empty and invalid until the bot issues certificates",
-		"destination", destImpl,
+		"destination", destDir,
 	)
 
 	return nil
