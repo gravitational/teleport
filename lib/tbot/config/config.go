@@ -370,7 +370,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// into Services.
 	for _, output := range conf.Outputs {
 		switch output := output.(type) {
-		case *KubernetesOutput:
+		case ServiceConfig:
 			conf.Services = append(conf.Services, output)
 		case LegacyOutput:
 			conf.LegacyOutputs = append(conf.LegacyOutputs, output)
