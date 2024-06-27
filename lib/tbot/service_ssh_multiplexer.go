@@ -163,7 +163,6 @@ func (s *SSHMultiplexerService) getClusterNames(ctx context.Context, clt *authcl
 func (s *SSHMultiplexerService) writeArtifacts(
 	ctx context.Context,
 	proxyHost string,
-	id *identity.Identity,
 	authClient *authclient.Client,
 ) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
@@ -403,7 +402,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			id, err = s.generateIdentity(ctx)
 			if err == nil {
 				s.identity.Set(id)
-				err = s.writeArtifacts(ctx, proxyHost, id, authClient)
+				err = s.writeArtifacts(ctx, proxyHost, authClient)
 				if err == nil {
 					break
 				}
