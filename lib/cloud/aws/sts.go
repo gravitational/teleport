@@ -73,6 +73,9 @@ func convertSTSError(err error) error {
 		return nil
 	}
 
+	// TODO(greedy52) is there any way to prevent aws-sdk-go-v2 to translate
+	// HTTP error codes to these specific types? Is it possible to
+	// automatically generate these so CI can catch new error types?
 	var awsErr awserr.Error
 	if errors.As(err, &awsErr) {
 		switch awsErr.Code() {

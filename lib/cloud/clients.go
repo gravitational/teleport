@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	awscredentialsv2 "github.com/aws/aws-sdk-go-v2/credentials"
+	awsstscredsv2 "github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
@@ -75,7 +76,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
-	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -421,6 +421,14 @@ func (a *awsOptions) checkAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+func (a *awsOptions) assumeRoleProvider(client libcloudaws.STSAPI) awsv2.CredentialsProvider {
+	return awsstscredsv2.NewAssumeRoleProvider(client, a.assumeRoleARN, func(o *awsstscredsv2.AssumeRoleOptions) {
+		if a.assumeRoleExternalID != "" {
+			o.ExternalID = aws.String(a.assumeRoleExternalID)
+		}
+	})
 }
 
 // AWSOptionsFn is an option function for setting additional options
@@ -1026,7 +1034,7 @@ var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	STSAPI cloudaws.STSAPI
+	STSAPI libcloudaws.STSAPI
 
 	// TODO remove legacy AWS clients.
 	RDS                rdsiface.RDSAPI
@@ -1081,10 +1089,18 @@ func (c *TestCloudClients) GetAWSConfigV2(ctx context.Context, region string, op
 	if options.assumeRoleARN == "" {
 		return options.baseConfigV2, nil
 	}
-	return newAWSConfigForRole(ctx, c.STSAPI, region, options)
+
+	provider := options.assumeRoleProvider(c.STSAPI)
+	if _, err := provider.Retrieve(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &awsv2.Config{
+		Region:      region,
+		Credentials: provider,
+	}, nil
 }
 
-func (c *TestCloudClients) GetAWSSTSClientV2(ctx context.Context, region string, opts ...AWSOptionsFn) (cloudaws.STSAPI, error) {
+func (c *TestCloudClients) GetAWSSTSClientV2(ctx context.Context, region string, opts ...AWSOptionsFn) (libcloudaws.STSAPI, error) {
 	if _, err := c.GetAWSConfigV2(ctx, region, opts...); err != nil {
 		return nil, trace.Wrap(err)
 	}

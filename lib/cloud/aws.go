@@ -25,7 +25,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/gravitational/trace"
 
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
@@ -138,30 +137,22 @@ func (c *awsClientsV2) getAWSConfigV2ForRole(ctx context.Context, region string,
 		externalID:  options.assumeRoleExternalID,
 	}
 	return utils.FnCacheGet(ctx, c.configsCache, cacheKey, func(ctx context.Context) (*aws.Config, error) {
-		config, err := newAWSConfigForRole(ctx, cloudaws.NewSTSClient(*options.baseConfigV2), region, options)
+		client := cloudaws.NewSTSClient(*options.baseConfigV2)
+		provider := options.assumeRoleProvider(client)
+		if _, err := provider.Retrieve(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		config, err := awsAmbientConfigV2Provider(ctx, region, provider)
 		return config, trace.Wrap(err)
 	})
 }
 
-func newAWSConfigForRole(ctx context.Context, client cloudaws.STSAPI, region string, options awsOptions) (*aws.Config, error) {
-	provider := stscreds.NewAssumeRoleProvider(client, options.assumeRoleARN, func(o *stscreds.AssumeRoleOptions) {
-		if options.assumeRoleExternalID != "" {
-			o.ExternalID = aws.String(options.assumeRoleExternalID)
-		}
-	})
-
-	if _, err := provider.Retrieve(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	config, err := awsAmbientConfigV2Provider(ctx, region, provider)
-	return config, trace.Wrap(err)
-}
-
 // awsAmbientConfigV2Provider loads a new config using the environment variables.
 func awsAmbientConfigV2Provider(ctx context.Context, region string, credProvider aws.CredentialsProvider) (*aws.Config, error) {
-	opts := []func(*awsconfig.LoadOptions) error{
-		awsConfigFipsOption(),
+	opts := []func(*awsconfig.LoadOptions) error{}
+	if modules.GetModules().IsBoringBinary() {
+		opts = append(opts, awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 	if region != "" {
 		opts = append(opts, awsconfig.WithRegion(region))
@@ -174,11 +165,4 @@ func awsAmbientConfigV2Provider(ctx context.Context, region string, credProvider
 		return nil, trace.Wrap(err)
 	}
 	return &config, nil
-}
-
-func awsConfigFipsOption() awsconfig.LoadOptionsFunc {
-	if modules.GetModules().IsBoringBinary() {
-		return awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled)
-	}
-	return awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateUnset)
 }
