@@ -190,7 +190,7 @@ type makeBasicAdminClientFunc func(context.Context, *common.Session, *Engine) (a
 func makeBasicAdminClient(ctx context.Context, sessionCtx *common.Session, e *Engine) (adminClient, error) {
 	sessionCtx = sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name)
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
