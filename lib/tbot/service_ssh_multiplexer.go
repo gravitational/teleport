@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 const (
@@ -539,12 +540,47 @@ func (s *SSHMultiplexerService) handleConn(
 		}
 	}()
 
+	var stderr *os.File
+	defer func() {
+		if stderr == nil {
+			return
+		}
+		defer stderr.Close()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+		}
+	}()
+
+	var req string
+	// here we try receiving a file descriptor to use for error output, which
+	// should be mapped to OpenSSH's own stderr (or /dev/null)
+	if un, _ := downstream.(*net.UnixConn); un != nil {
+		b := make([]byte, 1)
+		fds := make([]*os.File, 1)
+
+		// TODO(espadolini): get rid of [uds.Conn]
+		n, fdn, err := (&uds.Conn{UnixConn: un}).ReadWithFDs(b, fds)
+		if err != nil {
+			return trace.Wrap(err, "reading request")
+		}
+		if fdn > 0 {
+			s.log.DebugContext(ctx, "Received stderr file descriptor from client for error reporting")
+			stderr = fds[0]
+		}
+		// this approach works because we know that req must be at least one
+		// byte at the end (as it must end with a NUL)
+		req = string(b[:n])
+	}
+
 	// The first thing downstream will send is the multiplexing request which is
 	// the "[host]:[port]\x00" format.
 	buf := bufio.NewReader(downstream)
-	req, err := buf.ReadString('\x00')
-	if err != nil {
-		return trace.Wrap(err, "reading request")
+	if !strings.HasSuffix(req, "\x00") {
+		r, err := buf.ReadString('\x00')
+		if err != nil {
+			return trace.Wrap(err, "reading request")
+		}
+		req += r
 	}
 	req = req[:len(req)-1] // Drop the NUL.
 	host, port, err := utils.SplitHostPort(req)
@@ -646,6 +682,13 @@ func (s *SSHMultiplexerService) handleConn(
 
 	log.InfoContext(ctx, "Proxying connection for multiplexing request")
 	startedProxying := time.Now()
+
+	// once the connection is actually started we should stop writing to the
+	// client's stderr
+	if stderr != nil {
+		_ = stderr.Close()
+		stderr = nil
+	}
 
 	errCh := make(chan error, 2)
 	go func() {
