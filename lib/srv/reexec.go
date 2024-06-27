@@ -687,7 +687,7 @@ func handleRemotePortForward(ctx context.Context, addr string, file *os.File) er
 	} else {
 		payload = []byte(err.Error())
 	}
-	_, _, err2 := controlConn.WriteWithFDs(payload, files)
+	_, _, err2 := uds.WriteWithFDs(controlConn, payload, files)
 	return trace.NewAggregate(err, err2)
 }
 
@@ -764,7 +764,7 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
-		n, fn, err := conn.ReadWithFDs(buf, fbuf)
+		n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return errorWriter, teleport.RemoteCommandSuccess, nil
