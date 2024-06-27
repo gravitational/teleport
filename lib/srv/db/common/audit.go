@@ -73,7 +73,7 @@ type Result struct {
 	Error error
 	// AffectedRecords is the number of records affected by the query/command.
 	AffectedRecords uint64
-	// UserMessage is a user-friendly message for successfull or unsuccessfull
+	// UserMessage is a user-friendly message for successful or unsuccessful
 	// results.
 	UserMessage string
 }
