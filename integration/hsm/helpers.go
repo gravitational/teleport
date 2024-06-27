@@ -275,7 +275,7 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 	}
 	var err error
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "testcluster",
+		ClusterName: "test-cluster",
 	})
 	require.NoError(t, err)
 	config.SetAuthServerAddress(config.Auth.ListenAddr)

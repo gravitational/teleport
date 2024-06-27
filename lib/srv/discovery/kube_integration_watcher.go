@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -50,7 +51,14 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	clt := s.AccessPoint
 
-	releaseChannels := automaticupgrades.Channels{}
+	pingResponse, err := s.AccessPoint.Ping(s.ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
+
+	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
+		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
 	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -214,7 +222,7 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	agentVersion := pingResponse.ServerVersion
 
 	clusterFeatures := s.ClusterFeatures()
-	if clusterFeatures.GetAutomaticUpgrades() {
+	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
 		defaultVersion, err := releaseChannels.DefaultVersion(s.ctx)
 		if err == nil {
 			agentVersion = defaultVersion

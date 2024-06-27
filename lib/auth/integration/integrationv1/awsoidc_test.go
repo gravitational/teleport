@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -119,7 +118,6 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 
 	// Validate JWT against public key
 	key, err := jwt.New(&jwt.Config{
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		Clock:       resourceSvc.clock,
 		PublicKey:   publicKey,

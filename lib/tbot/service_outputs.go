@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -40,7 +39,6 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -176,66 +174,15 @@ func (s *outputsService) Run(ctx context.Context) error {
 		"interval", s.cfg.RenewalInterval,
 	)
 
-	ticker := time.NewTicker(s.cfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		var err error
-		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			s.log.InfoContext(
-				ctx,
-				"Attempting to renew outputs",
-				"attempt", attempt,
-				"retry_limit", renewalRetryLimit,
-			)
-			err = s.renewOutputs(ctx)
-			if err == nil {
-				break
-			}
-
-			if attempt != renewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.WarnContext(
-					ctx,
-					"Output renewal attempt failed. Waiting to retry",
-					"attempt", attempt,
-					"retry_limit", renewalRetryLimit,
-					"backoff", backoffTime,
-					"error", err,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			s.log.WarnContext(
-				ctx,
-				"All retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle",
-				"retry_limit", renewalRetryLimit,
-				"interval", s.cfg.RenewalInterval,
-			)
-		} else {
-			s.log.InfoContext(
-				ctx,
-				"Renewed outputs. Waiting for next output renewal",
-				"interval", s.cfg.RenewalInterval,
-			)
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			continue
-		case <-reloadCh:
-			continue
-		}
-	}
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name:       "output-renewal",
+		f:          s.renewOutputs,
+		interval:   s.cfg.RenewalInterval,
+		retryLimit: renewalRetryLimit,
+		log:        s.log,
+		reloadCh:   reloadCh,
+	})
+	return trace.Wrap(err)
 }
 
 // generateKeys generates TLS and SSH keypairs.
