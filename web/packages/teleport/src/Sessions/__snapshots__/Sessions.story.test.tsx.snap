@@ -45,7 +45,8 @@ exports[`active sessions CTA 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -54,32 +55,52 @@ exports[`active sessions CTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-top: 12px;
   padding-bottom: 12px;
   width: 100%;
   height: 36px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c10:active {
-  background: #C5B6FF;
+.c10:hover,
+.teleport-button__force-hover .c10 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c10:active,
+.teleport-button__force-active .c10 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c10:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -90,7 +111,8 @@ exports[`active sessions CTA 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -99,29 +121,48 @@ exports[`active sessions CTA 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c32:focus-visible,
+.teleport-button__force-focus-visible .c32 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c32:hover,
-.c32:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c32 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c32:active {
-  background: rgba(255,255,255,0.13);
+.c32:active,
+.teleport-button__force-active .c32 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c32:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -483,9 +524,9 @@ exports[`active sessions CTA 1`] = `
     >
       <a
         class="c10"
+        fill="filled"
         height="36px"
         href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
-        kind="primary"
         rel="noreferrer"
         style="text-transform: none;"
         target="blank"
@@ -802,7 +843,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -870,7 +911,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -938,7 +979,7 @@ exports[`active sessions CTA 1`] = `
           >
             <button
               class="c32"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -1213,7 +1254,8 @@ exports[`loaded 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1222,29 +1264,48 @@ exports[`loaded 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c28:focus-visible,
+.teleport-button__force-focus-visible .c28 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c28:hover,
-.c28:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c28 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c28:active {
-  background: rgba(255,255,255,0.13);
+.c28:active,
+.teleport-button__force-active .c28 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c28:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1875,7 +1936,7 @@ exports[`loaded 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -1943,7 +2004,7 @@ exports[`loaded 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -2011,7 +2072,7 @@ exports[`loaded 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -2286,7 +2347,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2295,29 +2357,48 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c28:focus-visible,
+.teleport-button__force-focus-visible .c28 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c28:hover,
-.c28:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c28 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c28:active {
-  background: rgba(255,255,255,0.13);
+.c28:active,
+.teleport-button__force-active .c28 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c28:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2948,7 +3029,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -3016,7 +3097,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span
@@ -3084,7 +3165,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
           >
             <button
               class="c28"
-              kind="border"
+              fill="border"
             >
               Join
               <span

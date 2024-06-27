@@ -100,7 +100,7 @@ export const Buttons = () => {
         <Button size="medium">Medium</Button>
         <Button size="small">Small</Button>
       </Flex>
-      <Input value="Some text" />
+      <Input defaultValue="Some text" />
       <Button size="extra-large" inputAlignment>
         Extra large with input alignment
       </Button>

@@ -19,7 +19,8 @@ exports[`render clusters 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -28,30 +29,49 @@ exports[`render clusters 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   height: 24px;
 }
 
-.c18:hover,
-.c18:focus {
-  background: rgba(255,255,255,0.07);
+.c18:focus-visible,
+.teleport-button__force-focus-visible .c18 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c18:active {
-  background: rgba(255,255,255,0.13);
+.c18:hover,
+.teleport-button__force-hover .c18 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c18:active,
+.teleport-button__force-active .c18 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c18:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -375,8 +395,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -411,8 +431,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -447,8 +467,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -483,8 +503,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -519,8 +539,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -555,8 +575,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -591,8 +611,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -627,8 +647,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -663,8 +683,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -699,8 +719,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -735,8 +755,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -771,8 +791,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -807,8 +827,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -843,8 +863,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -879,8 +899,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -915,8 +935,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -951,8 +971,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -987,8 +1007,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1023,8 +1043,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1059,8 +1079,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1095,8 +1115,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1131,8 +1151,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1167,8 +1187,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1203,8 +1223,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1239,8 +1259,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1275,8 +1295,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1311,8 +1331,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1347,8 +1367,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1383,8 +1403,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1419,8 +1439,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1455,8 +1475,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1491,8 +1511,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1527,8 +1547,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1563,8 +1583,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1599,8 +1619,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1635,8 +1655,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
@@ -1671,8 +1691,8 @@ exports[`render clusters 1`] = `
         >
           <button
             class="c18"
+            fill="border"
             height="24px"
-            kind="border"
           >
             OPTIONS
             <span
