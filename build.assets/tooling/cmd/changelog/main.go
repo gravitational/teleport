@@ -24,7 +24,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -178,7 +178,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	entDir := path.Join(topDir, "e")
+	entDir := filepath.Join(topDir, "e")
 
 	// Figure out the branch and last version released for that branch
 	branch, err := getBranch(workDir)
