@@ -90,11 +90,6 @@
               "forScopes": ["cloud"]
             },
             {
-              "title": "Downloads",
-              "slug": "/choose-an-edition/teleport-cloud/downloads/",
-              "forScopes": ["cloud"]
-            },
-            {
               "title": "Public IP Allowlist",
               "slug": "/choose-an-edition/teleport-cloud/ips/",
               "forScopes": ["cloud"]
@@ -2302,8 +2297,8 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "source": "/choose-an-edition/teleport-cloud/downloads/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
