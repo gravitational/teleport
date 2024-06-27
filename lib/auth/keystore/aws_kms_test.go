@@ -39,8 +39,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSKMS_deleteUnusedKeys tests the AWS KMS keystore's deleteUnusedKeys
@@ -55,21 +58,26 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 
 	const pageSize int = 4
 	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
-	cfg := Config{
-		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
+	cfg := servicecfg.KeystoreConfig{
+		AWSKMS: servicecfg.AWSKMSConfig{
 			AWSAccount: "123456789012",
 			AWSRegion:  "us-west-2",
-			CloudClients: &cloud.TestCloudClients{
-				KMS: fakeKMS,
-				STS: &fakeAWSSTSClient{
-					account: "123456789012",
-				},
-			},
-			clock: clock,
 		},
 	}
-	keyStore, err := NewManager(ctx, cfg)
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	opts := &Options{
+		ClusterName: clusterName,
+		HostUUID:    "uuid",
+		CloudClients: &cloud.TestCloudClients{
+			KMS: fakeKMS,
+			STS: &fakeAWSSTSClient{
+				account: "123456789012",
+			},
+		},
+		clockworkOverride: clock,
+	}
+	keyStore, err := NewManager(ctx, &cfg, opts)
 	require.NoError(t, err)
 
 	totalKeys := pageSize * 3
@@ -120,20 +128,25 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 
 func TestAWSKMS_WrongAccount(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	cfg := Config{
-		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
+	cfg := &servicecfg.KeystoreConfig{
+		AWSKMS: servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
-			CloudClients: &cloud.TestCloudClients{
-				KMS: newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
-				STS: &fakeAWSSTSClient{
-					account: "222222222222",
-				},
+		},
+	}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	opts := &Options{
+		ClusterName: clusterName,
+		HostUUID:    "uuid",
+		CloudClients: &cloud.TestCloudClients{
+			KMS: newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
+			STS: &fakeAWSSTSClient{
+				account: "222222222222",
 			},
 		},
 	}
-	_, err := NewManager(context.Background(), cfg)
+	_, err = NewManager(context.Background(), cfg, opts)
 	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
 }
 
@@ -147,21 +160,26 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		region:    "us-west-2",
 		pageLimit: 1000,
 	}
-	cfg := Config{
-		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
+	cfg := &servicecfg.KeystoreConfig{
+		AWSKMS: servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
-			CloudClients: &cloud.TestCloudClients{
-				KMS: kms,
-				STS: &fakeAWSSTSClient{
-					account: "111111111111",
-				},
-			},
-			clock: clock,
 		},
 	}
-	manager, err := NewManager(context.Background(), cfg)
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	opts := &Options{
+		ClusterName: clusterName,
+		HostUUID:    "uuid",
+		CloudClients: &cloud.TestCloudClients{
+			KMS: kms,
+			STS: &fakeAWSSTSClient{
+				account: "111111111111",
+			},
+		},
+		clockworkOverride: clock,
+	}
+	manager, err := NewManager(ctx, cfg, opts)
 	require.NoError(t, err)
 
 	// Test with one retry required.
@@ -280,7 +298,7 @@ func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) 
 	default:
 		return nil, trace.BadParameter("unsupported SigningAlgorithm %q", aws.StringValue(input.SigningAlgorithm))
 	}
-	signer, err := utils.ParsePrivateKeyPEM(testRawPrivateKey)
+	signer, err := keys.ParsePrivateKey(testRawPrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

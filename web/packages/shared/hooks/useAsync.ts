@@ -47,7 +47,6 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *   return { fetchUserProfileAttempt, fetchUserProfile };
  * }
  *
- *
  * @example In the view layer you can use it like this:
  * function UserProfile(props) {
  *   const { fetchUserProfileAttempt, fetchUserProfile } = useUserProfile(props.id);
@@ -273,4 +272,42 @@ export function mapAttempt<A, B>(
     ...attempt,
     data: mapFunction(attempt.data),
   };
+}
+
+/**
+ * useDelayedRepeatedAttempt makes it so that on repeated calls to `run`, the attempt changes its
+ * state to 'processing' only after a delay. This can be used to mask repeated calls and
+ * optimistically show stale results.
+ *
+ * @example
+ * const [eagerFetchUserProfileAttempt, fetchUserProfile] = useAsync(async () => {
+ *   return await fetch(`/users/${userId}`);
+ * })
+ * const fetchUserProfileAttempt = useDelayedRepeatedAttempt(eagerFetchUserProfileAttempt, 600)
+ */
+export function useDelayedRepeatedAttempt<Data>(
+  attempt: Attempt<Data>,
+  delayMs = 400
+): Attempt<Data> {
+  const [currentAttempt, setCurrentAttempt] = useState(attempt);
+
+  useEffect(() => {
+    if (
+      currentAttempt.status === 'success' &&
+      attempt.status === 'processing'
+    ) {
+      const timeout = setTimeout(() => {
+        setCurrentAttempt(attempt);
+      }, delayMs);
+      return () => {
+        clearTimeout(timeout);
+      };
+    }
+
+    if (currentAttempt !== attempt) {
+      setCurrentAttempt(attempt);
+    }
+  }, [attempt, currentAttempt, delayMs]);
+
+  return currentAttempt;
 }
