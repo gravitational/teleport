@@ -210,7 +210,7 @@ func TestMakeApps(t *testing.T) {
 	}
 }
 
-func TestMakeAppTypeFromSAMLApp(t *testing.T) {
+func TestMakeSAMLApp(t *testing.T) {
 	tests := []struct {
 		name             string
 		sp               types.SAMLIdPServiceProviderV1
