@@ -9,8 +9,8 @@ usage: changelog [<flags>]
 
 Flags:
   --[no-]help              Show context-sensitive help (also try --help-long and --help-man).
-  --baseBranch=BASEBRANCH  The base release branch to generate the changelog for. It will be of the form branch/v* ($BASE_BRANCH)
-  --baseTag=BASETAG        The tag/version to generate the changelog from. It will be of the form vXX.Y.Z, e.g. v15.1.1 ($BASE_TAG)
+  --base-branch=BASEBRANCH  The base release branch to generate the changelog for. It will be of the form branch/v* ($BASE_BRANCH)
+  --base-tag=BASETAG        The tag/version to generate the changelog from. It will be of the form vXX.Y.Z, e.g. v15.1.1 ($BASE_TAG)
 ```
 
 It can optionally take two input variables: BASE_BRANCH: The base release

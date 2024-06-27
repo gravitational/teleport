@@ -59,7 +59,7 @@ func prettierSummary(cl string) string {
 	return cl
 }
 
-// ghListPullRequests is a wrapper around the `gh` command to list PR's
+// ghListPullRequests is a wrapper around the `gh` command to list PRs
 // searchQuery should follow the Github search syntax
 func (c *changelogGenerator) ghListPullRequests(searchQuery string) (string, error) {
 	var stdout bytes.Buffer

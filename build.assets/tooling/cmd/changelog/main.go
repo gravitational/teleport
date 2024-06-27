@@ -35,12 +35,12 @@ import (
 
 var (
 	baseBranch = kingpin.Flag(
-		"baseBranch",
+		"base-branch",
 		"The base release branch to generate the changelog for.  It will be of the form branch/v*",
 	).Envar("BASE_BRANCH").String()
 
 	baseTag = kingpin.Flag(
-		"baseTag",
+		"base-tag",
 		"The tag/version to generate the changelog from. It will be of the form vXX.Y.Z, e.g. v15.1.1",
 	).Envar("BASE_TAG").String()
 
@@ -156,7 +156,7 @@ func getTimestamps(dir string, entDir string, lastVersion string) (lastRelease, 
 }
 
 func prereqCheck() error {
-	if err := git.GitIsAvailable(); err != nil {
+	if err := git.IsAvailable(); err != nil {
 		return trace.Wrap(err)
 	}
 	if _, err := exec.LookPath("git"); err != nil {

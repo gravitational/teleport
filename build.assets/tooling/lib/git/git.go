@@ -8,8 +8,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// gitIsAvailable returns status of git
-func GitIsAvailable() error {
+// IsAvailable returns status of git
+func IsAvailable() error {
 	_, err := exec.LookPath("git")
 	return err
 }

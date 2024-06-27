@@ -2,37 +2,37 @@ package main
 
 import (
 	_ "embed"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-//go:embed testdata/expectedCL.md
-var expectedCL string
-
-//go:embed testdata/listedPRs.json
-var listedprs string
-
-//go:embed testdata/entExpectedCL.md
-var entExpectedCL string
-
-//go:embed testdata/entListedPRs.json
-var entListedPRs string
-
 func TestToChangelog(t *testing.T) {
+	prsText, err := os.ReadFile(filepath.Join("testdata", "listed-prs.json"))
+	require.NoError(t, err)
+	expectedCL, err := os.ReadFile(filepath.Join("testdata", "expected-cl.md"))
+	require.NoError(t, err)
+
 	gen := &changelogGenerator{
 		isEnt: false,
 	}
-	got, err := gen.toChangelog(listedprs)
+	got, err := gen.toChangelog(string(prsText))
 	assert.NoError(t, err)
-	assert.Equal(t, expectedCL, got)
+	assert.Equal(t, string(expectedCL), got)
 }
 
 func TestToChangelogEnterprise(t *testing.T) {
+	prsText, err := os.ReadFile(filepath.Join("testdata", "ent-listed-prs.json"))
+	require.NoError(t, err)
+	expectedCL, err := os.ReadFile(filepath.Join("testdata", "ent-expected-cl.md"))
+	require.NoError(t, err)
 	gen := &changelogGenerator{
 		isEnt: true,
 	}
-	got, err := gen.toChangelog(entListedPRs)
-	assert.NoError(t, err)
-	assert.Equal(t, entExpectedCL, got)
+	got, err := gen.toChangelog(string(prsText))
+	require.NoError(t, err)
+	assert.Equal(t, string(expectedCL), got)
 }
