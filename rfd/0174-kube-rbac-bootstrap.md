@@ -66,6 +66,24 @@ spec:
 Users will not need to create a separate role binding in Kubernetes for it to work - once the cluster is enrolled in Teleport, the default-view is already there.
 We will add an option to the teleport-kube-agent chart and to our
 kubeconfig generation script to not create those cluster role bindings, but it will be enabled by default. 
+In the teleport-kube-agent Helm chart we will add another field to the `rbac` section, `bindDefaultRoles`, that would control whether we expose the default
+roles through cluster bindings or not.
+
+Example content of a `cluster-values.yaml` file that could be used when installing the Helm chart:
+```yaml
+roles: kube,app,discovery
+authToken: test-auth-token
+proxyAddr: tele.local:3080
+kubeClusterName: test
+rbac:
+  create: true           <-- existing setting, defaults to true
+  bindDefaultRoles: true <-- new setting, also defaults to true
+labels:
+  teleport.internal/resource-id: b34f651c-32de-45f6-86dc-ab5173f716c9
+enterprise: true
+```
+
+If either `rbac.create` or `rbac.bindDefaultRoles` is false, we won't expose the default roles.
 
 ### Automatically provisioning RBAC resources to Kubernetes clusters.
 
