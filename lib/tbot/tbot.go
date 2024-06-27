@@ -439,8 +439,8 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	// TODO: consider warning if ownership of all destinations is not expected.
-	for _, output := range cfg.LegacyOutputs {
-		if err := output.Init(ctx); err != nil {
+	for _, initable := range cfg.GetInitables() {
+		if err := initable.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}

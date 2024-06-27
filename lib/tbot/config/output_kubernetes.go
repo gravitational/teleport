@@ -19,10 +19,18 @@
 package config
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
+)
+
+var (
+	_ ServiceConfig = &KubernetesOutput{}
+	_ Output        = &KubernetesOutput{}
+	_ Initable      = &KubernetesOutput{}
 )
 
 const KubernetesOutputType = "kubernetes"
@@ -61,6 +69,22 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 
 func (o *KubernetesOutput) GetDestination() bot.Destination {
 	return o.Destination
+}
+
+func (o *KubernetesOutput) Init(ctx context.Context) error {
+	return trace.Wrap(o.Destination.Init(ctx, []string{}))
+}
+
+func (o *KubernetesOutput) Describe() []FileDescription {
+	// Based on tbot.KubernetesOutputService.Render
+	return []FileDescription{
+		{
+			Name: "kubeconfig.yaml",
+		},
+		{
+			Name: IdentityFilePath,
+		},
+	}
 }
 
 func (o *KubernetesOutput) MarshalYAML() (interface{}, error) {

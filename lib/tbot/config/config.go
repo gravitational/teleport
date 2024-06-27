@@ -634,6 +634,11 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 }
 
+// Initable represents any Output or ServiceConfig which is compatible with
+// `tbot init`.
+// TODO(Noah): This is really a temporary patch whilst we migrate Outputs to
+// Services. Once that's done, we can go back to just directly referring to
+// conf.Services.
 type Initable interface {
 	GetDestination() bot.Destination
 	Init(ctx context.Context) error

@@ -108,7 +108,7 @@ func (s *outputsService) renewOutputs(
 	}
 
 	// Next, generate impersonated certs
-	for _, output := range s.cfg.Outputs {
+	for _, output := range s.cfg.LegacyOutputs {
 		s.log.InfoContext(ctx, "Generating output.", "output", output)
 
 		dest := output.GetDestination()
@@ -396,7 +396,7 @@ func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
 	botClient *authclient.Client,
 	botIdentity *identity.Identity,
-	output config.Output,
+	output config.LegacyOutput,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")

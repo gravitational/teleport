@@ -145,9 +145,6 @@ func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (
 
 func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	s.log.InfoContext(ctx, "Generating output")
-	if err := s.init(ctx); err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Check the ACLs. We can't fix them, but we can warn if they're
 	// misconfigured. We'll need to precompute a list of keys to check.
@@ -330,17 +327,6 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 		reloadCh:   reloadCh,
 	})
 	return trace.Wrap(err)
-}
-
-func (s *KubernetesOutputService) init(ctx context.Context) error {
-	if s.hasInit {
-		return nil
-	}
-	if err := s.cfg.Destination.Init(ctx, []string{}); err != nil {
-		return trace.Wrap(err, "initializing destination")
-	}
-	s.hasInit = true
-	return nil
 }
 
 func (s *KubernetesOutputService) String() string {

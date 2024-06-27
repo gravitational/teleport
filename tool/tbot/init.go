@@ -44,12 +44,8 @@ const RootUID = "0"
 const aclTestFailedMessage = "ACLs are not usable for destination %s; " +
 	"Change the destination's ACL mode to `off` to silence this warning."
 
-type describer interface {
-	Describe() []config.FileDescription
-}
-
 // getInitArtifacts returns a map of all desired artifacts for the destination
-func getInitArtifacts(output describer) map[string]bool {
+func getInitArtifacts(target config.Initable) map[string]bool {
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
 
@@ -61,7 +57,7 @@ func getInitArtifacts(output describer) map[string]bool {
 	}
 
 	// Collect all config template artifacts.
-	for _, fd := range output.Describe() {
+	for _, fd := range target.Describe() {
 		toCreate[fd.Name] = fd.IsDir
 	}
 
@@ -428,33 +424,33 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var destinationHolder config.DestinationHolder
 	var err error
-	destinationHolders := botConfig.DestinationHolders()
+	initables := botConfig.GetInitables()
+	var target config.Initable
 	// First, resolve the correct output/service. If using a config file with
 	// only 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
 	if cf.InitDir == "" {
-		if len(destinationHolders) == 1 {
-			destinationHolder = destinationHolders[0]
+		if len(initables) == 1 {
+			target = initables[0]
 		} else {
 			return trace.BadParameter("An output or service to initialize must be specified with --init-dir")
 		}
 	} else {
-		for _, v := range destinationHolders {
+		for _, v := range initables {
 			d := v.GetDestination()
 			dirDest, ok := d.(*config.DestinationDirectory)
 			if ok && dirDest.Path == cf.InitDir {
-				destinationHolder = v
+				target = v
 				break
 			}
 		}
-		if destinationHolder == nil {
+		if target == nil {
 			return trace.NotFound("Could not find specified destination %q", cf.InitDir)
 		}
 	}
 
-	destDir, ok := destinationHolder.GetDestination().(*config.DestinationDirectory)
+	destDir, ok := target.GetDestination().(*config.DestinationDirectory)
 	if !ok {
 		return trace.BadParameter("`tbot init` only supports directory destinations")
 	}
@@ -463,7 +459,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := output.Init(ctx); err != nil {
+	if err := target.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -512,7 +508,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	// Next, resolve what we want and what we already have.
-	desired := getInitArtifacts(destDir)
+	desired := getInitArtifacts(target)
 	existing, err := getExistingArtifacts(destDir.Path)
 	if err != nil {
 		return trace.Wrap(err)
