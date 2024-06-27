@@ -24,7 +24,6 @@ const configFactory = {
   createDefaultConfig,
 };
 
-/** @return {import('webpack').webpack.Configuration} */
 function createDefaultConfig() {
   return {
     entry: {
