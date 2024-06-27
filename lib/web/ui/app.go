@@ -56,6 +56,9 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// SAMLAppPreset is the preset value of SAML IdP service provider. The SAML service provider
+	// preset value is used to process custom configuration for the service provider.
+	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
 	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	Integration string `json:"integration,omitempty"`
@@ -150,14 +153,15 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
-		Kind:         types.KindApp,
-		Name:         app.GetName(),
-		Description:  "SAML Application",
-		PublicAddr:   "",
-		Labels:       labels,
-		ClusterID:    c.AppClusterName,
-		FriendlyName: types.FriendlyName(app),
-		SAMLApp:      true,
+		Kind:          types.KindApp,
+		Name:          app.GetName(),
+		Description:   "SAML Application",
+		PublicAddr:    "",
+		Labels:        labels,
+		ClusterID:     c.AppClusterName,
+		FriendlyName:  types.FriendlyName(app),
+		SAMLApp:       true,
+		SAMLAppPreset: app.GetPreset(),
 	}
 
 	return resultApp
