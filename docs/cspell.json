@@ -770,6 +770,7 @@
     "replicationgroup",
     "requestable",
     "requirepass",
+    "retryablehttp",
     "reversetunnel",
     "reviewee",
     "rffx",
