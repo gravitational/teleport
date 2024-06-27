@@ -18,11 +18,16 @@ package utils
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"os"
+	"os/user"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 // TestBackgroundTask is a task that should be run in the background for the remaining duration of a test and
@@ -86,4 +91,35 @@ func RunTestBackgroundTask(ctx context.Context, t *testing.T, task *TestBackgrou
 			}
 		}
 	})
+}
+
+// RequireRoot skips the current test if it is not running as root.
+func RequireRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() != 0 {
+		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
+}
+
+func generateUsername(t *testing.T) string {
+	suffix := make([]byte, 8)
+	_, err := rand.Read(suffix)
+	require.NoError(t, err)
+	return fmt.Sprintf("teleport-%x", suffix)
+}
+
+// GenerateLocalUsername generates the username for a local user that does not
+// already exists (but it does not create the user).
+func GenerateLocalUsername(t *testing.T) string {
+	const maxAttempts = 10
+	for i := 0; i < maxAttempts; i++ {
+		login := generateUsername(t)
+		_, err := user.Lookup(login)
+		if errors.Is(err, user.UnknownUserError(login)) {
+			return login
+		}
+		require.NoError(t, err)
+	}
+	t.Fatalf("Unable to generate unused username after %v attempts", maxAttempts)
+	return ""
 }

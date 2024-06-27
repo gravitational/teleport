@@ -1,15 +1,47 @@
 # Changelog
 
-## 16.0.2 (06/20/24)
+## 16.0.3 (06/27/24)
 
+This release of Teleport contains a fix for medium-level security issue impacting
+Teleport Enterprise, as well as various other updates and improvements
+
+### Security Fixes
+
+* **[Medium]** Fixes issue where a SCIM client could potentially overwrite.
+  Teleport system Roles using specially crafted groups. This issue impacts
+  Teleport Enterprise deployments using the Okta integration with SCIM support
+  enabled.
+  
+We strongly recommend all customers upgrade to the latest releases of Teleport.
+
+### Other updates and improvements
+ 
+* Update `go-retryablehttp` to v0.7.7 (fixes CVE-2024-6104). [#43474](https://github.com/gravitational/teleport/pull/43474)
+* Fixed Discover setup access error when updating user. [#43560](https://github.com/gravitational/teleport/pull/43560)
+* Added audit event field describing if the "MFA for admin actions" requirement changed. [#43541](https://github.com/gravitational/teleport/pull/43541)
+* Fixed remote port forwarding validation error. [#43516](https://github.com/gravitational/teleport/pull/43516)
+* Added support to trust system CAs for self-hosted databases. [#43493](https://github.com/gravitational/teleport/pull/43493)
+* Added error display in the Web UI for SSH and Kubernetes sessions. [#43485](https://github.com/gravitational/teleport/pull/43485)
+* Fixed accurate inventory reporting of the updater after it is removed. [#43454](https://github.com/gravitational/teleport/pull/43454)
+* `tctl alerts ls` now displays remaining alert ttl. [#43436](https://github.com/gravitational/teleport/pull/43436)
+* Fixed input search for Teleport Connect's access request listing. [#43429](https://github.com/gravitational/teleport/pull/43429)
+* Added `Debug` setting for event-handler. [#43408](https://github.com/gravitational/teleport/pull/43408)
+* Fixed Headless auth for sso users, including when local auth is disabled. [#43361](https://github.com/gravitational/teleport/pull/43361)
+* Added configuration for custom CAs in the event-handler helm chart. [#43340](https://github.com/gravitational/teleport/pull/43340)
+* Updated VNet panel in Teleport Connect to list custom DNS zones and DNS zones from leaf clusters. [#43312](https://github.com/gravitational/teleport/pull/43312)
+* Fixed an issue with Database Access Controls preventing users from making additional database connections. [#43303](https://github.com/gravitational/teleport/pull/43303)
+* Fixed bug that caused gRPC connections to be disconnected when their certificate expired even though DisconnectCertExpiry was false. [#43290](https://github.com/gravitational/teleport/pull/43290)
+* Fixed Connect My Computer in Teleport Connect failing with "bind: invalid argument". [#43287](https://github.com/gravitational/teleport/pull/43287)
+* Fix a bug where a Teleport instance running only Jamf or Discovery service would never have a healthy  `/readyz` endpoint. [#43283](https://github.com/gravitational/teleport/pull/43283)
 * Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs. [#43257](https://github.com/gravitational/teleport/pull/43257)
 * Patched timing variability in curve25519-dalek. [#43246](https://github.com/gravitational/teleport/pull/43246)
 * Fixed setting request reason for automatic ssh access requests. [#43178](https://github.com/gravitational/teleport/pull/43178)
 * Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs. [#43161](https://github.com/gravitational/teleport/pull/43161)
 * Added `tctl desktop bootstrap` for bootstrapping AD environments to work with Desktop Access. [#43150](https://github.com/gravitational/teleport/pull/43150)
 
-### Enterprise only changes
+### Enterprise only changes and improvements
 
+* The teleport updater will no longer default to using the global version channel, avoiding incompatible updates.
 * Fixed sync error in Okta SCIM integration.
 
 ## 16.0.1 (06/17/24)

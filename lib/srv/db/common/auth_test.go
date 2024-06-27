@@ -171,6 +171,13 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectClientCertificates: true,
 		},
 		{
+			name:                     "self-hosted with trust_system_cert_pool",
+			sessionDatabase:          newSelfHostedDatabaseWithTrustSytemCertPool(t, "postgres.dev.example.com:8888"),
+			expectServerName:         "postgres.dev.example.com",
+			expectRootCAs:            systemCertPoolWithCA,
+			expectClientCertificates: true,
+		},
+		{
 			name:            "AWS ElastiCache Redis",
 			sessionDatabase: newElastiCacheRedisDatabase(t, withCA(fixtures.SAMLOktaCertPEM)),
 			expectRootCAs:   awsCertPool,
@@ -693,6 +700,22 @@ func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 		URI:      "rediss://test-database.redis.cache.windows.net:8888",
 		Azure: types.Azure{
 			ResourceID: resourceID,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newSelfHostedDatabaseWithTrustSytemCertPool(t *testing.T, uri string) types.Database {
+	t.Helper()
+
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      uri,
+		TLS: types.DatabaseTLS{
+			TrustSystemCertPool: true,
 		},
 	})
 	require.NoError(t, err)
