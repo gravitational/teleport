@@ -23,6 +23,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -175,4 +177,53 @@ func (m *maxBytesReader) Read(p []byte) (int, error) {
 		return n, ErrLimitReached
 	}
 	return n, err
+}
+
+// Sensitive headers list based on team discussion and Akami's list of
+// not-to-be-logged headers here:
+//    https://techdocs.akamai.com/edge-diagnostics/reference/sensitive-headers
+//
+//  - Authorization
+//  - Proxy-Authorization
+//  - Set-Cookie
+//  - Anything containing "API-Key"
+//  - X-Amz-Security-Token
+
+// sensitiveHeaderKeys is the list HTTP headers deemed to be too sensitive
+// to be written to a log.
+var sensitiveHeaderKeys []string = []string{
+	"authorization",
+	"proxy-authorization",
+	"set-cookie",
+	"x-amz-security-token",
+}
+
+// sensitiveHeaderFragments is a list of suspect header fragments. If a header
+// key contains any of these fragments it will be filtered out by
+// SanitizeHeaders()
+var sensitiveHeaderFragments []string = []string{
+	"api-key",
+}
+
+// SanitizeHeaders filters sensitive out of a an HTT message's header collection,
+// in order to make them suitable for writing to logs. Returns a new http.Header
+// containing the filtered collection.
+func SanitizeHeaders(src http.Header) http.Header {
+	dst := http.Header{}
+	for key, value := range src {
+		lcKey := strings.ToLower(key)
+
+		if slices.Contains(sensitiveHeaderKeys, lcKey) {
+			continue
+		}
+
+		if slices.ContainsFunc(sensitiveHeaderFragments,
+			func(frag string) bool { return strings.Contains(lcKey, frag) }) {
+			continue
+		}
+
+		dst[key] = value
+	}
+
+	return dst
 }

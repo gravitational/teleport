@@ -20,6 +20,7 @@ package utils
 
 import (
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -140,4 +141,105 @@ func TestChainHTTPMiddlewares(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "middleware4->middleware2->baseHandler", string(body))
+}
+
+func TestSanitizeHeaders(t *testing.T) {
+	innoffensiveHeaders := http.Header{
+		"User-Agent":     {"Some Client v1.0.0"},
+		"Accept":         {"text/json", "text/xml"},
+		"Accept-Charset": {"utf-8"},
+		"Connection":     {"Keep-Alive"},
+	}
+
+	inoffensiveHeadersPlus := func(extras ...string) http.Header {
+		if len(extras) < 2 {
+			panic("Must have at least 1 key/value pair")
+		}
+
+		if len(extras)%2 != 0 {
+			panic("Must have at integral number of key-pair values")
+		}
+
+		dst := maps.Clone(innoffensiveHeaders)
+		for i := 0; i < len(extras); i += 2 {
+			dst[extras[i]] = []string{extras[i+1]}
+		}
+		return dst
+	}
+
+	equalsInoffensiveHeaders := func(t require.TestingT, value any, args ...any) {
+		require.Equal(t, innoffensiveHeaders, value, args)
+	}
+
+	testCases := []struct {
+		name      string
+		input     http.Header
+		assertion require.ValueAssertionFunc
+	}{
+		{
+			name:      "Authorization is redacted",
+			input:     inoffensiveHeadersPlus("Authorization", "Bearer SOME-TOKEN"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "Proxy-Authorization is redacted",
+			input:     inoffensiveHeadersPlus("Proxy-Authorization", "Bearer SOME-TOKEN"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "Set-Cookie is redacted",
+			input:     inoffensiveHeadersPlus("Set-Cookie", "blah"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "leading API-key is redacted",
+			input:     inoffensiveHeadersPlus("api-key-here", "blah"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "trailing API-key is redacted",
+			input:     inoffensiveHeadersPlus("some-api-key", "blah"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "infix API-key is redacted",
+			input:     inoffensiveHeadersPlus("some-api-key-goes-here", "blah"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "X-Amz-Security-Token is redacted",
+			input:     inoffensiveHeadersPlus("X-Amz-Security-Token", `70|<3|\|`),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name: "multiple matches are redacted",
+			input: inoffensiveHeadersPlus(
+				"Authorization", "Bearer SOME-TOKEN",
+				"Proxy-Authorization", "Bearer SOME-TOKEN",
+				"X-Amz-Security-Token", `70|<3|\|`),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "matching is case insensitive",
+			input:     inoffensiveHeadersPlus("sET-cOOKIE", "blah blah blah"),
+			assertion: equalsInoffensiveHeaders,
+		},
+		{
+			name:      "handles empty headers",
+			input:     http.Header{},
+			assertion: require.Empty,
+		},
+		{
+			name:      "handles nil",
+			input:     nil,
+			assertion: require.Empty,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			uut := SanitizeHeaders(tt.input)
+			tt.assertion(t, uut)
+		})
+	}
 }
