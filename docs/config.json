@@ -2375,7 +2375,7 @@
     },
     {
       "source": "/kubernetes-access/getting-started/local/",
-      "destination": "/kubernetes-access/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     },
     {
