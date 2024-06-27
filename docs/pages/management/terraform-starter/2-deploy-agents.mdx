@@ -23,7 +23,7 @@ resources:
 - Compute instances to run Teleport services
 - A join token for each compute instance in the agent pool
 
-![A Teleport Agent pool](../../img/tf-agent-diagram.png)
+![A Teleport Agent pool](../../../img/tf-agent-diagram.png)
 
 ## Prerequisites
 
@@ -55,13 +55,24 @@ resources:
 1. In `agents`, create a file called `main.tf` with the following content:
 
    {/*TODO: Edit the main.tf file so it doesn't just show Azure*/}
+
+   ```hcl
    (!examples/agent-pool-terraform/main.tf!)
+   ```
 
 ## Step 2/ . Create Teleport tokens
 
+  ```hcl
   (!examples/agent-pool-terraform/teleport/outputs.tf!)
+  ```
+
+  ```hcl 
   (!examples/agent-pool-terraform/teleport/required_providers.tf!)
+  ```
+
+  ```hcl 
   (!examples/agent-pool-terraform/teleport/inputs.tf!)
+  ```
 
 ### Join token
 
@@ -89,12 +100,16 @@ provider creates them on the Teleport Auth Service backend.
   <Tabs>
   <TabItem label="AWS">
 
+  ```hcl 
   (!examples/agent-pool-terraform/aws/required_providers.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Google Cloud">
 
+  ```hcl 
   (!examples/agent-pool-terraform/gcp/required_providers.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Azure">
@@ -107,7 +122,9 @@ provider creates them on the Teleport Auth Service backend.
   declares a temporary one to pass validation, but uses Teleport to enable
   access to the instances:
 
+  ```hcl 
   (!examples/agent-pool-terraform//azure/required_providers.tf!)
+  ```
 
   </TabItem>
   </Tabs>
@@ -120,7 +137,9 @@ provider creates them on the Teleport Auth Service backend.
   launch EC2 instances that run Teleport agents with the
   `teleport_provision_token` resource:
 
+  ```hcl 
   (!examples/agent-pool-terraform/aws/ec2-instance.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Google Cloud">
@@ -128,12 +147,16 @@ provider creates them on the Teleport Auth Service backend.
   Declare Google Compute Engine instances that use the
   `teleport_provision_token` to run Teleport agents:
 
+  ```hcl 
   (!examples/agent-pool-terraform/gcp/gcp-instance.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Azure">
 
+  ```hcl 
   (!examples/agent-pool-terraform/azure/azure-instance.tf!)
+  ```
 
   </TabItem>
   </Tabs>
@@ -142,22 +165,29 @@ The configuration you created runs the following user data script on each agent
 instance. The services enabled by the configuration file depend on the value of
 the `agent_roles` input variable:
 
+```hcl
 (!examples/agent-pool-terraform/teleport/userdata!)
-
+```
   <Tabs>
   <TabItem label="AWS">
 
+  ```hcl 
   (!examples/agent-pool-terraform/aws/inputs.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Google Cloud">
 
+  ```hcl 
   (!examples/agent-pool-terraform/gcp/inputs.tf!)
+  ```
 
   </TabItem>
   <TabItem label="Azure">
 
+  ```hcl 
   (!examples/agent-pool-terraform/azure/inputs.tf!)
+  ```
   </TabItem>
   </Tabs>
 
