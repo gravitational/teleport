@@ -1,5 +1,40 @@
 # Changelog
 
+## 15.4.6 (06/27/24)
+
+This release of Teleport contains a fix for medium-level security issue impacting
+Teleport Enterprise, as well as various other updates and improvements
+
+### Security Fixes
+
+* **[Medium]** Fixes issue where a SCIM client could potentially overwrite.
+  Teleport system Roles using specially crafted groups. This issue impacts
+  Teleport Enterprise deployments using the Okta integration with SCIM support
+  enabled.
+
+We strongly recommend all customers upgrade to the latest releases of Teleport.
+
+### Other updates and improvements
+
+* Fixed Discover setup access error when updating user. [#43561](https://github.com/gravitational/teleport/pull/43561)
+* Updated Go toolchain to 1.22. [#43550](https://github.com/gravitational/teleport/pull/43550)
+* Fixed remote port forwarding validation error. [#43517](https://github.com/gravitational/teleport/pull/43517)
+* Added support to trust system CAs for self-hosted databases. [#43500](https://github.com/gravitational/teleport/pull/43500)
+* Added error display in the Web UI for SSH and Kubernetes sessions. [#43491](https://github.com/gravitational/teleport/pull/43491)
+* Update `go-retryablehttp` to v0.7.7 (fixes CVE-2024-6104). [#43475](https://github.com/gravitational/teleport/pull/43475)
+* Fixed accurate inventory reporting of the updater after it is removed.. [#43453](https://github.com/gravitational/teleport/pull/43453)
+* `tctl alerts ls` now displays remaining alert ttl. [#43435](https://github.com/gravitational/teleport/pull/43435)
+* Fixed input search for Teleport Connect's access request listing. [#43430](https://github.com/gravitational/teleport/pull/43430)
+* Added `Debug` setting for event-handler. [#43409](https://github.com/gravitational/teleport/pull/43409)
+* Fixed Headless auth for sso users, including when local auth is disabled. [#43362](https://github.com/gravitational/teleport/pull/43362)
+* Added configuration for custom CAs in the event-handler helm chart. [#43341](https://github.com/gravitational/teleport/pull/43341)
+* Fixed an issue with Database Access Controls preventing users from making additional database connections depending on their permissions. [#43302](https://github.com/gravitational/teleport/pull/43302)
+* Fixed Connect My Computer in Teleport Connect failing with "bind: invalid argument". [#43288](https://github.com/gravitational/teleport/pull/43288)
+
+### Enterprise only updates and improvements
+
+* The teleport updater will no longer default to using the global version channel, avoiding incompatible updates. [#4476](https://github.com/gravitational/teleport.e/pull/4476)
+
 ## 15.4.5 (06/20/24)
 
 * Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs. [#43256](https://github.com/gravitational/teleport/pull/43256)
