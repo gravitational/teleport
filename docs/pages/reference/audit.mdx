@@ -1,6 +1,7 @@
 ---
 title: Audit Events and Records
 description: Reference of Teleport Audit Events and Session Records
+tocDepth: 3
 ---
 
 Teleport logs cluster activity by emitting various events into its audit log.
@@ -118,38 +119,6 @@ format:
 }
 ```
 
-## Event types
-
-Below are some possible types of audit events.
-
-<Notice type="tip">
-
-This list is not comprehensive. We recommend exporting audit events to a
-platform that automatically parses event payloads so you can group and filter
-them by their `event` key and discover trends. To set up audit event exporting,
-read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
-
-</Notice>
-
-| Event Type | Description |
-| - | - |
-| auth | Authentication attempt. Adds the following fields: `{"success": "false", "error": "access denied"}` |
-| session.start | Started an interactive shell session. |
-| session.end | An interactive shell session has ended. |
-| session.join | A new user has joined the existing interactive shell session. |
-| session.leave | A user has left the session. |
-| session.disk | A list of files opened during the session. *Requires Enhanced Session Recording*. |
-| session.network | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
-| session.command | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
-| session.recording.access | A session recording has been accessed. |
-| exec | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
-| scp | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
-| resize | Terminal has been resized. |
-| user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
-| app.session.start | A user accessed an application |
-| app.session.chunk | A record of activity during an app session |
-| join_token.create | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
-
 ## Recorded sessions
 
 In addition to logging start and end events, Teleport can also record the entire session.
@@ -232,3 +201,18 @@ spec:
     record_session:
       ssh: strict
 ```
+
+## Event types
+
+Below are some possible types of audit events.
+
+<Notice type="tip">
+
+This list is not comprehensive. We recommend exporting audit events to a
+platform that automatically parses event payloads so you can group and filter
+them by their `event` key and discover trends. To set up audit event exporting,
+read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
+
+</Notice>
+
+(!docs/pages/includes/auditevents.mdx!)

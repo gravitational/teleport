@@ -634,3 +634,7 @@ generate-eventschema:
 		--plugin=./tooling/bin/protoc-gen-eventschema \
 		--eventschema_out="../gen/go/eventschema" \
 		"teleport/legacy/types/events/events.proto";
+
+.PHONY:generate-event-reference
+generate-event-reference:
+	cd tooling/cmd/gen-event-reference && go run eventreference -types ../../../../lib/events/api.go -codes ../../../../lib/events/codes.go -out ../../../../docs/pages/includes/auditevents.mdx
