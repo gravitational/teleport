@@ -5,7 +5,6 @@
   "main": "index.js",
   "license": "Apache-2.0",
   "scripts": {
-    "storybook": "start-storybook -p 9002 -c .storybook",
     "test": "jest",
     "tdd": "jest . --watch"
   },
