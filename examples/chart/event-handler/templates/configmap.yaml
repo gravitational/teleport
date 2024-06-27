@@ -11,6 +11,11 @@ data:
     batch = {{ .Values.eventHandler.batch }}
     window-size = {{ default "24h" .Values.eventHandler.windowSize | quote }}
     debug = {{ default "false" .Values.eventHandler.debug }}
+    {{- if .Values.eventHandler.types }}
+    types = "{{ .Values.eventHandler.types }}"
+    {{- end }}
+    skip-event-types = "{{ default "" .Values.eventHandler.skipEventTypes }}"
+    skip-session-types = "{{ default "" .Values.eventHandler.skipSessionTypes }}"
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"
