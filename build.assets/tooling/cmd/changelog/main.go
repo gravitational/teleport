@@ -43,9 +43,6 @@ var (
 		"base-tag",
 		"The tag/version to generate the changelog from. It will be of the form vXX.Y.Z, e.g. v15.1.1",
 	).Envar("BASE_TAG").String()
-
-	// eotTimestamp is just a convenience variable to signify no upper bound on searching PR's by time
-	eotTimestamp = ""
 )
 
 // getForkedBranch will attempt to find a root branch for the current one that is in the format branch/v*
@@ -209,7 +206,7 @@ func main() {
 		isEnt: true,
 		dir:   entDir,
 	}
-	ossCL, err := ossCLGen.generateChangelog(branch, timeLastRelease, eotTimestamp)
+	ossCL, err := ossCLGen.generateChangelog(branch, timeLastRelease, timeNow)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -15,6 +15,9 @@ var (
 	// clPattern will match a changelog format with the summary as a subgroup.
 	// e.g. will match a line "changelog: this is a changelog" with subgroup "this is a changelog".
 	clPattern = regexp.MustCompile(`[Cc]hangelog: +(.*)`)
+
+	// timeNow is a convenience variable to signal that search should include PRs up to current time
+	timeNow = ""
 )
 
 // pr is the expected output format of our search query
@@ -92,18 +95,13 @@ func (c *changelogGenerator) toChangelog(data string) (string, error) {
 	cl := ""
 	for _, p := range list {
 		found, clSummary := findChangelog(p.Body)
-		if !found {
-			if c.isEnt { // Skip for enterprise
-				continue
+		if found {
+			clSummary = prettierSummary(clSummary)
+			if c.isEnt {
+				cl += fmt.Sprintf("* %s\n", clSummary)
+			} else {
+				cl += fmt.Sprintf("* %s [#%d](%s)\n", clSummary, p.Number, p.Url)
 			}
-			// Use title as a summary
-			clSummary = fmt.Sprintf("NOCL: %s. ", p.Title)
-		}
-		clSummary = prettierSummary(clSummary)
-		if c.isEnt {
-			cl += fmt.Sprintf("* %s\n", clSummary)
-		} else {
-			cl += fmt.Sprintf("* %s [#%d](%s)\n", clSummary, p.Number, p.Url)
 		}
 	}
 	return cl, nil
