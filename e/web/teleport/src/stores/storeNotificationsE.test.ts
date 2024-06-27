@@ -93,17 +93,30 @@ test('as an admin, set and filter access lists due within two weeks', async () =
 
 test('as an owner, set and filter access lists due within two weeks', async () => {
   const store = new StoreNotificationsE();
-
   expect(store.getNotifications()).toStrictEqual([]);
 
-  store.setNotificationsForAccessListsRequiringReview(mocksForLlama, {
+  const userContext = {
     ...baseUserContext,
     acl: {
       ...baseUserContext.acl,
       accessList: noAccess, // not an admin
     },
     username: 'llama',
-  });
+  };
+
+  // Should do nothing, even though its due for a review since
+  // user is not an owner of the access list.
+  store.updateOrRemoveAccessListNotification(
+    dueTodayButNotAnOwner,
+    userContext
+  );
+  expect(store.getNotifications()).toStrictEqual([]);
+
+  // Test for reviews by being an owner.
+  store.setNotificationsForAccessListsRequiringReview(
+    mocksForLlama,
+    userContext
+  );
 
   // filtered and sorted
   expect(store.getNotifications()).toHaveLength(2);
@@ -134,21 +147,25 @@ test('update an access list notification (due date changed, but still due within
 
   expect(store.getNotifications()).toStrictEqual([]);
 
-  store.setNotificationsForAccessListsRequiringReview(mocks, {
+  const userContext = {
     ...baseUserContext,
     acl: {
       ...baseUserContext.acl,
       accessList: hasAccess,
     },
     username: 'does-not-matter',
-  });
+  };
+  store.setNotificationsForAccessListsRequiringReview(mocks, userContext);
   expect(store.getNotifications()).toHaveLength(4);
 
   // Update an existing notification "dueToday".
-  store.updateOrRemoveAccessListNotification({
-    ...dueToday,
-    audit: { ...dueToday.audit, nextDate: addWeeks(new Date(), 2) },
-  });
+  store.updateOrRemoveAccessListNotification(
+    {
+      ...dueToday,
+      audit: { ...dueToday.audit, nextDate: addWeeks(new Date(), 2) },
+    },
+    userContext
+  );
 
   const notices = store.getNotifications();
   expect(notices).toHaveLength(4);
@@ -165,21 +182,25 @@ test('remove an existing notification (no longer due in two weeks)', async () =>
 
   expect(store.getNotifications()).toStrictEqual([]);
 
-  store.setNotificationsForAccessListsRequiringReview(mocks, {
+  const userContext = {
     ...baseUserContext,
     acl: {
       ...baseUserContext.acl,
       accessList: hasAccess,
     },
     username: 'does-not-matter',
-  });
+  };
+  store.setNotificationsForAccessListsRequiringReview(mocks, userContext);
   expect(store.getNotifications()).toHaveLength(4);
 
   // Update an existing notification "dueToday".
-  store.updateOrRemoveAccessListNotification({
-    ...dueToday,
-    audit: { ...dueToday.audit, nextDate: addWeeks(new Date(), 6) },
-  });
+  store.updateOrRemoveAccessListNotification(
+    {
+      ...dueToday,
+      audit: { ...dueToday.audit, nextDate: addWeeks(new Date(), 6) },
+    },
+    userContext
+  );
 
   const notices = store.getNotifications();
   expect(notices).toHaveLength(3);
@@ -201,6 +222,12 @@ const dueToday: AccessList = {
   ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
   owners: [{ name: 'alpaca' }],
+};
+
+const dueTodayButNotAnOwner: AccessList = {
+  ...dueToday,
+  id: 'due-today-but-not-an-owner',
+  owners: [{ name: 'random' }],
 };
 
 const pastDue: AccessList = {
@@ -289,6 +316,7 @@ const mocks: AccessList[] = [
 ];
 
 const mocksForLlama: AccessList[] = [
+  dueTodayButNotAnOwner,
   {
     id: '47dadc5f-4840-5ad1-bcb6-ed63ded98937',
     title: 'Design Team',

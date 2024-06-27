@@ -112,7 +112,10 @@ export function ViewEditAccessList() {
       }),
     };
     setAccessList(modifiedAccessList);
-    ctx.storeNotifications.updateOrRemoveAccessListNotification(newAccessList);
+    ctx.storeNotifications.updateOrRemoveAccessListNotification(
+      newAccessList,
+      ctx.storeUser.state
+    );
 
     const accessListAccess = ctx.storeUser.getAccessListAccess();
     const isOwner = newAccessList.owners.some(

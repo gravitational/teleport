@@ -20,35 +20,16 @@ export class StoreNotificationsE extends StoreNotifications {
       return;
     }
 
-    // Determine if context user is an admin or an owner of
-    // the fetched access lists.
-    // Members can also read access lists that they are
-    // members of, but cannot modify or view them.
-
-    // First check if this context's user is an admin.
-    const { list, read, edit, create } = userContext.acl.accessList;
-    const isAdmin = list && read && edit && create;
-    if (!isAdmin) {
-      // Check if this context's user is an owner.
-      // We are only checking one of the access lists, because the
-      // fetched list will only contain access lists that this
-      // user is an owner to.
-      const owners = accessLists[0].owners;
-      if (!owners.some(o => o.name === userContext.username)) {
-        return;
-      }
-    }
-
-    // At this point, context user is either an admin or an owner.
-    // Go through each access list and see which ones need
-    // review in two weeks.
-
     const todayDate = new Date();
-    const requiresReview = accessLists.filter(a =>
-      accessListRequiresReview({
-        todayDate,
-        reviewDate: a.audit.nextDate,
-      })
+    // Go through each access list and see which ones need
+    // review in two weeks and if requires review, check if
+    // the currently logged in user needs to be notified.
+    const requiresReview = accessLists.filter(
+      a =>
+        accessListRequiresReview({
+          todayDate,
+          reviewDate: a.audit.nextDate,
+        }) && shouldNotifyForReview(a, userContext)
     );
 
     const notices: Notification[] = requiresReview.map(a => {
@@ -66,7 +47,19 @@ export class StoreNotificationsE extends StoreNotifications {
     this.updateNotificationsByKind(notices, LocalNotificationKind.AccessList);
   }
 
-  updateOrRemoveAccessListNotification(accessList: AccessList) {
+  /**
+   * Updates or removes an access list from existing notifications.
+   * If user is not a owner or have admin privileges, then this
+   * function will do nothing.
+   */
+  updateOrRemoveAccessListNotification(
+    accessList: AccessList,
+    userContext: UserContext
+  ) {
+    if (!shouldNotifyForReview(accessList, userContext)) {
+      return;
+    }
+
     // Filter out possibly stale access list notice.
     const filtered = this.state.notifications.filter(
       n =>
@@ -107,4 +100,28 @@ export function accessListRequiresReview({
   }
 
   return todayDate >= subWeeks(reviewDate, 2);
+}
+
+/**
+ * Determines if context user (the currently logged in user) should be
+ * notified that this access list requires attention.
+ *
+ * Only returns true for the following:
+ *   - User is found in the owners list
+ *   - User has RBAC priviledges == admin
+ */
+function shouldNotifyForReview(
+  accessList: AccessList,
+  userContext: UserContext
+) {
+  const { list, read, edit, create } = userContext.acl.accessList;
+  const isAdmin = list && read && edit && create;
+  if (isAdmin) {
+    return true;
+  }
+
+  const loggedInUser = userContext.username;
+
+  // If loggedInUser is not a owner, then they are just a member.
+  return accessList.owners.some(o => o.name === loggedInUser);
 }
