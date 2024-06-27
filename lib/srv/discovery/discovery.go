@@ -46,9 +46,9 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -114,7 +114,7 @@ type Config struct {
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
-	AccessPoint auth.DiscoveryAccessPoint
+	AccessPoint authclient.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
 	// ServerID identifies the Teleport instance where this service runs.
@@ -135,6 +135,7 @@ type Config struct {
 	ClusterName string
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
+	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
 	// ServerCredentials are the credentials used to identify the discovery service
@@ -225,7 +226,7 @@ kubernetes matchers are present.`)
 	}
 
 	if c.PollInterval == 0 {
-		c.PollInterval = 5 * time.Minute
+		c.PollInterval = common.DefaultDiscoveryPollInterval
 	}
 
 	c.TriggerFetchC = make([]chan struct{}, 0)
@@ -460,9 +461,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.caRotationCh = make(chan []types.Server)
 
 	if s.ec2Installer == nil {
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.ec2Installer = ec2installer
 	}
 
 	lr, err := newLabelReconciler(&labelReconcilerConfig{
@@ -782,8 +788,8 @@ func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	})
 }
 
-func genGCPInstancesLogStr(instances []*gcp.Instance) string {
-	return genInstancesLogStr(instances, func(i *gcp.Instance) string {
+func genGCPInstancesLogStr(instances []*gcpimds.Instance) string {
+	return genInstancesLogStr(instances, func(i *gcpimds.Instance) string {
 		return i.Name
 	})
 }
@@ -805,7 +811,6 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	// TODO(marco): support AWS SSM Client backed by an integration
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -816,22 +821,24 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
 	//
-	// Integration/EICE Nodes don't have heartbeat.
-	// Those Nodes must not be filtered, so that we can extend their expiration and sync labels.
-	if !instances.Rotation && instances.Integration == "" {
+	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
+	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		s.filterExistingEC2Nodes(instances)
 	}
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	switch {
-	case instances.Integration != "":
+	switch instances.EnrollMode {
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		s.heartbeatEICEInstance(instances)
-	default:
+
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
 		if err := s.handleEC2RemoteInstallation(instances); err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("invalid enroll mode for ec2 instance: %q", instances.EnrollMode.String())
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
@@ -852,7 +859,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	nodesToUpsert := make([]types.Server, 0, len(instances.Instances))
 	// Add EC2 Instances using EICE method
 	for _, ec2Instance := range instances.Instances {
-		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
+		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
 			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
 			continue
@@ -902,7 +909,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 
 func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx,
+		instances.Region,
+		cloud.WithCredentialsMaybeIntegration(instances.Integration),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1127,7 +1137,7 @@ func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 		_, nameOK := labels[types.NameLabel]
 		return projectIDOK && zoneOK && nameOK
 	})
-	var filtered []*gcp.Instance
+	var filtered []*gcpimds.Instance
 outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {

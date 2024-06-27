@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -45,10 +47,8 @@ const (
 	batchSize = 500
 )
 
-var (
-	// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
-	errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
-)
+// errNoAccessGraphFetchers is returned when there are no TAG fetchers.
+var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
 func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
 	type fetcherResult struct {
@@ -251,24 +251,41 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to push AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLock(
+	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
-		services.SemaphoreLockConfig{
-			Service: s.AccessPoint,
-			Params: types.AcquireSemaphoreRequest{
-				SemaphoreKind: types.KindAccessGraph,
-				SemaphoreName: semaphoreName,
-				MaxLeases:     1,
-				Expires:       s.clock.Now().Add(semaphoreExpiration),
-				Holder:        s.Config.ServerID,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Expires:       s.clock.Now().Add(semaphoreExpiration),
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
 			},
-			Expiry: semaphoreExpiration,
-			Clock:  s.clock,
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.NewJitter(),
+			},
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
@@ -310,12 +327,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}
 	features := aws_sync.BuildFeatures(supportedKinds...)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 			s.Log.Info("access graph service connection was closed")

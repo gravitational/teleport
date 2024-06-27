@@ -48,7 +48,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0]}
+        bg={theme.colors.interactive.tonal.neutral[0].background}
         lineHeight={0}
         p={2}
         borderRadius={3}
@@ -66,6 +66,7 @@ export function Header({
       <Box
         lineHeight={0}
         style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+        data-testid="indicator-wrapper"
       >
         <Indicator size={40} />
       </Box>

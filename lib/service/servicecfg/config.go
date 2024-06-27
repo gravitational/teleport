@@ -33,17 +33,16 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -77,7 +76,7 @@ type Config struct {
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
-	Identities []*auth.Identity
+	Identities []*state.Identity
 
 	// AdvertiseIP is used to "publish" an alternative IP address or hostname this node
 	// can be reached on, if running behind NAT
@@ -105,6 +104,9 @@ type Config struct {
 
 	// Metrics defines the metrics service configuration.
 	Metrics MetricsConfig
+
+	// DebugService defines the debug service configuration.
+	DebugService DebugConfig
 
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
@@ -250,7 +252,7 @@ type Config struct {
 	AdditionalReadyEvents []string
 
 	// InstanceMetadataClient specifies the instance metadata client.
-	InstanceMetadataClient cloud.InstanceMetadata
+	InstanceMetadataClient imds.Client
 
 	// Testing is a group of properties that are used in tests.
 	Testing ConfigTesting
@@ -301,15 +303,6 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
-
-	// OpenAIConfig contains the optional OpenAI client configuration used by
-	// auth and proxy. When it's not set (the default, we don't offer a way to
-	// set it when executing the regular Teleport binary) we use the default
-	// configuration with auth tokens passed from Auth.AssistAPIKey or
-	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
-	// the real OpenAI API.
-	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
-	OpenAIConfig *openai.ClientConfig
 }
 
 // AccessGraphConfig represents TAG server config
@@ -781,4 +774,9 @@ func verifyEnabledService(cfg *Config) error {
 func (c *Config) SetLogLevel(level slog.Level) {
 	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
+}
+
+// GetLogLevel returns the current log level.
+func (c *Config) GetLogLevel() slog.Level {
+	return c.LoggerLevel.Level()
 }

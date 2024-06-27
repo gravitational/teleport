@@ -18,36 +18,38 @@ package vnet
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
+	"net"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.zx2c4.com/wireguard/device"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
+	ipv4network "gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	ipv6network "gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 const (
-	nicID = 1
-	mtu   = 1500
+	nicID                            = 1
+	mtu                              = 1500
+	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
+	maxInFlightTCPConnectionAttempts = 1024
+	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
 
 // Config holds configuration parameters for the VNet.
@@ -56,6 +58,15 @@ type Config struct {
 	TUNDevice TUNDevice
 	// IPv6Prefix is the IPv6 ULA prefix to use for all assigned VNet IP addresses.
 	IPv6Prefix tcpip.Address
+	// DNSIPv6 is the IPv6 address on which to host the DNS server. It must be under IPv6Prefix.
+	DNSIPv6 tcpip.Address
+	// TCPHandlerResolver will be used to resolve all DNS queries that may be valid public addresses for
+	// Teleport apps.
+	TCPHandlerResolver TCPHandlerResolver
+
+	// upstreamNameserverSource, if set, overrides the default OS UpstreamNameserverSource which provides the
+	// IP addresses that unmatched DNS queries should be forwarded to. It is used in tests.
+	upstreamNameserverSource dns.UpstreamNameserverSource
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -66,26 +77,52 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.IPv6Prefix.Len() != 16 || c.IPv6Prefix.AsSlice()[0] != 0xfd {
 		return trace.BadParameter("IPv6Prefix must be an IPv6 ULA address")
 	}
+	if c.TCPHandlerResolver == nil {
+		return trace.BadParameter("TCPHandlerResolver is required")
+	}
 	return nil
 }
 
-// IPv6Prefix returns a Unique Local IPv6 Unicast Address which will be used as a 64-bit prefix for all v6 IP
-// addresses in the VNet.
-func IPv6Prefix() (tcpip.Address, error) {
-	// |   8 bits   |  40 bits   |  16 bits  |          64 bits           |
-	// +------------+------------+-----------+----------------------------+
-	// | ULA Prefix | Global ID  | Subnet ID |        Interface ID        |
-	// +------------+------------+-----------+----------------------------+
-	// ULA Prefix is always 0xfd
-	// Global ID is random bytes for the specific VNet instance
-	// Subnet ID is always 0
-	// Interface ID will be the IPv4 address prefixed with zeros.
-	var bytes [16]byte
-	bytes[0] = 0xfd
-	if _, err := rand.Read(bytes[1:6]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
-	}
-	return tcpip.AddrFrom16(bytes), nil
+// TCPHandlerResolver describes a type that can resolve a fully-qualified domain name to a TCPHandlerSpec that
+// defines the CIDR range to assign an IP to that handler from, and a handler for all future connections to
+// that IP address.
+//
+// Implementations beware - an FQDN always ends with a '.'.
+type TCPHandlerResolver interface {
+	// ResolveTCPHandler decides if [fqdn] should match a TCP handler.
+	//
+	// If [fqdn] matches a Teleport-managed TCP app it must return a TCPHandlerSpec defining the range to
+	// assign an IP from, and a handler for future connections to any assigned IPs.
+	//
+	// If [fqdn] does not match it must return ErrNoTCPHandler.
+	ResolveTCPHandler(ctx context.Context, fqdn string) (*TCPHandlerSpec, error)
+}
+
+// ErrNoTCPHandler should be returned by [TCPHandlerResolver]s when no handler matches the FQDN.
+// Avoid using [trace.Wrap] on ErrNoTCPHandler where possible, this isn't an unexpected error that we would
+// expect to need to debug and [trace.Wrap] incurs overhead to collect a full stack trace.
+var ErrNoTCPHandler = errors.New("no handler for address")
+
+// TCPHandlerSpec specifies a VNet TCP handler.
+type TCPHandlerSpec struct {
+	// IPv4CIDRRange is the network that any V4 IP address should be assigned to this handler from.
+	IPv4CIDRRange string
+	// TCPHandler is the handler for TCP connections.
+	TCPHandler TCPHandler
+}
+
+// TCPHandler defines the behavior for handling TCP connections from VNet.
+//
+// Implementations should attempt to dial the target application and return any errors before calling
+// [connector] to complete the TCP handshake and get the TCP conn. This is so that clients will see that the
+// TCP connection was refused, instead of seeing a successful TCP dial that is immediately closed.
+type TCPHandler interface {
+	HandleTCPConnector(ctx context.Context, connector func() (net.Conn, error)) error
+}
+
+// UDPHandler defines the behavior for handling UDP connections from VNet.
+type UDPHandler interface {
+	HandleUDP(context.Context, net.Conn) error
 }
 
 // TUNDevice abstracts a virtual network TUN device.
@@ -112,41 +149,75 @@ type TUNDevice interface {
 	Close() error
 }
 
-// Manager holds configuration and state for the VNet.
-type Manager struct {
-	tun          TUNDevice
-	stack        *stack.Stack
+// NetworkStack holds configuration and state for the VNet.
+type NetworkStack struct {
+	// stack is the gVisor networking stack.
+	stack *stack.Stack
+
+	// tun is the OS TUN device. Incoming IP/L3 packets will be copied from here to [linkEndpoint], and
+	// outgoing packets from [linkEndpoint] will be written here.
+	tun TUNDevice
+
+	// linkEndpoint is the gVisor-side endpoint that emulates the OS TUN device. All incoming IP/L3 packets
+	// from the OS TUN device will be injected as inbound packets to this endpoint to be processed by the
+	// gVisor netstack which ultimately calls the TCP or UDP protocol handler. When the protocol handler
+	// writes packets to the gVisor stack to an address assigned to this endpoint, they will be written to
+	// this endpoint, and then copied from this endpoint to the OS TUN device.
 	linkEndpoint *channel.Endpoint
-	ipv6Prefix   tcpip.Address
-	destroyed    chan struct{}
-	wg           sync.WaitGroup
-	state        state
-	slog         *slog.Logger
+
+	// ipv6Prefix holds the 96-bit prefix that will be used for all IPv6 addresses assigned in the VNet.
+	ipv6Prefix tcpip.Address
+
+	// tcpHandlerResolver resolves app FQDNs to a TCP handler that will be used to handle all future TCP
+	// connections to IP addresses that will be assigned to that FQDN.
+	tcpHandlerResolver TCPHandlerResolver
+	// resolveHandlerGroup is a [singleflight.Group] that will be used to avoid resolving the same FQDN
+	// multiple times concurrently. Every call to [tcpHandlerResolver.ResolveTCPHandler] will be wrapped by
+	// this. The key will be the FQDN.
+	resolveHandlerGroup singleflight.Group
+
+	// destroyed is a channel that will be closed when the VNet is in the process of being destroyed.
+	// All goroutines should terminate quickly after either this is closed or the context passed to
+	// [NetworkStack.Run] is canceled.
+	destroyed chan struct{}
+	// wg is a [sync.WaitGroup] that keeps track of all running goroutines started by the [NetworkStack].
+	wg sync.WaitGroup
+
+	// state holds all mutable state for the NetworkStack.
+	state state
+
+	slog *slog.Logger
 }
 
 type state struct {
-	mu                   sync.RWMutex
-	tcpHandlers          map[tcpip.Address]tcpHandler
-	lastAssignedIPSuffix uint32
+	// mu is a single mutex that protects the whole state struct. This could be optimized as necessary.
+	mu sync.RWMutex
+
+	// Each app gets assigned both an IPv4 address and an IPv6 address, where the 4-bit suffix of the IPv6
+	// matches the IPv4 address exactly. All per-app state references the smaller IPv4 address only and
+	// lookups based on an IPv6 address can use the 4-byte suffix.
+
+	// tcpHandlers holds the map of IP addresses to assigned TCP handlers.
+	tcpHandlers map[ipv4]TCPHandler
+	// appIPs holds the map of app FQDNs to their assigned IP address, it like a reverse map of [tcpHandlers].
+	appIPs map[string]ipv4
+
+	// udpHandlers holds the map of IP addresses to assigned UDP handlers.
+	udpHandlers map[ipv4]UDPHandler
 }
 
 func newState() state {
 	return state{
-		tcpHandlers: make(map[tcpip.Address]tcpHandler),
-		// Suffix 0 is reserved, suffix 1 is assigned to the NIC.
-		lastAssignedIPSuffix: 1,
+		tcpHandlers: make(map[ipv4]TCPHandler),
+		udpHandlers: make(map[ipv4]UDPHandler),
+		appIPs:      make(map[string]ipv4),
 	}
 }
 
-// tcpConnector is a type of function that can be called to consume a TCP connection.
-type tcpConnector func() (io.ReadWriteCloser, error)
-type tcpHandler interface {
-	handleTCP(context.Context, tcpConnector) error
-}
-
-// NewManager creates a new VNet manager with the given configuration and root
-// context. Call Run() on the returned manager to start the VNet.
-func NewManager(cfg *Config) (*Manager, error) {
+// newNetworkStack creates a new VNet network stack with the given configuration and root context.
+// It takes ownership of [cfg.TUNDevice] and will handle closing it before Run() returns. Call Run()
+// on the returned network stack to start the VNet.
+func newNetworkStack(cfg *Config) (*NetworkStack, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,30 +232,48 @@ func NewManager(cfg *Config) (*Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	m := &Manager{
-		tun:          cfg.TUNDevice,
-		stack:        stack,
-		linkEndpoint: linkEndpoint,
-		ipv6Prefix:   cfg.IPv6Prefix,
-		destroyed:    make(chan struct{}),
-		state:        newState(),
-		slog:         slog,
+	ns := &NetworkStack{
+		tun:                cfg.TUNDevice,
+		stack:              stack,
+		linkEndpoint:       linkEndpoint,
+		ipv6Prefix:         cfg.IPv6Prefix,
+		tcpHandlerResolver: cfg.TCPHandlerResolver,
+		destroyed:          make(chan struct{}),
+		state:              newState(),
+		slog:               slog,
 	}
 
-	const (
-		tcpReceiveBufferSize          = 0 // 0 means a default will be used.
-		maxInFlightConnectionAttempts = 1024
-	)
-	tcpForwarder := tcp.NewForwarder(m.stack, tcpReceiveBufferSize, maxInFlightConnectionAttempts, m.handleTCP)
-	m.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
+	tcpForwarder := tcp.NewForwarder(ns.stack, tcpReceiveBufferSize, maxInFlightTCPConnectionAttempts, ns.handleTCP)
+	ns.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 
-	return m, nil
+	udpForwarder := udp.NewForwarder(ns.stack, ns.handleUDP)
+	ns.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
+
+	if cfg.DNSIPv6 != (tcpip.Address{}) {
+		upstreamNameserverSource := cfg.upstreamNameserverSource
+		if upstreamNameserverSource == nil {
+			upstreamNameserverSource, err = dns.NewOSUpstreamNameserverSource()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		dnsServer, err := dns.NewServer(ns, upstreamNameserverSource)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := ns.assignUDPHandler(cfg.DNSIPv6, dnsServer); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		slog.DebugContext(context.Background(), "Serving DNS on IPv6.", "dns_addr", cfg.DNSIPv6)
+	}
+
+	return ns, nil
 }
 
 func createStack() (*stack.Stack, *channel.Endpoint, error) {
 	netStack := stack.New(stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv6.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol},
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4network.NewProtocol, ipv6network.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 	})
 
 	const (
@@ -201,45 +290,83 @@ func createStack() (*stack.Stack, *channel.Endpoint, error) {
 
 func installVnetRoutes(stack *stack.Stack) error {
 	// Make the network stack pass all outbound IP packets to the NIC, regardless of destination IP address.
+	ipv4Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom4([4]byte{}), tcpip.MaskFromBytes(make([]byte, 4)))
+	if err != nil {
+		return trace.Wrap(err, "creating VNet IPv4 subnet")
+	}
 	ipv6Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom16([16]byte{}), tcpip.MaskFromBytes(make([]byte, 16)))
 	if err != nil {
 		return trace.Wrap(err, "creating VNet IPv6 subnet")
 	}
-	stack.SetRouteTable([]tcpip.Route{{
-		Destination: ipv6Subnet,
-		NIC:         nicID,
-	}})
-	return nil
-}
-
-// Run starts the VNet.
-func (m *Manager) Run(ctx context.Context) error {
-	m.slog.With("ipv6_prefix", m.ipv6Prefix).InfoContext(ctx, "Running Teleport VNet.")
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return m.statsHandler(ctx) })
-	g.Go(func() error {
-		return forwardBetweenTunAndNetstack(ctx, m.tun, m.linkEndpoint)
+	stack.SetRouteTable([]tcpip.Route{
+		{
+			Destination: ipv4Subnet,
+			NIC:         nicID,
+		},
+		{
+			Destination: ipv6Subnet,
+			NIC:         nicID,
+		},
 	})
-	return trace.Wrap(g.Wait())
-}
-
-// Destroy closes the link endpoint, waits for all goroutines to terminate, and destroys the networking stack.
-func (m *Manager) Destroy() error {
-	close(m.destroyed)
-	m.linkEndpoint.Close()
-	m.wg.Wait()
-	m.stack.Destroy()
 	return nil
 }
 
-func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
-	m.wg.Add(1)
-	defer m.wg.Done()
+// Run starts the VNet. It blocks until [ctx] is canceled, at which point it closes the link endpoint, waits
+// for all goroutines to terminate, and destroys the networking stack.
+func (ns *NetworkStack) Run(ctx context.Context) error {
+	ns.slog.InfoContext(ctx, "Running Teleport VNet.", "ipv6_prefix", ns.ipv6Prefix)
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	allErrors := make(chan error, 2)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Make sure to cancel the context in case this exits prematurely with a nil error.
+		defer cancel()
+		err := forwardBetweenTunAndNetstack(ctx, ns.tun, ns.linkEndpoint)
+		allErrors <- err
+		return err
+	})
+	g.Go(func() error {
+		// When the context is canceled for any reason (the caller or one of the other concurrent tasks may
+		// have canceled it) destroy everything and quit.
+		<-ctx.Done()
+
+		// In-flight connections should start terminating after closing [ns.destroyed].
+		close(ns.destroyed)
+
+		// Close the link endpoint and the TUN, this should cause [forwardBetweenTunAndNetstack] to terminate
+		// if it hasn't already.
+		ns.linkEndpoint.Close()
+		err := trace.Wrap(ns.tun.Close(), "closing TUN device")
+
+		allErrors <- err
+		return err
+	})
+
+	// Deliberately ignoring the error from g.Wait() to return an aggregate of all errors.
+	_ = g.Wait()
+
+	// Wait for all connections and goroutines to clean themselves up.
+	ns.wg.Wait()
+
+	// Now we can destroy the gVisor networking stack and wait for all its goroutines to terminate.
+	ns.stack.Destroy()
+
+	close(allErrors)
+	return trace.NewAggregateFromChannel(allErrors, context.Background())
+}
+
+func (ns *NetworkStack) handleTCP(req *tcp.ForwarderRequest) {
+	// Add 1 to the waitgroup because the networking stack runs this in its own goroutine.
+	ns.wg.Add(1)
+	defer ns.wg.Done()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Clients of *tcp.ForwarderRequest must eventually call Complete on it exactly once.
+	// [req] consumes 1 of [maxInFlightTCPConnectionAttempts] until [req.Complete] is called.
 	var completed bool
 	defer func() {
 		if !completed {
@@ -248,21 +375,20 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	}()
 
 	id := req.ID()
-	slog := m.slog.With("request", id)
+	slog := ns.slog.With("request", id)
 	slog.DebugContext(ctx, "Handling TCP connection.")
 	defer slog.DebugContext(ctx, "Finished handling TCP connection.")
 
-	handler, ok := m.getTCPHandler(id.LocalAddress)
+	handler, ok := ns.getTCPHandler(id.LocalAddress)
 	if !ok {
-		slog.With("addr", id.LocalAddress).DebugContext(ctx, "No handler for address.")
+		slog.DebugContext(ctx, "No handler for address.", "addr", id.LocalAddress)
 		return
 	}
 
-	connector := func() (io.ReadWriteCloser, error) {
+	connector := func() (net.Conn, error) {
 		var wq waiter.Queue
 		waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
 		wq.EventRegister(&waitEntry)
-		defer wq.EventUnregister(&waitEntry)
 
 		endpoint, err := req.CreateEndpoint(&wq)
 		if err != nil {
@@ -276,23 +402,28 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 		endpoint.SocketOptions().SetKeepAlive(true)
 
 		conn := gonet.NewTCPConn(&wq, endpoint)
-		m.wg.Add(1)
+
+		ns.wg.Add(1)
 		go func() {
-			defer m.wg.Done()
+			defer func() {
+				cancel()
+				conn.Close()
+				ns.wg.Done()
+			}()
 			select {
 			case <-notifyCh:
-				slog.DebugContext(ctx, "Got HUP or ERR, closing TCP conn.")
-			case <-m.destroyed:
-				slog.DebugContext(ctx, "VNet is being destroyed, closing TCP conn.")
+				slog.DebugContext(ctx, "Got HUP or ERR, canceling request context and closing TCP conn.")
+			case <-ns.destroyed:
+				slog.DebugContext(ctx, "VNet is being destroyed, canceling request context and closing TCP conn.")
+			case <-ctx.Done():
+				slog.DebugContext(ctx, "Request context canceled, closing TCP conn.")
 			}
-			cancel()
-			conn.Close()
 		}()
 
 		return conn, nil
 	}
 
-	if err := handler.handleTCP(ctx, connector); err != nil {
+	if err := handler.HandleTCPConnector(ctx, connector); err != nil {
 		if errors.Is(err, context.Canceled) {
 			slog.DebugContext(ctx, "TCP connection handler returned early due to canceled context.")
 		} else {
@@ -301,49 +432,189 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	}
 }
 
-func (m *Manager) getTCPHandler(addr tcpip.Address) (tcpHandler, bool) {
-	m.state.mu.RLock()
-	defer m.state.mu.RUnlock()
-	handler, ok := m.state.tcpHandlers[addr]
+func (ns *NetworkStack) getTCPHandler(addr tcpip.Address) (TCPHandler, bool) {
+	ns.state.mu.RLock()
+	defer ns.state.mu.RUnlock()
+	handler, ok := ns.state.tcpHandlers[ipv4Suffix(addr)]
 	return handler, ok
 }
 
-func (m *Manager) assignTCPHandler(handler tcpHandler) (tcpip.Address, error) {
-	m.state.mu.Lock()
-	defer m.state.mu.Unlock()
-
-	m.state.lastAssignedIPSuffix++
-	ipSuffix := m.state.lastAssignedIPSuffix
-
-	addr := ipv6WithSuffix(m.ipv6Prefix, u32ToBytes(ipSuffix))
-
-	m.state.tcpHandlers[addr] = handler
-	if err := m.addProtocolAddress(addr); err != nil {
-		return addr, trace.Wrap(err)
+// assignTCPHandler assigns an IPv4 address to [handlerSpec] from its preferred CIDR range, and returns that
+// new assigned address.
+func (ns *NetworkStack) assignTCPHandler(handlerSpec *TCPHandlerSpec, fqdn string) (ipv4, error) {
+	_, ipNet, err := net.ParseCIDR(handlerSpec.IPv4CIDRRange)
+	if err != nil {
+		return 0, trace.Wrap(err, "parsing CIDR %q", handlerSpec.IPv4CIDRRange)
 	}
 
-	return addr, nil
+	ns.state.mu.Lock()
+	defer ns.state.mu.Unlock()
+
+	ip, err := randomFreeIPv4InNet(ipNet, func(ip ipv4) bool {
+		_, taken := ns.state.tcpHandlers[ip]
+		return !taken
+	})
+	if err != nil {
+		return 0, trace.Wrap(err, "assigning IP address")
+	}
+
+	ns.state.tcpHandlers[ip] = handlerSpec.TCPHandler
+	ns.state.appIPs[fqdn] = ip
+
+	if err := ns.addProtocolAddress(tcpip.AddrFrom4(ip.asArray())); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if err := ns.addProtocolAddress(ipv6WithSuffix(ns.ipv6Prefix, ip.asSlice())); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return ip, nil
 }
 
-func (m *Manager) statsHandler(ctx context.Context) error {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGUSR1)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ch:
-		}
-		stats := m.stack.Stats()
-		fmt.Printf("%+v\n", stats)
+func (ns *NetworkStack) handleUDP(req *udp.ForwarderRequest) {
+	ns.wg.Add(1)
+	go func() {
+		defer ns.wg.Done()
+		ns.handleUDPConcurrent(req)
+	}()
+}
+
+func (ns *NetworkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	id := req.ID()
+	slog := ns.slog.With("request", id)
+	slog.DebugContext(ctx, "Handling UDP request.")
+	defer slog.DebugContext(ctx, "Finished handling UDP request.")
+
+	handler, ok := ns.getUDPHandler(id.LocalAddress)
+	if !ok {
+		slog.DebugContext(ctx, "No handler for address.")
+		return
 	}
+
+	var wq waiter.Queue
+	waitEntry, notifyCh := waiter.NewChannelEntry(waiter.EventErr | waiter.EventHUp)
+	wq.EventRegister(&waitEntry)
+
+	endpoint, err := req.CreateEndpoint(&wq)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to create UDP endpoint.", "error", err)
+		return
+	}
+
+	conn := gonet.NewUDPConn(ns.stack, &wq, endpoint)
+	defer conn.Close()
+
+	ns.wg.Add(1)
+	go func() {
+		defer func() {
+			cancel()
+			conn.Close()
+			ns.wg.Done()
+		}()
+		select {
+		case <-notifyCh:
+			slog.DebugContext(ctx, "Got HUP or ERR, canceling request context and closing UDP conn.")
+		case <-ns.destroyed:
+			slog.DebugContext(ctx, "VNet is being destroyed, canceling request context and closing UDP conn.")
+		case <-ctx.Done():
+			slog.DebugContext(ctx, "Request context canceled, closing UDP conn.")
+		}
+	}()
+
+	if err := handler.HandleUDP(ctx, conn); err != nil {
+		slog.DebugContext(ctx, "Error handling UDP conn.", "error", err)
+	}
+}
+
+func (ns *NetworkStack) getUDPHandler(addr tcpip.Address) (UDPHandler, bool) {
+	ipv4 := ipv4Suffix(addr)
+	ns.state.mu.RLock()
+	defer ns.state.mu.RUnlock()
+	handler, ok := ns.state.udpHandlers[ipv4]
+	return handler, ok
+}
+
+func (ns *NetworkStack) assignUDPHandler(addr tcpip.Address, handler UDPHandler) error {
+	ipv4 := ipv4Suffix(addr)
+	ns.state.mu.Lock()
+	defer ns.state.mu.Unlock()
+	if _, ok := ns.state.udpHandlers[ipv4]; ok {
+		return trace.AlreadyExists("Handler for %s is already set", addr)
+	}
+	if err := ns.addProtocolAddress(addr); err != nil {
+		return trace.Wrap(err)
+	}
+	ns.state.udpHandlers[ipv4] = handler
+	return nil
+}
+
+// ResolveA implements [dns.Resolver.ResolveA].
+func (ns *NetworkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, error) {
+	// Do the actual resolution within a [singleflight.Group] keyed by [fqdn] to avoid concurrent requests to
+	// resolve an FQDN and then assign an address to it.
+	resultAny, err, _ := ns.resolveHandlerGroup.Do(fqdn, func() (any, error) {
+		// If we've already assigned an IP address to this app, resolve to it.
+		if ip, ok := ns.appIPv4(fqdn); ok {
+			return dns.Result{
+				A: ip.asArray(),
+			}, nil
+		}
+
+		// If fqdn is a Teleport-managed app, create a new handler for it.
+		handlerSpec, err := ns.tcpHandlerResolver.ResolveTCPHandler(ctx, fqdn)
+		if err != nil {
+			if errors.Is(err, ErrNoTCPHandler) {
+				// Did not find any known app, forward the DNS request upstream.
+				return dns.Result{}, nil
+			}
+			return dns.Result{}, trace.Wrap(err, "resolving TCP handler for fqdn %q", fqdn)
+		}
+
+		// Assign an unused IP address to this app's handler.
+		ip, err := ns.assignTCPHandler(handlerSpec, fqdn)
+		if err != nil {
+			return dns.Result{}, trace.Wrap(err, "assigning address to handler for %q", fqdn)
+		}
+
+		// And resolve to the assigned address.
+		return dns.Result{
+			A: ip.asArray(),
+		}, nil
+	})
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	return resultAny.(dns.Result), nil
+}
+
+// ResolveAAAA implements [dns.Resolver.ResolveAAAA].
+func (ns *NetworkStack) ResolveAAAA(ctx context.Context, fqdn string) (dns.Result, error) {
+	result, err := ns.ResolveA(ctx, fqdn)
+	if err != nil {
+		return dns.Result{}, trace.Wrap(err)
+	}
+	if result.A != ([4]byte{}) {
+		result.AAAA = ipv6WithSuffix(ns.ipv6Prefix, result.A[:]).As16()
+		result.A = [4]byte{}
+	}
+	return result, nil
+}
+
+func (ns *NetworkStack) appIPv4(fqdn string) (ipv4, bool) {
+	ns.state.mu.RLock()
+	defer ns.state.mu.RUnlock()
+	ipv4, ok := ns.state.appIPs[fqdn]
+	return ipv4, ok
 }
 
 func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	slog.DebugContext(ctx, "Forwarding IP packets between OS and VNet.")
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
-	g.Go(func() error { return forwardTUNtoNetstack(tun, linkEndpoint) })
+	g.Go(func() error { return forwardTUNtoNetstack(ctx, tun, linkEndpoint) })
 	return trace.Wrap(g.Wait())
 }
 
@@ -368,7 +639,9 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 	}
 }
 
-func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
+// forwardTUNtoNetstack does not abort on ctx being canceled, but it does check the ctx error before
+// returning os.ErrClosed from tun.Read.
+func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
@@ -378,6 +651,10 @@ func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	for {
 		n, err := tun.Read(bufs, sizes, readOffset)
 		if err != nil {
+			// tun.Read might get interrupted due to the TUN device getting closed after ctx cancellation.
+			if errors.Is(err, os.ErrClosed) && ctx.Err() != nil {
+				return ctx.Err()
+			}
 			return trace.Wrap(err, "reading packets from TUN")
 		}
 		for i := range sizes[:n] {
@@ -394,12 +671,12 @@ func forwardTUNtoNetstack(tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	}
 }
 
-func (m *Manager) addProtocolAddress(localAddress tcpip.Address) error {
+func (ns *NetworkStack) addProtocolAddress(localAddress tcpip.Address) error {
 	protocolAddress, err := protocolAddress(localAddress)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := m.stack.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
+	if err := ns.stack.AddProtocolAddress(nicID, protocolAddress, stack.AddressProperties{}); err != nil {
 		return trace.Errorf("%s", err)
 	}
 	return nil
@@ -410,9 +687,9 @@ func protocolAddress(addr tcpip.Address) (tcpip.ProtocolAddress, error) {
 	var protocol tcpip.NetworkProtocolNumber
 	switch addrWithPrefix.PrefixLen {
 	case 32:
-		protocol = ipv4.ProtocolNumber
+		protocol = ipv4network.ProtocolNumber
 	case 128:
-		protocol = ipv6.ProtocolNumber
+		protocol = ipv6network.ProtocolNumber
 	default:
 		return tcpip.ProtocolAddress{}, trace.BadParameter("unhandled prefix len %d", addrWithPrefix.PrefixLen)
 	}
@@ -430,22 +707,4 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 		return header.IPv6ProtocolNumber, true
 	}
 	return 0, false
-}
-
-func ipv6WithSuffix(prefix tcpip.Address, suffix []byte) tcpip.Address {
-	addrBytes := prefix.As16()
-	offset := len(addrBytes) - len(suffix)
-	for i, b := range suffix {
-		addrBytes[offset+i] = b
-	}
-	return tcpip.AddrFrom16(addrBytes)
-}
-
-func u32ToBytes(i uint32) []byte {
-	bytes := make([]byte, 4)
-	bytes[0] = byte(i >> 24)
-	bytes[1] = byte(i >> 16)
-	bytes[2] = byte(i >> 8)
-	bytes[3] = byte(i >> 0)
-	return bytes
 }

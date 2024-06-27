@@ -124,6 +124,12 @@ type IngestConfig struct {
 	// Types are event types to log
 	Types []string `help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
 
+	// SkipEventTypesRaw are event types to skip
+	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
+
+	// SkipEventTypes is a map generated from SkipEventTypesRaw
+	SkipEventTypes map[string]struct{} `kong:"-"`
+
 	// SkipSessionTypes are session event types to skip
 	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session event types to skip" default:"print" env:"FDFWD_SKIP_SESSION_TYPES"`
 
@@ -144,6 +150,9 @@ type IngestConfig struct {
 
 	// Concurrency sets the number of concurrent sessions to ingest
 	Concurrency int `help:"Number of concurrent sessions" default:"5"`
+
+	//WindowSize is the size of the window to process events
+	WindowSize time.Duration `help:"Window size to process events" default:"24h"`
 }
 
 // LockConfig represents locking configuration
@@ -205,7 +214,7 @@ type CLI struct {
 	Config kong.ConfigFlag `help:"Path to TOML configuration file" optional:"true" short:"c" type:"existingfile" env:"FDFWD_CONFIG"`
 
 	// Debug is a debug logging mode flag
-	Debug bool `help:"Debug logging" short:"d"`
+	Debug bool `help:"Debug logging" short:"d" env:"FDFWD_DEBUG"`
 
 	// Version is the version print command
 	Version struct{} `cmd:"true" help:"Print plugin version"`
@@ -227,6 +236,7 @@ func (c *StartCmdConfig) Validate() error {
 		return trace.Wrap(err)
 	}
 	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
+	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
 	return nil
 }
@@ -238,6 +248,7 @@ func (c *StartCmdConfig) Dump(ctx context.Context) {
 	// Log configuration variables
 	log.WithField("batch", c.BatchSize).Info("Using batch size")
 	log.WithField("types", c.Types).Info("Using type filter")
+	log.WithField("skip-event-types", c.SkipEventTypes).Info("Using type exclude filter")
 	log.WithField("types", c.SkipSessionTypes).Info("Skipping session events of type")
 	log.WithField("value", c.StartTime).Info("Using start time")
 	log.WithField("timeout", c.Timeout).Info("Using timeout")
@@ -246,6 +257,7 @@ func (c *StartCmdConfig) Dump(ctx context.Context) {
 	log.WithField("ca", c.FluentdCA).Info("Using Fluentd ca")
 	log.WithField("cert", c.FluentdCert).Info("Using Fluentd cert")
 	log.WithField("key", c.FluentdKey).Info("Using Fluentd key")
+	log.WithField("window-size", c.WindowSize).Info("Using window size")
 
 	if c.TeleportIdentityFile != "" {
 		log.WithField("file", c.TeleportIdentityFile).Info("Using Teleport identity file")

@@ -62,7 +62,7 @@ To retrieve the ServiceNow rotation ID, navigate to the group record
 of the ServiceNow group the rotation belongs to and right click on
 header, then click 'Select copy sys_id' to copy the ID.
 
-Then using the ServiceNow endpoint '/api/now/on_call_rota/workbench/group/{groupSysId}'
+Then using the ServiceNow endpoint `/api/now/on_call_rota/workbench/group/{groupSysId}`
 retrieve the group's on-call rota information.
 Select the value of the desired 'rota' from the response.
 
@@ -75,6 +75,10 @@ to Management -> Integrations -> Enroll New Integration.
 ![Integrations page](../../../img/enterprise/plugins/servicenow/servicenow-integration-page.png)
 
 The plugin requires credentials that can read and write to the incident table.
+
+The "Close Code" specified here will be the one used when resolving ServiceNow
+incidents. The "Caller" will be the username of the requesting Teleport user.
+(The "Caller" field will only be filled if there is an existing ServiceNow user of the same name.)
 
 ## Step 4/4. Test the ServiceNow plugin
 

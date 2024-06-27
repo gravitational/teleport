@@ -41,7 +41,7 @@ export type Integration<
 > = {
   resourceType: T;
   kind: K;
-  spec: S;
+  spec?: S;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
@@ -51,6 +51,7 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
@@ -118,7 +119,12 @@ export type ExternalAuditStorageIntegration = Integration<
 >;
 
 export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
-export type PluginSpec = PluginOktaSpec | any; // currently only okta has a plugin spec
+export type PluginSpec =
+  | PluginOktaSpec
+  | PluginSlackSpec
+  | PluginMattermostSpec
+  | PluginOpsgenieSpec;
+
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
 // https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
@@ -134,7 +140,8 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
-  | 'jamf';
+  | 'jamf'
+  | 'entra-id';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -153,6 +160,20 @@ export type PluginOktaSpec = {
   // that were deemed not serious enough to fail the plugin installation, but
   // may effect the operation of advanced features like User Sync or SCIM.
   error: string;
+};
+
+export type PluginSlackSpec = {
+  fallbackChannel: string;
+};
+
+export type PluginMattermostSpec = {
+  channel: string;
+  team: string;
+  reportToEmail: string;
+};
+
+export type PluginOpsgenieSpec = {
+  defaultSchedules: string[];
 };
 
 export type IntegrationCreateRequest = {

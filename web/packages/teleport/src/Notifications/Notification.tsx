@@ -24,6 +24,7 @@ import * as Icons from 'design/Icon';
 
 import Text from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
+
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
@@ -34,29 +35,80 @@ import Dialog, {
 } from 'design/Dialog';
 import { Theme } from 'design/theme/themes/types';
 
-import { Notification as NotificationType } from 'teleport/services/notifications';
+import { useAsync } from 'shared/hooks/useAsync';
+
+import {
+  Notification as NotificationType,
+  NotificationState,
+} from 'teleport/services/notifications';
+import history from 'teleport/services/history';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
 
 import { NotificationContent } from './notificationContentFactory';
+import { View } from './Notifications';
 
 export function Notification({
   notification,
+  view = 'All',
+  closeNotificationsList,
+  removeNotification,
+  markNotificationAsClicked,
 }: {
   notification: NotificationType;
+  view?: View;
+  closeNotificationsList: () => void;
+  removeNotification: (notificationId: string) => void;
+  markNotificationAsClicked: (notificationId: string) => void;
 }) {
   const ctx = useTeleport();
+  const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
 
-  // If the notification is unsupported, it should not be shown.
-  if (!content) {
-    return null;
+  const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
+    ctx.notificationService
+      .upsertNotificationState(clusterId, {
+        notificationId: notification.id,
+        notificationState: NotificationState.CLICKED,
+      })
+      .then(res => {
+        markNotificationAsClicked(notification.id);
+        return res;
+      })
+  );
+
+  const [hideNotificationAttempt, hideNotification] = useAsync(() => {
+    return ctx.notificationService
+      .upsertNotificationState(clusterId, {
+        notificationId: notification.id,
+        notificationState: NotificationState.DISMISSED,
+      })
+      .then(() => {
+        removeNotification(notification.id);
+      });
+  });
+
+  function onMarkAsClicked() {
+    if (notification.localNotification) {
+      ctx.storeNotifications.markNotificationAsClicked(notification.id);
+      markNotificationAsClicked(notification.id);
+      return;
+    }
+    markAsClicked();
   }
 
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
+
+  // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
+  // it should not be shown.
+  if (!content || (view === 'Unread' && notification.clicked)) {
+    return null;
+  }
 
   let AccentIcon;
   switch (content.type) {
@@ -77,14 +129,6 @@ export function Notification({
 
   const formattedDate = formatDate(notification.createdDate);
 
-  function onMarkAsClicked() {
-    // TODO rudream - add mark as clicked functionality
-  }
-
-  function onHideNotification() {
-    // TODO rudream - add hide notification functionality
-  }
-
   function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
@@ -93,14 +137,20 @@ export function Notification({
         setShowTextContentDialog(true);
         return;
       }
-      // TODO rudream - add notification redirect functionality
+      onMarkAsClicked();
+      closeNotificationsList();
+      history.push(content.redirectRoute);
     }
   }
+
+  const isClicked =
+    notification.clicked || markAsClickedAttempt.status === 'processing';
 
   return (
     <>
       <Container
-        clicked={notification.clicked}
+        data-testid="notification-item"
+        clicked={isClicked}
         onClick={onNotificationClick}
         className="notification"
       >
@@ -115,40 +165,51 @@ export function Notification({
         <ContentContainer>
           <ContentBody>
             <Text>{content.title}</Text>
-            {content.kind === 'redirect' && content.quickAction && (
-              <ButtonSecondary
-                css={`
-                  text-transform: none;
-                `}
-                onClick={content.quickAction.onClick}
-              >
-                {content.quickAction.buttonText}
-              </ButtonSecondary>
+            {content.kind === 'redirect' && content.QuickAction && (
+              <content.QuickAction markAsClicked={onMarkAsClicked} />
+            )}
+            {hideNotificationAttempt.status === 'error' && (
+              <Text typography="subtitle3" color="error.main">
+                Failed to hide notification:{' '}
+                {hideNotificationAttempt.statusText}
+              </Text>
+            )}
+            {markAsClickedAttempt.status === 'error' && (
+              <Text typography="subtitle3" color="error.main">
+                Failed to mark notification as read:{' '}
+                {markAsClickedAttempt.statusText}
+              </Text>
             )}
           </ContentBody>
           <SideContent>
-            <Text typography="subtitle3">{formattedDate}</Text>
-            <MenuIcon
-              menuProps={{
-                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                transformOrigin: { vertical: 'top', horizontal: 'right' },
-                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-              }}
-              buttonIconProps={{ style: { borderRadius: '4px' } }}
-            >
-              <MenuItem
-                onClick={onMarkAsClicked}
-                className={IGNORE_CLICK_CLASSNAME}
+            {!content?.hideDate && (
+              <Text typography="subtitle3">{formattedDate}</Text>
+            )}
+            {!notification.localNotification && (
+              <MenuIcon
+                menuProps={{
+                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                  transformOrigin: { vertical: 'top', horizontal: 'right' },
+                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+                }}
+                buttonIconProps={{ style: { borderRadius: '4px' } }}
               >
-                Mark as read
-              </MenuItem>
-              <MenuItem
-                onClick={onHideNotification}
-                className={IGNORE_CLICK_CLASSNAME}
-              >
-                Hide this notification
-              </MenuItem>
-            </MenuIcon>
+                {!isClicked && (
+                  <MenuItem
+                    onClick={onMarkAsClicked}
+                    className={IGNORE_CLICK_CLASSNAME}
+                  >
+                    Mark as read
+                  </MenuItem>
+                )}
+                <MenuItem
+                  onClick={hideNotification}
+                  className={IGNORE_CLICK_CLASSNAME}
+                >
+                  Hide this notification
+                </MenuItem>
+              </MenuIcon>
+            )}
           </SideContent>
         </ContentContainer>
       </Container>
@@ -189,7 +250,7 @@ function formatDate(date: Date) {
   return `${distance} ago`;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ clicked?: boolean }>`
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -200,17 +261,19 @@ const Container = styled.div`
   border-radius: ${props => props.theme.radii[3]}px;
   cursor: pointer;
 
-  background: ${props => props.theme.colors.interactive.tonal.primary[0]};
+  background: ${props =>
+    props.theme.colors.interactive.tonal.primary[0].background};
   &:hover {
-    background: ${props => props.theme.colors.interactive.tonal.primary[1]};
+    background: ${props =>
+      props.theme.colors.interactive.tonal.primary[1].background};
   }
 
   ${props =>
     props.clicked &&
     `
-    background: ${props.theme.colors.interactive.tonal.neutral[0]};
+    background: ${props.theme.colors.interactive.tonal.neutral[0].background};
     &:hover {
-      background: ${props.theme.colors.interactive.tonal.neutral[1]};
+      background: ${props.theme.colors.interactive.tonal.neutral[1].background};
     }
     `}
 `;
@@ -228,6 +291,10 @@ const ContentBody = styled.div`
   justify-content: center;
   align-items: flex-start;
   gap: ${props => props.theme.space[2]}px;
+
+  button {
+    text-transform: none;
+  }
 `;
 
 const SideContent = styled.div`
@@ -257,32 +324,32 @@ function getIconColors(
     case 'success':
       return {
         primary: theme.colors.success.main,
-        secondary: theme.colors.interactive.tonal.success[0],
+        secondary: theme.colors.interactive.tonal.success[0].background,
       };
     case 'success-alt':
       return {
         primary: theme.colors.accent.main,
-        secondary: theme.colors.interactive.tonal.informational[0],
+        secondary: theme.colors.interactive.tonal.informational[0].background,
       };
     case 'informational':
       return {
         primary: theme.colors.brand,
-        secondary: theme.colors.interactive.tonal.primary[0],
+        secondary: theme.colors.interactive.tonal.primary[0].background,
       };
     case `warning`:
       return {
         primary: theme.colors.warning.main,
-        secondary: theme.colors.interactive.tonal.alert[0],
+        secondary: theme.colors.interactive.tonal.alert[0].background,
       };
     case 'failure':
       return {
         primary: theme.colors.error.main,
-        secondary: theme.colors.interactive.tonal.danger[0],
+        secondary: theme.colors.interactive.tonal.danger[0].background,
       };
   }
 }
 
-const MainIconContainer = styled.div`
+const MainIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -301,7 +368,7 @@ const MainIconContainer = styled.div`
     getIconColors(props.theme, props.type).secondary};
 `;
 
-const AccentIconContainer = styled.div`
+const AccentIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   height: 18px;
   width: 18px;
   display: flex;

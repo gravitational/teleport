@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'jest-canvas-mock';
+import { createRef } from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
@@ -24,15 +26,7 @@ import { Document } from 'teleterm/ui/services/workspacesService';
 import { TabContextMenuOptions } from 'teleterm/mainProcess/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
-// TODO(ravicious): Remove the mock once a separate entry point for e-teleterm is created.
-//
-// Mocking out DocumentsRenderer because it imports an e-teleterm component which breaks CI tests
-// for the OSS version. The tests here don't test the behavior of DocumentsRenderer so the only
-// thing we lose by adding the mock is "smoke tests" of different document kinds.
-jest.mock('teleterm/ui/Documents/DocumentsRenderer', () => ({
-  DocumentsRenderer: ({ children }) => <>{children}</>,
-}));
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 function getMockDocuments(): Document[] {
   return [
@@ -51,9 +45,18 @@ function getMockDocuments(): Document[] {
 
 const rootClusterUri = '/clusters/test_uri';
 
-function getTestSetup({ documents }: { documents: Document[] }) {
+async function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
   jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
+
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(
+      rootClusterUri,
+      makeRootCluster({
+        uri: rootClusterUri,
+      })
+    );
+  });
 
   appContext.workspacesService.setState(draft => {
     draft.rootClusterUri = rootClusterUri;
@@ -76,21 +79,24 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   jest.spyOn(docsService, 'closeToRight');
   jest.spyOn(docsService, 'duplicatePtyAndActivate');
 
-  const utils = render(
+  render(
     <MockAppContextProvider appContext={appContext}>
-      <TabHost ctx={appContext} topBarContainerRef={undefined} />
+      <TabHost ctx={appContext} topBarContainerRef={createRef()} />
     </MockAppContextProvider>
   );
 
+  // Mostly a bogus await just so that all useEffects in all of the mounted contexts have time to be
+  // processed and not throw an error due to a state update outside of `act`.
+  expect(await screen.findByTitle(/New Tab/)).toBeInTheDocument();
+
   return {
-    ...utils,
     docsService,
     mainProcessClient: appContext.mainProcessClient,
   };
 }
 
-test('render documents', () => {
-  const { docsService } = getTestSetup({
+test('render documents', async () => {
+  const { docsService } = await getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
@@ -99,21 +105,21 @@ test('render documents', () => {
   expect(screen.getByTitle(documents[1].title)).toBeInTheDocument();
 });
 
-test('open tab on click', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('open tab on click', async () => {
+  const { docsService } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const documents = docsService.getDocuments();
   const { open } = docsService;
-  const $tabTitle = getByTitle(documents[0].title);
+  const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.click($tabTitle);
 
   expect(open).toHaveBeenCalledWith(documents[0].uri);
 });
 
-test('open context menu', () => {
-  const { getByTitle, docsService, mainProcessClient } = getTestSetup({
+test('open context menu', async () => {
+  const { docsService, mainProcessClient } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const { openTabContextMenu } = mainProcessClient;
@@ -122,7 +128,7 @@ test('open context menu', () => {
   const documents = docsService.getDocuments();
   const document = documents[0];
 
-  const $tabTitle = getByTitle(documents[0].title);
+  const $tabTitle = screen.getByTitle(documents[0].title);
 
   fireEvent.contextMenu($tabTitle);
   expect(openTabContextMenu).toHaveBeenCalled();
@@ -144,14 +150,14 @@ test('open context menu', () => {
   expect(duplicatePtyAndActivate).toHaveBeenCalledWith(document.uri);
 });
 
-test('open new tab', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('open new tab', async () => {
+  const { docsService } = await getTestSetup({
     documents: [getMockDocuments()[0]],
   });
   const { add, open } = docsService;
   const mockedClusterDocument = makeDocumentCluster();
   docsService.createClusterDocument = () => mockedClusterDocument;
-  const $newTabButton = getByTitle('New Tab', { exact: false });
+  const $newTabButton = screen.getByTitle('New Tab', { exact: false });
 
   fireEvent.click($newTabButton);
 
@@ -159,13 +165,13 @@ test('open new tab', () => {
   expect(open).toHaveBeenCalledWith(mockedClusterDocument.uri);
 });
 
-test('swap tabs', () => {
-  const { getByTitle, docsService } = getTestSetup({
+test('swap tabs', async () => {
+  const { docsService } = await getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
-  const $firstTab = getByTitle(documents[0].title);
-  const $secondTab = getByTitle(documents[1].title);
+  const $firstTab = screen.getByTitle(documents[0].title);
+  const $secondTab = screen.getByTitle(documents[1].title);
 
   fireEvent.dragStart($secondTab);
   fireEvent.drop($firstTab);

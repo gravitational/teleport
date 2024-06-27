@@ -22,7 +22,7 @@ Usually, this means that the Smart Card service is not running on the target
 host.
 
 First, make sure that you [enable the Smart Card service in Group
-Policy](./active-directory-manual.mdx#enable-smart-card-authentication).
+Policy](./active-directory.mdx#enable-smart-card-authentication).
 
 If that doesn't help, log into the target host directly, open the "Services"
 program from the "Start" menu and check that the "Smart Card" service is in the
@@ -31,43 +31,6 @@ program from the "Start" menu and check that the "Smart Card" service is in the
 If the "Smart Card" service is not running, open PowerShell and run
 `gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
 service changes.
-
-### Smart card not supported for Account
-
-You connect to a Windows host and get the error message: **"Signing in with a smart card
-isn't supported for your account."** or similar.
-
-**Solution:** Review the Security-Kerberos Log on the Windows host for causes.
-
-The Security-Kerberos Windows Event Log provides information on smart card-based
-authentication attempts. This Event Log is not enabled by default.
-Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
-Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
-to connect with Teleport Web UI to review log entries.
-
-### Smart card certificate not trusted
-
-You connect to a Windows host from the Teleport UI, land on the Windows login
-screen and see an error message: **"The smartcard certificate used for
-authentication was not trusted"** (or similar).
-
-**Solution:** Import the Teleport CA
-
-This means that the host does not trust the Teleport CA.
-
-First, make sure that you [import the Teleport CA into Group
-Policy](./active-directory-manual.mdx#create-the-GPO-for-the-Teleport-certificate).
-Note that if you have rotated the Teleport CA since the last import, you need to
-fetch the new CA using the following command, replacing <Var name="teleport.example.com" />
-with the address of your Teleport cluster:
-
-```code
-$ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
-```
-
-If that doesn't help, log into the target host directly, open PowerShell and
-run `gpupdate.exe /force`. This forces a Group Policy update and should pick up
-the new CA.
 
 ### Smart card PIN not detected
 
@@ -94,6 +57,61 @@ select **Disabled**, then click **OK**.
 Note: despite mention of passwords in the name of this policy, no passwords are
 sent on the wire. This mechanism is used only to send the smart card PIN.
 
+### Third-party smart card drivers prevent automatic login
+
+Some third-party smart card drivers such as HID ActivID ActivClient may prevent
+the automatic login process from working correctly. To check for the presence of
+third-party drivers, connect to the host where automatic logon is not working
+and view the contents of the
+`Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\Calais\SmartCards\Identity Device (NIST SP 800-73 [PIV])`
+entry.
+
+On a correctly configured system, you expect to see an entry pointing at a DLL
+for the default Windows driver: `C:\Windows\System32\msclmd.dll`. On a system
+with custom drivers installed, you will typically see this path overridden to
+point to a DLL under `C:\Program Files`.
+
+**Solution:** Disable or uninstall any third party smart card tools that may be
+interfering with the logon process. Ensure that the registry entry mentioned
+above points to `msclmd.dll` after completing the uninstall.
+
+### Smart card not supported for Account
+
+You connect to a Windows host and get the error message: **"Signing in with a smart card
+isn't supported for your account."** or similar.
+
+**Solution:** Review the Security-Kerberos Log on the Windows host for causes.
+
+The Security-Kerberos Windows Event Log provides information on smart card-based
+authentication attempts. This Event Log is not enabled by default.
+Open the Windows Event Log and navigate to Event Viewer, Application and Services Logs,
+Microsoft, Windows, Security-Kerberos, Operational. Enable this Event Log and attempt
+to connect with Teleport Web UI to review log entries.
+
+### Smart card certificate not trusted
+
+You connect to a Windows host from the Teleport UI, land on the Windows login
+screen and see an error message: **"The smartcard certificate used for
+authentication was not trusted"** (or similar).
+
+**Solution:** Import the Teleport CA
+
+This means that the host does not trust the Teleport CA.
+
+First, make sure that you [import the Teleport CA into Group
+Policy](./active-directory.mdx#create-the-GPO-for-the-Teleport-certificate).
+Note that if you have rotated the Teleport CA since the last import, you need to
+fetch the new CA using the following command, replacing <Var name="teleport.example.com" />
+with the address of your Teleport cluster:
+
+```code
+$ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
+```
+
+If that doesn't help, log into the target host directly, open PowerShell and
+run `gpupdate.exe /force`. This forces a Group Policy update and should pick up
+the new CA.
+
 ## New session "hangs"
 
 ### Host unreachable
@@ -107,7 +125,7 @@ Windows host.
 **Solution:** Modify firewall rules to allow inbound RDP traffic
 
 First, make sure that you open the RDP port and [allow remote desktop
-connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
+connections](./active-directory.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 
 If that does not help, check if the target host is online and try to `ping` it
@@ -245,6 +263,50 @@ interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspectio
 or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
 which prevents Teleport from authenticating.
 
+#### Manually validate a client certificate
+
+Another helpful troubleshooting step is to issue a client certificate using
+`tctl` and attempt to validate it on the Windows side.
+
+First, generate a client certificate with `tctl`, being sure to replace the
+`--windows-user`, `--windows-sid`, and `--windows-domain` flags with values
+appropriate for your environment:
+
+```code
+# NOTE: To issue Windows certificates, you must run 'tctl auth sign' locally
+# on the same machine as the Teleport auth_service. Running this command remotely
+# with an identity issued by 'tsh' will result in 'ERROR: access denied'
+$ tctl auth sign \
+    --windows-user=svc-teleport \
+    --windows-sid=S-1-5-21-3788279871-1068139173-3054872986-500 \
+    --windows-domain=domain.example.com \
+    --format=windows \
+    --out=test
+```
+
+This will generate a certificate file named `test.svc-teleport.der`.
+
+Next, copy this certificate to one of your domain controllers and attempt to verify it:
+
+```
+$ certutil -urlfetch -verify test.svc-teleport.der
+```
+
+A successful verification should end with output similar to the following:
+
+```
+------------------------------------
+Verified Application Policies:
+    1.3.6.1.5.5.7.3.2 Client Authentication
+    1.3.6.1.4.1.311.20.2.2 Smart Card Logon
+Cert is an End Entity certificate
+Leaf certificate revocation check passed
+CertUtil: -verify command completed successfully.
+```
+
+If you do not see similar results, scan the output for errors which may indicate
+why the certificate cannot be verified.
+
 ## Connection attempts fail
 
 ### RDP server only uses Standard RDP Security
@@ -290,7 +352,7 @@ This means that the desktop does not support secure cipher suites for TLS
 connections.
 
 Make sure that you [configure a certificate for RDP
-connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
+connections](./active-directory.mdx#step-47-configure-a-certificate-for-rdp-connections).
 
 ### Expired smartcard certificate
 
@@ -322,7 +384,7 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions to [allow remote
-desktop connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
+desktop connections](./active-directory.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 If you are still encountering this error after disabling NLA in Active Directory,
 run the following command from the Windows Command prompt as an administrator

@@ -76,6 +76,10 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -84,7 +88,7 @@ import (
 type Clients interface {
 	// GetInstanceMetadataClient returns instance metadata client based on which
 	// cloud provider Teleport is running on, if any.
-	GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error)
+	GetInstanceMetadataClient(ctx context.Context) (imds.Client, error)
 	// GCPClients is an interface for providing GCP API clients.
 	GCPClients
 	// AWSClients is an interface for providing AWS API clients.
@@ -303,7 +307,7 @@ type cloudClients struct {
 	// awsIntegrationSessionProviderFn is a AWS Session Generator that uses an Integration to generate an AWS Session.
 	awsIntegrationSessionProviderFn AWSIntegrationSessionProvider
 	// instanceMetadata is the cached instance metadata client.
-	instanceMetadata InstanceMetadata
+	instanceMetadata imds.Client
 	// gcpClients contains GCP-specific clients.
 	gcpClients
 	// azureClients contains Azure-specific clients.
@@ -639,8 +643,8 @@ func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminCl
 	return c.gcpSQLAdmin.GetClient(ctx)
 }
 
-// GetInstanceMetadata returns the instance metadata.
-func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
+// GetInstanceMetadataClient returns the instance metadata.
+func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
 	c.mtx.RLock()
 	if c.instanceMetadata != nil {
 		defer c.mtx.RUnlock()
@@ -938,14 +942,34 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 }
 
 // initInstanceMetadata initializes the instance metadata client.
-func (c *cloudClients) initInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
+func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.instanceMetadata != nil { // If some other thread already got here first.
 		return c.instanceMetadata, nil
 	}
 	logrus.Debug("Initializing instance metadata client.")
-	client, err := DiscoverInstanceMetadata(ctx)
+
+	providers := []func(ctx context.Context) (imds.Client, error){
+		func(ctx context.Context) (imds.Client, error) {
+			clt, err := awsimds.NewInstanceMetadataClient(ctx)
+			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return azureimds.NewInstanceMetadataClient(), nil
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			instancesClient, err := gcp.NewInstancesClient(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
+			return clt, trace.Wrap(err)
+		},
+	}
+
+	client, err := DiscoverInstanceMetadata(ctx, providers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1001,7 +1025,7 @@ type TestCloudClients struct {
 	GCPInstances            gcp.InstancesClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
-	InstanceMetadata        InstanceMetadata
+	InstanceMetadata        imds.Client
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
 	S3                      s3iface.S3API
@@ -1200,8 +1224,8 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdm
 	return c.GCPSQL, nil
 }
 
-// GetInstanceMetadata returns the instance metadata.
-func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (InstanceMetadata, error) {
+// GetInstanceMetadataClient returns the instance metadata.
+func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
 	return c.InstanceMetadata, nil
 }
 

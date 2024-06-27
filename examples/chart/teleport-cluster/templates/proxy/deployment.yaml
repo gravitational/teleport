@@ -116,7 +116,7 @@ spec:
             - teleport
             - wait
             - no-resolve
-            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+            - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.{{ include "teleport-cluster.clusterDomain" . }}'
 # propagating through the limits from the main resources section would double the requested amounts
 # and may prevent scheduling on the cluster. as such, we hardcode small limits for this tiny container.
 {{- if $proxy.resources }}

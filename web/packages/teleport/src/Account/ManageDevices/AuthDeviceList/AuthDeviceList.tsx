@@ -49,7 +49,7 @@ export function AuthDeviceList({
       <Row>{header}</Row>
       {devices.length > 0 && (
         <Row>
-          <StyledTable<MfaDevice>
+          <StyledTable
             columns={[
               {
                 key: 'description',
@@ -98,14 +98,14 @@ interface RemoveCellProps {
 function RemoveCell({ onRemove }: RemoveCellProps) {
   return (
     <Cell>
-      <ButtonWarningBorder p={2} onClick={onRemove}>
+      <ButtonWarningBorder title="Delete" p={2} onClick={onRemove}>
         <Icon.Trash size="small" />
       </ButtonWarningBorder>
     </Cell>
   );
 }
 
-const StyledTable = styled(Table)`
+const StyledTable = styled(Table<MfaDevice>)`
   & > tbody > tr > td,
   thead > tr > th {
     font-weight: 300;

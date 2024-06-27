@@ -2,7 +2,7 @@ version: v1
 plugins:
   - name: typescript
     out: gen/proto/ts
-    opt: long_type_number,eslint_disable,add_pb_suffix,server_grpc1,ts_nocheck
+    opt: eslint_disable,add_pb_suffix,server_grpc1,ts_nocheck
     path:
       - npm
       - exec

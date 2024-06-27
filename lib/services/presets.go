@@ -21,7 +21,6 @@ package services
 import (
 	"slices"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -130,6 +129,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
 					types.NewRule(types.KindBot, RW()),
+					types.NewRule(types.KindCrownJewel, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
@@ -161,7 +161,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
-					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
@@ -175,6 +174,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindServerInfo, RW()),
 					types.NewRule(types.KindAccessMonitoringRule, RW()),
 					types.NewRule(types.KindAppServer, RW()),
+					types.NewRule(types.KindVnetConfig, RW()),
+					types.NewRule(types.KindBotInstance, RW()),
 				},
 			},
 		},
@@ -232,7 +233,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
-					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
 			},
 		},
@@ -280,11 +281,11 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindSecurityReport, append(RO(), types.VerbUse)),
 					types.NewRule(types.KindAuditQuery, append(RO(), types.VerbUse)),
+					types.NewRule(types.KindBotInstance, RO()),
 				},
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 

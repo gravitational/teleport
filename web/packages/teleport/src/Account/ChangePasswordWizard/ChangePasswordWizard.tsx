@@ -34,11 +34,13 @@ import {
 import { useAsync } from 'shared/hooks/useAsync';
 import { Auth2faType } from 'shared/services';
 
+import Box from 'design/Box';
+
+import { StepHeader } from 'design/StepSlider';
+
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
-
-import { DialogHeader } from '../DialogHeader';
 
 export interface ChangePasswordWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
@@ -189,11 +191,13 @@ export function ReauthenticateStep({
 
   return (
     <StepContainer ref={refCallback} data-testid="reauthenticate-step">
-      <DialogHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title="Verify Identity"
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title="Verify Identity"
+        />
+      </Box>
       {reauthenticateAttempt.status === 'error' && (
         <OutlineDanger>{reauthenticateAttempt.statusText}</OutlineDanger>
       )}
@@ -279,11 +283,13 @@ export function ChangePasswordStep({
 
   return (
     <StepContainer ref={refCallback} data-testid="change-password-step">
-      <DialogHeader
-        stepIndex={stepIndex}
-        flowLength={flowLength}
-        title="Change Password"
-      />
+      <Box mb={4}>
+        <StepHeader
+          stepIndex={stepIndex}
+          flowLength={flowLength}
+          title="Change Password"
+        />
+      </Box>
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onSubmit(e, validator)}>
@@ -334,11 +340,11 @@ export function ChangePasswordStep({
                 Save Changes
               </ButtonPrimary>
               {stepIndex === 0 ? (
-                <ButtonSecondary block={true} onClick={onClose}>
+                <ButtonSecondary type="button" block={true} onClick={onClose}>
                   Cancel
                 </ButtonSecondary>
               ) : (
-                <ButtonSecondary block={true} onClick={prev}>
+                <ButtonSecondary type="button" block={true} onClick={prev}>
                   Back
                 </ButtonSecondary>
               )}

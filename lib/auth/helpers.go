@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -41,11 +42,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -86,8 +86,6 @@ type TestAuthServerConfig struct {
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
-	// Embedder is required to enable the assist in the auth server.
-	Embedder embedding.Embedder
 	// CacheEnabled enables the primary auth server cache.
 	CacheEnabled bool
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
@@ -114,9 +112,6 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
-	}
-	if cfg.Embedder == nil {
-		cfg.Embedder = &noopEmbedder{}
 	}
 	return nil
 }
@@ -183,7 +178,7 @@ func (a *TestServer) Auth() *Server {
 	return a.AuthServer.AuthServer
 }
 
-func (a *TestServer) NewClient(identity TestIdentity) (*Client, error) {
+func (a *TestServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	return a.TLS.NewClient(identity)
 }
 
@@ -203,14 +198,6 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 func WithClock(clock clockwork.Clock) ServerOption {
 	return func(s *Server) error {
 		s.clock = clock
-		return nil
-	}
-}
-
-// WithEmbedder is a functional server option that sets the server's embedder.
-func WithEmbedder(embedder embedding.Embedder) ServerOption {
-	return func(s *Server) error {
-		s.embedder = embedder
 		return nil
 	}
 }
@@ -286,6 +273,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: cfg.ClusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.NewWithClock(cfg.Clock),
@@ -296,21 +290,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
-		EmbeddingRetriever: ai.NewSimpleRetriever(),
-		HostUUID:           uuid.New().String(),
-		AccessLists:        accessLists,
+		Clock:                  cfg.Clock,
+		ClusterName:            clusterName,
+		HostUUID:               uuid.New().String(),
+		AccessLists:            accessLists,
 	},
 		WithClock(cfg.Clock),
-		WithEmbedder(cfg.Embedder),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Reduce auth.Server bcrypt costs when testing.
+	minCost := bcrypt.MinCost
+	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
 		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
@@ -346,12 +339,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: cfg.ClusterName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	err = srv.AuthServer.SetClusterName(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -366,9 +353,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	token, err := types.NewProvisionTokenFromSpec("static-token", time.Unix(0, 0).UTC(), types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{},
+		StaticTokens: []types.ProvisionTokenV1{
+			*token.V1(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -751,7 +746,7 @@ func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
 
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
-func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*Client, error) {
+func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
 	tlsConfig := utils.TLSConfig(a.CipherSuites)
 	cert, err := a.NewCertificate(identity)
 	if err != nil {
@@ -762,7 +757,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.ServerName = apiutils.EncodeClusterName(a.ClusterName)
 	tlsConfig.Time = a.AuthServer.clock.Now
 
-	return NewClient(client.Config{
+	return authclient.NewClient(client.Config{
 		Addrs: []string{addr.String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -795,7 +790,7 @@ type TestTLSServer struct {
 	// TestTLSServerConfig is a configuration for TLS server
 	TestTLSServerConfig
 	// Identity is a generated TLS/SSH identity used to answer in TLS
-	Identity *Identity
+	Identity *state.Identity
 	// TLSServer is a configured TLS server
 	TLSServer *TLSServer
 }
@@ -968,7 +963,7 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 }
 
 // NewClientFromWebSession returns new authenticated client from web session
-func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client, error) {
+func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -980,7 +975,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 
-	return NewClient(client.Config{
+	return authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1021,7 +1016,7 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
-func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
+func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *authclient.Client {
 	tlsConfig := clt.Config()
 	// When cloning a client, we want to make sure that we don't reuse
 	// the same session ticket cache. The session ticket cache should not be
@@ -1032,7 +1027,7 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
 
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1048,14 +1043,14 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *Client) *Client {
 }
 
 // NewClientWithCert creates a new client using given cert and private key
-func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
+func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *authclient.Client {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
 	if err != nil {
 		panic(err)
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	tlsConfig.Certificates = []tls.Certificate{clientCert}
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		Addrs: []string{t.Addr().String()},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -1069,13 +1064,13 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 }
 
 // NewClient returns new client to test server authenticated with identity
-func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
+func (t *TestTLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newClient, err := NewClient(client.Config{
+	newClient, err := authclient.NewClient(client.Config{
 		DialInBackground: true,
 		Addrs:            []string{t.Addr().String()},
 		Credentials: []client.Credentials{
@@ -1134,7 +1129,7 @@ func (t *TestTLSServer) Stop() error {
 }
 
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
+func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1157,7 +1152,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	return ReadIdentityFromKeyPair(priv, certs)
+	return state.ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods
@@ -1320,13 +1315,6 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 	}
 
 	return created, upsertedRole, nil
-}
-
-// noopEmbedder is a no op implementation of the Embedder interface.
-type noopEmbedder struct{}
-
-func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
-	return []embedding.Vector64{}, nil
 }
 
 // flushClt is the set of methods expected by the flushCache helper.

@@ -170,6 +170,11 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+	// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+	SetSignatureAlgorithmSuite(SignatureAlgorithmSuite)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -238,16 +243,6 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 // GetMetadata returns object metadata.
 func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (c *AuthPreferenceV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *AuthPreferenceV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -548,6 +543,16 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
 	c.Version = V2
 	c.Metadata.Name = MetaNameClusterAuthPreference
+}
+
+// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
+}
+
+// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+func (c *AuthPreferenceV2) SetSignatureAlgorithmSuite(suite SignatureAlgorithmSuite) {
+	c.Spec.SignatureAlgorithmSuite = suite
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
@@ -911,8 +916,6 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
-func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
 func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
 func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }

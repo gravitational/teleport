@@ -91,6 +91,13 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
 	}
-	c.Logger = c.Logger.With("rdp-addr", c.Addr)
+	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil
+}
+
+// hasSizeOverride returns true if the width and height have been set.
+// This will be true when a user has specified a fixed `screen_size` for
+// a given desktop.
+func (c *Config) hasSizeOverride() bool { //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
+	return c.Width != 0 && c.Height != 0
 }

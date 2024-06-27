@@ -30,21 +30,46 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestTemplateSSHClient_Render(t *testing.T) {
 	tests := []struct {
-		Name    string
-		Version string
+		Name        string
+		Version     string
+		Env         map[string]string
+		TLSRouting  bool
+		ALPNUpgrade bool
 	}{
 		{
-			Name:    "legacy OpenSSH",
-			Version: "6.5.0",
+			Name:       "legacy OpenSSH",
+			Version:    "6.5.0",
+			TLSRouting: true,
 		},
 		{
-			Name:    "latest OpenSSH",
+			Name:       "latest OpenSSH",
+			Version:    "9.0.0",
+			TLSRouting: true,
+		},
+		{
+			Name:       "latest OpenSSH no tls routing",
+			Version:    "9.0.0",
+			TLSRouting: false,
+		},
+		{
+			Name:        "latest OpenSSH with alpn upgrade",
+			Version:     "9.0.0",
+			ALPNUpgrade: true,
+			TLSRouting:  true,
+		},
+		{
+			Name:    "latest OpenSSH with legacy proxycommand",
 			Version: "9.0.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "legacy",
+			},
+			TLSRouting: true,
 		},
 	}
 
@@ -64,12 +89,20 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			}
 
 			mockBot := newMockProvider(cfg)
+			mockBot.isALPNUpgradeRequired = tc.ALPNUpgrade
+			mockBot.isTLSRouting = tc.TLSRouting
 			tmpl := templateSSHClient{
 				getSSHVersion: func() (*semver.Version, error) {
 					return semver.New(tc.Version), nil
 				},
 				executablePathGetter: fakeGetExecutablePath,
 				destPath:             dest.Path,
+				getEnv: func(key string) string {
+					if tc.Env == nil {
+						return ""
+					}
+					return tc.Env[key]
+				},
 			}
 
 			err = tmpl.render(context.Background(), mockBot, ident, dest)
@@ -79,10 +112,10 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
 			}
 
-			knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
+			knownHostBytes, err := os.ReadFile(filepath.Join(dir, ssh.KnownHostsName))
 			require.NoError(t, err)
 			knownHostBytes = replaceTestDir(knownHostBytes)
-			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
+			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, ssh.ConfigName))
 			require.NoError(t, err)
 			sshConfigBytes = replaceTestDir(sshConfigBytes)
 			if golden.ShouldSet() {

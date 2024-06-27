@@ -8,7 +8,7 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER)
 # Teleport version - some targets require this to be set
 VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
@@ -212,6 +212,7 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \

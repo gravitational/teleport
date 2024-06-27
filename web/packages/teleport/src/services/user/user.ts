@@ -25,7 +25,12 @@ import { WebauthnAssertionResponse } from '../auth';
 import makeUserContext from './makeUserContext';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
-import { User, UserContext, ResetPasswordType } from './types';
+import {
+  User,
+  UserContext,
+  ResetPasswordType,
+  ExcludeUserField,
+} from './types';
 
 const cache = {
   userContext: null as UserContext,
@@ -58,13 +63,38 @@ const service = {
     return api.get(cfg.getUsersUrl()).then(makeUsers);
   },
 
-  updateUser(user: User) {
-    return api.put(cfg.getUsersUrl(), user).then(makeUser);
+  /**
+   * Update user.
+   * use allTraits to create new or replace entire user traits.
+   * use traits to selectively add/update user traits.
+   * @param user
+   * @returns user
+   */
+  updateUser(user: User, excludeUserField: ExcludeUserField) {
+    return api
+      .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
+      .then(makeUser);
   },
 
-  createUser(user: User, webauthnResponse?: WebauthnAssertionResponse) {
+  /**
+   * Create user.
+   * use allTraits to create new or replace entire user traits.
+   * use traits to selectively add/update user traits.
+   * @param user
+   * @returns user
+   */
+  createUser(
+    user: User,
+    excludeUserField: ExcludeUserField,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
     return api
-      .post(cfg.getUsersUrl(), user, null, webauthnResponse)
+      .post(
+        cfg.getUsersUrl(),
+        withExcludedField(user, excludeUserField),
+        null,
+        webauthnResponse
+      )
       .then(makeUser);
   },
 
@@ -103,5 +133,24 @@ const service = {
       .then(res => res.logins);
   },
 };
+
+function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
+  const userReq = { ...user };
+  switch (excludeUserField) {
+    case ExcludeUserField.AllTraits: {
+      delete userReq.allTraits;
+      break;
+    }
+    case ExcludeUserField.Traits: {
+      delete userReq.traits;
+      break;
+    }
+    default: {
+      excludeUserField satisfies never;
+    }
+  }
+
+  return userReq;
+}
 
 export default service;

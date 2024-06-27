@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -100,10 +101,11 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	}, nil
 }
 
-// ResetPassword deletes the user's password. This method is used to invalidate
-// existing user password during password reset process. This function doesn't
-// fail if the user doesn't have a password or the user doesn't exist at all.
-func (a *Server) ResetPassword(ctx context.Context, username string) error {
+// resetPassword deletes the user's password. Used to invalidate existing user
+// password during password reset process.
+//
+// It does not fail if the user doesn't exist or doesn't have a password.
+func (a *Server) resetPassword(ctx context.Context, username string) error {
 	if err := a.DeletePassword(ctx, username); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -119,7 +121,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 
 	// Authenticate.
 	user := req.User
-	authReq := AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
@@ -127,7 +129,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 	}
 	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
+		authReq.Pass = &authclient.PassCreds{
 			Password: req.OldPassword,
 		}
 	} else {
@@ -137,7 +139,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		requiredExt.UserVerificationRequirement = string(protocol.VerificationRequired)
 	}
 	if req.SecondFactorToken != "" {
-		authReq.OTP = &OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: req.OldPassword,
 			Token:    req.SecondFactorToken,
 		}
@@ -168,9 +170,10 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 	return nil
 }
 
-// checkPasswordWOToken checks just password without checking OTP tokens
-// used in case of SSH authentication, when token has been validated.
-func (a *Server) checkPasswordWOToken(user string, password []byte) error {
+// checkPasswordWOToken checks just password without checking OTP tokens. Marks
+// user's password state as SET if necessary.  Used in case of SSH or Web
+// authentication, when token has been validated.
+func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password []byte) error {
 	const errMsg = "invalid username or password"
 
 	hash, err := a.GetPasswordHash(user)
@@ -195,6 +198,25 @@ func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 		return trace.BadParameter(errMsg)
 	}
 
+	// At this point, we know that the user provided a correct password, so we may
+	// stop worrying about timing attacks against the user existence or password.
+	// Now mark the password state as SET to gradually transition those users for
+	// whom it's not known.
+	_, err = a.UpdateAndSwapUser(ctx, user, true /* withSecrets */, func(u types.User) (bool, error) {
+		if u.GetPasswordState() == types.PasswordState_PASSWORD_STATE_SET {
+			return false, nil
+		}
+		u.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+		return true, nil
+	})
+	if err != nil {
+		// Don't let the password state flag change fail the entire operation.
+		log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
+	}
+
 	return nil
 }
 
@@ -203,8 +225,8 @@ type checkPasswordResult struct {
 }
 
 // checkPassword checks the password and OTP token. Called by tsh or lib/web/*.
-func (a *Server) checkPassword(user string, password []byte, otpToken string) (*checkPasswordResult, error) {
-	err := a.checkPasswordWOToken(user, password)
+func (a *Server) checkPassword(ctx context.Context, user string, password []byte, otpToken string) (*checkPasswordResult, error) {
+	err := a.checkPasswordWOToken(ctx, user, password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,7 +263,10 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 
 		if err := a.checkTOTP(ctx, user, otpToken, dev); err != nil {
-			log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
+			log.
+				WithError(err).
+				WithField("device", dev.GetName()).
+				Debug("TOTP device failed verification. This is expected if the user has multiple TOTP devices.")
 			continue
 		}
 		return dev, nil

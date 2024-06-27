@@ -48,9 +48,6 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
-
-	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
-	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -144,6 +141,10 @@ const (
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
+
+	// ComponentDebug is the debug service, which exposes debugging
+	// configuration over a Unix socket.
+	ComponentDebug = "debug"
 
 	// ComponentClient is a client
 	ComponentClient = "client"
@@ -276,13 +277,10 @@ const (
 	// ComponentAthena represents athena clients.
 	ComponentAthena = "athena"
 
-	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
-	// ComponentAssist represents Teleport Assist
-	ComponentAssist = "assist"
-
-	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// IterationsEnvVar sets tests iterations to run
@@ -412,6 +410,10 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
+
+	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
+	// todo(lxea): DELETE IN 17
+	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (
@@ -723,6 +725,14 @@ const (
 	// version they are running.
 	VersionRequest = "x-teleport-version"
 
+	// CurrentSessionIDRequest is sent by servers to inform clients of
+	// the session ID that is being used.
+	CurrentSessionIDRequest = "current-session-id@goteleport.com"
+
+	// SessionIDQueryRequest is sent by clients to ask servers if they
+	// will generate their own session ID when a new session is created.
+	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
@@ -746,8 +756,8 @@ const (
 	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
 	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
 
-	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
-	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+	// EnvSSHSessionInvited is an environment variable listing people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_INVITED_USERS"
 
 	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
 	// requirement information should be printed.
@@ -849,6 +859,10 @@ const (
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
 	WaitSubCommand = "wait"
+
+	// VnetAdminSetupSubCommand is the sub-command tsh vnet uses to perform
+	// a setup as a privileged user.
+	VnetAdminSetupSubCommand = "vnet-admin-setup"
 )
 
 const (
@@ -921,4 +935,10 @@ const (
 	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
 	// generating their names Server names.
 	KubeLegacyProxySuffix = "-proxy_service"
+)
+
+const (
+	// DebugServiceSocketName represents the Unix domain socket name of the
+	// debug service.
+	DebugServiceSocketName = "debug.sock"
 )

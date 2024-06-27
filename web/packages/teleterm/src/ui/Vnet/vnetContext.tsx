@@ -31,6 +31,7 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { isTshdRpcError } from 'teleterm/services/tshd';
 
 /**
  * VnetContext manages the VNet instance.
@@ -47,15 +48,27 @@ export type VnetContext = {
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
+  listDNSZones: () => Promise<[string[], Error]>;
+  listDNSZonesAttempt: Attempt<string[]>;
 };
 
-export type VnetStatus = 'running' | 'stopped';
+export type VnetStatus =
+  | { value: 'running' }
+  | { value: 'stopped'; reason: VnetStoppedReason };
+
+export type VnetStoppedReason =
+  | { value: 'regular-shutdown-or-not-started' }
+  | { value: 'unexpected-shutdown'; errorMessage: string };
 
 export const VnetContext = createContext<VnetContext>(null);
 
 export const VnetContextProvider: FC<PropsWithChildren> = props => {
-  const [status, setStatus] = useState<VnetStatus>('stopped');
-  const { vnet, mainProcessClient, configService } = useAppContext();
+  const [status, setStatus] = useState<VnetStatus>({
+    value: 'stopped',
+    reason: { value: 'regular-shutdown-or-not-started' },
+  });
+  const appCtx = useAppContext();
+  const { vnet, mainProcessClient, notificationsService } = appCtx;
   const isWorkspaceStateInitialized = useStoreSelector(
     'workspacesService',
     useCallback(state => state.isInitialized, [])
@@ -65,20 +78,20 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   });
 
   const isSupported = useMemo(
-    () =>
-      mainProcessClient.getRuntimeSettings().platform === 'darwin' &&
-      configService.get('feature.vnet').value,
-    [mainProcessClient, configService]
+    () => mainProcessClient.getRuntimeSettings().platform === 'darwin',
+    [mainProcessClient]
   );
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
-      // TODO(ravicious): If the osascript dialog was canceled, do not throw an error and instead
-      // just don't update status. Perhaps even revert back attempt status if possible.
-      //
-      // Reconsider this only once the VNet daemon gets added.
-      await vnet.start({});
-      setStatus('running');
+      try {
+        await vnet.start({});
+      } catch (error) {
+        if (!isTshdRpcError(error, 'ALREADY_EXISTS')) {
+          throw error;
+        }
+      }
+      setStatus({ value: 'running' });
       setAppState({ autoStart: true });
     }, [vnet, setAppState])
   );
@@ -86,9 +99,19 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
-      setStatus('stopped');
+      setStatus({
+        value: 'stopped',
+        reason: { value: 'regular-shutdown-or-not-started' },
+      });
       setAppState({ autoStart: false });
     }, [vnet, setAppState])
+  );
+
+  const [listDNSZonesAttempt, listDNSZones] = useAsync(
+    useCallback(
+      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
+      [vnet]
+    )
   );
 
   useEffect(() => {
@@ -112,6 +135,29 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
     handleAutoStart();
   }, [isWorkspaceStateInitialized]);
 
+  useEffect(
+    function handleUnexpectedShutdown() {
+      const removeListener = appCtx.addUnexpectedVnetShutdownListener(
+        ({ error }) => {
+          setStatus({
+            value: 'stopped',
+            reason: { value: 'unexpected-shutdown', errorMessage: error },
+          });
+
+          notificationsService.notifyError({
+            title: 'VNet has unexpectedly shut down',
+            description: error
+              ? `Reason: ${error}`
+              : 'No reason was given, check the logs for more details.',
+          });
+        }
+      );
+
+      return removeListener;
+    },
+    [appCtx, notificationsService]
+  );
+
   return (
     <VnetContext.Provider
       value={{
@@ -121,6 +167,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         startAttempt,
         stop,
         stopAttempt,
+        listDNSZones,
+        listDNSZonesAttempt,
       }}
     >
       {props.children}

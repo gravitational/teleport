@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -40,7 +41,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/modules"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 func TestBotResourceName(t *testing.T) {
 	require.Equal(
@@ -333,7 +340,7 @@ func TestCreateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -346,7 +353,7 @@ func TestCreateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -697,7 +704,7 @@ func TestUpdateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -709,7 +716,7 @@ func TestUpdateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -1022,7 +1029,7 @@ func TestUpsertBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 					),
 				)
@@ -1034,7 +1041,7 @@ func TestUpsertBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})

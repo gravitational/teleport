@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"slices"
 	"sync"
@@ -71,17 +72,25 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 type mockSSMClient struct {
 	ssmiface.SSMAPI
@@ -234,6 +243,25 @@ func TestDiscoveryServer(t *testing.T) {
 			Azure:          defaultStaticMatcher.Azure,
 			GCP:            defaultStaticMatcher.GCP,
 			Kube:           defaultStaticMatcher.Kubernetes,
+		},
+	)
+	require.NoError(t, err)
+
+	dcForEC2SSMWithIntegration, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: uuid.NewString()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
 		},
 	)
 	require.NoError(t, err)
@@ -444,6 +472,53 @@ func TestDiscoveryServer(t *testing.T) {
 			discoveryConfig:        defaultDiscoveryConfig,
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
+		{
+			name:             "one node found with Script mode using Integration credentials",
+			presentInstances: []types.Server{},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     ssm.CommandStatusSuccess,
+					}, ae)
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        dcForEC2SSMWithIntegration,
+			wantInstalledInstances: []string{"instance-id-1"},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -540,14 +615,16 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	logger := logrus.New()
 
 	defaultDiscoveryGroup := "dg01"
+	awsMatcher := types.AWSMatcher{
+		Types:       []string{"ec2"},
+		Regions:     []string{"eu-central-1"},
+		Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+		Integration: "my-integration",
+		SSM:         &types.AWSSSM{DocumentName: "document"},
+	}
+	require.NoError(t, awsMatcher.CheckAndSetDefaults())
 	staticMatcher := Matchers{
-		AWS: []types.AWSMatcher{{
-			Types:       []string{"ec2"},
-			Regions:     []string{"eu-central-1"},
-			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
-			Integration: "my-integration",
-			SSM:         &types.AWSSSM{DocumentName: "document"},
-		}},
+		AWS: []types.AWSMatcher{awsMatcher},
 	}
 
 	emitter := &mockEmitter{
@@ -1278,7 +1355,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:    nil,
+					CloudClients:    tt.cloudClients,
 					ClusterFeatures: func() proto.Features { return proto.Features{} },
 					AccessPoint:     newFakeAccessPoint(),
 					Matchers:        tt.matchers,
@@ -1448,7 +1525,7 @@ var eksMockClusters = []*eks.Cluster{
 }
 
 func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
+	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyEKSNameSuffix(cluster)
@@ -1457,7 +1534,7 @@ func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discover
 }
 
 func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
+	cluster, err := common.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyAKSNameSuffix(cluster)
@@ -1541,7 +1618,7 @@ var gkeMockClusters = []gcp.GKECluster{
 }
 
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyGKENameSuffix(cluster)
@@ -1910,7 +1987,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
@@ -2048,7 +2125,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				return
 			}
 			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
 		}, waitForReconcileTimeout, 100*time.Millisecond)
@@ -2098,7 +2175,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 			Port:    aws.Int64(5432),
 		},
 	}
-	database, err := services.NewDatabaseFromRDSInstance(instance)
+	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
@@ -2120,7 +2197,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 		},
 	}
 
-	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+	database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
@@ -2143,7 +2220,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 		},
 	}
 
-	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	database, err := common.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
@@ -2450,19 +2527,23 @@ func TestAzureVMDiscovery(t *testing.T) {
 }
 
 type mockGCPClient struct {
-	vms []*gcp.Instance
+	vms []*gcpimds.Instance
 }
 
-func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcp.Instance, error) {
+func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcpimds.Instance, error) {
 	return m.vms, nil
 }
 
-func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcp.Instance] {
+func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcpimds.Instance] {
 	return stream.Slice(m.vms)
 }
 
-func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (*gcp.Instance, error) {
+func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
 	return nil, trace.NotFound("disabled for test")
+}
+
+func (m *mockGCPClient) GetInstanceTags(_ context.Context, _ *gcpimds.InstanceRequest) (map[string]string, error) {
+	return nil, nil
 }
 
 func (m *mockGCPClient) AddSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
@@ -2526,7 +2607,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 	tests := []struct {
 		name                   string
 		presentVMs             []types.Server
-		foundGCPVMs            []*gcp.Instance
+		foundGCPVMs            []*gcpimds.Instance
 		discoveryConfig        *discoveryconfig.DiscoveryConfig
 		staticMatchers         Matchers
 		wantInstalledInstances []string
@@ -2534,7 +2615,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2564,7 +2645,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2592,7 +2673,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				},
 			},
 			staticMatchers: defaultStaticMatcher,
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2607,7 +2688,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		{
 			name:       "no nodes present, 1 found usind dynamic matchers",
 			presentVMs: []types.Server{},
-			foundGCPVMs: []*gcp.Instance{
+			foundGCPVMs: []*gcpimds.Instance{
 				{
 					ProjectID: "myproject",
 					Zone:      "myzone",
@@ -2839,13 +2920,13 @@ func (d *combinedDiscoveryClient) UpdateDiscoveryConfigStatus(ctx context.Contex
 	return nil, trace.BadParameter("not implemented.")
 }
 
-func getDiscoveryAccessPoint(authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+func getDiscoveryAccessPoint(authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient(), discoveryConfigStatusUpdater: authClient.DiscoveryConfigClient()}
 
 }
 
 type fakeAccessPoint struct {
-	auth.DiscoveryAccessPoint
+	authclient.DiscoveryAccessPoint
 
 	ping              func(context.Context) (proto.PingResponse, error)
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)

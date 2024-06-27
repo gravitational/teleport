@@ -89,9 +89,10 @@ export function createFileLoggerService(
     transports: [
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
-        maxFiles: 5,
+        maxFiles: opts.dev ? 5 : 3,
         dirname: opts.dir,
         filename: `${opts.name}.log`,
+        tailable: true,
       }),
     ],
   });
@@ -182,7 +183,12 @@ function stringifier(message: unknown[]): string {
         return singleMessage.stack;
       }
       if (isObject(singleMessage)) {
-        return JSON.stringify(singleMessage);
+        return JSON.stringify(
+          singleMessage,
+          // BigInt is not serializable with JSON.stringify
+          // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json
+          (_, value) => (typeof value === 'bigint' ? `${value}n` : value)
+        );
       }
       return singleMessage;
     })

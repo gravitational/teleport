@@ -340,6 +340,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaUserSync{}
 	case OktaAccessListSyncEvent:
 		e = &events.OktaAccessListSync{}
+	case AccessGraphAccessPathChangedEvent:
+		e = &events.AccessPathChanged{}
 	case AccessListCreateEvent:
 		e = &events.AccessListCreate{}
 	case AccessListUpdateEvent:
@@ -376,7 +378,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ClusterNetworkingConfigUpdate{}
 	case SessionRecordingConfigUpdateEvent:
 		e = &events.SessionRecordingConfigUpdate{}
-
+	case DatabaseSessionSpannerRPCEvent:
+		e = &events.SpannerRPC{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

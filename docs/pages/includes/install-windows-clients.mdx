@@ -1,0 +1,38 @@
+  ```code
+  # Set the TLS level to TLS 1.2 (required on Windows Server 2016 and lower)
+  $ [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  # Get the expected checksum for the Windows tsh package
+  $ $Resp = Invoke-WebRequest https://cdn.teleport.dev/teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip.sha256
+  # PowerShell will return the binary representation of the response content
+  # by default, so you need to convert it to a string
+  $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
+  # <checksum> <filename>
+  $ Invoke-WebRequest -OutFile teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip -Uri https://cdn.teleport.dev/teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip
+  $ certUtil -hashfile teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip SHA256
+  # SHA256 hash of teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip:
+  # <checksum>
+  # CertUtil: -hashfile command completed successfully.
+  ```
+
+  After you have verified that the checksums match, you can extract the archive.
+  The executables will be available at `teleport-v$TELEPORT_VERSION-windows-amd64-bin\`.
+
+  ```code
+  $ Expand-Archive teleport-v$TELEPORT_VERSION-windows-amd64-bin.zip
+  $ cd teleport-v$TELEPORT_VERSION-windows-amd64-bin
+  $ .\tsh.exe version
+  Teleport v$TELEPORT_VERSION git:v$TELEPORT_VERSION go(=teleport.golang=)
+  $ .\tctl.exe version
+  Teleport v$TELEPORT_VERSION git:v$TELEPORT_VERSION go(=teleport.golang=)
+  ```
+
+  Make sure to move `tsh.exe` and `tctl.exe` into your PATH.
+
+  <Admonition type="note">
+    Do not place `tsh.exe` in the `System32` directory, as this can cause issues when using WinSCP.
+    You should use `%SystemRoot%` (e.g. `C:\Windows`) instead, which is already included in `%PATH%`.
+
+    If you do not have administrator rights on the Windows system you're using, you can use `%USERPROFILE%`
+    (e.g. `C:\Users\<username>`) instead - but note that you will not be able to run `tsh` commands globally
+    from the command line unless you are in the same directory as `tsh.exe`.
+  </Admonition>

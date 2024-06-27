@@ -81,4 +81,21 @@ RUN groupadd ci --gid="$GID" -o && \
     mkdir -p -m0700 /var/lib/teleport && \
     chown -R ci /var/lib/teleport
 
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup target add arm-unknown-linux-gnueabihf && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]

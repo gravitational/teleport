@@ -226,26 +226,6 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) SetName(name string) {
 	a.GetSAMLIdPServiceProvider().SetName(name)
 }
 
-func (a *AppServerOrSAMLIdPServiceProviderV1) GetResourceID() int64 {
-	if a.IsAppServer() {
-		appServer := a.GetAppServer()
-		return appServer.Metadata.ID
-	} else {
-		sp := a.GetSAMLIdPServiceProvider()
-		return sp.Metadata.ID
-	}
-}
-
-func (a *AppServerOrSAMLIdPServiceProviderV1) SetResourceID(id int64) {
-	if a.IsAppServer() {
-		appServer := a.GetAppServer()
-		appServer.Metadata.ID = id
-	} else {
-		sp := a.GetSAMLIdPServiceProvider()
-		sp.Metadata.ID = id
-	}
-}
-
 // GetRevision returns the revision
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetRevision() string {
 	if a.IsAppServer() {

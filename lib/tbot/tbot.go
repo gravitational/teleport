@@ -21,25 +21,29 @@ package tbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -47,6 +51,11 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
+
+var clientMetrics = metrics.CreateGRPCClientMetrics(
+	false,
+	prometheus.Labels{},
+)
 
 const componentTBot = "tbot"
 
@@ -118,6 +127,10 @@ func (b *Bot) BotIdentity() *identity.Identity {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+
+	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
@@ -209,6 +222,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		botCfg:        b.cfg,
 		log:           b.log,
 	}
+	alpnUpgradeCache := &alpnProxyConnUpgradeRequiredCache{
+		botCfg: b.cfg,
+		log:    b.log,
+	}
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
@@ -221,12 +238,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 	services = append(services, &outputsService{
-		authPingCache:  authPingCache,
-		proxyPingCache: proxyPingCache,
-		getBotIdentity: b.botIdentitySvc.GetIdentity,
-		botClient:      b.botIdentitySvc.GetClient(),
-		cfg:            b.cfg,
-		resolver:       resolver,
+		authPingCache:    authPingCache,
+		proxyPingCache:   proxyPingCache,
+		alpnUpgradeCache: alpnUpgradeCache,
+		getBotIdentity:   b.botIdentitySvc.GetIdentity,
+		botClient:        b.botIdentitySvc.GetClient(),
+		cfg:              b.cfg,
+		resolver:         resolver,
 		log: b.log.With(
 			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
 		),
@@ -283,6 +301,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, &ExampleService{
 				cfg: svcCfg,
 			})
+		case *config.SSHMultiplexerService:
+			svc := &SSHMultiplexerService{
+				alpnUpgradeCache:  alpnUpgradeCache,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -460,7 +493,7 @@ func clientForFacade(
 	log *slog.Logger,
 	cfg *config.BotConfig,
 	facade *identity.Facade,
-	resolver reversetunnelclient.Resolver) (_ *auth.Client, err error) {
+	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
 	ctx, span := tracer.Start(ctx, "clientForFacade")
 	defer func() { apitracing.EndSpan(span, err) }()
 
@@ -479,6 +512,17 @@ func clientForFacade(
 		return nil, trace.Wrap(err)
 	}
 
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   logrus.StandardLogger(),
+		InsecureSkipTLSVerify: cfg.Insecure,
+		ClusterCAs:            tlsConfig.RootCAs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authClientConfig := &authclient.Config{
 		TLS: tlsConfig,
 		SSH: sshConfig,
@@ -487,8 +531,12 @@ func clientForFacade(
 		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
-		Resolver:    resolver,
-		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
+		ProxyDialer: dialer,
+		DialOpts: []grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot),
+			grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+			grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
+		},
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
@@ -496,7 +544,7 @@ func clientForFacade(
 }
 
 type authPingCache struct {
-	client *auth.Client
+	client *authclient.Client
 	log    *slog.Logger
 
 	mu          sync.RWMutex
@@ -568,4 +616,57 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 	p.cachedValue = res
 
 	return p.cachedValue, nil
+}
+
+type alpnProxyConnUpgradeRequiredCache struct {
+	botCfg *config.BotConfig
+	log    *slog.Logger
+
+	mu    sync.Mutex
+	cache map[string]bool
+	group singleflight.Group
+}
+
+func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
+	key := fmt.Sprintf("%s-%t", addr, insecure)
+
+	a.mu.Lock()
+	if a.cache == nil {
+		a.cache = make(map[string]bool)
+	}
+	v, ok := a.cache[key]
+	if ok {
+		a.mu.Unlock()
+		return v, nil
+	}
+	a.mu.Unlock()
+
+	val, err, _ := a.group.Do(key, func() (interface{}, error) {
+		// Recheck the cache in case we've just missed a previous group
+		// completing
+		a.mu.Lock()
+		v, ok := a.cache[key]
+		if ok {
+			a.mu.Unlock()
+			return v, nil
+		}
+		a.mu.Unlock()
+
+		// Ok, now we know for sure that the work hasn't already been done or
+		// isn't in flight, we can complete it.
+		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
+		v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
+		if err := ctx.Err(); err != nil {
+			// Check for case where false is returned because client canceled ctx.
+			// We don't want to cache this result.
+			return v, trace.Wrap(err)
+		}
+
+		a.mu.Lock()
+		a.cache[key] = v
+		a.mu.Unlock()
+		return v, nil
+	})
+	return val.(bool), err
 }

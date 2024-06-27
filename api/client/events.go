@@ -19,7 +19,10 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -70,6 +73,20 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AccessMonitoringRule{
 				AccessMonitoringRule: r,
 			}
+		case *crownjewelv1.CrownJewel:
+			out.Resource = &proto.Event_CrownJewel{
+				CrownJewel: r,
+			}
+		case *dbobjectv1.DatabaseObject:
+			out.Resource = &proto.Event_DatabaseObject{
+				DatabaseObject: r,
+			}
+		case *machineidv1.BotInstance:
+			out.Resource = &proto.Event_BotInstance{
+				BotInstance: r,
+			}
+		default:
+			return nil, trace.BadParameter("resource type %T is not supported", r)
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -428,7 +445,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessList(); r != nil {
-		out.Resource, err = accesslistv1conv.FromProto(r)
+		out.Resource, err = accesslistv1conv.FromProto(
+			r,
+			accesslistv1conv.WithOwnersIneligibleStatusField(r.GetSpec().GetOwners()),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -440,7 +460,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetAccessListMember(); r != nil {
-		out.Resource, err = accesslistv1conv.FromMemberProto(r)
+		out.Resource, err = accesslistv1conv.FromMemberProto(
+			r,
+			accesslistv1conv.WithMemberIneligibleStatusField(r),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -485,6 +508,15 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAccessMonitoringRule(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetCrownJewel(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetDatabaseObject(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

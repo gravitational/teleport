@@ -8,7 +8,7 @@ description: Configure automatic user provisioning for MariaDB.
 ## Prerequisites
 
 - Teleport cluster v14.1.3 or higher with a configured [self-hosted
-  MariaDB](../guides/mysql-self-hosted.mdx) or [RDS MariaDB](../guides/rds.mdx)
+  MariaDB](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MariaDB](../enroll-aws-databases/rds.mdx)
   database.
 - Ability to connect to and create user accounts in the target database.
 
@@ -61,6 +61,7 @@ automatically designates the admin user as "Admin" of those roles.
 Alternatively, you can assign the admin user as the "Admin" of existing roles:
 ```sql
 UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+FLUSH PRIVILEGES;
 ```
 
 Replace `role1` with the name of the role that will be granted to
@@ -98,6 +99,7 @@ CREATE ROLE role1 WITH ADMIN 'teleport-admin';
 Alternatively, you can assign the admin user as the "Admin" of existing roles:
 ```sql
 UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+FLUSH PRIVILEGES;
 ```
 
 Replace `role1` with the name of the role that will be granted to

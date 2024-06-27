@@ -24,17 +24,25 @@ import {
 } from 'shared/services/databases';
 import { pipe } from 'shared/utils/pipe';
 
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   Cluster,
-  Gateway,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import {
   CreateAccessRequestRequest,
-  GetRequestableRolesRequest,
   ReviewAccessRequestRequest,
   PromoteAccessRequestRequest,
   PasswordlessPrompt,
-} from 'teleterm/services/tshd/types';
+  CreateGatewayRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
+import * as uri from 'teleterm/ui/uri';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 
@@ -42,7 +50,6 @@ import { ImmutableStore } from '../immutableStore';
 
 import type * as types from './types';
 import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
-import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 
@@ -67,12 +74,18 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async addRootCluster(addr: string) {
     const { response: cluster } = await this.client.addCluster({ name: addr });
-    this.setState(draft => {
-      draft.clusters.set(
-        cluster.uri as uri.RootClusterUri,
-        this.removeInternalLoginsFromCluster(cluster)
-      );
-    });
+    // Do not overwrite the existing cluster;
+    // otherwise we may lose properties fetched from the auth server.
+    // Consider separating properties read from profile and those
+    // fetched from the auth server at the RPC message level.
+    if (!this.state.clusters.has(cluster.uri)) {
+      this.setState(draft => {
+        draft.clusters.set(
+          cluster.uri,
+          this.removeInternalLoginsFromCluster(cluster)
+        );
+      });
+    }
 
     return cluster;
   }
@@ -215,7 +228,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
               stream.requests.send({
                 request: {
                   oneofKind: 'credential',
-                  credential: { index },
+                  credential: { index: BigInt(index) },
                 },
               });
             };
@@ -351,90 +364,42 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  async getRequestableRoles(params: GetRequestableRolesRequest) {
-    const cluster = this.state.clusters.get(params.clusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
-    // UI rather than be repeated in each ClustersService method.
-    if (!cluster.connected) {
-      return;
-    }
-
-    const { response } = await this.client.getRequestableRoles(params);
-
-    return response;
-  }
-
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster?.connected) {
-      return {};
-    }
-
-    return cluster.loggedInUser?.assumedRequests || {};
+    return cluster?.loggedInUser?.assumedRequests || {};
   }
 
-  getAssumedRequest(rootClusterUri: uri.RootClusterUri, requestId: string) {
-    return this.getAssumedRequests(rootClusterUri)[requestId];
-  }
-
-  async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
-    const { response } = await this.client.getAccessRequests({
-      clusterUri: rootClusterUri,
-    });
-    return response.requests;
-  }
-
-  async deleteAccessRequest(
+  /** Assumes roles for the given requests. */
+  async assumeRoles(
     rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-    await this.client.deleteAccessRequest({
-      rootClusterUri,
-      accessRequestId: requestId,
-    });
-  }
-
-  async assumeRole(
-    rootClusterUri: uri.RootClusterUri,
-    requestIds: string[],
-    dropIds: string[]
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
+    requestIds: string[]
+  ): Promise<void> {
     await this.client.assumeRole({
       rootClusterUri,
       accessRequestIds: requestIds,
-      dropRequestIds: dropIds,
+      dropRequestIds: [],
     });
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
-    return this.syncRootCluster(rootClusterUri);
+    await this.syncRootCluster(rootClusterUri);
+  }
+
+  /** Drops roles for the given requests. */
+  async dropRoles(
+    rootClusterUri: uri.RootClusterUri,
+    requestIds: string[]
+  ): Promise<void> {
+    await this.client.assumeRole({
+      rootClusterUri,
+      accessRequestIds: [],
+      dropRequestIds: requestIds,
+    });
+    await this.syncRootCluster(rootClusterUri);
   }
 
   async getAccessRequest(
     rootClusterUri: uri.RootClusterUri,
     requestId: string
   ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const { response } = await this.client.getAccessRequest({
       clusterUri: rootClusterUri,
       accessRequestId: requestId,
@@ -444,12 +409,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async reviewAccessRequest(params: ReviewAccessRequestRequest) {
-    const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const { response } = await this.client.reviewAccessRequest(params);
     this.usageService.captureAccessRequestReview(params.rootClusterUri);
     return response.request;
@@ -462,12 +421,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async createAccessRequest(params: CreateAccessRequestRequest) {
-    const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const response = await this.client.createAccessRequest(params);
     if (!params.dryRun) {
       this.usageService.captureAccessRequestCreate(
@@ -511,7 +464,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response as types.AuthSettings;
   }
 
-  async createGateway(params: tsh.CreateGatewayRequest) {
+  async createGateway(params: CreateGatewayRequest) {
     const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
@@ -673,29 +626,46 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
-    const { response: cluster } = await this.client.getCluster({ clusterUri });
-    // TODO: this information should eventually be gathered by getCluster
-    const assumedRequests = cluster.loggedInUser
-      ? await this.fetchClusterAssumedRequests(
-          cluster.loggedInUser.activeRequests,
-          clusterUri
-        )
-      : undefined;
-    const mergeAssumedRequests = (cluster: Cluster) => ({
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        assumedRequests,
-      },
-    });
-    const processCluster = pipe(
-      this.removeInternalLoginsFromCluster,
-      mergeAssumedRequests
-    );
+    try {
+      const { response: cluster } = await this.client.getCluster({
+        clusterUri,
+      });
+      // TODO: this information should eventually be gathered by getCluster
+      const assumedRequests = cluster.loggedInUser
+        ? await this.fetchClusterAssumedRequests(
+            cluster.loggedInUser.activeRequests,
+            clusterUri
+          )
+        : undefined;
+      const mergeAssumedRequests = (cluster: Cluster) => ({
+        ...cluster,
+        loggedInUser: cluster.loggedInUser && {
+          ...cluster.loggedInUser,
+          assumedRequests,
+        },
+      });
+      const processCluster = pipe(
+        this.removeInternalLoginsFromCluster,
+        mergeAssumedRequests
+      );
 
-    this.setState(draft => {
-      draft.clusters.set(clusterUri, processCluster(cluster));
-    });
+      this.setState(draft => {
+        draft.clusters.set(clusterUri, processCluster(cluster));
+      });
+    } catch (error) {
+      this.setState(draft => {
+        const cluster = draft.clusters.get(clusterUri);
+        if (cluster) {
+          // TODO(gzdunek): We should rather store the cluster synchronization status,
+          // so the callsites could check it before reading the field.
+          // The workaround is to update the field in case of a failure,
+          // so the places that wait for showResources !== UNSPECIFIED don't get stuck indefinitely.
+          cluster.showResources = ShowResources.ACCESSIBLE_ONLY;
+        }
+      });
+
+      throw error;
+    }
   }
 
   private async fetchClusterAssumedRequests(
@@ -711,7 +681,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ).reduce((requestsMap, request) => {
       requestsMap[request.id] = {
         id: request.id,
-        expires: new Date(request.expires.seconds * 1000),
+        expires: Timestamp.toDate(request.expires),
         roles: request.roles,
       };
       return requestsMap;
@@ -734,7 +704,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 }
 
-export function makeServer(source: tsh.Server) {
+export function makeServer(source: Server) {
   return {
     uri: source.uri,
     id: source.name,
@@ -747,7 +717,7 @@ export function makeServer(source: tsh.Server) {
   };
 }
 
-export function makeDatabase(source: tsh.Database) {
+export function makeDatabase(source: Database) {
   return {
     uri: source.uri,
     name: source.name,
@@ -761,39 +731,10 @@ export function makeDatabase(source: tsh.Database) {
   };
 }
 
-export function makeKube(source: tsh.Kube) {
+export function makeKube(source: Kube) {
   return {
     uri: source.uri,
     name: source.name,
     labels: source.labels,
   };
-}
-
-export interface App extends tsh.App {
-  /**
-   * `addrWithProtocol` is an app protocol + a public address.
-   * If the public address is empty, it falls back to the endpoint URI.
-   *
-   * Always empty for SAML applications.
-   */
-  addrWithProtocol: string;
-}
-
-export function makeApp(source: tsh.App): App {
-  const { publicAddr, endpointUri } = source;
-
-  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
-  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  let addrWithProtocol = endpointUri;
-  if (publicAddr) {
-    if (isCloud) {
-      addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else {
-      addrWithProtocol = `https://${publicAddr}`;
-    }
-  }
-
-  return { ...source, addrWithProtocol };
 }

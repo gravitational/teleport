@@ -43,7 +43,7 @@ func NewDiscardServer(hostSigner ssh.Signer, listener net.Listener) (*DiscardSer
 		"integration-discard-server",
 		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		ds,
-		[]ssh.Signer{hostSigner},
+		sshutils.StaticHostSigners(hostSigner),
 		sshutils.AuthMethods{
 			PublicKey: ds.userKeyAuth,
 		},

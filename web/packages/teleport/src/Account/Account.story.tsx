@@ -16,15 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { PasswordState } from 'teleport/services/user';
 
+import cfg from 'teleport/config';
+
 import { Account, AccountProps } from './Account';
+
+const defaultSecondFactor = cfg.auth.second_factor;
 
 export default {
   title: 'Teleport/Account',
   component: Account,
+  decorators: [
+    Story => {
+      cfg.auth.second_factor = 'on';
+      useEffect(() => {
+        return () => {
+          cfg.auth.second_factor = defaultSecondFactor;
+        };
+      }, []);
+      return <Story />;
+    },
+  ],
 };
 
 export const Loaded = () => <Account {...props} />;
@@ -72,22 +87,7 @@ export const LoadingDevicesFailed = () => (
 );
 
 export const RemoveDialog = () => (
-  <Account
-    {...props}
-    isRemoveDeviceVisible={true}
-    token="123"
-    deviceToRemove={{ id: '1', name: 'iphone 12' }}
-  />
-);
-
-export const RemoveDialogFailed = () => (
-  <Account
-    {...props}
-    isRemoveDeviceVisible={true}
-    token="123"
-    deviceToRemove={{ id: '1', name: 'iphone 12' }}
-    removeDevice={() => Promise.reject(new Error('server error'))}
-  />
+  <Account {...props} token="123" deviceToRemove={props.devices[0]} />
 );
 
 export const RestrictedTokenCreateProcessing = () => (
@@ -111,18 +111,13 @@ export const RestrictedTokenCreateFailed = () => (
 
 const props: AccountProps = {
   token: '',
-  setToken: () => null,
   onAddDevice: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },
   deviceToRemove: null,
   onRemoveDevice: () => null,
-  removeDevice: () => null,
   mfaDisabled: false,
-  hideReAuthenticate: () => null,
   hideRemoveDevice: () => null,
-  isReAuthenticateVisible: false,
-  isRemoveDeviceVisible: false,
   isSso: false,
   newDeviceUsage: null,
   canAddPasskeys: true,
@@ -189,4 +184,5 @@ const props: AccountProps = {
   closeAddDeviceWizard: () => {},
   passwordState: PasswordState.PASSWORD_STATE_SET,
   onPasswordChange: () => {},
+  onDeviceRemoved: () => {},
 };

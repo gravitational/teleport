@@ -58,7 +58,6 @@ as well as an upgrade of the previous version of Teleport.
     Windows Webauthn requires Windows 10 19H1 and device capable of Windows
     Hello.
 
-  - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
     - [ ] macOS/Linux
@@ -77,10 +76,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
-    - [ ] Attempt removing the last MFA device on the user
-      - [ ] with `second_factor: on` in `auth_service`, should fail
-      - [ ] with `second_factor: optional` in `auth_service`, should succeed
-  - [ ] Login Password Only
+    - [ ] Removing the last MFA device on the user fails
   - [ ] Login with MFA
     - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
@@ -345,7 +341,27 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
   * [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   * [ ] Verify searching for `name` or `labels` in the search bar works
   * [ ] Verify you can sort by `name` colum
-* [ ] Test Kubernetes exec via WebSockets - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
+### Kubernetes exec via WebSockets/SPDY
+
+To control usage of websockets on kubectl side environment variable `KUBECTL_REMOTE_COMMAND_WEBSOCKETS` can be used:
+`KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true kubectl -v 8 exec -n namespace podName -- /bin/bash --version`. With `-v 8` logging level
+you should be able to see `X-Stream-Protocol-Version: v5.channel.k8s.io` in case kubectl is connected over websockets to Teleport.
+To do tests you'll need kubectl version at least 1.29, Kubernetes cluster v1.29 or less (doesn't support websockets stream protocol v5)
+and cluster v1.30 (does support it by default) and to access them both through kube agent and kubeconfig each.
+
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=false`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode
+  * [ ] Cluster v1.30 in kubeconfig mode
+* [ ] Check that you can exec into a cluster with `KUBECTL_REMOTE_COMMAND_WEBSOCKETS=true`
+  * [ ] Cluster v1.29 in agent mode
+  * [ ] Cluster v1.29 in kubeconfig mode
+  * [ ] Cluster v1.30 in agent mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+  * [ ] Cluster v1.30 in kubeconfig mode (should see `X-Stream-Protocol-Version: v5.channel.k8s.io`)
+* [ ] Test Kubernetes exec via javascript client - [client](https://github.com/kubernetes-client/javascript/blob/45b68c98e62b6cc4152189b9fd4a27ad32781bc4/examples/typescript/exec/exec-example.ts)
+
 
 ### Kubernetes auto-discovery
 
@@ -539,6 +555,11 @@ and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
+- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+and with [label](https://cloud.google.com/compute/docs/labeling-resources)
+`foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
+`baz`: `quux`. Verify that a node running on the instance has labels
+`gcp/label/foo=bar` and `gcp/tag/baz=quux`.
 
 ### Passwordless
 
@@ -679,10 +700,8 @@ tsh ssh node-that-requires-device-trust
     - [ ] Desktop Access
 
     Confirm that it works by failing first. Most protocols can be tested using
-    device_trust.mode="required". App Acess and Deskop Access require a custom
-    role (see [enforcing device trust][enforcing-device-trust]).
-
-[enforcing-device-trust]: https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support).
+    device_trust.mode="required". App Access and Desktop Access require a custom
+    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
 
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
@@ -695,16 +714,6 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
-  - [ ] device_trust.mode="required" is enforced by processes and not only by
-        Auth APIs
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-
-    Testing this requires issuing a certificate without device extensions
-    (mode="off"), then changing the cluster configuration to mode="required" and
-    attempting to access a process directly, without a login attempt.
-
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
@@ -712,7 +721,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access
     - [ ] Desktop Access
-  - [ ] Device authorization works correctly for both require_session_mfa=false
+  - [ ] Device authentication works correctly for both require_session_mfa=false
         and require_session_mfa=true
     - [ ] SSH
     - [ ] DB Access
@@ -724,12 +733,12 @@ tsh ssh node-that-requires-device-trust
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
-  - [ ] Device authorization issues device event (any outcomes)
+  - [ ] Device authentication issues device event (any outcomes)
   - [ ] Device web authentication issues "Device Web Token Created" and "Device
         Web Authentication Confirmed" events
-  - [ ] Device web authentication events have web_session_id set.
+  - [ ] Device web authentication events have web_authentication_id set.
         Corresponding "Device Authenticated" events have both
-        web_authentication=true and web_session_id set.
+        web_authentication=true and web_authentication_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -812,8 +821,8 @@ $
 $ # test AWS KMS
 $ # login in to AWS locally
 $ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
 $
 $ # test AWS CloudHSM
 $ # set up the CloudHSM cluster and run this on an EC2 that can reach it
@@ -953,11 +962,15 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
+Some tests are marked with "coverved by E2E test" and automatically completed
+by default. In cases the E2E test is flaky or disabled, deselect the task for
+manualy testing.
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -967,6 +980,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
+    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
@@ -975,9 +989,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1007,9 +1022,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1024,9 +1040,12 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [ ] AWS RDS Postgres.
-  - [ ] AWS RDS MySQL.
+  - [x] AWS RDS Postgres. (covered by E2E test)
+  - [x] AWS RDS MySQL. (coverved by E2E test)
   - [ ] AWS RDS MariaDB.
+  - [x] AWS Redshift (coverved by E2E test).
+- [ ] Verify Database Access Control
+  - [ ] Postgres (tables)
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1049,13 +1068,14 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
-      - [ ] Can detect and register RDS instances.
-        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
+      - [x] Can detect and register RDS instances. (covered by E2E test)
+        - [x] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
-      - [ ] Can detect and register Redshift clusters.
-      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
+      - [x] Can detect and register Redshift clusters. (covered by E2E test)
+      - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
@@ -1072,8 +1092,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
-- [ ] Other
-  - [ ] MySQL server version reported by Teleport is correct.
+- [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
 
 ## TLS Routing
 
@@ -1513,23 +1532,6 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] You can access Desktop service on leaf cluster
   - [ ] If you change your IP you no longer can access Desktop services.
 
-## Assist
-
-Assist is not supported by `tsh` and WebUI is the only way to use it.
-Assist test plan is in the core section instead of WebUI as most functionality is implemented in the core.
-
-- Configuration
-  - [ ] Assist is disabled by default (OSS, Enterprise)
-  - [ ] Assist can be enabled in the configuration file.
-  - [ ] Assist is disabled in the Cloud.
-  - [ ] Assist is enabled by default in the Cloud Team plan.
-  - [ ] Assist is always disabled when etcd is used as a backend.
-
-- SSH integration
-  - [ ] Assist icon is visible in WebUI's Terminal
-  - [ ] A Bash command can be generated in the above window.
-  - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
-
 ## IGS:
 - [ ] Access Monitoring
   - [ ] Verify that users can run custom audit queries.
@@ -1544,15 +1546,15 @@ Assist test plan is in the core section instead of WebUI as most functionality i
     - [ ] Verify that owners can only add/remove members and not change other properties.
 
 - [ ] Verify Okta Sync Service
-  - [ ] Verify OKTA Plugin configuration.
-    - [ ] Verify that the OKTA Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
-  - [ ] Verify OKTA users/apps/groups sync.
-    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
+  - [ ] Verify Okta Plugin configuration.
+    - [ ] Verify that the Okta Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
+  - [ ] Verify Okta users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
-  - [ ] Verify access to OKTA apps granted by access_list/access_request.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
+  - [ ] Verify access to Okta apps granted by access_list/access_request.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.

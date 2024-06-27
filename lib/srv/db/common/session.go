@@ -21,6 +21,7 @@ package common
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -88,6 +89,14 @@ func (c *Session) WithUser(user string) *Session {
 	return &copy
 }
 
+// WithDatabase returns a shallow copy of the session with overridden
+// database name.
+func (c *Session) WithDatabase(defaultDatabase string) *Session {
+	copy := *c
+	copy.DatabaseName = defaultDatabase
+	return &copy
+}
+
 // WithUserAndDatabase returns a shallow copy of the session with overridden
 // database user and overridden database name.
 func (c *Session) WithUserAndDatabase(user string, defaultDatabase string) *Session {
@@ -118,4 +127,9 @@ func (c *Session) CheckUsernameForAutoUserProvisioning() error {
 
 	return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 		c.Identity.Username, c.DatabaseUser)
+}
+
+// GetExpiry returns the expiry time of current session.
+func (c *Session) GetExpiry() time.Time {
+	return c.Identity.Expires
 }

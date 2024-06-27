@@ -3,7 +3,7 @@ title: Database Access Getting Started Guide
 description: Getting started with Teleport database access and AWS Aurora PostgreSQL.
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL AWS Aurora" dbConfigure="AWS Aurora database with IAM authentication" dbName="Aurora" !)
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="PostgreSQL Amazon Aurora" dbConfigure="with IAM authentication"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -87,7 +87,7 @@ See the [Automatic User Provisioning](./rbac.mdx) guide for how to configure Tel
 
 ## Step 2/5. Configure the Teleport Database Service
 
-(!docs/pages/includes/database-access/token.mdx!)
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 

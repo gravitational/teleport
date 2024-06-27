@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -41,7 +41,13 @@ const (
 
 	// binMktemp is the default binary name for creating temporary directories.
 	binMktemp = "mktemp"
+
+	// PrefixSUDO is a Teleport Command Prefix that executes with higher privileges
+	// Use with caution.
+	PrefixSUDO = "sudo"
 )
+
+var allowedCommandPrefix = []string{PrefixSUDO}
 
 var (
 	//go:embed oneoff.sh
@@ -53,6 +59,13 @@ var (
 
 // OneOffScriptParams contains the required params to create a script that downloads and executes teleport binary.
 type OneOffScriptParams struct {
+	// TeleportCommandPrefix is a prefix command to use when calling teleport command.
+	// Acceptable values are: "sudo"
+	TeleportCommandPrefix string
+	// binSudo contains the location for the sudo binary.
+	// Used for testing.
+	binSudo string
+
 	// TeleportArgs is the arguments to pass to the teleport binary.
 	// Eg, 'version'
 	TeleportArgs string
@@ -82,8 +95,6 @@ type OneOffScriptParams struct {
 	SuccessMessage string
 }
 
-var validPackageNames = []string{types.PackageNameOSS, types.PackageNameEnt}
-
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	if p.TeleportArgs == "" {
@@ -98,12 +109,16 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.BinMktemp = binMktemp
 	}
 
+	if p.binSudo == "" {
+		p.binSudo = "sudo"
+	}
+
 	if p.CDNBaseURL == "" {
 		p.CDNBaseURL = teleportCDNLocation
 	}
 
 	if p.TeleportVersion == "" {
-		p.TeleportVersion = "v" + teleport.Version
+		p.TeleportVersion = "v" + api.Version
 	}
 
 	if p.TeleportFlavor == "" {
@@ -112,12 +127,20 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 			p.TeleportFlavor = types.PackageNameEnt
 		}
 	}
-	if !slices.Contains(validPackageNames, p.TeleportFlavor) {
-		return trace.BadParameter("invalid teleport flavor, only %v are supported", validPackageNames)
+	if !slices.Contains(types.PackageNameKinds, p.TeleportFlavor) {
+		return trace.BadParameter("invalid teleport flavor, only %v are supported", types.PackageNameKinds)
 	}
 
 	if p.SuccessMessage == "" {
 		p.SuccessMessage = "Completed successfully."
+	}
+
+	switch p.TeleportCommandPrefix {
+	case PrefixSUDO:
+		p.TeleportCommandPrefix = p.binSudo
+	case "":
+	default:
+		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)
 	}
 
 	return nil

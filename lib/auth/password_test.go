@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -82,11 +82,6 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Backend:                s.bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -120,11 +115,12 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	s := setupPasswordSuite(t)
 	username := "unknown-user"
 	password := "feefiefoefum"
 
-	err := s.a.checkPasswordWOToken(username, []byte(password))
+	err := s.a.checkPasswordWOToken(ctx, username, []byte(password))
 	require.Error(t, err)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	require.True(t, trace.IsBadParameter(err))
@@ -159,7 +155,7 @@ func TestPasswordLengthChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.checkPasswordWOToken(username, password)
+	err = authServer.checkPasswordWOToken(ctx, username, password)
 	require.NoError(t, err)
 }
 
@@ -357,7 +353,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, userClient.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
-			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
+			require.NoError(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password change didn't take effect")
 		})
 	}
 }
@@ -477,7 +473,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				err, trace.Unwrap(err))
 
 			// Did the password change take effect?
-			assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+			assert.Error(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password was changed")
 		})
 	}
 }
@@ -706,7 +702,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference(t)
 
-			resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -724,7 +720,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			// Test password is updated.
 			if len(validReq.NewPassword) != 0 {
-				err := authServer.checkPasswordWOToken(username, validReq.NewPassword)
+				err := authServer.checkPasswordWOToken(ctx, username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
 
@@ -766,7 +762,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -859,7 +855,7 @@ func TestResetPassword(t *testing.T) {
 
 	// Reset password.
 	ctx := context.Background()
-	err = s.a.ResetPassword(ctx, "dave")
+	err = s.a.resetPassword(ctx, "dave")
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
@@ -870,7 +866,7 @@ func TestResetPassword(t *testing.T) {
 
 	// Make sure that we can reset once again (i.e. we don't complain if there's
 	// no password).
-	err = s.a.ResetPassword(ctx, "dave")
+	err = s.a.resetPassword(ctx, "dave")
 	require.NoError(t, err)
 }
 

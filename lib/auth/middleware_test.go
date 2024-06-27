@@ -28,6 +28,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
@@ -662,35 +665,42 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type fakeConn struct {
 	net.Conn
+	closed atomic.Bool
 }
 
-func (f fakeConn) Close() error {
+func (f *fakeConn) Close() error {
+	f.closed.CompareAndSwap(false, true)
 	return nil
+}
+
+func (f *fakeConn) RemoteAddr() net.Addr {
+	return &utils.NetAddr{}
 }
 
 func TestValidateClientVersion(t *testing.T) {
 	cases := []struct {
 		name          string
-		middleware    Middleware
+		middleware    *Middleware
 		clientVersion string
 		errAssertion  func(t *testing.T, err error)
 	}{
 		{
-			name: "rejection disabled",
+			name:       "rejection disabled",
+			middleware: &Middleware{},
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:       "rejection enabled and client version not specified",
-			middleware: Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware: &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "client rejected",
-			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
 			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
@@ -698,7 +708,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "valid client v-1",
-			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
 			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
@@ -706,7 +716,7 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "valid client v-0",
-			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
 			clientVersion: semver.Version{Major: teleport.SemVersion.Major}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
@@ -714,8 +724,24 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "invalid client version",
-			middleware:    Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
 			clientVersion: "abc123",
+			errAssertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
+			},
+		},
+		{
+			name:          "pre-release client allowed",
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1, PreRelease: "dev.abcd.123"}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "pre-release client rejected",
+			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
 			},
@@ -729,7 +755,77 @@ func TestValidateClientVersion(t *testing.T) {
 				ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{"version": tt.clientVersion}))
 			}
 
-			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
+			tt.errAssertion(t, tt.middleware.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I}))
 		})
 	}
+}
+
+func TestRejectedClientClusterAlert(t *testing.T) {
+	var alerts []types.ClusterAlert
+	mw := Middleware{
+		OldestSupportedVersion: &teleport.MinClientSemVersion,
+		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
+			alerts = append(alerts, a)
+			return nil
+		},
+	}
+
+	// Validate an unsupported client, which should trigger an alert
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+		"version": semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
+	}))
+	err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	assert.Error(t, err)
+
+	// Validate a client with an unknown version, which should trigger an alert, however,
+	// due to rate limiting of 1 alert per 24h no alert should be created.
+	ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+		"version": "abcd",
+	}))
+	err = mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+	assert.Error(t, err)
+
+	// Assert that only a single alert was created based on the above rejections.
+	require.Len(t, alerts, 1)
+	require.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
+	require.Contains(t, alerts[0].Spec.Message, "agents")
+
+	for _, tool := range []string{"tsh", "tctl", "tbot"} {
+		t.Run(tool, func(t *testing.T) {
+			// Reset the test alerts.
+			alerts = nil
+
+			// Reset the last alert time to a time beyond the rate limit, allowing the next
+			// rejection to trigger another alert.
+			mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+
+			// Create a new context with the user-agent set to a client tool. This should alter the
+			// text in the alert to indicate the connection was from a client tool and not an agent.
+			ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+				"version":    semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
+				"user-agent": tool + "/" + teleport.Version,
+			}))
+
+			// Validate two unsupported clients in parallel to verify that concurrent attempts
+			// to create an alert are prevented.
+			var wg sync.WaitGroup
+			for i := 0; i < 2; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
+					assert.Error(t, err)
+				}()
+			}
+
+			wg.Wait()
+
+			// Assert that only a single additional alert was created and that
+			// it was created for clients and not agents.
+			require.Len(t, alerts, 1)
+			assert.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
+			require.Contains(t, alerts[0].Spec.Message, tool)
+		})
+	}
+
 }

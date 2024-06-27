@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -217,7 +218,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 // connect establishes connection to MySQL database.
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,7 +231,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var password string
 	switch {
 	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
-		password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx)
+		password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -264,11 +265,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
-		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		password, err = e.Auth.GetAzureAccessToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
+		user = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.

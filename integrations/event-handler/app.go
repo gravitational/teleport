@@ -79,6 +79,9 @@ func (a *App) Run(ctx context.Context) error {
 	a.SpawnCriticalJob(a.sessionEventsJob)
 	<-a.Process.Done()
 
+	lastWindow := a.EventWatcher.getWindowStartTime()
+	a.State.SetLastWindowTime(&lastWindow)
+
 	return a.Err()
 }
 
@@ -180,7 +183,18 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	t, err := NewTeleportEventsWatcher(ctx, a.Config, *startTime, latestCursor, latestID)
+	lastWindowTime, err := s.GetLastWindowTime()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// if lastWindowTime is nil, set it to startTime
+	// lastWindowTime is used to track the last window of events ingested
+	// and is updated on exit
+	if lastWindowTime == nil {
+		lastWindowTime = startTime
+	}
+
+	t, err := NewTeleportEventsWatcher(ctx, a.Config, *lastWindowTime, latestCursor, latestID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -27,7 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	token "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // dataSourceTeleportProvisionTokenType is the data source metadata type
@@ -40,7 +40,7 @@ type dataSourceTeleportProvisionToken struct {
 
 // GetSchema returns the data source schema
 func (r dataSourceTeleportProvisionTokenType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaProvisionTokenV2(ctx)
+	return token.GenSchemaProvisionTokenV2(ctx)
 }
 
 // NewDataSource creates the empty data source
@@ -68,7 +68,7 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Re
     var state types.Object
 	
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
-	diags = tfschema.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
+	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

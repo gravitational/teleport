@@ -24,7 +24,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
-	"math"
 	"sync"
 	"time"
 
@@ -32,8 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -59,7 +59,7 @@ type identityService struct {
 	resolver          reversetunnelclient.Resolver
 
 	mu     sync.Mutex
-	client *auth.Client
+	client *authclient.Client
 	facade *identity.Facade
 }
 
@@ -72,7 +72,7 @@ func (s *identityService) GetIdentity() *identity.Identity {
 
 // GetClient returns the facaded client for the Bot identity for use by other
 // components of `tbot`. Consumers should not call `Close` on the client.
-func (s *identityService) GetClient() *auth.Client {
+func (s *identityService) GetClient() *authclient.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client
@@ -223,6 +223,10 @@ func (s *identityService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
+	// Determine where the bot should write its internal data (renewable cert
+	// etc)
+	storageDestination := s.cfg.Storage.Destination
+
 	s.log.InfoContext(
 		ctx,
 		"Beginning bot identity renewal loop",
@@ -230,66 +234,19 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.RenewalInterval,
 	)
 
-	// Determine where the bot should write its internal data (renewable cert
-	// etc)
-	storageDestination := s.cfg.Storage.Destination
-
-	ticker := time.NewTicker(s.cfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-		case <-reloadCh:
-		}
-
-		var err error
-		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
-			s.log.InfoContext(
-				ctx,
-				"Attempting to renewing bot identity",
-				"attempt", attempt,
-				"retry_limit", botIdentityRenewalRetryLimit,
-			)
-			err = s.renew(
-				ctx, storageDestination,
-			)
-			if err == nil {
-				break
-			}
-
-			if attempt != botIdentityRenewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.ErrorContext(
-					ctx,
-					"Bot identity renewal attempt failed. Waiting to retry.",
-					"error", err,
-					"attempt", attempt,
-					"retry_limit", botIdentityRenewalRetryLimit,
-					"backoff", backoffTime,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			s.log.ErrorContext(
-				ctx,
-				"All bot identity renewal attempts exhausted. Exiting",
-				"error", err,
-				"retry_limit", botIdentityRenewalRetryLimit,
-			)
-			return trace.Wrap(err)
-		}
-		s.log.InfoContext(ctx, "Renewed bot identity. Waiting to renew again", "wait", s.cfg.RenewalInterval)
-	}
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name: "bot-identity-renewal",
+		f: func(ctx context.Context) error {
+			return s.renew(ctx, storageDestination)
+		},
+		interval:             s.cfg.RenewalInterval,
+		exitOnRetryExhausted: true,
+		retryLimit:           botIdentityRenewalRetryLimit,
+		log:                  s.log,
+		reloadCh:             reloadCh,
+		waitBeforeFirstRun:   true,
+	})
+	return trace.Wrap(err)
 }
 
 func (s *identityService) renew(
@@ -350,7 +307,7 @@ func botIdentityFromAuth(
 	ctx context.Context,
 	log *slog.Logger,
 	ident *identity.Identity,
-	client *auth.Client,
+	client *authclient.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	ctx, span := tracer.Start(ctx, "botIdentityFromAuth")
@@ -401,9 +358,9 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 	}
 
 	expires := time.Now().Add(cfg.CertificateTTL)
-	params := auth.RegisterParams{
+	params := join.RegisterParams{
 		Token: token,
-		ID: auth.IdentityID{
+		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		PublicTLSKey:       tlsPublicKey,
@@ -437,12 +394,12 @@ func botIdentityFromToken(ctx context.Context, log *slog.Logger, cfg *config.Bot
 	}
 
 	if params.JoinMethod == types.JoinMethodAzure {
-		params.AzureParams = auth.AzureParams{
+		params.AzureParams = join.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	}
 
-	certs, err := auth.Register(ctx, params)
+	certs, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

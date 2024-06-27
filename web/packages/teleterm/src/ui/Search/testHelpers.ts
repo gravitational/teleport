@@ -27,5 +27,6 @@ export const makeResourceResult = (
   score: 0,
   labelMatches: [],
   resourceMatches: [],
+  requiresRequest: false,
   ...props,
 });

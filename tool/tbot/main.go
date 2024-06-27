@@ -25,6 +25,9 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"strings"
 	"syscall"
 	"time"
@@ -59,7 +62,7 @@ func main() {
 
 const appHelp = `Teleport Machine ID
 
-Machine ID issues and renews short-lived certificates so your machines can 
+Machine ID issues and renews short-lived certificates so your machines can
 access Teleport protected resources in the same way your engineers do!
 
 Find out more at https://goteleport.com/docs/machine-id/introduction/`
@@ -68,12 +71,17 @@ func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	ctx := context.Background()
 
+	var cpuProfile, memProfile, traceProfile string
+
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
 	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&cf.Trace)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&cf.TraceExporter)
+	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
+	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -158,6 +166,24 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
+	sshProxyCmd := app.Command("ssh-proxy-command", "An OpenSSH/PuTTY proxy command").Hidden()
+	sshProxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
+	sshProxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
+	sshProxyCmd.Flag("user", "The remote user name for the connection").Required().StringVar(&cf.User)
+	sshProxyCmd.Flag("host", "The remote host to connect to").Required().StringVar(&cf.Host)
+	sshProxyCmd.Flag("port", "The remote port to connect on.").StringVar(&cf.Port)
+	sshProxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.ProxyServer)
+	sshProxyCmd.Flag("tls-routing", "Whether the Teleport cluster has tls routing enabled.").Required().BoolVar(&cf.TLSRoutingEnabled)
+	sshProxyCmd.Flag("connection-upgrade", "Whether the Teleport cluster requires an ALPN connection upgrade.").Required().BoolVar(&cf.ConnectionUpgradeRequired)
+	sshProxyCmd.Flag("proxy-templates", "The path to a file containing proxy templates to be evaluated.").StringVar(&cf.TSHConfigPath)
+	sshProxyCmd.Flag("resume", "Enable SSH connection resumption").BoolVar(&cf.EnableResumption)
+
+	sshMultiplexProxyCmd := app.Command("ssh-multiplexer-proxy-command", "An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service").Hidden()
+	var sshMultiplexSocket string
+	var sshMultiplexData string
+	sshMultiplexProxyCmd.Arg("path", "Path to the listener socket.").Required().StringVar(&sshMultiplexSocket)
+	sshMultiplexProxyCmd.Arg("data", "Connection target.").Required().StringVar(&sshMultiplexData)
+
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
@@ -225,10 +251,70 @@ func Run(args []string, stdout io.Writer) error {
 		}()
 	}
 
-	// If migration is specified, we want to run this before the config is
-	// loaded normally.
-	if migrateCmd.FullCommand() == command {
+	if cpuProfile != "" {
+		log.DebugContext(ctx, "capturing CPU profile", "profile_path", cpuProfile)
+		f, err := os.Create(cpuProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	if memProfile != "" {
+		log.DebugContext(ctx, "capturing memory profile", "profile_path", memProfile)
+		defer func() {
+			f, err := os.Create(memProfile)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				return
+			}
+		}()
+	}
+
+	if traceProfile != "" {
+		log.DebugContext(ctx, "capturing trace profile", "profile_path", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
+	}
+
+	// Some commands do not need the full context of the config, so we'll
+	// run these first.
+	switch command {
+	case migrateCmd.FullCommand():
 		return onMigrate(ctx, cf, stdout)
+	case versionCmd.FullCommand():
+		return onVersion()
+	case spiffeInspectCmd.FullCommand():
+		return onSPIFFEInspect(ctx, spiffeInspectPath)
+	case tpmIdentifyCommand.FullCommand():
+		query, err := tpm.Query(ctx, log)
+		if err != nil {
+			return trace.Wrap(err, "querying TPM")
+		}
+		tpm.PrintQuery(query, cf.Debug, os.Stdout)
+		return nil
+	case configureCmd.FullCommand():
+		return onConfigure(ctx, cf, stdout)
+	case sshProxyCmd.FullCommand():
+		return onSSHProxyCommand(ctx, &cf)
+	case sshMultiplexProxyCmd.FullCommand():
+		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
@@ -236,29 +322,18 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err)
 	}
 
+	// The rest of the commands rely on the full config
 	switch command {
-	case versionCmd.FullCommand():
-		err = onVersion()
 	case startCmd.FullCommand():
 		err = onStart(ctx, botConfig)
-	case configureCmd.FullCommand():
-		err = onConfigure(ctx, cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
-		err = onProxyCommand(botConfig, &cf)
+		err = onProxyCommand(ctx, botConfig, &cf)
 	case kubeCredentialsCmd.FullCommand():
 		err = onKubeCredentialsCommand(ctx, botConfig)
-	case spiffeInspectCmd.FullCommand():
-		err = onSPIFFEInspect(ctx, spiffeInspectPath)
-	case tpmIdentifyCommand.FullCommand():
-		query, err := tpm.Query(ctx, log)
-		if err != nil {
-			return trace.Wrap(err, "querying TPM")
-		}
-		tpm.PrintQuery(query, cf.Debug, os.Stdout)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

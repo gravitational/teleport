@@ -1,43 +1,26 @@
-ARG BUILDBOX
 ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
+# Extract the built tarball to reduce the final image size
+FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 
-WORKDIR /go/src/github.com/gravitational/teleport/
-
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
-
-# We have to copy the API before `go mod download` because go.mod has a replace directive for it
-COPY api/ api/
-
-RUN go mod download
-
-# Copy in code
-COPY version.go constants.go gitref.go ./
-COPY lib/ ./lib/
-COPY build.assets/images.mk build.assets/arch.mk ./build.assets/
-COPY integrations/lib/ ./integrations/lib/
-COPY integrations/access/ ./integrations/access/
-
-RUN pwd && ls -la
-
-ARG TARGETOS
 ARG TARGETARCH
-ARG ACCESS_PLUGIN
+ARG TARGETOS
+ARG ARTIFACT_NAME=plugin    # Should be something like 'access-slack' or 'event-handler'
+ARG TELEPORT_VERSION=0.0.0  # Should be the version without 'v' prefix
+ARG FILENAME=teleport-${ARTIFACT_NAME}-v${TELEPORT_VERSION}-${TARGETOS}-${TARGETARCH}-bin.tar.gz # Optional override
 
-WORKDIR /go/src/github.com/gravitational/teleport/integrations/access/$ACCESS_PLUGIN
+WORKDIR /extraction
+COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
+COPY "${FILENAME}" /plugin.tar.gz
 
-# Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
-RUN make build/teleport-$ACCESS_PLUGIN
+RUN tar -xzvf /plugin.tar.gz && \
+    find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=$TARGETPLATFORM $BASE_IMAGE
+FROM --platform=${TARGETPLATFORM} ${BASE_IMAGE}
 WORKDIR /
-ARG ACCESS_PLUGIN
-COPY --from=builder /go/src/github.com/gravitational/teleport/integrations/access/$ACCESS_PLUGIN/build/teleport-$ACCESS_PLUGIN /usr/local/bin/teleport-plugin
+COPY --from=extractor /teleport-plugin /usr/local/bin/teleport-plugin
 
 ENTRYPOINT ["/usr/local/bin/teleport-plugin"]

@@ -139,6 +139,21 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 	}
 }
 
+// StatementForEC2SSMAutoDiscover returns the required statement to enable EC2 Auto Discover using SSM.
+func StatementForEC2SSMAutoDiscover() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ssm:DescribeInstanceInformation",
+			"ssm:GetCommandInvocation",
+			"ssm:ListCommandInvocations",
+			"ssm:SendCommand",
+		},
+		Resources: allResources,
+	}
+}
+
 // StatementForAWSAppAccess returns the statement that allows AWS App Access.
 // Only IAM Roles with `teleport.dev/integration: Allowed` Tag can be used.
 func StatementForAWSAppAccess() *Statement {
@@ -409,6 +424,10 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:ListRolePolicies",
 			"iam:ListAttachedRolePolicies",
 			"iam:GetRolePolicy",
+			"iam:ListSAMLProviders",
+			"iam:GetSAMLProvider",
+			"iam:ListOpenIDConnectProviders",
+			"iam:GetOpenIDConnectProvider",
 		},
 		Resources: allResources,
 	}

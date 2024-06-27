@@ -6,7 +6,7 @@ description: Configure automatic user provisioning for MySQL.
 ## Prerequisites
 
 - Teleport cluster v14.1 or higher with a configured [self-hosted
-  MySQL](../guides/mysql-self-hosted.mdx) or [RDS MySQL](../guides/rds.mdx)
+  MySQL](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MySQL](../enroll-aws-databases/rds.mdx)
   database.
 - Ability to connect to and create user accounts in the target database.
 - Automatic user provisioning is not compatible with MySQL versions lower than
@@ -114,7 +114,7 @@ ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-u
 
 ### Table is read only error
 
-You may encounter the following error when connecting to an AWS RDS Aurora
+You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
 ```shell
 $ tsh db connect --db-name <database> example

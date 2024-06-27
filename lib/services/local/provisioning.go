@@ -80,7 +80,6 @@ func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item
 		Key:      backend.Key(tokensPrefix, p.GetName()),
 		Value:    data,
 		Expires:  p.Expiry(),
-		ID:       p.GetResourceID(),
 		Revision: rev,
 	}
 	return item, nil
@@ -104,7 +103,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.Wrap(err)
 	}
 
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalProvisionToken(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteToken deletes a token by ID
@@ -130,7 +129,6 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 	for i, item := range result.Items {
 		t, err := services.UnmarshalProvisionToken(
 			item.Value,
-			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)

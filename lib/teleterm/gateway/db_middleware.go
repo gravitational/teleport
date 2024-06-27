@@ -20,9 +20,9 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -32,7 +32,7 @@ import (
 )
 
 type dbMiddleware struct {
-	onExpiredCert func(context.Context) error
+	onExpiredCert func(context.Context) (tls.Certificate, error)
 	log           *logrus.Entry
 	dbRoute       tlsca.RouteToDatabase
 }
@@ -43,8 +43,8 @@ type dbMiddleware struct {
 //
 // In the future, DBCertChecker is going to be extended so that it's used by both tsh and Connect
 // and this middleware will be removed.
-func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) error {
-	err := lp.CheckDBCerts(m.dbRoute)
+func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy) error {
+	err := lp.CheckDBCert(m.dbRoute)
 	if err == nil {
 		return nil
 	}
@@ -56,7 +56,13 @@ func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy,
 
 	m.log.WithError(err).Debug("Gateway certificates have expired")
 
-	return trace.Wrap(m.onExpiredCert(ctx))
+	cert, err := m.onExpiredCert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	lp.SetCert(cert)
+	return nil
 }
 
 // OnStart is a noop. client.DBCertChecker.OnStart checks cert validity. However in Connect there's

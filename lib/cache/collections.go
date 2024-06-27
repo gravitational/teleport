@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -183,6 +185,11 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
+type crownjewelsGetter interface {
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -206,10 +213,12 @@ type cacheCollections struct {
 	clusterNames             collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
 	databases                collectionReader[services.DatabaseGetter]
+	databaseObjects          collectionReader[services.DatabaseObjectsGetter]
 	databaseServers          collectionReader[databaseServerGetter]
 	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
+	crownJewels              collectionReader[crownjewelsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
 	kubeServers              collectionReader[kubeServerGetter]
@@ -530,6 +539,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.databases
+		case types.KindDatabaseObject:
+			if c.DatabaseObjects == nil {
+				return nil, trace.BadParameter("missing parameter DatabaseObject")
+			}
+			collections.databaseObjects = &genericCollection[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter, databaseObjectExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.databaseObjects
 		case types.KindKubernetesCluster:
 			if c.Kubernetes == nil {
 				return nil, trace.BadParameter("missing parameter Kubernetes")
@@ -539,6 +557,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeClusters
+		case types.KindCrownJewel:
+			if c.CrownJewels == nil {
+				return nil, trace.BadParameter("missing parameter crownjewels")
+			}
+			collections.crownJewels = &genericCollection[*crownjewelv1.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.crownJewels
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -1397,6 +1424,51 @@ func (databaseExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseG
 
 var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
 
+type databaseObjectExecutor struct{}
+
+func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	var nextToken string
+	for {
+		var page []*dbobjectv1.DatabaseObject
+		var err error
+
+		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
+	_, err := cache.databaseObjectsCache.UpsertDatabaseObject(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
+}
+
+func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
+}
+
+func (databaseObjectExecutor) isSingleton() bool { return false }
+
+func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseObjectsGetter {
+	if cacheOK {
+		return cache.databaseObjectsCache
+	}
+	return cache.Config.DatabaseObjects
+}
+
+var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
+
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
@@ -2231,6 +2303,51 @@ type kubernetesWaitingContainerGetter interface {
 
 var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
 
+type crownJewelsExecutor struct{}
+
+func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
+	var resources []*crownjewelv1.CrownJewel
+	var nextToken string
+	for {
+		var page []*crownjewelv1.CrownJewel
+		var err error
+		page, nextToken, err = cache.CrownJewels.ListCrownJewels(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
+	_, err := cache.crownJewelsCache.UpsertCrownJewel(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.crownJewelsCache.DeleteAllCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.crownJewelsCache.DeleteCrownJewel(ctx, resource.GetName())
+}
+
+func (crownJewelsExecutor) isSingleton() bool { return false }
+
+func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGetter {
+	if cacheOK {
+		return cache.crownJewelsCache
+	}
+	return cache.Config.CrownJewels
+}
+
+var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
+
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}
 
@@ -2983,7 +3100,7 @@ func (userNotificationExecutor) delete(ctx context.Context, cache *Cache, resour
 	}
 
 	username := notification.GetSpec().GetUsername()
-	notificationId := notification.GetSpec().GetId()
+	notificationId := notification.GetMetadata().GetName()
 
 	err := cache.notificationsCache.DeleteUserNotification(ctx, username, notificationId)
 	return trace.Wrap(err)
@@ -3046,7 +3163,7 @@ func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, reso
 		return trace.BadParameter("unknown Notification type, expected *notificationsv1.GlobalNotification, got %T", resource)
 	}
 
-	notificationId := globalNotification.GetSpec().GetNotification().GetSpec().GetId()
+	notificationId := globalNotification.GetMetadata().GetName()
 
 	err := cache.notificationsCache.DeleteGlobalNotification(ctx, notificationId)
 	return trace.Wrap(err)
@@ -3109,4 +3226,5 @@ func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) acces
 type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }

@@ -33,7 +33,35 @@ import { darkTheme, lightTheme, bblpTheme } from '../theme';
 import { GlobalStyle } from './globals';
 
 function themePreferenceToTheme(themePreference: Theme) {
+  if (themePreference === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? lightTheme : darkTheme;
+  }
   return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
+}
+
+// because unspecified can exist but only used as a fallback and not an option,
+// we need to get the current/next themes with getPrefersDark in mind.
+// TODO (avatus) when we add user settings page, we can add a Theme.SYSTEM option
+// and remove the checks for unspecified
+export function getCurrentTheme(currentTheme: Theme): Theme {
+  if (currentTheme === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? Theme.DARK : Theme.LIGHT;
+  }
+
+  return currentTheme;
+}
+
+export function getNextTheme(currentTheme: Theme): Theme {
+  return getCurrentTheme(currentTheme) === Theme.LIGHT
+    ? Theme.DARK
+    : Theme.LIGHT;
+}
+
+export function getPrefersDark(): boolean {
+  return (
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 const ThemeProvider = props => {
@@ -52,7 +80,10 @@ const ThemeProvider = props => {
       }
 
       const preferences = JSON.parse(newValue);
-      if (preferences.theme !== themePreference) {
+      if (
+        preferences.theme !== Theme.UNSPECIFIED &&
+        preferences.theme !== themePreference
+      ) {
         setThemePreference(preferences.theme);
       }
     }

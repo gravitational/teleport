@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -93,6 +95,7 @@ var highVolumeResources = map[string]struct{}{
 	types.KindDatabaseService:       {},
 	types.KindWindowsDesktopService: {},
 	types.KindKubeServer:            {},
+	types.KindDatabaseObject:        {},
 }
 
 func isHighVolumeResource(kind string) bool {
@@ -156,6 +159,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindCrownJewel},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
@@ -174,6 +178,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
+		{Kind: types.KindDatabaseObject},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -232,51 +237,8 @@ func ForProxy(cfg Config) Config {
 }
 
 // ForRemoteProxy sets up watch configuration for remote proxies.
-//
-// **WARNING**: In order to add a new types.WatchKind below there
-// are a few things that must be done to ensure that backward
-// incompatible changes don't render a remote cluster permanently unhealthy.
-// First, the cfg.Watches of ForOldRemoteProxy must be replaced
-// with the current cfg.Watches of ForRemoteProxy. Next, the
-// version used by `lib/reversetunnel/srv.go` to determine whether
-// to use ForRemoteProxy or ForOldRemoteProxy must be updated
-// to be the release in which the new resource(s) will exist in. Finally,
-// add the new types.WatchKind below. Also note that this only
-// designed to occur once per major version.
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
-	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
-		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterAuditConfig},
-		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindNamespace},
-		{Kind: types.KindNode},
-		{Kind: types.KindProxy},
-		{Kind: types.KindAuthServer},
-		{Kind: types.KindReverseTunnel},
-		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindDatabaseService},
-		{Kind: types.KindKubeServer},
-	}
-	cfg.QueueSize = defaults.ProxyQueueSize
-	return cfg
-}
-
-// ForOldRemoteProxy sets up watch configuration for older remote proxies.
-// The types.WatchKind defined here allow for backwards incompatible changes and
-// should only be updated to match the previous values of ForRemoteProxy **prior**
-// to the breaking change. See the comment of ForRemoteProxy for instructions
-// on how to update without bricking remote proxy caches.
-func ForOldRemoteProxy(cfg Config) Config {
-	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
@@ -530,8 +492,10 @@ type Cache struct {
 	restrictionsCache            services.Restrictions
 	appsCache                    services.Apps
 	kubernetesCache              services.Kubernetes
+	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
 	databasesCache               services.Databases
+	databaseObjectsCache         *local.DatabaseObjectService
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
@@ -682,10 +646,14 @@ type Config struct {
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
+	// CrownJewels is a CrownJewels service.
+	CrownJewels services.CrownJewels
 	// DatabaseServices is a DatabaseService service.
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// DatabaseObjects is a database object service.
+	DatabaseObjects services.DatabaseObjects
 	// SAMLIdPSession holds SAML IdP sessions.
 	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
@@ -901,7 +869,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	secReprotsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
+	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -914,6 +882,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	accessListCache, err := simple.NewAccessListService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -943,6 +917,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	crownJewelCache, err := local.NewCrownJewelsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -959,6 +939,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		appsCache:                    local.NewAppService(config.Backend),
 		kubernetesCache:              local.NewKubernetesService(config.Backend),
+		crownJewelsCache:             crownJewelCache,
 		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
 		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              local.NewIdentityService(config.Backend),
@@ -974,9 +955,10 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
-		secReportsCache:              secReprotsCache,
+		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
+		databaseObjectsCache:         databaseObjectsCache,
 		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -2460,6 +2442,30 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return rg.reader.GetDatabases(ctx)
 }
 
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDatabaseObject(ctx, name)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.databaseObjects)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
+}
+
 // GetDatabase returns the specified database resource.
 func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
@@ -2811,7 +2817,33 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
-// GetSecurityAuditQuery  returns the specified audit query resource.
+// ListCrownJewels returns a list of CrownJewel resources.
+func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey string) ([]*crownjewelv1.CrownJewel, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListCrownJewels")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListCrownJewels(ctx, pageSize, nextKey)
+}
+
+// GetCrownJewel returns the specified CrownJewel resource.
+func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewel")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetCrownJewel(ctx, name)
+}
+
+// GetSecurityAuditQuery returns the specified audit query resource.
 func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
 	defer span.End()
@@ -3001,7 +3033,17 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAccessList(ctx, name)
+	item, err := rg.reader.GetAccessList(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if item, err := c.Config.AccessLists.GetAccessList(ctx, name); err == nil {
+			return item, nil
+		}
+	}
+	return item, trace.Wrap(err)
 }
 
 // CountAccessListMembers will count all access list members.
@@ -3117,6 +3159,21 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	}
 	defer rg.Release()
 	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
+	return out, nextKey, trace.Wrap(err)
+}
+
+// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
 	return out, nextKey, trace.Wrap(err)
 }
 

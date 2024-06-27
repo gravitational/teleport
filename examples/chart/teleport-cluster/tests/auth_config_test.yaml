@@ -687,3 +687,14 @@ tests:
     asserts:
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: sets clusterDomain on Configmap
+    set:
+      clusterName: teleport.example.com
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'svc.test.com:3026'

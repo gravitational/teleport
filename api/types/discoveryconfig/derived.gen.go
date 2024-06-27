@@ -150,7 +150,8 @@ func deriveTeleportEqual_8(this, that *types.AWSMatcher) bool {
 			deriveTeleportEqual_16(this.Params, that.Params) &&
 			deriveTeleportEqual_17(this.SSM, that.SSM) &&
 			this.Integration == that.Integration &&
-			this.KubeAppDiscovery == that.KubeAppDiscovery
+			this.KubeAppDiscovery == that.KubeAppDiscovery &&
+			this.SetupAccessForARN == that.SetupAccessForARN
 }
 
 // deriveTeleportEqual_9 returns whether this and that are equal.
@@ -257,7 +258,8 @@ func deriveTeleportEqual_16(this, that *types.InstallerParams) bool {
 			this.InstallTeleport == that.InstallTeleport &&
 			this.SSHDConfig == that.SSHDConfig &&
 			this.PublicProxyAddr == that.PublicProxyAddr &&
-			deriveTeleportEqual_19(this.Azure, that.Azure)
+			deriveTeleportEqual_19(this.Azure, that.Azure) &&
+			this.EnrollMode == that.EnrollMode
 }
 
 // deriveTeleportEqual_17 returns whether this and that are equal.

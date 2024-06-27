@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import {
   MainProcessClient,
@@ -65,4 +66,24 @@ export interface IAppContext {
   vnet: VnetClient;
 
   pullInitialState(): Promise<void>;
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function.
+   */
+  addUnexpectedVnetShutdownListener: (
+    listener: UnexpectedVnetShutdownListener
+  ) => () => void;
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
 }
+
+export type UnexpectedVnetShutdownListener = (
+  request: tshdEventsApi.ReportUnexpectedVnetShutdownRequest
+) => void;

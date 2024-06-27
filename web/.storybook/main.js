@@ -70,17 +70,6 @@ module.exports = {
 
     if (!enterpriseTeleportExists) {
       delete storybookConfig.resolve.alias['e-teleport'];
-      // Unlike e-teleport, e-teleterm cannot be removed from aliases because code in OSS teleterm
-      // depends directly on e-teleterm, see https://github.com/gravitational/teleport/issues/17706.
-      //
-      // Instead of removing e-teleterm, we have to mock individual files on a case-by-case basis.
-      //
-      // TODO(ravicious): Remove e-teleterm alias once #17706 gets addressed.
-      storybookConfig.resolve.alias['e-teleterm'] = path.join(
-        __dirname,
-        'mocks',
-        'e-teleterm'
-      );
     }
 
     storybookConfig.optimization = {

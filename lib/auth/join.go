@@ -128,6 +128,7 @@ func (a *Server) handleJoinFailure(
 		fields["role"] = req.Role
 		fields["host_id"] = req.HostID
 		fields["node_name"] = req.NodeName
+		fields["remote_addr"] = req.RemoteAddr
 	}
 
 	// Fetch and encode attributes if they are available.
@@ -165,10 +166,14 @@ func (a *Server) handleJoinFailure(
 			},
 			Status:     status,
 			Attributes: attributesProto,
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: req.RemoteAddr,
+			},
 		}
 		if pt != nil {
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
+			botJoinEvent.BotName = pt.GetBotName()
 		}
 		evt = botJoinEvent
 	} else {
@@ -188,6 +193,7 @@ func (a *Server) handleJoinFailure(
 			instanceJoinEvent.Role = string(req.Role)
 			instanceJoinEvent.NodeName = req.NodeName
 			instanceJoinEvent.HostID = req.HostID
+			instanceJoinEvent.RemoteAddr = req.RemoteAddr
 		}
 		evt = instanceJoinEvent
 	}
@@ -370,6 +376,9 @@ func (a *Server) generateCertsBot(
 		Method:    string(joinMethod),
 		TokenName: provisionToken.GetSafeName(),
 		UserName:  machineidv1.BotResourceName(botName),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+		},
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()
@@ -447,6 +456,9 @@ func (a *Server) generateCerts(
 		TokenName:    provisionToken.GetSafeName(),
 		TokenExpires: provisionToken.Expiry(),
 		HostID:       req.HostID,
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+		},
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()

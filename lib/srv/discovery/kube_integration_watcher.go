@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -50,7 +51,14 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	clt := s.AccessPoint
 
-	releaseChannels := automaticupgrades.Channels{}
+	pingResponse, err := s.AccessPoint.Ping(s.ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
+
+	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
+		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
 	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,7 +203,7 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 		for _, r := range rsp.Results {
 			if r.Error != "" {
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.WithError(err).Errorf("failed to enroll EKS cluster %q", r.EksClusterName)
+					s.Log.Errorf("failed to enroll EKS cluster %q: %s", r.EksClusterName, r.Error)
 				} else {
 					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.EksClusterName)
 				}
@@ -214,7 +222,7 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	agentVersion := pingResponse.ServerVersion
 
 	clusterFeatures := s.ClusterFeatures()
-	if clusterFeatures.GetAutomaticUpgrades() {
+	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
 		defaultVersion, err := releaseChannels.DefaultVersion(s.ctx)
 		if err == nil {
 			agentVersion = defaultVersion

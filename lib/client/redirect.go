@@ -32,7 +32,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,6 +63,12 @@ const (
 	// failing (such as an unmet hardware key policy) and the first should be
 	// ignored.
 	LoginClose = "/web/msg/info/login_close"
+
+	// SAMLSingleLogoutFailedRedirectURL is the default redirect URL when an error was encountered during SAML Single Logout.
+	SAMLSingleLogoutFailedRedirectURL = "/web/msg/error/slo"
+
+	// DefaultLoginURL is the default login page.
+	DefaultLoginURL = "/web/login"
 )
 
 // Redirector handles SSH redirect flow with the Teleport server
@@ -85,7 +91,7 @@ type Redirector struct {
 	// that redirectURL will be set later
 	shortPath string
 	// responseC is a channel to receive responses
-	responseC chan *auth.SSHLoginResponse
+	responseC chan *authclient.SSHLoginResponse
 	// errorC will contain errors
 	errorC chan error
 	// proxyClient is HTTP client to the Teleport Proxy
@@ -143,7 +149,7 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorCon
 		mux:          http.NewServeMux(),
 		key:          key,
 		shortPath:    "/" + uuid.New().String(),
-		responseC:    make(chan *auth.SSHLoginResponse, 1),
+		responseC:    make(chan *authclient.SSHLoginResponse, 1),
 		errorC:       make(chan error, 1),
 		callbackAddr: callbackAddr,
 	}
@@ -198,9 +204,7 @@ func (rd *Redirector) Start() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	query := u.Query()
-	query.Set("secret_key", rd.key.String())
-	u.RawQuery = query.Encode()
+	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
 
 	req := SSOLoginConsoleReq{
 		RedirectURL:          u.String(),
@@ -264,7 +268,7 @@ func (rd *Redirector) baseURL() string {
 }
 
 // ResponseC returns a channel with response
-func (rd *Redirector) ResponseC() <-chan *auth.SSHLoginResponse {
+func (rd *Redirector) ResponseC() <-chan *authclient.SSHLoginResponse {
 	return rd.responseC
 }
 
@@ -275,7 +279,7 @@ func (rd *Redirector) ErrorC() <-chan error {
 
 // callback is used by Teleport proxy to send back credentials
 // issued by Teleport proxy
-func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SSHLoginResponse, error) {
+func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authclient.SSHLoginResponse, error) {
 	if r.URL.Path != "/callback" {
 		return nil, trace.NotFound("path not found")
 	}
@@ -292,7 +296,7 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*auth.SS
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	var re auth.SSHLoginResponse
+	var re authclient.SSHLoginResponse
 	err = json.Unmarshal(plaintext, &re)
 	if err != nil {
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
@@ -312,7 +316,7 @@ func (rd *Redirector) Close() error {
 
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
 // and sends a result to the channel and redirect users to error page
-func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*auth.SSHLoginResponse, error)) http.Handler {
+func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*authclient.SSHLoginResponse, error)) http.Handler {
 	// Generate possible redirect URLs from the proxy URL.
 	clone := *rd.proxyURL
 	clone.Path = LoginFailedRedirectURL

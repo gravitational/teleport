@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -60,7 +61,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -77,6 +80,7 @@ func init() {
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
 }
 
 // Config is the configuration for a database proxy server.
@@ -86,9 +90,9 @@ type Config struct {
 	// DataDir is the path to the data directory for the server.
 	DataDir string
 	// AuthClient is a client directly connected to the Auth server.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.DatabaseAccessPoint
+	AccessPoint authclient.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// NewAudit allows to override audit logger in tests.
@@ -171,10 +175,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
+	if c.CloudClients == nil {
+		cloudClients, err := clients.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
+	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
 			AuthClient: c.AuthClient,
 			Clock:      c.Clock,
+			Clients:    c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -200,13 +212,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
-	}
-	if c.CloudClients == nil {
-		cloudClients, err := clients.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -887,7 +892,7 @@ func (s *Server) close(ctx context.Context) error {
 		s.watcher.Close()
 	}
 	// Close all cloud clients.
-	errors = append(errors, s.cfg.Auth.Close())
+	errors = append(errors, s.cfg.CloudClients.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -1086,7 +1091,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         s.cfg.Auth,
+		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,
@@ -1182,7 +1187,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 
 	// Try to extract the engine version for AWS metadata labels.
 	if database.IsRDS() || database.IsAzure() {
-		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
+		version := discoverycommon.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
 			return nil

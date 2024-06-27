@@ -323,6 +323,38 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	return state
 }
 
+// GetDisconnectCertExpiry calculates the proper value for DisconnectExpiredCert
+// based on whether a connection is set to disconnect on cert expiry, and whether
+// the cert is a short-lived (<1m) one issued for an MFA verified session. If the session
+// doesn't need to be disconnected on cert expiry, it will return a zero [time.Time].
+func (c *Context) GetDisconnectCertExpiry(authPref types.AuthPreference) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short-lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	disconnectExpiredCert := authPref.GetDisconnectExpiredCert()
+	if c.Checker != nil {
+		disconnectExpiredCert = c.Checker.AdjustDisconnectExpiredCert(disconnectExpiredCert)
+	}
+
+	if !disconnectExpiredCert {
+		return time.Time{}
+	}
+
+	identity := c.Identity.GetIdentity()
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its issuing certificates expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise, return the current certificates expiration
+	return identity.Expires
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
@@ -1146,6 +1178,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
+						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						// Okta can manage access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},

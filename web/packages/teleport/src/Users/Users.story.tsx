@@ -85,6 +85,13 @@ const users = [
     authType: 'teleport local user',
     isLocal: true,
   },
+  {
+    name: 'bot-little-robot',
+    roles: ['bot-little-robot'],
+    authType: 'teleport local user',
+    isLocal: true,
+    isBot: true,
+  },
 ];
 
 const roles = ['admin', 'testrole'];

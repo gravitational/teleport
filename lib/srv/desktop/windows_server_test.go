@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"io"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -36,9 +37,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{

@@ -46,19 +46,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -69,6 +73,7 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -77,7 +82,7 @@ type Suite struct {
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
-	authClient   *auth.Client
+	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
 
@@ -363,6 +368,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
+	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: s.hostUUID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleApp},
+		Hostname: "test",
+	})
+
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:              s.clock,
 		AccessPoint:        s.authClient,
@@ -376,13 +388,18 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		OnReconcile:        config.OnReconcile,
 		CloudLabels:        config.CloudImporter,
 		ConnectionsHandler: connectionsHandler,
+		InventoryHandle:    inventoryHandle,
 	})
 	require.NoError(t, err)
 
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
-	err = s.appServer.ForceHeartbeat()
-	require.NoError(t, err)
+
+	for _, app := range apps {
+		_, err := s.authServer.AuthServer.UpsertApplicationServer(s.closeContext, s.appServer.getServerInfo(app))
+		require.NoError(t, err)
+	}
+
 	t.Cleanup(func() {
 		s.appServer.Close()
 
@@ -448,7 +465,7 @@ func TestStart(t *testing.T) {
 
 	sort.Sort(types.AppServers(servers))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -513,14 +530,16 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate heartbeat is present after start.
-			s.appServer.ForceHeartbeat()
+			_, err = s.authServer.AuthServer.UpsertApplicationServer(ctx, s.appServer.getServerInfo(app0))
+			require.NoError(t, err)
+
 			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			require.Len(t, appServers, 1)
-			require.Equal(t, appServers[0].GetApp(), app0)
+			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			t.Cleanup(cancel)
 			if test.hasForkedChild {
 				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
@@ -532,7 +551,7 @@ func TestShutdown(t *testing.T) {
 			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Equal(t, appServers, appServersAfterShutdown)
+				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.Empty(t, appServersAfterShutdown)
 			}

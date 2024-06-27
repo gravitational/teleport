@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -51,9 +51,9 @@ type HandlerConfig struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 	// AuthClient is a direct client to auth.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
-	AccessPoint auth.ProxyAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
 	ProxyClient reversetunnelclient.Tunnel
 	// ProxyPublicAddrs contains web proxy public addresses.
@@ -138,13 +138,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
-	// DELETE IN 17.0
-	// Kept for legacy app access.
-	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
-	// DELETE IN 17.0
-	// when deleting, replace with the commented handler below:
-	//   h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 

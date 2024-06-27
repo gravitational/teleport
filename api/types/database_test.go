@@ -25,6 +25,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 )
 
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
@@ -982,4 +984,139 @@ func TestIAMPolicyStatusJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, status.UnmarshalJSON(data))
 	require.Equal(t, IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, status)
+}
+
+func TestDatabaseSpanner(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		spec       DatabaseSpecV3
+		errorCheck require.ErrorAssertionFunc
+	}{
+		"valid with uri": {
+			spec: DatabaseSpecV3{
+				Protocol: "spanner",
+				URI:      gcputils.SpannerEndpoint,
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			errorCheck: require.NoError,
+		},
+		"valid without uri": {
+			spec: DatabaseSpecV3{
+				Protocol: "spanner",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-id",
+					InstanceID: "instance-id",
+				},
+			},
+			errorCheck: require.NoError,
+		},
+		"invalid missing project id": {
+			spec: DatabaseSpecV3{
+				Protocol: "spanner",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-id",
+				},
+			},
+			errorCheck: require.Error,
+		},
+		"invalid missing instance id": {
+			spec: DatabaseSpecV3{
+				Protocol: "spanner",
+				GCP: GCPCloudSQL{
+					ProjectID: "project-id",
+				},
+			},
+			errorCheck: require.Error,
+		},
+		"invalid missing project and instance id for spanner protocol": {
+			spec: DatabaseSpecV3{
+				Protocol: "spanner",
+			},
+			errorCheck: require.Error,
+		},
+		"invalid missing project and instance id for spanner endpoint": {
+			spec: DatabaseSpecV3{
+				URI: gcputils.SpannerEndpoint,
+			},
+			errorCheck: require.Error,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			db, err := NewDatabaseV3(
+				Metadata{
+					Name: "my-spanner",
+				},
+				test.spec,
+			)
+			test.errorCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.True(t, db.IsGCPHosted())
+			require.Equal(t, DatabaseTypeSpanner, db.GetType())
+			require.Equal(t, gcputils.SpannerEndpoint, db.GetURI())
+		})
+	}
+}
+
+func TestDatabaseGCPCloudSQL(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		inputName   string
+		inputSpec   DatabaseSpecV3
+		expectError bool
+	}{
+		{
+			inputName: "gcp-valid-configuration",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "gcp-project-id-specified-without-instance-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID: "project-1",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "gcp-instance-id-specified-without-project-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: true,
+		},
+	} {
+		t.Run(test.inputName, func(t *testing.T) {
+			_, err := NewDatabaseV3(Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

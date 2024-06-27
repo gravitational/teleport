@@ -342,10 +342,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
 		Logger:       log,
+		CloseContext: cf.Context,
 	})
 
 	localProxy, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, lpListener),
+		makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
 		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
@@ -388,7 +389,7 @@ func (k *kubeLocalProxy) Start(ctx context.Context) error {
 		errChan <- k.forwardProxy.Start()
 	}()
 	go func() {
-		errChan <- k.localProxy.StartHTTPAccessProxy(ctx)
+		errChan <- k.localProxy.Start(ctx)
 	}()
 
 	select {

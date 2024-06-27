@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -36,6 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -44,9 +46,12 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -64,8 +69,8 @@ const (
 	Host     = "localhost"
 )
 
-// used to easily join test services
-const staticToken = "test-static-token"
+// StaticToken is used to easily join test services
+const StaticToken = "test-static-token"
 
 func init() {
 	// If the test is re-executing itself, execute the command that comes over
@@ -139,13 +144,13 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	//
 	// It is also found that Azure metadata client can throw "Too many
 	// requests" during CI which fails services.NewTeleport.
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
 	cfg.Log = utils.NewLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
-	cfg.SetToken(staticToken)
+	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
 
 	cfg.Auth.ListenAddr = authAddr
@@ -155,7 +160,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
-			Token:   staticToken,
+			Token:   StaticToken,
 		}},
 	})
 	require.NoError(t, err)
@@ -348,7 +353,26 @@ func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
 	})
 }
 
+func WithLogger(log *slog.Logger) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Logger = log
+	})
+}
+
+// WithProxyKube enables the Proxy Kube listener with a random address.
+func WithProxyKube(t *testing.T) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Proxy.Kube.Enabled = true
+		cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors),
+		}
+	})
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	// TODO(noah): This function relies on extremely specific cluster names
+	// being used, it should be more resilient.
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
@@ -356,7 +380,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
-		Token:                staticToken,
+		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
 		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
 		RoleMap: append(additionalRoleMappings,
@@ -391,6 +415,16 @@ func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Ident
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// IsEnterpriseBuild returns false for [cliModules].
+func (p *cliModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns false for [cliModules].
+func (p *cliModules) IsOSSBuild() bool {
+	return false
 }
 
 // PrintVersion prints the Teleport version.
@@ -608,4 +642,36 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	}()
 
 	return lis.Addr().String()
+}
+
+// MakeDefaultAuthClient reimplements the bare minimum needed to create a
+// default root-level auth client for a Teleport server started by
+// MakeTestServer.
+func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
+	t.Helper()
+
+	cfg := process.Config
+	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	require.NoError(t, err)
+
+	identity, err := storage.ReadLocalIdentity(
+		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+	)
+	require.NoError(t, err)
+
+	authConfig := new(authclient.Config)
+	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
+	require.NoError(t, err)
+
+	authConfig.AuthServers = cfg.AuthServerAddresses()
+	authConfig.Log = utils.NewLogger()
+
+	client, err := authclient.Connect(context.Background(), authConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+
+	return client
 }
