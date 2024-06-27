@@ -37,12 +37,6 @@ links wont work for the general public. Keep the links when adding the
 changelog to the release PR so that the enterprise PRs will link to the
 release PR.
 
-
-A changelog line may be marked with "NOCL:". This means there was no
-"Changelog:" line on the PR, and the PR title was used instead. You will
-likely need to reword these.
-
-
 If you reword changelogs, it is best to go to the source PR and change it
 there and then regenerate the changelog.
 
