@@ -142,6 +142,7 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 		CertReissuer: certReissuer.reissueCert,
 		Clock:        k.cfg.Clock,
 		Logger:       k.cfg.Log,
+		CloseContext: k.closeContext,
 	}), nil
 }
 
