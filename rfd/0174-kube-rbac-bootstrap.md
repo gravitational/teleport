@@ -24,8 +24,8 @@ The changes we propose will make it easier for clients to start using Teleport f
 
 ## Scope
 
-This RFD is focused only on Kubernetes resources related to RBAC functionality, other types of resources are out of scope,
-though they might be added in the future.
+This RFD is focused only on Kubernetes resources related to RBAC functionality, other types of resources are out of scope
+and we will not allow them to be provisioned. Although other resources might be added in the future.
 
 ## Details
 
