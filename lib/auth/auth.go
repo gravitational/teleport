@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -328,6 +329,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -337,9 +344,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	keystoreOpts := &keystore.Options{
-		HostUUID:     cfg.HostUUID,
-		ClusterName:  cfg.ClusterName,
-		CloudClients: cfg.CloudClients,
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cfg.ClusterName,
+		CloudClients:         cfg.CloudClients,
+		AuthPreferenceGetter: cfg.ClusterConfiguration,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().HSM {
@@ -412,6 +420,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 	}
 
 	as := Server{
@@ -586,6 +595,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.BotInstance
 }
 
 // SecReportsClient returns the security reports client.
@@ -4252,7 +4262,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
-	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	cryptoPubKey, err := keys.ParsePublicKey(req.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6707,62 +6717,80 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 // Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
+
+	// Add SSH keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA:
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, sshCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA, types.DatabaseClientCA:
-		// Database CA only contains TLS cert.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.OpenSSHCA:
-		// OpenSSH CA only contains a SSH key pair.
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner, types.OIDCIdPCA:
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	case types.SAMLIDPCA:
-		// SAML IDP CA only contains TLS certs.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.SPIFFECA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
-		// generate a JWT keypair.
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	default:
-		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}
+
+	// Add TLS keys if necessary.
+	switch caID.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	}
+
+	// Add JWT keys if necessary.
+	switch caID.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
 	return keySet, nil
+}
+
+func sshCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCASSH
+	case types.HostCA:
+		return cryptosuites.HostCASSH
+	case types.OpenSSHCA:
+		return cryptosuites.OpenSSHCASSH
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCATLS
+	case types.HostCA:
+		return cryptosuites.HostCATLS
+	case types.DatabaseCA:
+		return cryptosuites.DatabaseCATLS
+	case types.DatabaseClientCA:
+		return cryptosuites.DatabaseClientCATLS
+	case types.SAMLIDPCA:
+		return cryptosuites.SAMLIdPCATLS
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECATLS
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.JWTSigner:
+		return cryptosuites.JWTCAJWT
+	case types.OIDCIdPCA:
+		return cryptosuites.OIDCIdPCAJWT
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECAJWT
+	}
+	return cryptosuites.KeyPurposeUnspecified
 }
 
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not

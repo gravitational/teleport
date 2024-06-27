@@ -18,43 +18,13 @@
 
 import styled from 'styled-components';
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 
-import { Flex } from 'design';
-import { space } from 'design/system';
 import * as Icon from 'design/Icon';
 
-export const CheckboxWrapper = styled(Flex)`
-  padding: 8px;
-  margin-bottom: 4px;
-  width: 300px;
-  align-items: center;
-  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-  border-radius: 8px;
+export type CheckboxSize = 'large' | 'small';
 
-  &.disabled {
-    pointer-events: none;
-    opacity: 0.5;
-  }
-`;
-
-export const CheckboxInput = styled.input`
-  margin-right: 10px;
-  accent-color: ${props => props.theme.colors.brand};
-
-  // The "force" class is required for Storybook, where we want to show all the
-  // states, even though we can't enforce them.
-  &:hover,
-  .teleport-checkbox__force-hover & {
-    cursor: pointer;
-  }
-
-  ${space}
-`;
-
-type CheckboxSize = 'large' | 'small';
-
-interface StyledCheckboxProps {
+interface CheckboxInputProps {
   size?: CheckboxSize;
 
   // Input properties
@@ -79,27 +49,28 @@ interface StyledCheckboxProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-// TODO (bl-nero): Make this the default checkbox
-export function StyledCheckbox(props: StyledCheckboxProps) {
-  const { style, className, size, ...inputProps } = props;
-  return (
-    // The outer wrapper and inner wrapper are separate to allow using
-    // positioning CSS attributes on the checkbox while still maintaining its
-    // internal integrity that requires the internal wrapper to be positioned.
-    <OuterWrapper style={style} className={className}>
-      <InnerWrapper>
-        {/* The checkbox is rendered as two items placed on top of each other:
+export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
+  (props, ref) => {
+    const { style, className, size, ...inputProps } = props;
+    return (
+      // The outer wrapper and inner wrapper are separate to allow using
+      // positioning CSS attributes on the checkbox while still maintaining its
+      // internal integrity that requires the internal wrapper to be positioned.
+      <OuterWrapper style={style} className={className}>
+        <InnerWrapper>
+          {/* The checkbox is rendered as two items placed on top of each other:
             the actual checkbox, which is a native input control, and an SVG
             checkmark. Note that we avoid the usual "label with content" trick,
             because we want to be able to use this component both with and
             without surrounding labels. Instead, we use absolute positioning and
             an actually rendered input with a custom appearance. */}
-        <StyledCheckboxInternal cbSize={size} {...inputProps} />
-        <Checkmark />
-      </InnerWrapper>
-    </OuterWrapper>
-  );
-}
+          <CheckboxInternal ref={ref} cbSize={size} {...inputProps} />
+          <Checkmark />
+        </InnerWrapper>
+      </OuterWrapper>
+    );
+  }
+);
 
 const OuterWrapper = styled.span`
   line-height: 0;
@@ -132,7 +103,7 @@ const Checkmark = styled(Icon.CheckThick)`
   }
 `;
 
-export const StyledCheckboxInternal = styled.input.attrs(props => ({
+const CheckboxInternal = styled.input.attrs(props => ({
   // TODO(bl-nero): Make radio buttons a separate control.
   type: props.type || 'checkbox',
 }))`
@@ -166,7 +137,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:hover,
     .teleport-checkbox__force-hover & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0]};
+        props.theme.colors.interactive.tonal.neutral[0].background};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -182,7 +153,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:focus-visible,
     .teleport-checkbox__force-focus-visible & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0]};
+        props.theme.colors.interactive.tonal.neutral[0].background};
       border-color: ${props => props.theme.colors.buttons.primary.default};
       outline: none;
       border-width: 2px;
@@ -200,7 +171,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
     &:active,
     .teleport-checkbox__force-active & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1]};
+        props.theme.colors.interactive.tonal.neutral[1].background};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -212,7 +183,7 @@ export const StyledCheckboxInternal = styled.input.attrs(props => ({
 
   &:disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0]};
+      props.theme.colors.interactive.tonal.neutral[0].background};
     border-color: transparent;
   }
 

@@ -140,6 +140,13 @@ spec:
       -----BEGIN CERTIFICATE-----
       ...
       -----END CERTIFICATE-----
+    # Optional configuration that allows Teleport to trust certificate
+    # authorities available on the host system. If not set (by default),
+    # Teleport only trusts self-signed databases with TLS certificates signed
+    # by Teleport's Database Server CA or the ca_cert specified in this TLS
+    # setting. For cloud-hosted databases, Teleport downloads the corresponding
+    # required CAs for validation.
+    trust_system_cert_pool: false
 
   # Database admin user for automatic user provisioning.
   admin_user:

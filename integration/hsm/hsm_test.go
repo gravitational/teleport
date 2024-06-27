@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -66,6 +67,7 @@ func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log utils.Log
 	config := newAuthConfig(t, log)
 	config.Auth.StorageConfig = *storageConfig
 	config.Auth.KeyStore = keystore.HSMTestConfig(t)
+	config.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
 	return config
 }
 
@@ -181,7 +183,7 @@ func TestHSMRotation(t *testing.T) {
 }
 
 func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := state.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
 		state.IdentityID{Role: types.RoleAdmin})
 	if err != nil {
