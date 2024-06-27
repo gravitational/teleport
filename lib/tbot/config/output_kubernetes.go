@@ -19,15 +19,10 @@
 package config
 
 import (
-	"context"
-	"fmt"
-	"os"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 const KubernetesOutputType = "kubernetes"
@@ -54,48 +49,6 @@ type KubernetesOutput struct {
 	DisableExecPlugin bool `yaml:"disable_exec_plugin"`
 }
 
-func (o *KubernetesOutput) templates() []template {
-	return []template{
-		&templateTLSCAs{},
-		&templateIdentity{},
-		&templateKubernetes{
-			clusterName:          o.KubernetesCluster,
-			executablePathGetter: os.Executable,
-			disableExecPlugin:    o.DisableExecPlugin,
-		},
-	}
-}
-
-func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"KubernetesOutput/Render",
-	)
-	defer span.End()
-
-	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
-		return trace.Wrap(err, "persisting identity")
-	}
-
-	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, dest); err != nil {
-			return trace.Wrap(err, "rendering template %s", t.name())
-		}
-	}
-
-	return nil
-}
-
-func (o *KubernetesOutput) Init(ctx context.Context) error {
-	subDirs, err := listSubdirectories(o.templates())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(o.Destination.Init(ctx, subDirs))
-}
-
 func (o *KubernetesOutput) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
@@ -108,19 +61,6 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 
 func (o *KubernetesOutput) GetDestination() bot.Destination {
 	return o.Destination
-}
-
-func (o *KubernetesOutput) GetRoles() []string {
-	return o.Roles
-}
-
-func (o *KubernetesOutput) Describe() []FileDescription {
-	var fds []FileDescription
-	for _, t := range o.templates() {
-		fds = append(fds, t.describe()...)
-	}
-
-	return fds
 }
 
 func (o *KubernetesOutput) MarshalYAML() (interface{}, error) {
@@ -142,6 +82,6 @@ func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *KubernetesOutput) String() string {
-	return fmt.Sprintf("%s (%s)", KubernetesOutputType, o.GetDestination())
+func (o *KubernetesOutput) Type() string {
+	return KubernetesOutputType
 }

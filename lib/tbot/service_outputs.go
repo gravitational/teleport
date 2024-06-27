@@ -338,30 +338,6 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
-func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
-	ctx, span := tracer.Start(ctx, "getKubeCluster")
-	defer span.End()
-
-	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindKubeServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
-		Limit:               int32(defaults.DefaultChunkSize),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var clusters []types.KubeCluster
-	for _, server := range servers {
-		clusters = append(clusters, server.GetCluster())
-	}
-
-	clusters = types.DeduplicateKubeClusters(clusters)
-	cluster, err := chooseOneKubeCluster(clusters, name)
-	return cluster, trace.Wrap(err)
-}
-
 func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
 	ctx, span := tracer.Start(ctx, "getApp")
 	defer span.End()
@@ -515,39 +491,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 			ctx,
 			"Generated identity for database",
 			"db_service", output.Service,
-		)
-
-		return routedIdentity, impersonatedClient, nil
-	case *config.KubernetesOutput:
-		kc, err := getKubeCluster(ctx, impersonatedClient, output.KubernetesCluster)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		// make sure the output matches the fully resolved kube cluster name,
-		// since it may have been just a "discovered name".
-		output.KubernetesCluster = kc.GetName()
-		// Note: the Teleport server does attempt to verify k8s cluster names
-		// and will fail to generate certs if the cluster doesn't exist or is
-		// offline.
-		routedIdentity, err := generateIdentity(
-			ctx,
-			botClient,
-			impersonatedIdentity,
-			roles,
-			s.cfg.CertificateTTL,
-			func(req *proto.UserCertsRequest) {
-				req.KubernetesCluster = output.KubernetesCluster
-			},
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.log.InfoContext(
-			ctx,
-			"Generated identity for Kubernetes cluster",
-			"kubernetes_cluster",
-			output.KubernetesCluster,
 		)
 
 		return routedIdentity, impersonatedClient, nil
@@ -723,12 +666,6 @@ func (op *outputProvider) SignX509SVIDs(
 // one database by unambiguous "discovered name".
 func chooseOneDatabase(databases []types.Database, name string) (types.Database, error) {
 	return chooseOneResource(databases, name, "database")
-}
-
-// chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
-// choose one kube cluster by unambiguous "discovered name".
-func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
-	return chooseOneResource(clusters, name, "kubernetes cluster")
 }
 
 // chooseOneResource chooses one matched resource by name, or tries to choose

@@ -75,7 +75,7 @@ func (t *templateTLS) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, cas)
+	key, err := NewClientKey(identity, cas)
 	if err != nil {
 		return trace.Wrap(err)
 	}

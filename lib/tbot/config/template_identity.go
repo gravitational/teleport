@@ -64,7 +64,7 @@ func (t *templateIdentity) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, hostCAs)
+	key, err := NewClientKey(identity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -363,6 +363,16 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	// Here we do something a little unusual - we're partway through migrating
+	// outputs to become services. For migrated outputs, we'll remove them from
+	// the outputs list and add them to the services list.
+	for _, output := range conf.Outputs {
+		switch output := output.(type) {
+		case *KubernetesOutput:
+			conf.Services = append(conf.Services, output)
+		}
+	}
+
 	destinationPaths := map[string]int{}
 	addDestinationToKnownPaths := func(d bot.Destination) {
 		switch d := d.(type) {
@@ -486,6 +496,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case SSHMultiplexerServiceType:
 			v := &SSHMultiplexerService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case KubernetesOutputType:
+			v := &KubernetesOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
