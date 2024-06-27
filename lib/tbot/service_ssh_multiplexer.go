@@ -580,7 +580,7 @@ func (s *SSHMultiplexerService) handleConn(
 	// TODO(noah): When we need to add another parameter in future, we should
 	// roll this API to v2 and use a more extensible format.
 	splitReq := strings.Split(req, "|")
-	if len(splitReq) >= 2 {
+	if len(splitReq) > 2 {
 		return trace.BadParameter(
 			"malformed request, expected at most 2 fields, got %d: %q",
 			len(splitReq), req,
