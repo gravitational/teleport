@@ -42,8 +42,8 @@ var (
 	// e.g. will match a line "changelog: this is a changelog" with subgroup "this is a changelog".
 	clPattern = regexp.MustCompile(`[Cc]hangelog: +(.*)`)
 
-	ossCLParsed = template.Must(template.New("oss cl").Parse(ossCLTemplate))
-	entCLParsed = template.Must(template.New("enterprise cl").Parse(entCLTemplate))
+	ossCLParsedTmpl = template.Must(template.New("oss cl").Parse(ossCLTemplate))
+	entCLParsedTmpl = template.Must(template.New("enterprise cl").Parse(entCLTemplate))
 )
 
 // pr is the expected output format of our search query
@@ -143,9 +143,9 @@ func (c *changelogGenerator) toChangelog(data string) (string, error) {
 
 	var tmpl *template.Template
 	if c.isEnt {
-		tmpl = entCLParsed
+		tmpl = entCLParsedTmpl
 	} else {
-		tmpl = ossCLParsed
+		tmpl = ossCLParsedTmpl
 	}
 
 	var buff bytes.Buffer
