@@ -726,7 +726,6 @@ func (s *MattermostSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	}
 
 	s.startApp()
-	const numMessages = 3
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
@@ -757,7 +756,6 @@ func (s *MattermostSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
 
-
 	messageSet := make(MattermostDataPostSet)
 
 	msg, err := s.fakeMattermost.CheckNewPost(ctx)
@@ -783,5 +781,3 @@ func (s *MattermostSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-mattermost-amr"))
 }
-
-
