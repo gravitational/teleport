@@ -6,36 +6,39 @@ description: Implement cluster-wide hardening measures.
 Protecting your organization against Identity Provider (IdP) compromises is more critical than ever. 
 This guide aims to help you fortify your identity infrastructure and mitigate the risks associated with IdP weaknesses.
 
-## Understanding IdP Compromise
+## Understanding IdP compromise
 
 An IdP compromise occurs when an attacker gains unauthorized access to your identity management 
 system, potentially allowing them to impersonate legitimate users, escalate privileges, or access 
 sensitive information. This can happen through various means, such as exploiting software vulnerabilities, 
 stealing credentials, or social engineering attacks.
 
-### Why Your Current Security Measures May Fall Short
+## Current security measures may fall short
 
 While many organizations have implemented basic security measures like single sign-on (SSO) and multi-factor authentication (MFA), 
 these alone may not be sufficient to protect against sophisticated attacks targeting your IdP. 
 Attackers are constantly evolving their techniques, and traditional security measures may have limitations 
 or vulnerabilities that can be exploited.
 
-## Hardening Measures
+## Hardening measures
 
 To significantly enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures:
 
-   a. Set up cluster-wide WebAuthn: Implement strong, phishing-resistant authentication across 
+  - Set up cluster-wide WebAuthn
+   Implement strong, phishing-resistant authentication across 
    your entire infrastructure using WebAuthn standards. WebAuthn, a W3C standard and part of FIDO2, 
    enables public-key cryptography for web authentication. Teleport supports WebAuthn as a second factor 
    for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
    It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
 
-   b. Establish cluster-wide per-session MFA: Ensure that multi-factor authentication is required 
+ - Establish cluster-wide per-session MFA
+   Ensure that multi-factor authentication is required 
    for each session, not just at initial login, to maintain continuous security. Teleport's per-session 
    MFA enhances security by protecting against compromised on-disk certificates. It requires additional 
    MFA checks when initiating new SSH, Kubernetes, database, or desktop sessions.
 
-   c. Implement cluster-wide device trust: Develop a system to verify and manage trusted devices 
+ - Implement cluster-wide device trust
+   Develop a system to verify and manage trusted devices 
    across your organization, reducing the risk of unauthorized access from unknown or compromised 
    devices. Device trust adds an extra layer of security by requiring the use of trusted devices 
    for accessing protected resources, complementing user identity and role enforcement. This can be 
@@ -43,7 +46,8 @@ To significantly enhance your defense against IdP compromises, we recommend impl
    databases, Kubernetes clusters, and first MFA device enrollment. 
    The latter helps prevent auto-provisioning of new users through compromised IdPs.
 
-   d. Enable MFA for admin actions: Add an extra layer of security for sensitive administrative operations 
+ - Enable MFA for admin actions
+   Add an extra layer of security for sensitive administrative operations 
    by requiring multi-factor authentication for these high-privilege actions. Teleport enforces additional MFA verification 
    for administrative actions across all clients (tctl, tsh, Web UI, and Connect). This feature adds an extra 
    security layer by re-verifying user identity immediately before any admin action, mitigating risks from compromised admin accounts.
@@ -51,18 +55,9 @@ To significantly enhance your defense against IdP compromises, we recommend impl
 By adopting these advanced security measures, you can create a robust defense against IdP compromises and significantly reduce your organization's attack surface. 
 In the following sections, we'll dive deeper into each of these recommendations, providing step-by-step guidance on implementation and best practices.
 
-## Cluster-Wide WebAuthn
-
-By leveraging WebAuthn, Teleport enhances its security posture through strong, phishing-resistant 
-multi-factor authentication (MFA). Unlike traditional password-based methods, WebAuthn uses 
-cryptographic keys that are stored on a secure hardware device or built-in platform authenticator, 
-such as a fingerprint reader. 
-
-With WebAuthn, users can authenticate using their hardware security keys, such as 
-YubiKeys, SoloKeys, or biometric authenticators like Touch ID and Windows Hello (`tsh` and WebUI), 
-making the login process both faster and more user-friendly, encouraging broader adoption 
-and consistent MFA use among employees. 
-
 ## Next steps
 
-- [Enable cluster-wide WebAuthn](./webauthn.mdx)
+- [Cluster-wide WebAuthn](./webauthn.mdx)
+- [Cluster-wide per-session MFA](./per-session-mfa.mdx)
+- [Cluster-wide device trust](../device-trust/guide.mdx)
+- [Enable MFA for admin actions](../mfa-for-admin-actions.mdx)
