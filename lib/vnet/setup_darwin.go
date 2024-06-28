@@ -64,7 +64,7 @@ func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr strin
 		}
 
 		if isSigned {
-			return trace.NotImplemented("daemon is not implemented yet")
+			return trace.Wrap(daemon.RegisterAndCall(ctx, socketPath, ipv6Prefix, dnsAddr))
 		}
 	}
 

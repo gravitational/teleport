@@ -27,6 +27,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"unsafe"
 
@@ -71,4 +72,73 @@ func IsSigned(ctx context.Context) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
+// and then starts it by sending a message through XPC.
+func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+	_, err := register(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
+}
+
+func register(ctx context.Context) (serviceStatus, error) {
+	var result C.RegisterDaemonResult
+
+	C.RegisterDaemon(&result)
+	defer func() {
+		C.free(unsafe.Pointer(result.error_description))
+	}()
+
+	if !result.ok {
+		status := serviceStatus(result.service_status)
+		// Docs for registerAndReturnError [1] don't seem to cover a situation in which the user adds
+		// the launch daemon for the first time. In that case, that method returns "Operation not permitted"
+		// error (Code=1, Domain=SMAppServiceErrorDomain). That error doesn't seem to exist in Service
+		// Management Errors [2]. However, all this means is that the launch daemon was added to the
+		// login items and the user must now enable the corresponding login item.
+		//
+		// We can confirm this by looking at the returned service status.
+		//
+		// [1] https://developer.apple.com/documentation/servicemanagement/smappservice/register()?language=objc
+		// [2] https://developer.apple.com/documentation/servicemanagement/service-management-errors?language=objc
+		if status == serviceStatusRequiresApproval {
+			log.DebugContext(ctx, "Daemon successfully added, but it requires approval",
+				"ignored_error", C.GoString(result.error_description))
+			return status, nil
+		}
+
+		log.DebugContext(ctx, "Registering the daemon has failed", "service_status", status)
+		return 0, trace.Errorf("registering daemon failed, %s", C.GoString(result.error_description))
+	}
+
+	return serviceStatus(result.service_status), nil
+}
+
+type serviceStatus int
+
+// https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+const (
+	serviceStatusNotRegistered    serviceStatus = 0
+	serviceStatusEnabled          serviceStatus = 1
+	serviceStatusRequiresApproval serviceStatus = 2
+	serviceStatusNotFound         serviceStatus = 3
+)
+
+func (s serviceStatus) String() string {
+	switch s {
+	case serviceStatusNotRegistered:
+		return "not registered"
+	case serviceStatusEnabled:
+		return "enabled"
+	case serviceStatusRequiresApproval:
+		return "requires approval"
+	case serviceStatusNotFound:
+		return "not found"
+	default:
+		return fmt.Sprintf("%d", int(s))
+	}
 }
