@@ -56,22 +56,25 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				currentVersion)
 		}
-	} else if err != nil {
-		return trace.Wrap(err)
-	} else {
-		localMajor, err := utils.MajorVersion(localVersion)
-		if err != nil {
+		if err := process.storage.WriteTeleportVersion(currentVersion); err != nil {
 			return trace.Wrap(err)
 		}
-		if currentMajor-localMajor > 1 {
-			return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
-				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
-				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
-				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				localVersion, currentVersion, localMajor+1)
-		}
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
 	}
 
+	localMajor, err := utils.MajorVersion(localVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if currentMajor-localMajor > 1 {
+		return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
+			"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
+			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+			localVersion, currentVersion, localMajor+1)
+	}
 	if err := process.storage.WriteTeleportVersion(currentVersion); err != nil {
 		return trace.Wrap(err)
 	}
