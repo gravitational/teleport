@@ -21,18 +21,13 @@ package config
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // provider is an interface that allows Templates to fetch information they
 // need to render from the bot hosting the template rendering.
 type provider interface {
-	// AuthPing pings the auth server and returns the (possibly cached) response.
-	AuthPing(ctx context.Context) (*proto.PingResponse, error)
-
 	// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
 	// Note that it relies on the auth server being configured with a sane proxy
 	// public address.
@@ -44,11 +39,6 @@ type provider interface {
 
 	// Config returns the current bot config
 	Config() *BotConfig
-
-	// GenerateHostCert uses the impersonatedClient to call trust.v1.GenerateHostCert.
-	GenerateHostCert(
-		ctx context.Context, req *trustpb.GenerateHostCertRequest,
-	) (*trustpb.GenerateHostCertResponse, error)
 
 	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)

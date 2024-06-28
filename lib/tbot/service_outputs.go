@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -59,7 +58,6 @@ type outputsService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	proxyPingCache    *proxyPingCache
-	authPingCache     *authPingCache
 	alpnUpgradeCache  *alpnProxyConnUpgradeRequiredCache
 	botClient         *authclient.Client
 	getBotIdentity    getBotIdentityFn
@@ -92,7 +90,6 @@ func (s *outputsService) renewOutputs(
 	// server with similar requests
 	drc := &outputRenewalCache{
 		proxyPingCache:   s.proxyPingCache,
-		authPingCache:    s.authPingCache,
 		alpnUpgradeCache: s.alpnUpgradeCache,
 		client:           s.botClient,
 		cfg:              s.cfg,
@@ -521,8 +518,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 		)
 
 		return routedIdentity, impersonatedClient, nil
-	case *config.SSHHostOutput:
-		return impersonatedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
 	default:
@@ -550,7 +545,6 @@ type outputRenewalCache struct {
 	client           *authclient.Client
 	cfg              *config.BotConfig
 	proxyPingCache   *proxyPingCache
-	authPingCache    *authPingCache
 	alpnUpgradeCache *alpnProxyConnUpgradeRequiredCache
 
 	mu sync.Mutex
@@ -585,16 +579,6 @@ func (orc *outputRenewalCache) GetCertAuthorities(
 	orc.mu.Lock()
 	defer orc.mu.Unlock()
 	return orc.getCertAuthorities(ctx, caType)
-}
-
-// AuthPing pings the auth server and returns the (possibly cached) response.
-func (orc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	res, err := orc.authPingCache.ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-
-	}
-	return &res, nil
 }
 
 // ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
@@ -639,13 +623,6 @@ type outputProvider struct {
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
 func (op *outputProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	return op.impersonatedClient.GetRemoteClusters(ctx)
-}
-
-// GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
-func (op *outputProvider) GenerateHostCert(
-	ctx context.Context, req *trustpb.GenerateHostCertRequest,
-) (*trustpb.GenerateHostCertResponse, error) {
-	return op.impersonatedClient.TrustClient().GenerateHostCert(ctx, req)
 }
 
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
