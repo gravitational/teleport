@@ -19,12 +19,10 @@
 package service
 
 import (
-	"errors"
-
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -33,63 +31,47 @@ const (
 	majorVersionConstraint = 18
 )
 
-var (
-	// errMajorVersionUpgrade default error for restricting upgrade major version.
-	errMajorVersionUpgrade = errors.New(`Teleport supports upgrade only one major version behind. ` +
-		`See: https://goteleport.com/docs/upgrading/overview/#component-compatibility`)
-)
-
 // validateAndUpdateTeleportVersion validates that the major version persistent in the backend
 // meets our upgrade compatibility guide.
 func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion string) error {
-	currentMajor, err := getMajorVersion(currentVersion)
+	currentMajor, err := utils.MajorVersion(currentVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	st, err := process.storage.GetState(process.GracefulExitContext(), types.RoleInstance)
+	localVersion, err := process.storage.GetTeleportVersion(process.GracefulExitContext())
 	if trace.IsNotFound(err) {
-		// If the Instance state has not been found, it means this is the first launch,
-		// and we don't need to check the version since this is the initial launch.
-		return nil
-	} else if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if st.Spec.LocalVersion == "" {
-		if currentMajor >= majorVersionConstraint {
-			return trace.Wrap(errMajorVersionUpgrade, "Teleport is going to update to version %s, but before must be upgraded to %d.x.x first",
-				currentVersion, currentMajor-1)
-		}
-
-		st.Spec.LocalVersion = currentVersion
-		if err := process.storage.WriteState(types.RoleInstance, *st); err != nil {
+		// We have to ensure that the process database is newly created before
+		//applying the majorVersionConstraint check.
+		_, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
+		if !trace.IsNotFound(err) && err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
-	}
-
-	localMajor, err := getMajorVersion(st.Spec.LocalVersion)
-	if err != nil {
+		if currentMajor >= majorVersionConstraint && !trace.IsNotFound(err) {
+			return trace.BadParameter("Unsupported upgrade path detected: to %v. "+
+				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
+				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+				currentVersion, currentMajor-1)
+		}
+	} else if err != nil {
 		return trace.Wrap(err)
-	}
-	if currentMajor-localMajor > 1 {
-		return trace.Wrap(errMajorVersionUpgrade, "Teleport version %s is going to upgrade to %s, but first you need to upgrade to version %d.x.x at least",
-			st.Spec.LocalVersion, currentVersion, localMajor+1)
+	} else {
+		localMajor, err := utils.MajorVersion(localVersion)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if currentMajor-localMajor > 1 {
+			return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
+				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
+				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+				localVersion, currentVersion, localMajor+1)
+		}
 	}
 
-	st.Spec.LocalVersion = currentVersion
-	if err := process.storage.WriteState(types.RoleInstance, *st); err != nil {
+	if err := process.storage.WriteTeleportVersion(currentVersion); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// getMajorVersion parses string to fetch major version number.
-func getMajorVersion(version string) (int64, error) {
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return 0, trace.Wrap(err, "cannot parse version: %q", version)
-	}
-	return v.Major, nil
 }

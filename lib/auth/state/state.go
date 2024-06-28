@@ -88,10 +88,6 @@ type StateSpecV2 struct {
 	// InitialLocalVersion records the version of teleport that initially
 	// wrote this state to disk.
 	InitialLocalVersion string `json:"initial_local_version,omitempty"`
-
-	// LocalVersions records the version of teleport that was upgraded
-	// from the last launch.
-	LocalVersion string `json:"local_version,omitempty"`
 }
 
 // IdentityV2 specifies local host identity.

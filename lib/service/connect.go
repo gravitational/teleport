@@ -552,7 +552,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
-			LocalVersion:        teleport.Version,
 		},
 	}); err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())

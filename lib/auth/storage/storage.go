@@ -45,6 +45,10 @@ const (
 	statesPrefix = "states"
 	// idsPrefix is a key prefix for identities
 	idsPrefix = "ids"
+	// teleportPrefix is a key prefix to store internal data
+	teleportPrefix = "teleport"
+	// latestVersion is a key for storing latest version of teleport
+	latestVersion = "latest-version"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -201,6 +205,28 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 	}
 	_, err = p.stateStorage.Put(context.TODO(), item)
 	return trace.Wrap(err)
+}
+
+// GetTeleportVersion reads the latest teleport version.
+func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (string, error) {
+	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, latestVersion))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(item.Value), nil
+}
+
+// WriteTeleportVersion writes the latest teleport version to the backend.
+func (p *ProcessStorage) WriteTeleportVersion(version string) error {
+	item := backend.Item{
+		Key:   backend.Key(teleportPrefix, latestVersion),
+		Value: []byte(version),
+	}
+	_, err := p.stateStorage.Put(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
