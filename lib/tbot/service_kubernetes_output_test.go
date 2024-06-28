@@ -179,6 +179,9 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				context.Background(),
 				status,
 				id,
+				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{},
+				[]types.CertAuthority{},
 			)
 			require.NoError(t, err)
 
