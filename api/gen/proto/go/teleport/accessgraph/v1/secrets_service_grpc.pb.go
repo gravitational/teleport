@@ -41,14 +41,31 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// SecretsScannerService provides methods for Access Graph Secret Scanner
-// functionality.
+// SecretsScannerService provides methods for Access Graph Secret Scanner functionality.
 type SecretsScannerServiceClient interface {
 	// ReportAuthorizedKeys is used by Teleport SSH nodes to report authorized keys
 	// that could be used to bypass Teleport.
+	// The client (Teleport SSH Node) should authenticate using the certificate-key pair signed by Teleport HostCA.
 	ReportAuthorizedKeys(ctx context.Context, opts ...grpc.CallOption) (SecretsScannerService_ReportAuthorizedKeysClient, error)
 	// ReportSecrets is used by trusted devices to report secrets found on the host
 	// that could be used to bypass Teleport.
+	// The client (device) should first authenticate using the [ReportSecretsRequest.assertion] flow.
+	//
+	// Assertion ceremony flow:
+	// -> AssertDeviceInit (client)
+	// <- AssertDeviceChallenge (server)
+	// -> AssertDeviceChallengeResponse (client)
+	// <- DeviceAsserted (server)
+	//
+	// Once the device is asserted, the client can send the secrets using the [ReportSecretsRequest.private_keys] field
+	// and then close the client side of the stream.
+	//
+	// -> ReportSecrets (client) [1 or more]
+	// -> CloseStream (client)
+	// <- TerminateStream (server)
+	//
+	// Any failure in the assertion ceremony will result in the stream being terminated by the server. All secrets
+	// reported by the client before the DeviceAsserted message will be ignored and result in the stream being terminated.
 	ReportSecrets(ctx context.Context, opts ...grpc.CallOption) (SecretsScannerService_ReportSecretsClient, error)
 }
 
@@ -128,14 +145,31 @@ func (x *secretsScannerServiceReportSecretsClient) Recv() (*ReportSecretsRespons
 // All implementations must embed UnimplementedSecretsScannerServiceServer
 // for forward compatibility
 //
-// SecretsScannerService provides methods for Access Graph Secret Scanner
-// functionality.
+// SecretsScannerService provides methods for Access Graph Secret Scanner functionality.
 type SecretsScannerServiceServer interface {
 	// ReportAuthorizedKeys is used by Teleport SSH nodes to report authorized keys
 	// that could be used to bypass Teleport.
+	// The client (Teleport SSH Node) should authenticate using the certificate-key pair signed by Teleport HostCA.
 	ReportAuthorizedKeys(SecretsScannerService_ReportAuthorizedKeysServer) error
 	// ReportSecrets is used by trusted devices to report secrets found on the host
 	// that could be used to bypass Teleport.
+	// The client (device) should first authenticate using the [ReportSecretsRequest.assertion] flow.
+	//
+	// Assertion ceremony flow:
+	// -> AssertDeviceInit (client)
+	// <- AssertDeviceChallenge (server)
+	// -> AssertDeviceChallengeResponse (client)
+	// <- DeviceAsserted (server)
+	//
+	// Once the device is asserted, the client can send the secrets using the [ReportSecretsRequest.private_keys] field
+	// and then close the client side of the stream.
+	//
+	// -> ReportSecrets (client) [1 or more]
+	// -> CloseStream (client)
+	// <- TerminateStream (server)
+	//
+	// Any failure in the assertion ceremony will result in the stream being terminated by the server. All secrets
+	// reported by the client before the DeviceAsserted message will be ignored and result in the stream being terminated.
 	ReportSecrets(SecretsScannerService_ReportSecretsServer) error
 	mustEmbedUnimplementedSecretsScannerServiceServer()
 }
