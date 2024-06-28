@@ -183,6 +183,9 @@ export default class MainProcess {
         env: {
           ...process.env,
           TELEPORT_HOME: homeDir,
+          VNET_DAEMON: this.configService.get('feature.vnetDaemon').value
+            ? '1'
+            : undefined,
         },
       }
     );

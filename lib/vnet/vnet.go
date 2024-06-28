@@ -41,6 +41,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
@@ -51,6 +52,8 @@ const (
 	maxInFlightTCPConnectionAttempts = 1024
 	defaultIPv4CIDRRange             = "100.64.0.0/10"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet")
 
 // Config holds configuration parameters for the VNet.
 type Config struct {
