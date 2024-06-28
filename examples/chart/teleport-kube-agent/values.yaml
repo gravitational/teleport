@@ -52,6 +52,12 @@ apps: []
 #      "*": "*"
 appResources: []
 
+# clusterDomain(string) -- sets the domain name used by the Kubernetes cluster. This value is used to build the
+# FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
+# `myapp` running in the `default` namespace at `http://myapp.default.svc.anything.local`. You must manually set this value
+# to match your cluster domain if it is different from the default value `cluster.local`.
+clusterDomain: "cluster.local"
+
 ################################################################
 # Values that must be provided if Database access is enabled.
 ################################################################
