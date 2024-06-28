@@ -5,6 +5,13 @@ description: Comprehensive guides to commands, configuration options, and other 
 
 {/*TOPICS*/}
 
+## Compliance Frameworks
+
+How to use Teleport's access controls to streamline compliance without sacrificing productivity. ([more info](reference/compliance-frameworks.mdx))
+
+- [FedRAMP Compliance for Infrastructure Access](reference/compliance-frameworks/fedramp.mdx): How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
+- [SOC 2 compliance for SSH, Kubernetes, and Databases](reference/compliance-frameworks/soc2.mdx): How to configure SOC 2-compliant access to SSH, Kubernetes, databases, desktops, and web apps
+
 ## Frequently Asked Questions
 
 Contains guides to frequently asked questions for various Teleport features and use cases. ([more info](reference/faq.mdx))
@@ -14,6 +21,23 @@ Contains guides to frequently asked questions for various Teleport features and 
 - [Machine ID FAQ](reference/faq/machine-id.mdx): Frequently asked questions about Teleport Machine ID
 - [Teleport Enterprise Cloud FAQ](reference/faq/cloud-hosting.mdx): Teleport cloud frequently asked questions.
 - [Teleport FAQ](reference/faq/faq.mdx): Frequently Asked Questions About Using Teleport
+
+## Helm Chart Reference
+
+Comprehensive lists of configuration values in Teleport's Helm charts ([more info](reference/helm-reference.mdx))
+
+- [teleport-access-graph Chart Reference](reference/helm-reference/teleport-access-graph.mdx): Values that can be set using the teleport-access-graph Helm chart
+- [teleport-cluster Chart Reference](reference/helm-reference/teleport-cluster.mdx): Values that can be set using the teleport-cluster Helm chart
+- [teleport-kube-agent Chart Reference](reference/helm-reference/teleport-kube-agent.mdx): Values that can be set using the teleport-kube-agent Helm chart
+- [teleport-operator Chart Reference](reference/helm-reference/teleport-operator.mdx): Values that can be set using the teleport-operator Helm chart
+- [teleport-plugin-discord Chart Reference](reference/helm-reference/teleport-plugin-discord.mdx): Values that can be set using the teleport-plugin-discord Helm chart
+- [teleport-plugin-email Chart Reference](reference/helm-reference/teleport-plugin-email.mdx): Values that can be set using the teleport-plugin-email Helm chart
+- [teleport-plugin-event-handler Chart Reference](reference/helm-reference/teleport-plugin-event-handler.mdx): Values that can be set using the teleport-plugin-event-handler Helm chart
+- [teleport-plugin-jira Chart Reference](reference/helm-reference/teleport-plugin-jira.mdx): Values that can be set using the teleport-plugin-jira Helm chart
+- [teleport-plugin-mattermost Chart Reference](reference/helm-reference/teleport-plugin-mattermost.mdx): Values that can be set using the teleport-plugin-mattermost Helm chart
+- [teleport-plugin-msteams Chart Reference](reference/helm-reference/teleport-plugin-msteams.mdx): Values that can be set using the teleport-plugin-msteams Helm chart
+- [teleport-plugin-pagerduty Chart Reference](reference/helm-reference/teleport-plugin-pagerduty.mdx): Values that can be set using the teleport-plugin-pagerduty Helm chart
+- [teleport-plugin-slack Chart Reference](reference/helm-reference/teleport-plugin-slack.mdx): Values that can be set using the teleport-plugin-slack Helm chart
 
 ## Machine ID Reference
 
@@ -32,7 +56,6 @@ Configuration and CLI reference for Teleport Machine ID. ([more info](reference/
 References for concepts and tools available for operating Teleport. ([more info](reference/operations.mdx))
 
 - [Authentication options](reference/operations/authentication.mdx): A reference for Teleport's authentication connectors
-- [Compliance Frameworks (section)](reference/operations/compliance-frameworks.mdx): How to use Teleport's access controls to streamline compliance without sacrificing productivity.
 - [Join Methods and Token Reference](reference/operations/join-methods.mdx): Describes the different ways to configure a Teleport to join a cluster.
 - [Local Users](reference/operations/users.mdx): Learn how to manage local users in Teleport. Local users are stored on the Auth Service instead of a third-party identity provider.
 - [Networking](reference/operations/networking.mdx): This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
@@ -80,6 +103,14 @@ Guides to the inner workings of components within a Teleport cluster. ([more inf
 - [Teleport Session Recording](reference/architecture/session-recording.mdx): An overview of Teleport's session recording and its configuration
 - [Trusted Clusters Architecture](reference/architecture/trustedclusters.mdx): Deep dive into design of Teleport Trusted Clusters.
 
+## Teleport Audit Event References
+
+Reference guides to audit events that you can export and track in Teleport. ([more info](reference/audit.mdx))
+
+- [Audit Events and Records](reference/audit/audit.mdx): Reference of Teleport Audit Events and Session Records
+- [Database Access Audit Events Reference](reference/audit/database-events.mdx): Audit events reference for Teleport database access.
+- [Desktop Access Audit Events Reference](reference/audit/desktop-events.mdx): Audit events reference for Teleport desktop access.
+
 ## Teleport CLI Reference Guides
 
 Comprehensive lists of commands, arguments, and flags for Teleport CLI tools. ([more info](reference/cli.mdx))
@@ -98,7 +129,6 @@ Comprehensive guides to configuring Teleport. ([more info](reference/config-refe
 
 - [Database Access Configuration Reference](reference/config-references/database-access.mdx): Configuration reference for Teleport database access.
 - [Desktop Access Configuration Reference](reference/config-references/desktop-access-config.mdx): Configuration reference for Teleport desktop access.
-- [Helm Chart Reference (section)](reference/config-references/helm-reference.mdx): Comprehensive lists of configuration values in Teleport's Helm charts
 - [Predicate Language](reference/config-references/predicate-language.mdx): How to use Teleport's predicate language to define filter conditions.
 - [Teleport Configuration Reference](reference/config-references/config.mdx): The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 - [Teleport Resource Reference](reference/config-references/resources.mdx): Reference documentation for Teleport resources
@@ -113,4 +143,3 @@ How to obtain information about activity in your Teleport cluster. ([more info](
 - [Health Monitoring](reference/monitoring/monitoring.mdx): Monitoring health and readiness.
 - [Metrics](reference/monitoring/metrics.mdx): How to enable and consume metrics
 - [Profiling](reference/monitoring/profiles.mdx): Collecting pprof profiles.
-- [Teleport Audit Event References (section)](reference/monitoring/audit.mdx): Reference guides to audit events that you can export and track in Teleport.
