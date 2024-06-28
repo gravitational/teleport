@@ -449,7 +449,12 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 		//
 		// Also check header common.TeleportAWSAssumedRole which is added by
 		// the local proxy for AWS requests signed by assumed roles.
-		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
+		//
+		// Also check header common.TeleportOriginalGitURL which is added by
+		// the local proxy for AWS CodeCommit requests.
+		if awsutils.IsSignedByAWSSigV4(r) ||
+			r.Header.Get(common.TeleportAWSAssumedRole) != "" ||
+			r.Header.Get(common.TeleportOriginalGitURL) != "" {
 			return c.serveSession(w, r, &identity, app, c.withAWSSigner)
 		}
 

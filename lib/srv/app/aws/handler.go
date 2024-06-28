@@ -146,6 +146,11 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 		return trace.Wrap(s.serveRequestByAssumedRole(sessCtx, w, req))
 	}
 
+	// Handle AWS Code Commit requests (Git HTTPS protocol)
+	if req.Header.Get(common.TeleportOriginalGitURL) != "" {
+		return trace.Wrap(s.serveGitCodeCommitRequest(sessCtx, w, req))
+	}
+
 	// Handle requests signed with the default local proxy credentials. The
 	// request will be re-signed with real credentials by assuming the
 	// requested role of this AWS app.
