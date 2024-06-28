@@ -23,9 +23,19 @@ resource's **labels** match the labels allowed by the user's role.
 Learn how to use the Teleport Discovery Service, which automatically enrolls resources by query APIs ([more info](enroll-resources/auto-discovery.mdx))
 
 - [AWS Database Auto-Discovery](enroll-resources/auto-discovery/databases.mdx): How to configure Teleport to discover AWS-hosted databases.
+- [Automatically Discover Azure Virtual Machines](enroll-resources/auto-discovery/azure-discovery.mdx): How to configure Teleport to automatically enroll Azure virtual machines.
+- [Automatically Discover GCP Compute Instances](enroll-resources/auto-discovery/gcp-discovery.mdx): How to configure Teleport to automatically enroll GCP compute instances.
 - [Automatically Enroll Kubernetes Clusters (section)](enroll-resources/auto-discovery/kubernetes.mdx): Register Kubernetes clusters with your Teleport cluster by polling service discovery endpoints.
+- [Configure Teleport to Automatically Enroll EC2 instances](enroll-resources/auto-discovery/ec2-discovery.mdx): How to configure Teleport to automatically enroll EC2 instances.
 - [Enroll Kubernetes Services as Teleport Applications (section)](enroll-resources/auto-discovery/kubernetes-applications.mdx): Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access.
+- [Get Started with Kubernetes Application Discovery](enroll-resources/auto-discovery/get-started.mdx): Detailed guide for configuring Kubernetes Application Discovery.
+- [Kubernetes App Discovery Architecture](enroll-resources/auto-discovery/architecture.mdx): Learn how Teleport automatically discovers applications running on Kubernetes.
+- [Kubernetes Application Discovery Reference](enroll-resources/auto-discovery/reference.mdx): This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
+- [Kubernetes Clusters Discovery](enroll-resources/auto-discovery/overview.mdx): Detailed guides for configuring Kubernetes Clusters Discovery.
 - [Server Auto-Discovery (section)](enroll-resources/auto-discovery/servers.mdx): You can set up the Teleport Discovery Service to automatically enroll servers in your infrastructure.
+- [Teleport AKS Auto-Discovery](enroll-resources/auto-discovery/azure.mdx): Auto-Discovery of AKS clusters in Azure cloud.
+- [Teleport EKS Auto-Discovery](enroll-resources/auto-discovery/aws.mdx): How to configure auto-discovery of AWS EKS clusters in Teleport.
+- [Teleport GKE Auto-Discovery](enroll-resources/auto-discovery/google-cloud.mdx): How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
 
 ## Machine ID
 
@@ -43,13 +53,30 @@ Provide service accounts and automated systems with secure access to resources i
 
 How to enroll applications with your Teleport cluster for secure access ([more info](enroll-resources/application-access.mdx))
 
+- [Access AWS With Teleport Application Access](enroll-resources/application-access/aws-console.mdx): How to access AWS with Teleport application access.
+- [Access REST APIs With Teleport](enroll-resources/application-access/api-access.mdx): How to access REST APIs with Teleport application access.
+- [Amazon Athena Access](enroll-resources/application-access/amazon-athena.mdx): How to access Amazon Athena with Teleport
+- [Amazon DynamoDB using the Teleport Application Service](enroll-resources/application-access/dynamodb.mdx): How to access Amazon DynamoDB through the Teleport Application Service
 - [Application Access Guides (section)](enroll-resources/application-access/guides.mdx): Guides for configuring Teleport application access.
+- [Dynamic App Registration](enroll-resources/application-access/dynamic-registration.mdx): Register/unregister apps without restarting Teleport.
 - [Getting Started with Protecting Applications with Teleport.](enroll-resources/application-access/getting-started.mdx): Getting started with Teleport application access.
+- [High Availability Application Service Deployments](enroll-resources/application-access/ha.mdx): How to configure Teleport application access in a Highly Available (HA) configuration.
+- [Installing the SCIM-Only Okta Integration](enroll-resources/application-access/scim-only.mdx): How to install a SCIM-only Okta integration
 - [Okta Integration with Application Access (section)](enroll-resources/application-access/okta.mdx): Guides for using Teleport Okta integration.
 - [Protect Applications with Teleport](enroll-resources/application-access/introduction.mdx): How to set up Teleport to protect applications and cloud provider APIs
+- [Protect Azure CLIs with Teleport Application Access on AKS](enroll-resources/application-access/azure-aks-workload-id.mdx): How to enable secure access to Azure CLIs on Azure Kubernetes Service with Workload Identity.
+- [Protect Azure CLIs with Teleport Application Access](enroll-resources/application-access/azure.mdx): How to enable secure access to Azure CLIs.
+- [Protect Google Cloud API Access with Teleport](enroll-resources/application-access/google-cloud.mdx): How to enable secure access to Google Cloud APIs.
+- [Protect Web Applications with Teleport](enroll-resources/application-access/connecting-apps.mdx): In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 - [Securing Access to Cloud APIs (section)](enroll-resources/application-access/cloud-apis.mdx): How to use Teleport to achieve secure access while managing your cloud-based infrastructure.
+- [Setting up the Okta Service as a Hosted Integration](enroll-resources/application-access/hosted-guide.mdx): How to set up the Okta Service as a hosted integration
+- [Synchronization with Okta and SCIM](enroll-resources/application-access/sync-scim.mdx): Managing Okta resources in Teleport
+- [TCP Application Access](enroll-resources/application-access/tcp.mdx): How to configure Teleport for accessing plain TCP apps
 - [Troubleshooting Application Access](enroll-resources/application-access/troubleshooting-apps.mdx): Describes common issues and solutions for access to applications protected by Teleport.
+- [Use JWT Tokens With Application Access](enroll-resources/application-access/jwt-introduction.mdx): How to use JWT tokens for authentication with Teleport application access.
 - [Use Teleport-Issued JSON Web Tokens (section)](enroll-resources/application-access/jwt.mdx): Guides for using Teleport-issued JWTs to authenticate to applications.
+- [Using JWT Authentication with Elasticsearch](enroll-resources/application-access/elasticsearch.mdx): How to use JWT authentication with Elasticsearch
+- [VNet](enroll-resources/application-access/vnet.mdx): How to configure custom DNS zones for VNet
 
 ## Protect Databases with Teleport
 
