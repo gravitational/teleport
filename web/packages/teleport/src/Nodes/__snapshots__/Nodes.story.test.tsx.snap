@@ -409,7 +409,6 @@ exports[`failed 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c38:focus-visible,
@@ -527,7 +526,6 @@ exports[`failed 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c6 {
@@ -1144,7 +1142,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1198,7 +1195,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1252,7 +1248,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1306,7 +1301,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1360,7 +1354,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1419,7 +1412,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1478,7 +1470,6 @@ exports[`failed 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -1695,7 +1686,6 @@ exports[`loaded 1`] = `
   font-size: 12px;
   line-height: 16px;
   letter-spacing: 0.15px;
-  height: 24px;
 }
 
 .c38:focus-visible,
@@ -1813,7 +1803,6 @@ exports[`loaded 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c6 {
@@ -2435,7 +2424,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2489,7 +2477,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2543,7 +2530,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2597,7 +2583,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2651,7 +2636,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2710,7 +2694,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span
@@ -2769,7 +2752,6 @@ exports[`loaded 1`] = `
           <button
             class="c38"
             fill="border"
-            height="24px"
           >
             Connect
             <span

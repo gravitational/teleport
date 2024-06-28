@@ -64,7 +64,7 @@ test('calls edit endpoint', async () => {
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 
@@ -96,7 +96,7 @@ test('calls delete endpoint', async () => {
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 

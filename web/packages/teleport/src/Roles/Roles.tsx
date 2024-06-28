@@ -119,7 +119,7 @@ export function Roles(props: State) {
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
         <ButtonPrimary ml="auto" width="240px" onClick={handleCreate}>
-          CREATE NEW ROLE
+          Create New Role
         </ButtonPrimary>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (

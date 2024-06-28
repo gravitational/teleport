@@ -395,7 +395,7 @@ function AuthMethod({
       ) : (
         <Box py={2}>
           <ButtonSecondary size="large" block onClick={next}>
-            Sign in with username and password
+            Sign in with Username and Password
           </ButtonSecondary>
         </Box>
       );

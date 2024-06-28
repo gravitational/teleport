@@ -1811,6 +1811,7 @@ exports[`buttons 1`] = `
 .c39:hover,
 .c39:focus {
   color: #33B1FF;
+  box-shadow: none;
 }
 
 .c39:active {

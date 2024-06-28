@@ -2201,6 +2201,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c15:hover,
 .c15:focus {
   color: #33B1FF;
+  box-shadow: none;
 }
 
 .c15:active {
@@ -3987,7 +3988,7 @@ exports[`sso providers rendering 1`] = `
               class="c19"
               fill="filled"
             >
-              Sign in with username and password
+              Sign in with Username and Password
             </button>
           </div>
         </div>

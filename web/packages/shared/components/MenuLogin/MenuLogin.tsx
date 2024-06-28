@@ -80,13 +80,12 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
         <ButtonBorder
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
-          height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
           Connect
-          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
