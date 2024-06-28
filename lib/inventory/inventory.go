@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -62,6 +62,9 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
+	// Shutdown closes the downstream handle and alerts the upstream
+	// to delete any heartbeats associated with the instance.
+	Shutdown() error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -82,32 +85,19 @@ type DownstreamSender interface {
 // NewDownstreamHandle creates a new downstream inventory control handle which will create control streams via the
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
-	ctx, cancel := context.WithCancel(context.Background())
+	closeCtx, closeCancel := context.WithCancel(context.Background())
+	shutdownCtx, shutdownCancel := context.WithCancel(closeCtx)
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:         make(chan DownstreamSender),
+		pingHandlers:    make(map[uint64]DownstreamPingHandler),
+		closeContext:    closeCtx,
+		closeCancel:     closeCancel,
+		shutdownContext: shutdownCtx,
+		shutdownCancel:  shutdownCancel,
 	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
 	return handle
-}
-
-func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.InventoryHeartbeat, retry retryutils.Retry) {
-	for {
-		select {
-		case sender := <-handle.Sender():
-			if err := sender.Send(ctx, hb); err != nil {
-				continue
-			}
-			return
-		case <-ctx.Done():
-			return
-		case <-handle.CloseContext().Done():
-			return
-		}
-	}
 }
 
 type downstreamHandle struct {
@@ -115,32 +105,37 @@ type downstreamHandle struct {
 	handlerNonce      uint64
 	pingHandlers      map[uint64]DownstreamPingHandler
 	senderC           chan DownstreamSender
+	shutdownContext   context.Context
+	shutdownCancel    context.CancelFunc
 	closeContext      context.Context
-	cancel            context.CancelFunc
+	closeCancel       context.CancelFunc
 	upstreamSSHLabels map[string]string
+	deleteOnClose     atomic.Bool
 }
 
 func (h *downstreamHandle) closing() bool {
-	return h.closeContext.Err() != nil
+	return h.shutdownContext.Err() != nil
 }
 
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	metadata, err := metadata.Get(h.CloseContext())
+	md, err := metadata.Get(h.CloseContext())
 	if err != nil {
-		log.Warnf("Failed to get agent metadata: %v", err)
+		if !errors.Is(err, context.Canceled) {
+			log.Warnf("Failed to get agent metadata: %v", err)
+		}
 		return
 	}
 	msg := proto.UpstreamInventoryAgentMetadata{
-		OS:                    metadata.OS,
-		OSVersion:             metadata.OSVersion,
-		HostArchitecture:      metadata.HostArchitecture,
-		GlibcVersion:          metadata.GlibcVersion,
-		InstallMethods:        metadata.InstallMethods,
-		ContainerRuntime:      metadata.ContainerRuntime,
-		ContainerOrchestrator: metadata.ContainerOrchestrator,
-		CloudEnvironment:      metadata.CloudEnvironment,
+		OS:                    md.OS,
+		OSVersion:             md.OSVersion,
+		HostArchitecture:      md.HostArchitecture,
+		GlibcVersion:          md.GlibcVersion,
+		InstallMethods:        md.InstallMethods,
+		ContainerRuntime:      md.ContainerRuntime,
+		ContainerOrchestrator: md.ContainerOrchestrator,
+		CloudEnvironment:      md.CloudEnvironment,
 	}
 	for {
 		// Wait for stream to be opened.
@@ -152,7 +147,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		}
 
 		// Send metadata.
-		if err := sender.Send(h.CloseContext(), msg); err != nil {
+		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Warnf("Failed to send agent metadata: %v", err)
 		}
 
@@ -166,6 +161,8 @@ func (h *downstreamHandle) autoEmitMetadata() {
 }
 
 func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
+	defer h.closeCancel()
+
 	retry := utils.NewDefaultLinear()
 	for {
 		h.tryRun(fn, hello)
@@ -178,14 +175,14 @@ func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInve
 		select {
 		case <-retry.After():
 			retry.Inc()
-		case <-h.closeContext.Done():
+		case <-h.CloseContext().Done():
 			return
 		}
 	}
 }
 
 func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
-	stream, err := fn(h.CloseContext())
+	stream, err := fn(h.closeContext)
 	if err != nil {
 		if !h.closing() {
 			log.Warnf("Failed to create inventory control stream: %v.", err)
@@ -202,9 +199,17 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 }
 
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream, upstreamHello proto.UpstreamInventoryHello) error {
-	defer stream.Close()
+	defer func() {
+		if h.closing() && h.deleteOnClose.Load() {
+			if err := stream.Send(h.closeContext, proto.UpstreamInventoryDelete{}); err != nil {
+				log.WithError(err).Warn("failed to send delete request on shutdown")
+			}
+		}
+
+		stream.Close()
+	}()
 	// send upstream hello
-	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
+	if err := stream.Send(h.CloseContext(), upstreamHello); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
@@ -226,7 +231,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			return nil
 		}
 		return trace.Wrap(stream.Error())
-	case <-h.closeContext.Done():
+	case <-h.CloseContext().Done():
 		return nil
 	}
 
@@ -252,7 +257,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return nil
 			}
 			return trace.Wrap(stream.Error())
-		case <-h.closeContext.Done():
+		case <-h.CloseContext().Done():
 			return nil
 		}
 	}
@@ -305,11 +310,19 @@ func (h *downstreamHandle) Sender() <-chan DownstreamSender {
 }
 
 func (h *downstreamHandle) CloseContext() context.Context {
-	return h.closeContext
+	return h.shutdownContext
 }
 
 func (h *downstreamHandle) Close() error {
-	h.cancel()
+	h.closeCancel()
+	return nil
+}
+
+func (h *downstreamHandle) Shutdown() error {
+	h.deleteOnClose.Store(true)
+	h.shutdownCancel()
+
+	<-h.closeContext.Done()
 	return nil
 }
 
