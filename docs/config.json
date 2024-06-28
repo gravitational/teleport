@@ -1354,6 +1354,14 @@
               ]
             },
             {
+              "title": "Setting up a SCIM-only integration",
+              "slug": "/application-access/okta/scim-only/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Okta Service Hosted Integration",
               "slug": "/application-access/okta/hosted-guide/",
               "forScopes": [
