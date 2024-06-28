@@ -37,10 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -48,7 +46,8 @@ import (
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
-// KubernetesOutputService
+// KubernetesOutputService produces credentials which can be used to connect to
+// a Kubernetes Cluster through teleport.
 type KubernetesOutputService struct {
 	// botAuthClient should be an auth client using the bots internal identity.
 	// This will not have any roles impersonated and should only be used to
@@ -64,86 +63,37 @@ type KubernetesOutputService struct {
 	// executablePath is called to get the path to the tbot executable.
 	// Usually this is os.Executable
 	executablePath func() (string, error)
-
-	// Fields below here are initialized by the service itself on startup.
-	hasInit bool
 }
 
-// chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
-// choose one kube cluster by unambiguous "discovered name".
-func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
-	return chooseOneResource(clusters, name, "kubernetes cluster")
+func (s *KubernetesOutputService) String() string {
+	return fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String())
 }
 
-func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
-	ctx, span := tracer.Start(ctx, "getKubeCluster")
-	defer span.End()
+func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
+	return s.generate(ctx)
+}
 
-	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindKubeServer,
-		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
-		Limit:               int32(defaults.DefaultChunkSize),
+func (s *KubernetesOutputService) Run(ctx context.Context) error {
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name:       "output-renewal",
+		f:          s.generate,
+		interval:   s.botCfg.RenewalInterval,
+		retryLimit: renewalRetryLimit,
+		log:        s.log,
+		reloadCh:   reloadCh,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var clusters []types.KubeCluster
-	for _, server := range servers {
-		clusters = append(clusters, server.GetCluster())
-	}
-
-	clusters = types.DeduplicateKubeClusters(clusters)
-	cluster, err := chooseOneKubeCluster(clusters, name)
-	return cluster, trace.Wrap(err)
-}
-
-// selectKubeConnectionMethod determines the address and SNI that should be
-// put into the kubeconfig file.
-func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (
-	clusterAddr string, sni string, err error,
-) {
-	// First we check for TLS routing. If this is enabled, we use the Proxy's
-	// PublicAddr, and we must also specify a special SNI.
-	//
-	// Even if KubePublicAddr is specified, we still use the general
-	// PublicAddr when using TLS routing.
-	if proxyPong.Proxy.TLSRoutingEnabled {
-		addr := proxyPong.Proxy.SSH.PublicAddr
-		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy public_addr")
-		}
-
-		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
-	}
-
-	// Next, we try to use the KubePublicAddr.
-	if proxyPong.Proxy.Kube.PublicAddr != "" {
-		return fmt.Sprintf("https://%s", proxyPong.Proxy.Kube.PublicAddr), "", nil
-	}
-
-	// Finally, we fall back to the main proxy PublicAddr with the port from
-	// KubeListenAddr.
-	if proxyPong.Proxy.Kube.ListenAddr != "" {
-		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy public_addr")
-		}
-
-		_, port, err := net.SplitHostPort(proxyPong.Proxy.Kube.ListenAddr)
-		if err != nil {
-			return "", "", trace.Wrap(err, "parsing proxy kube_listen_addr")
-		}
-
-		return fmt.Sprintf("https://%s:%s", host, port), "", nil
-	}
-
-	return "", "", trace.BadParameter("unable to determine kubernetes address")
+	return trace.Wrap(err)
 }
 
 func (s *KubernetesOutputService) generate(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"KubernetesOutputService/generate",
+	)
+	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
 	// Check the ACLs. We can't fix them, but we can warn if they're
@@ -236,6 +186,17 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// TODO(noah): It's likely the Kubernetes output does not really need to
+	// output these CAs - but - for backwards compat reasons, we output them.
+	// Revisit this at a later date and make a call.
+	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	key, err := config.NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
@@ -250,12 +211,21 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		kubernetesClusterName: kubeClusterName,
 	}
 
-	return s.render(ctx, status, routedIdentity)
+	return s.render(ctx, status, routedIdentity, hostCAs, userCAs, databaseCAs)
 }
 
 func (s *KubernetesOutputService) render(
-	ctx context.Context, status *kubernetesStatus, routedIdentity *identity.Identity,
+	ctx context.Context,
+	status *kubernetesStatus,
+	routedIdentity *identity.Identity,
+	hostCAs, userCAs, databaseCAs []types.CertAuthority,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"KubernetesOutputService/render",
+	)
+	defer span.End()
+
 	if err := writeIdentityFile(ctx, s.log, status.credentials, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
@@ -307,30 +277,11 @@ func (s *KubernetesOutputService) render(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.cfg.Destination.Write(ctx, defaultKubeconfigPath, yamlCfg))
-}
+	if err := s.cfg.Destination.Write(ctx, defaultKubeconfigPath, yamlCfg); err != nil {
+		return trace.Wrap(err, "writing kubeconfig")
+	}
 
-func (s *KubernetesOutputService) OneShot(ctx context.Context) error {
-	return s.generate(ctx)
-}
-
-func (s *KubernetesOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
-	defer unsubscribe()
-
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
-	})
-	return trace.Wrap(err)
-}
-
-func (s *KubernetesOutputService) String() string {
-	return fmt.Sprintf("kubernetes-output (%s)", s.cfg.Destination.String())
+	return trace.Wrap(writeTLSCAs(ctx, s.cfg.Destination, hostCAs, userCAs, databaseCAs))
 }
 
 // kubernetesStatus holds teleport client information necessary to populate a
@@ -437,24 +388,76 @@ func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executa
 	return config, nil
 }
 
-func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
-) error {
-	cfg := identityfile.WriteConfig{
-		OutputPath: config.IdentityFilePath,
-		Writer:     config.NewBotConfigWriter(ctx, dest),
-		Key:        key,
-		Format:     identityfile.FormatFile,
+// chooseOneKubeCluster chooses one matched kube cluster by name, or tries to
+// choose one kube cluster by unambiguous "discovered name".
+func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.KubeCluster, error) {
+	return chooseOneResource(clusters, name, "kubernetes cluster")
+}
 
-		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
-		OverwriteDestination: true,
-	}
+func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
+	ctx, span := tracer.Start(ctx, "getKubeCluster")
+	defer span.End()
 
-	files, err := identityfile.Write(ctx, cfg)
+	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindKubeServer,
+		PredicateExpression: makeNameOrDiscoveredNamePredicate(name),
+		Limit:               int32(defaults.DefaultChunkSize),
+	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Wrote identity file", "files", files)
-	return nil
+	var clusters []types.KubeCluster
+	for _, server := range servers {
+		clusters = append(clusters, server.GetCluster())
+	}
+
+	clusters = types.DeduplicateKubeClusters(clusters)
+	cluster, err := chooseOneKubeCluster(clusters, name)
+	return cluster, trace.Wrap(err)
+}
+
+// selectKubeConnectionMethod determines the address and SNI that should be
+// put into the kubeconfig file.
+func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (
+	clusterAddr string, sni string, err error,
+) {
+	// First we check for TLS routing. If this is enabled, we use the Proxy's
+	// PublicAddr, and we must also specify a special SNI.
+	//
+	// Even if KubePublicAddr is specified, we still use the general
+	// PublicAddr when using TLS routing.
+	if proxyPong.Proxy.TLSRoutingEnabled {
+		addr := proxyPong.Proxy.SSH.PublicAddr
+		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy public_addr")
+		}
+
+		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
+	}
+
+	// Next, we try to use the KubePublicAddr.
+	if proxyPong.Proxy.Kube.PublicAddr != "" {
+		return fmt.Sprintf("https://%s", proxyPong.Proxy.Kube.PublicAddr), "", nil
+	}
+
+	// Finally, we fall back to the main proxy PublicAddr with the port from
+	// KubeListenAddr.
+	if proxyPong.Proxy.Kube.ListenAddr != "" {
+		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy public_addr")
+		}
+
+		_, port, err := net.SplitHostPort(proxyPong.Proxy.Kube.ListenAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy kube_listen_addr")
+		}
+
+		return fmt.Sprintf("https://%s:%s", host, port), "", nil
+	}
+
+	return "", "", trace.BadParameter("unable to determine kubernetes address")
 }
