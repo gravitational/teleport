@@ -41,6 +41,12 @@ const (
 	SSHHostUserCASuffix = "-user-ca.pub"
 )
 
+var (
+	_ ServiceConfig = &SSHHostOutput{}
+	_ Output        = &SSHHostOutput{}
+	_ Initable      = &SSHHostOutput{}
+)
+
 // SSHHostOutput generates a host certificate signed by the Teleport CA. This
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
 type SSHHostOutput struct {
