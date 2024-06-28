@@ -7,6 +7,12 @@ description: "Step-by-step guides to performing common Teleport tasks"
 
 - [Getting Started with Access Monitoring](admin-guides/access-monitoring.mdx): Learn how to use Access Monitoring.
 
+## Access Lists
+
+Use Access Lists in Teleport ([more info](admin-guides/access-lists.mdx))
+
+- [Getting Started with Access Lists](admin-guides/access-lists/guide.mdx): Learn how to use Access Lists to manage and audit long lived access to Teleport resources.
+
 ## Common Operations
 
 Contains guides for performing common tasks on a Teleport cluster after the initial setup phase. ([more info](admin-guides/common-operations.mdx))
@@ -28,6 +34,38 @@ Use configuration files and dynamic resources to adjust access controls, enroll 
 - [Infrastructure as Code Guides (section)](admin-guides/configure-teleport/dynamic-resources.mdx): Guides to using Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code.
 - [Teleport API Introduction (section)](admin-guides/configure-teleport/api.mdx): Introduction to the Teleport gRPC API.
 
+## Just-in-Time Access Request Plugins
+
+Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity. ([more info](admin-guides/access-request-plugins.mdx))
+
+- [Access Requests with Microsoft Teams](admin-guides/access-request-plugins/ssh-approval-msteams.mdx): How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
+- [Access Requests with Opsgenie](admin-guides/access-request-plugins/opsgenie.mdx): How to set up Teleport's Opsgenie plugin for privilege elevation approvals.
+- [Access Requests with ServiceNow](admin-guides/access-request-plugins/servicenow.mdx): How to set up Teleport's ServiceNow plugin for privilege elevation approvals.
+- [Routing Access Request notifications](admin-guides/access-request-plugins/notification-routing-rules.mdx): How to set up Teleport's Access Monitoring Rules to route Access Request notifications
+- [Run the Discord Access Request Plugin](admin-guides/access-request-plugins/ssh-approval-discord.mdx): How to set up Teleport's Discord plugin for privilege elevation approvals.
+- [Run the Jira Access Request Plugin](admin-guides/access-request-plugins/ssh-approval-jira.mdx): How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
+- [Run the Mattermost Access Request plugin](admin-guides/access-request-plugins/ssh-approval-mattermost.mdx): How to set up Teleport's Mattermost plugin for privilege elevation approvals.
+- [Run the PagerDuty Access Request Plugin](admin-guides/access-request-plugins/ssh-approval-pagerduty.mdx): How to set up Teleport's PagerDuty plugin for privilege elevation approvals.
+- [Run the Slack Access Request Plugin](admin-guides/access-request-plugins/ssh-approval-slack.mdx): How to set up Teleport's Slack plugin for privilege elevation approvals.
+- [Teleport Access Requests with Email](admin-guides/access-request-plugins/ssh-approval-email.mdx): How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
+
+## Just-in-Time Access Requests
+
+Just-in-time Access Requests allow Teleport users to request access to a resource or role depending on need. ([more info](admin-guides/access-requests.mdx))
+
+- [Just-in-Time Access Requests](admin-guides/access-requests/overview.mdx): Use just-in-time Access Requests to request elevated privileges.
+- [Resource Access Requests](admin-guides/access-requests/resource-requests.mdx): Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+- [Role Access Requests](admin-guides/access-requests/role-requests.mdx): Use Just-in-time Access Requests to request new roles with elevated privileges.
+- [Teleport Community Edition Role Access Requests](admin-guides/access-requests/oss-role-requests.mdx): Teleport Community Edition allows users to request access to roles from the CLI.
+
+## Login Rules
+
+Transform User Traits with Login Rules ([more info](admin-guides/login-rules.mdx))
+
+- [Deploy Login Rules using Kubernetes Operator](admin-guides/login-rules/kubernetes.mdx): Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
+- [Deploy Login Rules via Terraform](admin-guides/login-rules/terraform.mdx): Use Teleport's Terraform Provider to deploy Login Rules to your cluster
+- [Set Up Login Rules](admin-guides/login-rules/guide.mdx): Set up Login Rules to transform user traits
+
 ## Self-Hosting Teleport
 
 Guides to deploying and managing the Teleport Auth Service and Proxy Service. ([more info](admin-guides/self-hosting.mdx))
@@ -43,17 +81,12 @@ Guides to deploying and managing the Teleport Auth Service and Proxy Service. ([
 
 Guides to configuring the access that Teleport users have to infrastructure resources and cluster permissions. ([more info](admin-guides/access-controls.mdx))
 
-- [Access Lists (section)](admin-guides/access-controls/access-lists.mdx): Use Access Lists in Teleport
 - [Configure Trusted Clusters](admin-guides/access-controls/trustedclusters.mdx): Explains how you can configure a trust relationship and manage access between two Teleport clusters.
 - [Getting Started With Access Controls](admin-guides/access-controls/access-controls-getting-started.mdx): Get started using Teleport Access Controls.
 - [IP Pinning](admin-guides/access-controls/ip-pinning.mdx): How to enable IP pinning for Teleport users
 - [Impersonating Teleport Users](admin-guides/access-controls/impersonation.mdx): How to issue short-lived certs on behalf of Teleport users using impersonation.
-- [Just-in-Time Access Request Plugins (section)](admin-guides/access-controls/access-request-plugins.mdx): Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity.
-- [Just-in-Time Access Requests (section)](admin-guides/access-controls/access-requests.mdx): Just-in-time Access Requests allow Teleport users to request access to a resource or role depending on need.
-- [Login Rules (section)](admin-guides/access-controls/login-rules.mdx): Transform User Traits with Login Rules
 - [Moderated Sessions](admin-guides/access-controls/moderated-sessions.mdx): Describes the purpose of moderated sessions and how to configure roles to support moderated sessions in a Teleport cluster.
 - [Session and Identity Locking](admin-guides/access-controls/locking.mdx): How to lock compromised users or agents
-- [Teleport Label Guides (section)](admin-guides/access-controls/labels.mdx): Guides to using Teleport labels, which underpin the Teleport role-based access controls system.
 - [Teleport Role Templates](admin-guides/access-controls/role-templates.mdx): This guide explains templating in Teleport roles. Templates allow you to enable access to resources depending on the traits of a local or single sign-on user.
 
 ## Teleport Authentication
@@ -69,6 +102,14 @@ Guides for configuring the way users authenticate to Teleport. ([more info](admi
 - [Per-session MFA](admin-guides/authentication/per-session-mfa.mdx): Require MFA checks to initiate sessions.
 - [Second Factor: WebAuthn](admin-guides/authentication/webauthn.mdx): Configuring WebAuthn support in Teleport clusters.
 - [Teleport Single-Sign-On (section)](admin-guides/authentication/sso.mdx): Learn how to configure your single sign-on provider to allow authentication to Teleport.
+
+## Teleport Label Guides
+
+Guides to using Teleport labels, which underpin the Teleport role-based access controls system. ([more info](admin-guides/labels.mdx))
+
+- [Add Labels to Resources](admin-guides/labels/labels.mdx): How to assign static and command-based dynamic labels to Teleport resources.
+- [EC2 Tags as Teleport Node Labels](admin-guides/labels/ec2-tags.mdx): How to set up Teleport Node labels based on EC2 tags
+- [GCP Tags and Labels as Teleport Agent Labels](admin-guides/labels/gcp-tags.mdx): How to set up Teleport agent labels based on GCP tags and labels
 
 ## Teleport Policy Guides
 
