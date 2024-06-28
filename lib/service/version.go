@@ -28,6 +28,7 @@ import (
 const (
 	// majorVersionConstraint is the major version constraint when previous major version must be
 	// present in the storage, if not - we must refuse to start.
+	// TODO(vapopov): DELETE IN 18.0.0
 	majorVersionConstraint = 18
 )
 
@@ -49,10 +50,11 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 		}
 		if currentMajor >= majorVersionConstraint && !trace.IsNotFound(err) {
 			return trace.BadParameter("Unsupported upgrade path detected: to %v. "+
-				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
-				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+				"Teleport supports direct upgrades to the next major version only.\n "+
+				"For instance, if you have version 15.x.x, you must upgrade to version 16.x.x first. "+
+				"See compatibility guarantees for details: "+
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				currentVersion, currentMajor-1)
+				currentVersion)
 		}
 	} else if err != nil {
 		return trace.Wrap(err)

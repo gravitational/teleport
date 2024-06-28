@@ -86,7 +86,7 @@ func MajorSemver(version string) (string, error) {
 func MajorVersion(version string) (int64, error) {
 	v, err := semver.NewVersion(version)
 	if err != nil {
-		return 0, trace.Wrap(err, "unsupported version format: %q", version)
+		return 0, trace.BadParameter("unsupported version format: %q: %v", version, err)
 	}
 	return v.Major, nil
 }

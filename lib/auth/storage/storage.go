@@ -47,8 +47,8 @@ const (
 	idsPrefix = "ids"
 	// teleportPrefix is a key prefix to store internal data
 	teleportPrefix = "teleport"
-	// latestVersion is a key for storing latest version of teleport
-	latestVersion = "latest-version"
+	// lastKnownVersion is a key for storing version of teleport
+	lastKnownVersion = "last-known-version"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -209,7 +209,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 
 // GetTeleportVersion reads the latest teleport version.
 func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (string, error) {
-	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, latestVersion))
+	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, lastKnownVersion))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -219,7 +219,7 @@ func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (string, error)
 // WriteTeleportVersion writes the latest teleport version to the backend.
 func (p *ProcessStorage) WriteTeleportVersion(version string) error {
 	item := backend.Item{
-		Key:   backend.Key(teleportPrefix, latestVersion),
+		Key:   backend.Key(teleportPrefix, lastKnownVersion),
 		Value: []byte(version),
 	}
 	_, err := p.stateStorage.Put(context.TODO(), item)
