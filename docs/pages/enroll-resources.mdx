@@ -18,38 +18,172 @@ resource's **labels** match the labels allowed by the user's role.
 
 - [AWS OIDC Integration](enroll-resources/awsoidc-integration.mdx): How to connect your AWS account with Teleport and provide access to AWS resources.
 
+## Application Access Guides
+
+Guides for configuring Teleport application access. ([more info](enroll-resources/guides.mdx))
+
+- [Database Access High Availability (HA)](enroll-resources/guides/ha.mdx): How to configure Teleport database access in a Highly Available (HA) configuration.
+- [Dynamic Database Registration](enroll-resources/guides/dynamic-registration.mdx): Register/unregister databases without restarting Teleport.
+
 ## Automatically Enroll Infrastructure Resources
 
 Learn how to use the Teleport Discovery Service, which automatically enrolls resources by query APIs ([more info](enroll-resources/auto-discovery.mdx))
 
 - [AWS Database Auto-Discovery](enroll-resources/auto-discovery/databases.mdx): How to configure Teleport to discover AWS-hosted databases.
-- [Automatically Enroll Kubernetes Clusters (section)](enroll-resources/auto-discovery/kubernetes.mdx): Register Kubernetes clusters with your Teleport cluster by polling service discovery endpoints.
-- [Enroll Kubernetes Services as Teleport Applications (section)](enroll-resources/auto-discovery/kubernetes-applications.mdx): Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access.
-- [Server Auto-Discovery (section)](enroll-resources/auto-discovery/servers.mdx): You can set up the Teleport Discovery Service to automatically enroll servers in your infrastructure.
+
+## Automatically Enroll Kubernetes Clusters
+
+Register Kubernetes clusters with your Teleport cluster by polling service discovery endpoints. ([more info](enroll-resources/kubernetes.mdx))
+
+- [Kubernetes Clusters Discovery](enroll-resources/kubernetes/overview.mdx): Detailed guides for configuring Kubernetes Clusters Discovery.
+- [Teleport AKS Auto-Discovery](enroll-resources/kubernetes/azure.mdx): Auto-Discovery of AKS clusters in Azure cloud.
+- [Teleport EKS Auto-Discovery](enroll-resources/kubernetes/aws.mdx): How to configure auto-discovery of AWS EKS clusters in Teleport.
+- [Teleport GKE Auto-Discovery](enroll-resources/kubernetes/google-cloud.mdx): How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
+
+## Database Automatic User Provisioning
+
+Configure automatic user provisioning for databases. ([more info](enroll-resources/auto-user-provisioning.mdx))
+
+- [Amazon Redshift Automatic User Provisioning](enroll-resources/auto-user-provisioning/aws-redshift.mdx): Configure automatic user provisioning for Amazon Redshift.
+- [MariaDB Automatic User Provisioning](enroll-resources/auto-user-provisioning/mariadb.mdx): Configure automatic user provisioning for MariaDB.
+- [MongoDB Automatic User Provisioning](enroll-resources/auto-user-provisioning/mongodb.mdx): Configure automatic user provisioning for MongoDB.
+- [MySQL Automatic User Provisioning](enroll-resources/auto-user-provisioning/mysql.mdx): Configure automatic user provisioning for MySQL.
+- [PostgreSQL Automatic User Provisioning](enroll-resources/auto-user-provisioning/postgres.mdx): Configure automatic user provisioning for PostgreSQL.
+
+## Discover Servers with Teleport
+
+Automatically enroll servers with your Teleport cluster ([more info](enroll-resources/discover-servers.mdx))
+
+- [Automatically Discover Azure Virtual Machines](enroll-resources/discover-servers/azure-discovery.mdx): How to configure Teleport to automatically enroll Azure virtual machines.
+- [Automatically Discover GCP Compute Instances](enroll-resources/discover-servers/gcp-discovery.mdx): How to configure Teleport to automatically enroll GCP compute instances.
+- [Configure Teleport to Automatically Enroll EC2 instances](enroll-resources/discover-servers/ec2-discovery.mdx): How to configure Teleport to automatically enroll EC2 instances.
+
+## Enroll AWS Databases
+
+Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport. ([more info](enroll-resources/enroll-aws-databases.mdx))
+
+- [AWS Cross-Account Database Access](enroll-resources/enroll-aws-databases/aws-cross-account.mdx): How to connect AWS databases in external AWS accounts to Teleport.
+- [Database Access with AWS ElastiCache and AWS MemoryDB for Redis](enroll-resources/enroll-aws-databases/redis-aws.mdx): How to configure Teleport database access with AWS ElastiCache and AWS MemoryDB for Redis.
+- [Database Access with AWS OpenSearch](enroll-resources/enroll-aws-databases/aws-opensearch.mdx): How to access AWS OpenSearch with Teleport database access
+- [Database Access with AWS RDS Proxy for MariaDB/MySQL](enroll-resources/enroll-aws-databases/rds-proxy-mysql.mdx): How to configure Teleport database access with AWS RDS Proxy for MariaDB/MySQL.
+- [Database Access with AWS RDS Proxy for Microsoft SQL Server](enroll-resources/enroll-aws-databases/rds-proxy-sqlserver.mdx): How to configure Teleport database access with AWS RDS Proxy for Microsoft SQL Server
+- [Database Access with AWS RDS Proxy for PostgreSQL](enroll-resources/enroll-aws-databases/rds-proxy-postgres.mdx): How to configure Teleport database access with AWS RDS Proxy for PostgreSQL
+- [Database Access with AWS RDS and Aurora](enroll-resources/enroll-aws-databases/rds.mdx): How to configure Teleport database access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+- [Database Access with Amazon DynamoDB](enroll-resources/enroll-aws-databases/aws-dynamodb.mdx): How to access Amazon DynamoDB with Teleport database access
+- [Database Access with Amazon Keyspaces (Apache Cassandra)](enroll-resources/enroll-aws-databases/aws-cassandra-keyspaces.mdx): How to configure Teleport database access with Amazon Keyspaces (Apache Cassandra)
+- [Database Access with Microsoft SQL Server with Active Directory authentication](enroll-resources/enroll-aws-databases/sql-server-ad.mdx): How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
+- [Database Access with Redshift Serverless on AWS](enroll-resources/enroll-aws-databases/redshift-serverless.mdx): How to configure Teleport database access with Amazon Redshift Serverless.
+- [Database Access with Redshift on AWS](enroll-resources/enroll-aws-databases/postgres-redshift.mdx): How to configure Teleport database access with Amazon Redshift PostgreSQL.
+
+## Enroll Applications with Teleport
+
+Protect internal HTTP and TCP applications. ([more info](enroll-resources/applications.mdx))
+
+- [Access REST APIs With Teleport](enroll-resources/applications/api-access.mdx): How to access REST APIs with Teleport application access.
+- [Amazon Athena Access](enroll-resources/applications/amazon-athena.mdx): How to access Amazon Athena with Teleport
+- [Amazon DynamoDB using the Teleport Application Service](enroll-resources/applications/dynamodb.mdx): How to access Amazon DynamoDB through the Teleport Application Service
+- [Dynamic App Registration](enroll-resources/applications/dynamic-registration.mdx): Register/unregister apps without restarting Teleport.
+- [High Availability Application Service Deployments](enroll-resources/applications/ha.mdx): How to configure Teleport application access in a Highly Available (HA) configuration.
+- [Protect Web Applications with Teleport](enroll-resources/applications/connecting-apps.mdx): In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
+- [TCP Application Access](enroll-resources/applications/tcp.mdx): How to configure Teleport for accessing plain TCP apps
+- [VNet](enroll-resources/applications/vnet.mdx): How to configure custom DNS zones for VNet
+
+## Enroll Azure Databases
+
+Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport. ([more info](enroll-resources/enroll-azure-databases.mdx))
+
+- [Database Access with Azure Cache for Redis](enroll-resources/enroll-azure-databases/azure-redis.mdx): How to configure Teleport database access with Azure Cache for Redis
+- [Database Access with Azure PostgreSQL and MySQL](enroll-resources/enroll-azure-databases/azure-postgres-mysql.mdx): How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
+- [Database Access with SQL Server on Azure](enroll-resources/enroll-azure-databases/azure-sql-server-ad.mdx): How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
+
+## Enroll Cloud-Hosted Database Platforms
+
+Provides instructions on protecting managed databases in your infrastructure with Teleport. ([more info](enroll-resources/enroll-managed-databases.mdx))
+
+- [Database Access with MongoDB Atlas](enroll-resources/enroll-managed-databases/mongodb-atlas.mdx): How to configure Teleport database access with MongoDB Atlas.
+- [Database Access with Snowflake](enroll-resources/enroll-managed-databases/snowflake.mdx): How to configure Teleport database access with Snowflake.
+
+## Enroll Google Cloud Databases
+
+Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport. ([more info](enroll-resources/enroll-google-cloud-databases.mdx))
+
+- [Database Access with Cloud SQL for MySQL](enroll-resources/enroll-google-cloud-databases/mysql-cloudsql.mdx): How to configure Teleport database access with Cloud SQL for MySQL.
+- [Database Access with Cloud SQL for PostgreSQL](enroll-resources/enroll-google-cloud-databases/postgres-cloudsql.mdx): How to configure Teleport database access with Cloud SQL for PostgreSQL.
+- [Database Access with Cloud Spanner](enroll-resources/enroll-google-cloud-databases/spanner.mdx): How to configure Teleport database access with GCP's Cloud Spanner.
+
+## Enroll Kubernetes Services as Teleport Applications
+
+Teleport can automatically detect applications running in your Kubernetes clusters and register them with Teleport for secure access. ([more info](enroll-resources/kubernetes-applications.mdx))
+
+- [Get Started with Kubernetes Application Discovery](enroll-resources/kubernetes-applications/get-started.mdx): Detailed guide for configuring Kubernetes Application Discovery.
+- [Kubernetes App Discovery Architecture](enroll-resources/kubernetes-applications/architecture.mdx): Learn how Teleport automatically discovers applications running on Kubernetes.
+- [Kubernetes Application Discovery Reference](enroll-resources/kubernetes-applications/reference.mdx): This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
+
+## Enroll Self-Hosted Databases
+
+Provides instructions on protecting self-hosted databases in your infrastructure with Teleport. ([more info](enroll-resources/enroll-self-hosted-databases.mdx))
+
+- [Database Access with Cassandra and ScyllaDB](enroll-resources/enroll-self-hosted-databases/cassandra-self-hosted.mdx): How to configure Teleport database access with Cassandra and ScyllaDB.
+- [Database Access with ClickHouse](enroll-resources/enroll-self-hosted-databases/clickhouse-self-hosted.mdx): How to configure Teleport database access with ClickHouse.
+- [Database Access with Elasticsearch](enroll-resources/enroll-self-hosted-databases/elastic.mdx): How to configure Teleport database access with Elasticsearch.
+- [Database Access with Oracle](enroll-resources/enroll-self-hosted-databases/oracle-self-hosted.mdx): How to configure Teleport database access with Oracle.
+- [Database Access with Redis Cluster](enroll-resources/enroll-self-hosted-databases/redis-cluster.mdx): How to configure Teleport database access with Redis Cluster.
+- [Database Access with Redis](enroll-resources/enroll-self-hosted-databases/redis.mdx): How to configure Teleport database access with Redis.
+- [Database Access with Self-Hosted CockroachDB](enroll-resources/enroll-self-hosted-databases/cockroachdb-self-hosted.mdx): How to configure Teleport database access with self-hosted CockroachDB.
+- [Database Access with Self-Hosted MongoDB](enroll-resources/enroll-self-hosted-databases/mongodb-self-hosted.mdx): How to configure Teleport database access with self-hosted MongoDB.
+- [Database Access with Self-Hosted MySQL/MariaDB](enroll-resources/enroll-self-hosted-databases/mysql-self-hosted.mdx): How to configure Teleport database access with self-hosted MySQL/MariaDB.
+- [Database Access with Self-Hosted PostgreSQL](enroll-resources/enroll-self-hosted-databases/postgres-self-hosted.mdx): How to configure Teleport database access with self-hosted PostgreSQL.
+- [Database Access with Vitess (MySQL protocol)](enroll-resources/enroll-self-hosted-databases/vitess.mdx): How to configure Teleport database access for Vitess (MySQL protocol)
+- [Microsoft SQL Server access with PKINIT authentication](enroll-resources/enroll-self-hosted-databases/sql-server-ad-pkinit.mdx): How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 
 ## Machine ID
 
 Provide service accounts and automated systems with secure access to resources in your infrastructure. ([more info](enroll-resources/machine-id.mdx))
 
-- [Machine ID Deployment Guides (section)](enroll-resources/machine-id/deployment.mdx): Guides to running Machine ID on various systems and CI/CD platforms.
 - [Machine ID Getting Started Guide](enroll-resources/machine-id/getting-started.mdx): Getting started with Teleport Machine ID
 - [Machine ID Introduction](enroll-resources/machine-id/introduction.mdx): Teleport Machine ID introduction, demo and resources.
 - [Machine ID Manifesto](enroll-resources/machine-id/manifesto.mdx): A manifesto for Machine Identity
 - [Machine ID Troubleshooting Guide](enroll-resources/machine-id/troubleshooting.mdx): Troubleshooting common issues with Machine ID
-- [Use Machine ID to Access your Infrastructure (section)](enroll-resources/machine-id/access-guides.mdx): How to use Machine ID to enable secure access to Teleport resources.
-- [Workload Identity (section)](enroll-resources/machine-id/workload-identity.mdx): Guides to Teleport Workload Identity, which issues flexible, short-lived identities to secure workload-to-workload communications.
+
+## Machine ID Deployment Guides
+
+Guides to running Machine ID on various systems and CI/CD platforms. ([more info](enroll-resources/deployment.mdx))
+
+- [Deploying Machine ID on AWS](enroll-resources/deployment/aws.mdx): How to install and configure Machine ID on an AWS EC2 instance
+- [Deploying Machine ID on Azure](enroll-resources/deployment/azure.mdx): How to install and configure Machine ID on an Azure VM
+- [Deploying Machine ID on CircleCI](enroll-resources/deployment/circleci.mdx): How to install and configure Machine ID on CircleCI
+- [Deploying Machine ID on GCP](enroll-resources/deployment/gcp.mdx): How to install and configure Machine ID on a GCP VM
+- [Deploying Machine ID on GitHub Actions](enroll-resources/deployment/github-actions.mdx): How to install and configure Machine ID on GitHub Actions
+- [Deploying Machine ID on GitLab CI](enroll-resources/deployment/gitlab.mdx): How to install and configure Machine ID on GitLab CI
+- [Deploying Machine ID on Jenkins](enroll-resources/deployment/jenkins.mdx): How to install and configure Machine ID on Jenkins
+- [Deploying Machine ID on Kubernetes](enroll-resources/deployment/kubernetes.mdx): How to install and configure Machine ID on Kubernetes
+- [Deploying Machine ID on Linux (TPM)](enroll-resources/deployment/linux-tpm.mdx): How to install and configure Machine ID on a Linux host and use a TPM 2.0 for authentication
+- [Deploying Machine ID on Linux](enroll-resources/deployment/linux.mdx): How to install and configure Machine ID on a Linux host
+- [Deploying Machine ID on Spacelift](enroll-resources/deployment/spacelift.mdx): How to install and configure Machine ID on Spacelift
+- [Machine ID Deployment Overview](enroll-resources/deployment/overview.mdx): Explains how to deploy Machine ID on your platform and join it to your Teleport cluster.
+
+## Okta Integration with Application Access
+
+Guides for using Teleport Okta integration. ([more info](enroll-resources/okta.mdx))
+
+- [Installing the SCIM-Only Okta Integration](enroll-resources/okta/scim-only.mdx): How to install a SCIM-only Okta integration
+- [Setting up the Okta Service as a Hosted Integration](enroll-resources/okta/hosted-guide.mdx): How to set up the Okta Service as a hosted integration
+- [Synchronization with Okta and SCIM](enroll-resources/okta/sync-scim.mdx): Managing Okta resources in Teleport
+
+## OpenSSH Guides
+
+Teleport Agentless OpenSSH integration guides. ([more info](enroll-resources/openssh.mdx))
+
+- [Using Teleport with OpenSSH in agentless mode (manual installation)](enroll-resources/openssh/openssh-manual-install.mdx): This guide shows you how to set up Teleport to enable secure access to OpenSSH servers so you can protect legacy systems that do not run a Teleport binary.
+- [Using Teleport with OpenSSH in agentless mode](enroll-resources/openssh/openssh.mdx): This guide shows you how to set up Teleport in agentless mode to enable secure access to OpenSSH servers so you can protect systems that do not run a Teleport binary.
 
 ## Protect Applications with Teleport
 
 How to enroll applications with your Teleport cluster for secure access ([more info](enroll-resources/application-access.mdx))
 
-- [Application Access Guides (section)](enroll-resources/application-access/guides.mdx): Guides for configuring Teleport application access.
 - [Getting Started with Protecting Applications with Teleport.](enroll-resources/application-access/getting-started.mdx): Getting started with Teleport application access.
-- [Okta Integration with Application Access (section)](enroll-resources/application-access/okta.mdx): Guides for using Teleport Okta integration.
 - [Protect Applications with Teleport](enroll-resources/application-access/introduction.mdx): How to set up Teleport to protect applications and cloud provider APIs
-- [Securing Access to Cloud APIs (section)](enroll-resources/application-access/cloud-apis.mdx): How to use Teleport to achieve secure access while managing your cloud-based infrastructure.
 - [Troubleshooting Application Access](enroll-resources/application-access/troubleshooting-apps.mdx): Describes common issues and solutions for access to applications protected by Teleport.
-- [Use Teleport-Issued JSON Web Tokens (section)](enroll-resources/application-access/jwt.mdx): Guides for using Teleport-issued JWTs to authenticate to applications.
 
 ## Protect Databases with Teleport
 
@@ -57,21 +191,12 @@ How to enrolls databases in your Teleport cluster. ([more info](enroll-resources
 
 - [Database Access Controls](enroll-resources/database-access/rbac.mdx): Role-based access control (RBAC) for Teleport database access.
 - [Database Access Getting Started Guide](enroll-resources/database-access/getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
-- [Database Automatic User Provisioning (section)](enroll-resources/database-access/auto-user-provisioning.mdx): Configure automatic user provisioning for databases.
-- [Enroll AWS Databases (section)](enroll-resources/database-access/enroll-aws-databases.mdx): Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport.
-- [Enroll Azure Databases (section)](enroll-resources/database-access/enroll-azure-databases.mdx): Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport.
-- [Enroll Cloud-Hosted Database Platforms (section)](enroll-resources/database-access/enroll-managed-databases.mdx): Provides instructions on protecting managed databases in your infrastructure with Teleport.
-- [Enroll Google Cloud Databases (section)](enroll-resources/database-access/enroll-google-cloud-databases.mdx): Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport.
-- [Enroll Self-Hosted Databases (section)](enroll-resources/database-access/enroll-self-hosted-databases.mdx): Provides instructions on protecting self-hosted databases in your infrastructure with Teleport.
 - [Troubleshooting Database Access](enroll-resources/database-access/troubleshooting.mdx): Common issues and resolutions for Teleport's Database Access
-- [Using the Teleport Database Service (section)](enroll-resources/database-access/guides.mdx): Guides to possibilities for running the Teleport Database Service.
 
 ## Protect Linux Servers with Teleport
 
 How to enroll Linux servers in your Teleport cluster to enable secure SSH access. ([more info](enroll-resources/server-access.mdx))
 
-- [OpenSSH Guides (section)](enroll-resources/server-access/openssh.mdx): Teleport Agentless OpenSSH integration guides.
-- [Protect SSH Servers with Teleport (section)](enroll-resources/server-access/guides.mdx): Guides to enrolling SSH servers in your Teleport cluster with the Teleport SSH Service.
 - [Server Access Getting Started Guide](enroll-resources/server-access/getting-started.mdx): Getting started with Teleport server access.
 - [Teleport Server Access Features and Introduction](enroll-resources/server-access/introduction.mdx): Teleport server access features and introduction.
 - [Troubleshooting Server Access](enroll-resources/server-access/troubleshooting-server.mdx): Describes common issues and solutions for access to servers.
@@ -90,6 +215,36 @@ How to proctect Windows Desktops with Teleport ([more info](enroll-resources/des
 - [Session Recording and Playback](enroll-resources/desktop-access/sessions.mdx): Recording and playing back Teleport desktop access sessions.
 - [Troubleshooting Desktop Access](enroll-resources/desktop-access/troubleshooting.mdx): Common issues and resolutions for Teleport's desktop access
 
+## Registering Kubernetes Clusters with Teleport
+
+How to manually add a Kubernetes cluster to Teleport after creating it. ([more info](enroll-resources/register-clusters.mdx))
+
+- [Dynamic Kubernetes Cluster Registration](enroll-resources/register-clusters/dynamic-registration.mdx): Register and unregister Kubernetes clusters without restarting a Teleport Kubernetes Service instance.
+- [Register a Kubernetes Cluster using IAM Joining](enroll-resources/register-clusters/iam-joining.mdx): Connecting a Kubernetes cluster to Teleport with IAM joining.
+- [Register a Kubernetes Cluster with a Static kubeconfig](enroll-resources/register-clusters/static-kubeconfig.mdx): Connecting standalone Teleport installations to Kubernetes clusters.
+
+## Securing Access to Cloud APIs
+
+How to use Teleport to achieve secure access while managing your cloud-based infrastructure. ([more info](enroll-resources/cloud-apis.mdx))
+
+- [Access AWS With Teleport Application Access](enroll-resources/cloud-apis/aws-console.mdx): How to access AWS with Teleport application access.
+- [Protect Azure CLIs with Teleport Application Access on AKS](enroll-resources/cloud-apis/azure-aks-workload-id.mdx): How to enable secure access to Azure CLIs on Azure Kubernetes Service with Workload Identity.
+- [Protect Azure CLIs with Teleport Application Access](enroll-resources/cloud-apis/azure.mdx): How to enable secure access to Azure CLIs.
+- [Protect Google Cloud API Access with Teleport](enroll-resources/cloud-apis/google-cloud.mdx): How to enable secure access to Google Cloud APIs.
+
+## Server Auto-Discovery
+
+You can set up the Teleport Discovery Service to automatically enroll servers in your infrastructure. ([more info](enroll-resources/servers.mdx))
+
+- [Ansible](enroll-resources/servers/ansible.mdx): Using Teleport with Ansible
+- [Configure SSH with Pluggable Authentication Modules](enroll-resources/servers/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
+- [Configure SSH with the Linux Auditing System](enroll-resources/servers/auditd.mdx): How to configure Teleport SSH with auditd (Linux Auditing System).
+- [Configure Teleport to Create Host Users](enroll-resources/servers/host-user-creation.mdx): How to configure Teleport to automatically create transient host users.
+- [Enhanced Session Recording for SSH with BPF](enroll-resources/servers/bpf-session-recording.mdx): How to record your SSH session commands using BPF.
+- [JetBrains SFTP](enroll-resources/servers/jetbrains-sftp.mdx): How to use a JetBrains IDE to manipulate files on a remote host with Teleport
+- [Teleport Recording Proxy Mode](enroll-resources/servers/recording-proxy-mode.mdx): Use Recording Proxy Mode to capture OpenSSH server activity
+- [Visual Studio Code](enroll-resources/servers/vscode.mdx): How to use Visual Studio Code's Remote Development plugin with Teleport
+
 ## Teleport Agents
 
 How to use Teleport Agents, which enable users to connect to resources in your infrastructure. ([more info](enroll-resources/agents.mdx))
@@ -104,5 +259,33 @@ Protect Kubernetes clusters with Teleport ([more info](enroll-resources/kubernet
 - [Access Kubernetes Clusters with Teleport](enroll-resources/kubernetes-access/introduction.mdx): Learn how Teleport can protect your Kubernetes clusters with RBAC, audit logging, and more.
 - [Enroll a Kubernetes Cluster](enroll-resources/kubernetes-access/getting-started.mdx): Demonstrates how to enroll a Kubernetes cluster as a resource protected by Teleport.
 - [Kubernetes Access Troubleshooting](enroll-resources/kubernetes-access/troubleshooting.mdx): Troubleshooting common issues with Kubernetes access
-- [Registering Kubernetes Clusters with Teleport (section)](enroll-resources/kubernetes-access/register-clusters.mdx): How to manually add a Kubernetes cluster to Teleport after creating it.
 - [Setting Up Teleport Access Controls for Kubernetes](enroll-resources/kubernetes-access/manage-access.mdx): How to configure Teleport roles to access clusters, groups, users, and resources in Kubernetes.
+
+## Use Machine ID to Access your Infrastructure
+
+How to use Machine ID to enable secure access to Teleport resources. ([more info](enroll-resources/access-guides.mdx))
+
+- [Machine ID with Ansible](enroll-resources/access-guides/ansible.mdx): How to use Machine ID with Ansible
+- [Machine ID with Application Access](enroll-resources/access-guides/applications.mdx): How to use Machine ID to access applications
+- [Machine ID with Database Access](enroll-resources/access-guides/databases.mdx): How to use Machine ID to access database servers
+- [Machine ID with Kubernetes Access](enroll-resources/access-guides/kubernetes.mdx): How to use Machine ID to access Kubernetes clusters
+- [Machine ID with Server Access](enroll-resources/access-guides/ssh.mdx): How to use Machine ID to access servers via SSH
+- [Machine ID with tctl](enroll-resources/access-guides/tctl.mdx): How to use Machine ID with tctl to manage your Teleport configuration
+- [Machine ID with the Teleport Terraform Provider](enroll-resources/access-guides/terraform.mdx): How to use Machine ID with the Teleport Terraform provider to manage your Teleport configuration as IaC
+
+## Use Teleport-Issued JSON Web Tokens
+
+Guides for using Teleport-issued JWTs to authenticate to applications. ([more info](enroll-resources/jwt.mdx))
+
+- [Use JWT Tokens With Application Access](enroll-resources/jwt/introduction.mdx): How to use JWT tokens for authentication with Teleport application access.
+- [Using JWT Authentication with Elasticsearch](enroll-resources/jwt/elasticsearch.mdx): How to use JWT authentication with Elasticsearch
+
+## Workload Identity
+
+Guides to Teleport Workload Identity, which issues flexible, short-lived identities to secure workload-to-workload communications. ([more info](enroll-resources/workload-identity.mdx))
+
+- [Best Practices for Teleport Workload Identity](enroll-resources/workload-identity/best-practices.mdx): Answers common questions and describes best practices for using Teleport Workload Identity in production.
+- [Configuring Workload ID and AWS Roles Anywhere](enroll-resources/workload-identity/aws-roles-anywhere.mdx): Configuring AWS to accept Workload ID certificates as authentication using AWS Roles Anywhere
+- [Getting Started with Workload Identity](enroll-resources/workload-identity/getting-started.mdx): Getting started with Teleport Workload Identity for SPIFFE and Machine ID
+- [Workload Identity and tsh](enroll-resources/workload-identity/tsh.mdx): Issuing SPIFFE SVIDs using Workload Identity and tsh
+- [Workload Identity](enroll-resources/workload-identity/overview.mdx): Describes Teleport Workload Identity, which issues flexible, short-lived identities to secure workload-to-workload communications.
