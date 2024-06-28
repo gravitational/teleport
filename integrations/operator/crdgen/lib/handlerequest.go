@@ -173,15 +173,33 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
 	return yaml.Marshal(crd)
 }
 
-var crdDocTmpl string = `## {{.Spec.Names.Kind}} 
+var crdDocTmpl string = `{{$kind := .Spec.Names.Kind}}
+{{$group := .Spec.Group}}
+## {{ $kind }} 
+
+{{range .Spec.Versions}}
+### {{$group}}/{{.Name}}
+
+**apiVersion:** {{$group}}/{{.Name}}
+
+{{end}}
 `
 
 func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
 	var buf bytes.Buffer
-	err := template.Must(template.New("docs").Parse(crdDocTmpl)).Execute(&buf, crd)
+	templ := template.New("docs")
+	// TODO: May not need a funcmap
+	templ = templ.Funcs(template.FuncMap{})
+	templ, err := templ.Parse(crdDocTmpl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	err = templ.Execute(&buf, crd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return buf.Bytes(), nil
 }
 
