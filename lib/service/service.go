@@ -79,6 +79,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
@@ -1090,6 +1091,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	upgraderKind := os.Getenv(automaticupgrades.EnvUpgrader)
 	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
+	if upgraderVersion == "" {
+		upgraderKind = ""
+	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
 	// by the proxy. The instance heartbeat should properly reflect that.
@@ -5106,7 +5110,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 }
 
 func (process *TeleportProcess) getPROXYSigner(ident *state.Identity) (multiplexer.PROXYHeaderSigner, error) {
-	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
+	signer, err := keys.ParsePrivateKey(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")
 	}

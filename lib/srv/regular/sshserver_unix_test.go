@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build unix
+// +build unix
 
 /*
  * Teleport
@@ -23,7 +23,6 @@ package regular
 import (
 	"net"
 	"os"
-	"os/user"
 	"syscall"
 	"testing"
 
@@ -37,7 +36,7 @@ import (
 func TestValidateListenerSocket(t *testing.T) {
 	t.Parallel()
 
-	newSocketFiles := func(t *testing.T) (*uds.Conn, *os.File) {
+	newSocketFiles := func(t *testing.T) (*net.UnixConn, *os.File) {
 		left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
 		require.NoError(t, err)
 
@@ -63,30 +62,19 @@ func TestValidateListenerSocket(t *testing.T) {
 		return left, listenerFD
 	}
 
-	u, err := user.Current()
-	require.NoError(t, err)
-
 	tests := []struct {
 		name        string
-		user        string
-		mutateFiles func(*testing.T, *uds.Conn, *os.File) (*uds.Conn, *os.File)
+		mutateFiles func(*testing.T, *net.UnixConn, *os.File) (*net.UnixConn, *os.File)
 		mutateConn  func(*testing.T, *os.File)
 		assert      require.ErrorAssertionFunc
 	}{
 		{
 			name:   "ok",
-			user:   u.Username,
 			assert: require.NoError,
 		},
 		{
-			name:   "wrong user",
-			user:   "fake-user",
-			assert: require.Error,
-		},
-		{
 			name: "socket type not STREAM",
-			user: u.Username,
-			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+			mutateFiles: func(t *testing.T, conn *net.UnixConn, file *os.File) (*net.UnixConn, *os.File) {
 				left, right, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 				require.NoError(t, err)
 				listenerFD, err := right.File()
@@ -102,7 +90,6 @@ func TestValidateListenerSocket(t *testing.T) {
 		},
 		{
 			name: "SO_REUSEADDR enabled",
-			user: u.Username,
 			mutateConn: func(t *testing.T, file *os.File) {
 				fd := file.Fd()
 				err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
@@ -112,8 +99,7 @@ func TestValidateListenerSocket(t *testing.T) {
 		},
 		{
 			name: "listener socket is not listening",
-			user: u.Username,
-			mutateFiles: func(t *testing.T, conn *uds.Conn, file *os.File) (*uds.Conn, *os.File) {
+			mutateFiles: func(t *testing.T, conn *net.UnixConn, file *os.File) (*net.UnixConn, *os.File) {
 				left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
 				require.NoError(t, err)
 				listenerFD, err := right.File()
@@ -130,11 +116,6 @@ func TestValidateListenerSocket(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			scx := &srv.ServerContext{
-				Identity: srv.IdentityContext{
-					Login: tc.user,
-				},
-			}
 			conn, listenerFD := newSocketFiles(t)
 			if tc.mutateFiles != nil {
 				conn, listenerFD = tc.mutateFiles(t, conn, listenerFD)
@@ -142,7 +123,7 @@ func TestValidateListenerSocket(t *testing.T) {
 			if tc.mutateConn != nil {
 				tc.mutateConn(t, listenerFD)
 			}
-			err := validateListenerSocket(scx, conn.UnixConn, listenerFD)
+			err := validateListenerSocket(&srv.ServerContext{}, conn, listenerFD)
 			tc.assert(t, err)
 		})
 	}

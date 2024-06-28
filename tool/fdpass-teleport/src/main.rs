@@ -53,8 +53,7 @@ fn main() -> Result<()> {
     }
 
     let mux_path = args.nth(1).ok_or_eyre("missing mux path")?;
-    let mut target = args.next().ok_or_eyre("missing connection target")?;
-    target.push("\0");
+    let target = args.next().ok_or_eyre("missing connection target")?;
 
     // in OpenSSH ProxyCommand+ProxyUseFdPass the program is executed with a
     // unix domain socket as stdout, which we can check with a getsockname();
@@ -79,9 +78,35 @@ fn main() -> Result<()> {
     }
 
     let mut mux_conn = UnixStream::connect(mux_path).wrap_err("could not connect to mux")?;
-    // we added a final NUL to target above
+
+    let mut target = target;
+    target.push("\0");
+    let mut buf = target.as_bytes();
+
+    // pass the current stderr to tbot, so it can be used to output dial errors
+    loop {
+        match socket::sendmsg::<()>(
+            mux_conn.as_raw_fd(),
+            &[IoSlice::new(buf)],
+            &[ControlMessage::ScmRights(&[libc::STDERR_FILENO])],
+            MsgFlags::empty(),
+            None,
+        ) {
+            Err(Errno::EINTR) => continue,
+            Ok(0) => eyre::bail!("unexpected sendmsg return value 0"),
+            Ok(n) => {
+                buf = &buf[n..];
+                break;
+            }
+            Err(e) => {
+                return Err(e).wrap_err("could not send connection target to mux");
+            }
+        };
+    }
+    // in all likelyhood the target fit in the socket buffer already, but we
+    // can't assume that, so here we send the rest of the unsent target (if any)
     mux_conn
-        .write_all(target.as_bytes())
+        .write_all(buf)
         .wrap_err("could not send connection target to mux")?;
 
     // we can now pass the connection to OpenSSH (or whoever launched us) over
@@ -96,10 +121,12 @@ fn main() -> Result<()> {
             MsgFlags::empty(),
             None,
         ) {
+            Err(Errno::EINTR) => continue,
             Ok(1) => break,
             Ok(s) => eyre::bail!("unexpected sendmsg return value {s}"),
-            Err(Errno::EAGAIN | Errno::EINTR) => continue,
-            Err(e) => Err(e).wrap_err("could not pass connection to stdout")?,
+            Err(e) => {
+                return Err(e).wrap_err("could not pass connection to stdout");
+            }
         };
     }
 
