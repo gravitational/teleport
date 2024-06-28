@@ -544,6 +544,8 @@ type CLIConf struct {
 	GitHubUsername string
 	// GitURL
 	GitURL string
+	// GitOrigin
+	GitOrigin string
 	// GitSaveSSHConfig
 	GitSaveSSHConfig bool
 }
@@ -599,6 +601,8 @@ func Main() {
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
 		cmdLine = append([]string{"scp"}, cmdLineOrig...)
+	case "git-remote-teleport":
+		cmdLine = append([]string{"git", "remote"}, cmdLineOrig...)
 	default:
 		cmdLine = cmdLineOrig
 	}
@@ -1197,12 +1201,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Git commands
+	// TODO allow more git clone args
 	git := app.Command("git", "Git proxy TODO.")
 	gitClone := git.Command("clone", "Git clone.")
 	gitClone.Flag("app", "App name to retrieve credentials for.").Required().StringVar(&cf.AppName)
 	gitClone.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
 	gitSSHConfig := git.Command("ssh-config", "SSH config for git apps.")
 	gitSSHConfig.Flag("save", "Update your SSH config.").BoolVar(&cf.GitSaveSSHConfig)
+	gitRemote := git.Command("remote", "Custom teleport transport for git-remote-teleport.")
+	gitRemote.Arg("git-origin", "Git origin").Required().StringVar(&cf.GitOrigin)
+	gitRemote.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
 
 	var err error
 
@@ -1570,6 +1578,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onGitClone(&cf)
 	case gitSSHConfig.FullCommand():
 		err = onGitSSHConfig(&cf)
+	case gitRemote.FullCommand():
+		err = onGitRemote(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

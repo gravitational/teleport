@@ -230,7 +230,8 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	case app.IsGitHub():
 		return gitAppTpl.Execute(output, map[string]string{
-			"appName": app.GetName(),
+			"appName":  app.GetName(),
+			"username": routeToApp.GitHubUsername,
 		})
 
 	case localProxyRequiredForApp(tc):
@@ -334,7 +335,7 @@ var gitAppTpl = template.Must(template.New("").Parse(
 	`Logged into git app {{.appName}}.
 
 Your GitHub username is: {{.username}}.
- 
+
 Clone a repo with:
   tsh git clone --app {{.appName}} https://github.com/example-org/example-repo
 `))
