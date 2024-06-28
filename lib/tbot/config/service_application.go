@@ -20,14 +20,17 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
+)
+
+var (
+	_ ServiceConfig = &ApplicationOutput{}
+	_ Output        = &ApplicationOutput{}
+	_ Initable      = &ApplicationOutput{}
 )
 
 const ApplicationOutputType = "application"
@@ -47,46 +50,8 @@ type ApplicationOutput struct {
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
 }
 
-func (o *ApplicationOutput) templates() []template {
-	templates := []template{
-		&templateTLSCAs{},
-		&templateIdentity{},
-	}
-	if o.SpecificTLSExtensions {
-		templates = append(templates, &templateTLS{
-			caCertType: types.HostCA,
-		})
-	}
-	return templates
-}
-
-func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"ApplicationOutput/Render",
-	)
-	defer span.End()
-
-	if err := identity.SaveIdentity(ctx, ident, o.Destination, identity.DestinationKinds()...); err != nil {
-		return trace.Wrap(err, "persisting identity")
-	}
-
-	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Destination); err != nil {
-			return trace.Wrap(err, "rendering template %s", t.name())
-		}
-	}
-
-	return nil
-}
-
 func (o *ApplicationOutput) Init(ctx context.Context) error {
-	subDirs, err := listSubdirectories(o.templates())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(o.Destination.Init(ctx, subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 func (o *ApplicationOutput) CheckAndSetDefaults() error {
@@ -104,17 +69,33 @@ func (o *ApplicationOutput) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *ApplicationOutput) GetRoles() []string {
-	return o.Roles
-}
-
 func (o *ApplicationOutput) Describe() []FileDescription {
-	var fds []FileDescription
-	for _, t := range o.templates() {
-		fds = append(fds, t.describe()...)
+	out := []FileDescription{
+		{
+			Name: IdentityFilePath,
+		},
+		{
+			Name: HostCAPath,
+		},
+		{
+			Name: UserCAPath,
+		},
+		{
+			Name: DatabaseCAPath,
+		},
 	}
-
-	return fds
+	if o.SpecificTLSExtensions {
+		out = append(out, FileDescription{
+			Name: DefaultTLSPrefix + ".crt",
+		})
+		out = append(out, FileDescription{
+			Name: DefaultTLSPrefix + ".key",
+		})
+		out = append(out, FileDescription{
+			Name: DefaultTLSPrefix + ".cas",
+		})
+	}
+	return out
 }
 
 func (o *ApplicationOutput) MarshalYAML() (interface{}, error) {
@@ -136,6 +117,6 @@ func (o *ApplicationOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *ApplicationOutput) String() string {
-	return fmt.Sprintf("%s (%s)", ApplicationOutputType, o.GetDestination())
+func (o *ApplicationOutput) Type() string {
+	return ApplicationOutputType
 }

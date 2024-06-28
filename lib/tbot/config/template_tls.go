@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-const defaultTLSPrefix = "tls"
+const DefaultTLSPrefix = "tls"
 
 // templateTLS is a config template that wraps identityfile's TLS writer.
 // It's not generally needed but can be used to write out TLS certificates with
@@ -47,13 +47,13 @@ func (t *templateTLS) name() string {
 func (t *templateTLS) describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name: defaultTLSPrefix + ".key",
+			Name: DefaultTLSPrefix + ".key",
 		},
 		{
-			Name: defaultTLSPrefix + ".crt",
+			Name: DefaultTLSPrefix + ".crt",
 		},
 		{
-			Name: defaultTLSPrefix + ".cas",
+			Name: DefaultTLSPrefix + ".cas",
 		},
 	}
 }
@@ -81,7 +81,7 @@ func (t *templateTLS) render(
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: defaultTLSPrefix,
+		OutputPath: DefaultTLSPrefix,
 		Writer: &BotConfigWriter{
 			ctx:  ctx,
 			dest: destination,

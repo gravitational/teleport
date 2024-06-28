@@ -31,11 +31,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -335,57 +333,6 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
-func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
-	ctx, span := tracer.Start(ctx, "getApp")
-	defer span.End()
-
-	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
-		Limit:               1,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var apps []types.Application
-	for _, server := range servers {
-		apps = append(apps, server.GetApp())
-	}
-	apps = types.DeduplicateApps(apps)
-
-	if len(apps) == 0 {
-		return nil, trace.BadParameter("app %q not found", appName)
-	}
-
-	return apps[0], nil
-}
-
-func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *authclient.Client, output *config.ApplicationOutput) (proto.RouteToApp, error) {
-	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
-	defer span.End()
-
-	app, err := getApp(ctx, client, output.AppName)
-	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
-	}
-
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: botIdentity.ClusterName,
-	}
-
-	// TODO (Joerger): DELETE IN v17.0.0
-	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
-	if err != nil {
-		return proto.RouteToApp{}, trace.Wrap(err)
-	}
-
-	return routeToApp, nil
-}
-
 // generateImpersonatedIdentity generates an impersonated identity for a given
 // output. It also returns a client that is authenticated with that
 // impersonated identity.
@@ -488,33 +435,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 			ctx,
 			"Generated identity for database",
 			"db_service", output.Service,
-		)
-
-		return routedIdentity, impersonatedClient, nil
-	case *config.ApplicationOutput:
-		routeToApp, err := s.getRouteToApp(ctx, botIdentity, impersonatedClient, output)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		routedIdentity, err := generateIdentity(
-			ctx,
-			botClient,
-			impersonatedIdentity,
-			roles,
-			s.cfg.CertificateTTL,
-			func(req *proto.UserCertsRequest) {
-				req.RouteToApp = routeToApp
-			},
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.log.InfoContext(
-			ctx,
-			"Generated identity for app",
-			"app_name", output.AppName,
 		)
 
 		return routedIdentity, impersonatedClient, nil

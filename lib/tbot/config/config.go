@@ -531,6 +531,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case ApplicationOutputType:
+			v := &ApplicationOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
@@ -561,6 +567,7 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 			}
 			out = append(out, v)
 		case ApplicationOutputType:
+			// Migrated
 			v := &ApplicationOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
