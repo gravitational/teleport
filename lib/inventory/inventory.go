@@ -201,7 +201,7 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream, upstreamHello proto.UpstreamInventoryHello) error {
 	defer func() {
 		if h.closing() && h.deleteOnClose.Load() {
-			if err := stream.Send(h.closeContext, proto.UpstreamInventoryDelete{}); err != nil {
+			if err := stream.Send(h.closeContext, proto.UpstreamInventoryGoodbye{DeleteResources: true}); err != nil {
 				log.WithError(err).Warn("failed to send delete request on shutdown")
 			}
 		}
@@ -515,7 +515,8 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
-	hello proto.UpstreamInventoryHello
+	hello   proto.UpstreamInventoryHello
+	goodbye proto.UpstreamInventoryGoodbye
 
 	agentMDLock   sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata

@@ -320,6 +320,15 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 
 	defer func() {
+		if handle.goodbye.DeleteResources {
+			log.WithField("apps", len(handle.appServers)).Debug("Cleaning up resources in response to instance termination")
+			for _, app := range handle.appServers {
+				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil {
+					log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
+				}
+			}
+		}
+
 		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
@@ -372,11 +381,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
-			case proto.UpstreamInventoryDelete:
-				if err := c.handleTermination(handle, m); err != nil {
-					handle.CloseWithError(err)
-					return
-				}
+			case proto.UpstreamInventoryGoodbye:
+				handle.goodbye = m
 			default:
 				log.Warnf("Unexpected upstream message type %T on control stream of server %q.", m, handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream message type %T", m))
@@ -510,17 +516,6 @@ func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.Invento
 	if hb.AppServer != nil {
 		if err := c.handleAppServerHB(handle, hb.AppServer); err != nil {
 			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func (c *Controller) handleTermination(handle *upstreamHandle, del proto.UpstreamInventoryDelete) error {
-	log.WithField("apps", len(handle.appServers)).Debug("Cleaning up resources in response to instance termination")
-	for _, app := range handle.appServers {
-		if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil {
-			log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
 		}
 	}
 
