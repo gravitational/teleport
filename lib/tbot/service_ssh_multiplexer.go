@@ -146,9 +146,9 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 	return dest.Write(ctx, path, data)
 }
 
-func (s *SSHMultiplexerService) getClusterNames(ctx context.Context, clt *authclient.Client) ([]string, error) {
+func (s *SSHMultiplexerService) getClusterNames(clt *authclient.Client) ([]string, error) {
 	allClusterNames := []string{s.identity.Get().ClusterName}
-	leafClusters, err := clt.GetRemoteClusters(ctx)
+	leafClusters, err := clt.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,7 +166,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 ) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
 
-	clusterNames, err := s.getClusterNames(ctx, authClient)
+	clusterNames, err := s.getClusterNames(authClient)
 	if err != nil {
 		return trace.Wrap(err, "fetching cluster names")
 	}
