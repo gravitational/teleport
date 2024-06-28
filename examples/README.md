@@ -33,3 +33,8 @@
 ### Trusted Cluster
 * [Trusted Cluster Resource](https://github.com/gravitational/teleport/blob/master/examples/resources/trusted_cluster.yaml)
 * [Trusted Cluster Resource - With RBAC (Enterprise Only)](https://github.com/gravitational/teleport/blob/master/examples/resources/trusted_cluster_enterprise.yaml)
+
+### Configure Self-hosted Database Examples
+
+* [Self-hosted Redis (single instance)](https://github.com/gravitational/teleport/blob/master/examples/self-hosted-databases/redis-single)
+* [Self-hosted Redis (cluster setup)](https://github.com/gravitational/teleport/blob/master/examples/self-hosted-databases/redis-cluster/)
