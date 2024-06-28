@@ -20,9 +20,9 @@ exports[`can create 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -30,7 +30,6 @@ exports[`can create 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c0:focus-visible,
@@ -72,7 +71,7 @@ exports[`can create 1`] = `
   >
     <button
       class="c0"
-      fill="filled"
+      fill="border"
       title=""
       width="240px"
     >
@@ -102,9 +101,9 @@ exports[`cannot create 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -112,7 +111,6 @@ exports[`cannot create 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c0:focus-visible,
@@ -155,7 +153,7 @@ exports[`cannot create 1`] = `
     <button
       class="c0"
       disabled=""
-      fill="filled"
+      fill="border"
       title="You do not have access to add a server"
       width="240px"
     >
@@ -185,9 +183,9 @@ exports[`cannot create when resource starts with vowel 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -195,7 +193,6 @@ exports[`cannot create when resource starts with vowel 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c0:focus-visible,
@@ -238,7 +235,7 @@ exports[`cannot create when resource starts with vowel 1`] = `
     <button
       class="c0"
       disabled=""
-      fill="filled"
+      fill="border"
       title="You do not have access to add an application"
       width="240px"
     >
@@ -268,9 +265,9 @@ exports[`on leaf cluster 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -278,7 +275,6 @@ exports[`on leaf cluster 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c0:focus-visible,
@@ -321,7 +317,7 @@ exports[`on leaf cluster 1`] = `
     <button
       class="c0"
       disabled=""
-      fill="filled"
+      fill="border"
       title="Adding a server to a leaf cluster is not supported"
       width="240px"
     >
@@ -351,9 +347,9 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
   text-decoration: none;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  background-color: #9F85FF;
-  color: #000000;
-  border-color: transparent;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
@@ -361,7 +357,6 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
   line-height: 16px;
   letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
 }
 
 .c0:focus-visible,
@@ -404,7 +399,7 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
     <button
       class="c0"
       disabled=""
-      fill="filled"
+      fill="border"
       title="Adding an server to a leaf cluster is not supported"
       width="240px"
     >
