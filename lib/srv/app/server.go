@@ -26,6 +26,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -459,8 +460,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return trace.Wrap(s.close(ctx))
 }
 
+var (
+	minDeleteVersion16 = semver.New("16.0.1")
+	minDeleteVersion15 = semver.New("15.3.19")
+	minDeleteVersion14 = semver.New("14.4.25")
+)
+
 func (s *Server) close(ctx context.Context) error {
 	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
+
+	var sender inventory.DownstreamSender
+	select {
+	case sender = <-s.c.InventoryHandle.Sender():
+	default:
+	}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
@@ -490,7 +503,21 @@ func (s *Server) close(ctx context.Context) error {
 				log.Debug("Stopped app")
 			}
 
-			if shouldDeleteApps {
+			// TODO(tross) DELETE IN 17.0.0
+			// The inventory control stream will handle deleting all resources
+			// in >= 17.0.0. For older versions deletion only needs to be handled
+			// if Auth is running a version that doesn't support UpstreamInventoryDelete.
+			if shouldDeleteApps && sender != nil {
+				authVersion, err := semver.NewVersion(sender.Hello().Version)
+				if err == nil {
+					if authVersion.Major == 17 ||
+						(authVersion.Major == 16 && authVersion.LessThan(*minDeleteVersion16)) ||
+						(authVersion.Major == 15 && authVersion.LessThan(*minDeleteVersion15)) ||
+						(authVersion.Major == 14 && authVersion.LessThan(*minDeleteVersion14)) {
+						continue
+					}
+				}
+
 				g.Go(func() error {
 					log.Debug("Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
