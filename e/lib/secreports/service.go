@@ -477,25 +477,16 @@ func (s *Service) schedulesReportsUpdate(ctx context.Context) error {
 	if now.After(t) || now.Equal(t) {
 		// Check if report state is stale depending on def defaultReportReadyRerunSchedulerThreshold.
 		// If report was executed by a user and is still running the function will not re-run it.
-		if err := s.maybeUpdateSecurityReports(ctx, getReportUpdateThreshold()); err != nil {
+		if err := s.maybeUpdateSecurityReports(ctx, defaultReportUpdateThreshold); err != nil {
 			s.log.WithError(err).Error("Failed to update security reports.")
 		}
 	}
 	return nil
 }
 
-// runReportAndUpdateState returns the report update threshold.
-// For Enterprise tenants with an IGS license, the default threshold is set to 1 hour.
-// For other tenants, the threshold is set to 24 hours.
-// Each report execution generates multiple S3 access CloudTrail events.
-// This threshold is applied to restrict the volume of events.
-func getReportUpdateThreshold() time.Duration {
-	f := modules.GetModules().Features()
-	if f.GetEntitlement(entitlements.Identity).Enabled {
-		return time.Hour
-	}
-	return time.Hour * 24
-}
+const (
+	defaultReportUpdateThreshold = time.Hour * 24
+)
 
 type queryLimiter struct {
 	queryProvider

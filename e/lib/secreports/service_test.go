@@ -473,7 +473,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 		require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
 
 		t.Run("1h threshold not reached report should not be executed", func(t *testing.T) {
-			s.clock.Advance(time.Minute * 30)
+			s.clock.Advance(defaultReportUpdateThreshold / 2)
 			s.updateCurrentLimiterUsage(t, 0)
 			err = s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
@@ -486,7 +486,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 		})
 
 		t.Run("1h threshold reached report should be executed", func(t *testing.T) {
-			s.clock.Advance(time.Minute * 31)
+			s.clock.Advance(defaultReportUpdateThreshold/2 + 1)
 			s.updateCurrentLimiterUsage(t, 0)
 			err = s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
@@ -514,7 +514,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 
 		t.Run("24h threshold not reached report should not be executed", func(t *testing.T) {
 			wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
-			s.clock.Advance(time.Hour + time.Minute)
+			s.clock.Advance(defaultReportUpdateThreshold - time.Minute)
 			s.updateCurrentLimiterUsage(t, 0)
 			err := s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
@@ -527,7 +527,7 @@ func TestReportUpdateThreshold(t *testing.T) {
 		})
 
 		t.Run("24h threshold reached, report should be executed", func(t *testing.T) {
-			s.clock.Advance(24 * time.Hour)
+			s.clock.Advance(defaultReportUpdateThreshold + time.Hour)
 			s.updateCurrentLimiterUsage(t, 0)
 			err := s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
