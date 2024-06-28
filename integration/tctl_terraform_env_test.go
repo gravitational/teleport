@@ -31,7 +31,6 @@ import (
 // TestTCTLTerraformCommand_ProxyJoin validates that the command `tctl terraform env` can run against a Teleport Proxy
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
-	t.Parallel()
 	testDir := t.TempDir()
 
 	// Test setup: creating a teleport instance running auth and proxy
