@@ -360,9 +360,9 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
-	res, privateKey, err := config.GenerateSVID(
+	res, privateKey, err := generateSVID(
 		ctx,
-		s.client.WorkloadIdentityServiceClient(),
+		s.client,
 		svidRequests,
 		// For TTL, we use the one globally configured.
 		s.botCfg.CertificateTTL,

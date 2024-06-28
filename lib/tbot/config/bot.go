@@ -21,11 +21,8 @@ package config
 import (
 	"context"
 
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -58,9 +55,6 @@ type provider interface {
 
 	// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-
-	// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
-	SignX509SVIDs(ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption) (*machineidv1pb.SignX509SVIDsResponse, error)
 
 	// IsALPNConnUpgradeRequired returns a (possibly cached) test of whether ALPN
 	// routing is required.

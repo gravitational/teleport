@@ -525,8 +525,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 		return impersonatedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
-	case *config.SPIFFESVIDOutput:
-		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
