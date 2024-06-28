@@ -7,6 +7,8 @@ state: draft
 
 ## Required Approvers
 
+TODO
+
 ## What
 
 Teleport nodes will be able to create host users statically, i.e. independently
@@ -14,14 +16,51 @@ of a Teleport user creating one when SSHing with the current host user creation.
 
 ## Why
 
-users can be provisioned w/o them needing to log in beforehand
+TODO
 
 ## Details
 
+### UX
+
+To create a static host user, an admin will create a `static_host_user` resource:
+
+```yaml
+# foo-dev.yaml
+kind: static_host_user
+metadata:
+    name: foo-dev
+spec:
+    login: foo
+    node_labels:
+        env: dev
+```
+
+Then create it with `tctl`:
+
+```code
+$ tctl create foo-dev.yaml
+```
+
+The user `foo` will eventually appear on nodes with label `env: dev` once the
+`foo-dev` resource makes it through the cache.
+
+To update an existing static host user, an admin will update update `foo-dev.yaml`,
+then update the resource in Teleport with `tctl`:
+
+```code
+$ tctl create -f foo-dev.yaml
+```
+
+To remove the resource and delete all host users associated with it, run:
+
+```code
+$ tctl rm host_user/foo-dev
+```
+
 ### Resource
 
-Add a new resource to Teleport called `static_host_user`. This resource defines
-a single Unix user, including groups, sudoers, uid, and gid, as well as labels
+We will add a new resource to Teleport called `static_host_user`. This resource defines
+a single host user, including groups, sudoers entitlements, uid, and gid, as well as labels
 to select specific nodes the user should be created on.
 
 ```yaml
@@ -59,35 +98,22 @@ the backend, i.e. `hostUsers/<login>/<resource-name>`.
 Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
 to true in their config) will ignore `static_host_user`s entirely.
 
-### UX
-
-Admins will create a `static_host_user` resource:
-
-```yaml
-# foo-dev.yaml
-kind: static_host_user
-metadata:
-    name: foo-dev
-spec:
-    login: foo
-    node_labels:
-        env: dev
-```
-
-Then create it with `tctl`:
-
-```code
-$ tctl create foo-dev.yaml
-```
-
-The user `foo` will eventually appear on nodes with label `env: dev` once the
-`foo-dev` resource makes it through the cache.
-
 ### Security
 
-We want to minimize the ability of Teleport users to mess with existing Unix users
-via `static_host_user`s. To that end, all Unix users created from `static_host_user`s
+We want to minimize the ability of Teleport users to mess with existing host users
+via `static_host_user`s. To that end, all host users created from `static_host_user`s
 will be in the `teleport-created` group (similar to the `teleport-system` group, which
 we currently use to mark users that Teleport should clean up). Teleport will not
-delete users without `teleport-created`, and new users will not override existing users
+delete users not in `teleport-created`, and new users will not override existing users
 that are not in `teleport-created`.
+
+### Backward compatibility
+
+Consider nodes that do not support static host users but are connected to an
+auth server that does. These nodes will silently ignore static
+host users.
+
+### Future work
+
+Extend server heartbeats to include static host users. This will allow Teleport users to spot incorrect propagation of host users
+due to misconfiguration, nodes that don't support them, etc.
