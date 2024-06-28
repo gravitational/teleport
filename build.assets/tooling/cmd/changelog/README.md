@@ -33,7 +33,7 @@ possible:
 Enterprise PR changelogs will be listed after the OSS changelogs. You need to
 determine if it is suitable to include them. If you do, remove the markdown
 link from each changelog when adding the changelog to CHANGELOG.md. These
-links wont work for the general public. Keep the links when adding the
+links won't work for the general public. Keep the links when adding the
 changelog to the release PR so that the enterprise PRs will link to the
 release PR.
 
