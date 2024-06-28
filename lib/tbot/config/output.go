@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-// Output is an interface that represents configurable Outputs for a bot.
+// LegacyOutput is an interface that represents configurable Outputs for a bot.
 // These outputs are the core unit of generating artifacts in tbot and are the
 // element users configure to control what is output.
 type LegacyOutput interface {
