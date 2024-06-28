@@ -25,7 +25,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var (
@@ -86,13 +85,13 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 			Name: IdentityFilePath,
 		},
 		{
-			Name: config.HostCAPath,
+			Name: HostCAPath,
 		},
 		{
-			Name: config.UserCAPath,
+			Name: UserCAPath,
 		},
 		{
-			Name: config.DatabaseCAPath,
+			Name: DatabaseCAPath,
 		},
 	}
 }
