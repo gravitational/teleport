@@ -116,6 +116,7 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
 	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
+	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	return cfg
 }
