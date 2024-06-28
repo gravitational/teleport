@@ -2245,6 +2245,9 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryPong Pong = 3;
     // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryDelete advertises that the instance is terminating
+    // and any heartbeats tracked for the instance should be removed.
+    UpstreamInventoryDelete Delete = 5;
   }
 }
 
@@ -2366,6 +2369,11 @@ message InventoryHeartbeat {
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
 }
+
+// UpstreamInventoryDelete informs the upstream service that all
+// resources heartbeats for the instance should be removed
+// from its inventory.
+message UpstreamInventoryDelete {}
 
 // InventoryStatusRequest requests inventory status info.
 message InventoryStatusRequest {
