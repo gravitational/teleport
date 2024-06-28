@@ -228,6 +228,9 @@ type RouteToApp struct {
 
 	// GCPServiceAccount is the GCP service account to assume when accessing GCP API.
 	GCPServiceAccount string
+
+	// URI is the URI of the application.
+	URI string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -304,6 +307,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
 			AzureIdentity:     id.RouteToApp.AzureIdentity,
 			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+			URI:               id.RouteToApp.URI,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase

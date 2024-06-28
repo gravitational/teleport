@@ -1735,6 +1735,8 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 		AWSRoleARN:        routeToApp.AWSRoleARN,
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GCPServiceAccount,
+		URI:               routeToApp.URI,
+		Name:              routeToApp.Name,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

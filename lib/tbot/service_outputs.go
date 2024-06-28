@@ -402,6 +402,7 @@ func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identit
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: botIdentity.ClusterName,
+		URI:         app.GetURI(),
 	}
 
 	// TODO (Joerger): DELETE IN v17.0.0

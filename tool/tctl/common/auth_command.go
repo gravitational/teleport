@@ -895,6 +895,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			Name:        a.appName,
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
+			URI:         server.GetApp().GetURI(),
 		}
 
 		// TODO (Joerger): DELETE IN v17.0.0

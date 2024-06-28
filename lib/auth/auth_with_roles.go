@@ -3164,8 +3164,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
+		var ws types.WebSession
 		if req.RouteToApp.SessionID == "" {
-			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+			ws, err = a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
 				NewWebSessionRequest: NewWebSessionRequest{
 					User:           req.Username,
 					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
@@ -3196,7 +3197,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// Old clients will pass a session ID of an existing App session instead of a
 			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
 			// generate certs for MFA verified app sessions without an additional MFA check.
-			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
+			ws, err = a.GetAppSession(ctx, types.GetAppSessionRequest{
 				SessionID: req.RouteToApp.SessionID,
 			})
 			if err != nil {
@@ -3216,6 +3217,43 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
 			}
 		}
+
+		x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionStartEvent,
+				Code:        events.AppSessionStartCode,
+				ClusterName: req.RouteToApp.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        a.authServer.ServerID,
+				ServerNamespace: apidefaults.Namespace,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID:        req.RouteToApp.SessionID,
+				WithMFA:          wsIdentity.MFAVerified,
+				PrivateKeyPolicy: string(wsIdentity.PrivateKeyPolicy),
+			},
+			UserMetadata: wsIdentity.GetUserMetadata(),
+			PublicAddr:   wsIdentity.RouteToApp.PublicAddr,
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        req.RouteToApp.URI,
+				AppPublicAddr: req.RouteToApp.PublicAddr,
+				AppName:       req.RouteToApp.Name,
+			},
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit app session start event.")
+		}
+
 	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -3239,6 +3277,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appPublicAddr:     req.RouteToApp.PublicAddr,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		appURI:            req.RouteToApp.URI,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
 		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
 		checker:           checker,

@@ -314,6 +314,8 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // URI is the application URI.
+  string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -788,6 +790,10 @@ message CreateAppSessionRequest {
   // An optional field, that when provided, the response will be validated and
   // the ID of the validated MFA device will be stored in session's certificate.
   MFAAuthenticateResponse MFAResponse = 8 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+  // Name is the name of the application.
+  string Name = 9 [(gogoproto.jsontag) = "name,omitempty"];
+  // URI is the URI of the application.
+  string URI = 10 [(gogoproto.jsontag) = "uri,omitempty"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
