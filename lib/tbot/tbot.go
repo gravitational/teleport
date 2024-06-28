@@ -267,7 +267,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			// Create a credential output for the SPIFFE Workload API service to
 			// use as a source of an impersonated identity.
 			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+			b.cfg.LegacyOutputs = append(b.cfg.LegacyOutputs, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
 				botClient:             b.botIdentitySvc.GetClient(),
