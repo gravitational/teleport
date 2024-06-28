@@ -524,6 +524,17 @@ You can specify multiple selectors by including additional list elements.
   Once `appResources` is set, you can dynamically register application with `tsh` by following [this guide](../../application-access/guides/dynamic-registration.mdx).
 </Admonition>
 
+## `clusterDomain`
+
+| Type | Default |
+|------|---------|
+| `string` | `"cluster.local"` |
+
+`clusterDomain` sets the domain name used by the Kubernetes cluster. This value is used to build the
+FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
+`my-app` running in the `default` namespace at `http://my-app.default.svc.anything.local`. You must manually set this value
+to match your cluster domain if it is different from the default value `cluster.local`.
+
 ## `awsDatabases`
 
 <Admonition type="tip" title="AWS database auto-discovery">

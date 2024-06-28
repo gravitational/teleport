@@ -136,6 +136,10 @@ spec:
         - name: TELEPORT_EXT_UPGRADER_VERSION
           value: {{ include "teleport-kube-agent.version" . }}
         {{- end }}
+        {{- if .Values.clusterDomain }}
+        - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+          value: {{ .Values.clusterDomain | quote }}
+        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
