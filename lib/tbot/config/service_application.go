@@ -85,15 +85,17 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 		},
 	}
 	if o.SpecificTLSExtensions {
-		out = append(out, FileDescription{
-			Name: DefaultTLSPrefix + ".crt",
-		})
-		out = append(out, FileDescription{
-			Name: DefaultTLSPrefix + ".key",
-		})
-		out = append(out, FileDescription{
-			Name: DefaultTLSPrefix + ".cas",
-		})
+		out = append(out, []FileDescription{
+			{
+				Name: DefaultTLSPrefix + ".crt",
+			},
+			{
+				Name: DefaultTLSPrefix + ".key",
+			},
+			{
+				Name: DefaultTLSPrefix + ".cas",
+			},
+		}...)
 	}
 	return out
 }

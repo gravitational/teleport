@@ -400,44 +400,6 @@ func (s *outputsService) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 		return routedIdentity, impersonatedClient, nil
-	case *config.DatabaseOutput:
-		route, err := getRouteToDatabase(
-			ctx,
-			s.log,
-			impersonatedClient,
-			output.Service,
-			output.Username,
-			output.Database,
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// The impersonated identity is not allowed to reissue certificates,
-		// so we'll request the database access identity using the main bot
-		// identity (having gathered the necessary info for RouteToDatabase
-		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := generateIdentity(
-			ctx,
-			botClient,
-			impersonatedIdentity,
-			roles,
-			s.cfg.CertificateTTL,
-			func(req *proto.UserCertsRequest) {
-				req.RouteToDatabase = route
-			},
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.log.InfoContext(
-			ctx,
-			"Generated identity for database",
-			"db_service", output.Service,
-		)
-
-		return routedIdentity, impersonatedClient, nil
 	case *config.UnstableClientCredentialOutput:
 		return impersonatedIdentity, impersonatedClient, nil
 	default:
@@ -555,12 +517,6 @@ func (op *outputProvider) SignX509SVIDs(
 	ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest, opts ...grpc.CallOption,
 ) (*machineidv1pb.SignX509SVIDsResponse, error) {
 	return op.impersonatedClient.WorkloadIdentityServiceClient().SignX509SVIDs(ctx, in, opts...)
-}
-
-// chooseOneDatabase chooses one matched database by name, or tries to choose
-// one database by unambiguous "discovered name".
-func chooseOneDatabase(databases []types.Database, name string) (types.Database, error) {
-	return chooseOneResource(databases, name, "database")
 }
 
 // chooseOneResource chooses one matched resource by name, or tries to choose

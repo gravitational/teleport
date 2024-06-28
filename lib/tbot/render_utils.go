@@ -69,7 +69,7 @@ func writeIdentityFileTLS(
 ) error {
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultTLSPrefix,
-		Writer:     config.NewBotConfigWriter(ctx, dest),
+		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
 		Key:        key,
 		Format:     identityfile.FormatTLS,
 

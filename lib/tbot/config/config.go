@@ -537,6 +537,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case DatabaseOutputType:
+			v := &DatabaseOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
@@ -581,6 +587,7 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 			}
 			out = append(out, v)
 		case DatabaseOutputType:
+			// Migrated.
 			v := &DatabaseOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
