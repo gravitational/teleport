@@ -64,7 +64,7 @@ type DownstreamHandle interface {
 	Close() error
 	// Shutdown closes the downstream handle and alerts the upstream
 	// to delete any heartbeats associated with the instance.
-	Shutdown() error
+	Shutdown(context.Context) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -318,12 +318,16 @@ func (h *downstreamHandle) Close() error {
 	return nil
 }
 
-func (h *downstreamHandle) Shutdown() error {
+func (h *downstreamHandle) Shutdown(ctx context.Context) error {
 	h.deleteOnClose.Store(true)
 	h.shutdownCancel()
 
-	<-h.closeContext.Done()
-	return nil
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(h.Close())
+	case <-h.closeContext.Done():
+		return nil
+	}
 }
 
 type downstreamSender struct {

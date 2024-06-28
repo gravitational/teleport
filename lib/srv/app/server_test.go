@@ -566,7 +566,7 @@ func TestShutdown(t *testing.T) {
 
 			// Terminate the ICS appropriately to simulate the process ending.
 			if !test.hasForkedChild {
-				require.NoError(t, s.appServer.c.InventoryHandle.Shutdown())
+				require.NoError(t, s.appServer.c.InventoryHandle.Shutdown(ctx))
 			} else {
 				require.NoError(t, s.appServer.c.InventoryHandle.Close())
 			}

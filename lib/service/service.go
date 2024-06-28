@@ -5856,7 +5856,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 
 	if process.forkedTeleportCount.Load() == 0 {
 		if process.inventoryHandle != nil {
-			process.inventoryHandle.Shutdown()
+			process.inventoryHandle.Shutdown(ctx)
 		}
 	} else {
 		ctx = services.ProcessForkedContext(ctx)
