@@ -153,11 +153,11 @@ func TestSanitizeHeaders(t *testing.T) {
 
 	inoffensiveHeadersPlus := func(extras ...string) http.Header {
 		if len(extras) < 2 {
-			panic("Must have at least 1 key/value pair")
+			t.Fatal("Must have at least 1 key/value pair")
 		}
 
 		if len(extras)%2 != 0 {
-			panic("Must have at integral number of key-pair values")
+			t.Fatal("Must have at integral number of key/value pairs")
 		}
 
 		dst := maps.Clone(innoffensiveHeaders)

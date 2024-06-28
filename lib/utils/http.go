@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -191,7 +192,7 @@ func (m *maxBytesReader) Read(p []byte) (int, error) {
 
 // sensitiveHeaderKeys is the list HTTP headers deemed to be too sensitive
 // to be written to a log.
-var sensitiveHeaderKeys []string = []string{
+var sensitiveHeaderKeys = []string{
 	"authorization",
 	"proxy-authorization",
 	"set-cookie",
@@ -201,15 +202,32 @@ var sensitiveHeaderKeys []string = []string{
 // sensitiveHeaderFragments is a list of suspect header fragments. If a header
 // key contains any of these fragments it will be filtered out by
 // SanitizeHeaders()
-var sensitiveHeaderFragments []string = []string{
+var sensitiveHeaderFragments = []string{
 	"api-key",
 }
 
-// SanitizeHeaders filters sensitive out of a an HTT message's header collection,
-// in order to make them suitable for writing to logs. Returns a new http.Header
-// containing the filtered collection.
+// SanitizedHeaderValuer is a slog.LogValuer for http.Headers that will lazily
+// filter out sensitive headers when logged
+type SanitizedHeaderValuer http.Header
+
+// Static assertion that SanitizedHeaderValuer implements slog.LogValuer
+var _ slog.LogValuer = SanitizedHeaderValuer(nil)
+
+// LogValue implements slog.LogValuer for SanitizedHeaderValuer. Headers will be
+// formatted into a slog.Value as a string, omitting any "sensitive" headers.
+func (h SanitizedHeaderValuer) LogValue() slog.Value {
+	return slog.AnyValue(SanitizeHeaders(http.Header(h)))
+}
+
+// SanitizeHeaders formats the supplied HTTP headers as a string, omitting any
+// "sensitive" headers that should not appear in a log.
 func SanitizeHeaders(src http.Header) http.Header {
-	dst := http.Header{}
+	// Preserve nil in case its important
+	if src == nil {
+		return nil
+	}
+
+	dst := make(http.Header, len(src))
 	for key, value := range src {
 		lcKey := strings.ToLower(key)
 
