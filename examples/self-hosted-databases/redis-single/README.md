@@ -1,10 +1,10 @@
 # Redis single instance
 
 The make script manages a single Redis instance in a docker container on the
-same host of the database service.
+same host of the Database service.
 
 It is assumed that you already have a running Teleport cluster, a running
-database service, and approriate roles for database access.
+Database service, and approriate roles for database access.
 
 It is assumed that `tctl` can be run either with a logged in `tsh` profile or
 has direct access to Teleport Auth through `/etc/teleport.yaml`.
@@ -14,7 +14,7 @@ The script was tested on Amazon Linux and MacOS.
 ## To setup
 1. `make init` to generate Teleport database certs.
 1. `make up` to launch the docker container.
-1. `make dump` to see a sample database definition. Add this to your database service.
+1. `make dump` to see a sample database definition. Add this to your Database service.
 
 ## To connect
 ```bash

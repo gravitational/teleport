@@ -1,13 +1,14 @@
 # Redis cluster
 
 The make script manages a Redis cluster using `docker-compose` on the same host
-of the database service.
+of the Database service.
 
 The Redis servers use self-signed certficates for internal communications and
-incoming client connections.
+incoming client connections. mTLS is configured on both Redis and Teleport side
+to trust each other's CA.
 
 It is assumed that you already have a running Teleport cluster, a running
-database service, and approriate roles for database access.
+Database service, and approriate roles for database access.
 
 It is assumed that `tctl` can be run either with a logged in `tsh` profile or
 has direct access to Teleport Auth through `/etc/teleport.yaml`.
@@ -17,7 +18,7 @@ The script was tested on Amazon Linux and MacOS.
 ## To setup
 1. `make init` to generate self-hosted certs and export Teleport database client CA.
 1. `make up` to launch the docker containers with `docker-compose`.
-1. `make dump` to see a sample database definition. Add this to your database service.
+1. `make dump` to see a sample database definition. Add this to your Database service.
 
 ## To connect
 ```bash
