@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -156,8 +157,8 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(noah): It's likely the Application output does not really need to
-	// output these CAs - but - for backwards compat reasons, we output them.
+	// TODO(noah): It's likely the Database output does not really need to
+	// output all these CAs - but - for backwards compat reasons, we output them.
 	// Revisit this at a later date and make a call.
 	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
 	if err != nil {
@@ -202,56 +203,100 @@ func (s *DatabaseOutputService) render(
 
 	switch s.cfg.Format {
 	case config.MongoDatabaseFormat:
-		// Mongo format specifically uses database CAs rather than hostCAs
-		key, err := config.NewClientKey(routedIdentity, databaseCAs)
-		if err != nil {
-			return trace.Wrap(err)
+		if err := writeMongoDatabaseFiles(
+			ctx, s.log, routedIdentity, databaseCAs, s.cfg.Destination,
+		); err != nil {
+			return trace.Wrap(err, "writing cockroach database files")
 		}
-
-		cfg := identityfile.WriteConfig{
-			OutputPath: config.DefaultMongoPrefix,
-			Writer:     config.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
-			Key:        key,
-			Format:     identityfile.FormatMongo,
-			// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
-			OverwriteDestination: true,
-		}
-
-		files, err := identityfile.Write(ctx, cfg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.log.DebugContext(ctx, "Wrote MongoDB identity files", "files", files)
 	case config.CockroachDatabaseFormat:
-		// Cockroach format specifically uses database CAs rather than hostCAs
-		key, err := config.NewClientKey(routedIdentity, databaseCAs)
-		if err != nil {
-			return trace.Wrap(err)
+		if err := writeCockroachDatabaseFiles(
+			ctx, s.log, routedIdentity, databaseCAs, s.cfg.Destination,
+		); err != nil {
+			return trace.Wrap(err, "writing cockroach database files")
 		}
-
-		cfg := identityfile.WriteConfig{
-			OutputPath: config.DefaultCockroachDirName,
-			Writer:     config.NewBotConfigWriter(ctx, s.cfg.Destination, config.DefaultCockroachDirName),
-			Key:        key,
-			Format:     identityfile.FormatCockroach,
-
-			// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
-			OverwriteDestination: true,
-		}
-
-		files, err := identityfile.Write(ctx, cfg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.log.DebugContext(ctx, "Wrote CockroachDB files", "files", files)
 	case config.TLSDatabaseFormat:
-		if err := writeIdentityFileTLS(ctx, s.log, key, s.cfg.Destination); err != nil {
+		if err := writeIdentityFileTLS(
+			ctx, s.log, key, s.cfg.Destination,
+		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
 		}
 	}
 
+	return nil
+}
+
+func writeCockroachDatabaseFiles(
+	ctx context.Context,
+	log *slog.Logger,
+	routedIdentity *identity.Identity,
+	databaseCAs []types.CertAuthority,
+	dest bot.Destination,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"writeCockroachDatabaseFiles",
+	)
+	defer span.End()
+
+	// Cockroach format specifically uses database CAs rather than hostCAs
+	key, err := config.NewClientKey(routedIdentity, databaseCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg := identityfile.WriteConfig{
+		OutputPath: config.DefaultCockroachDirName,
+		Writer:     config.NewBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
+		Key:        key,
+		Format:     identityfile.FormatCockroach,
+
+		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
+		OverwriteDestination: true,
+	}
+
+	files, err := identityfile.Write(ctx, cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(ctx, "Wrote CockroachDB files", "files", files)
+	return nil
+}
+
+func writeMongoDatabaseFiles(
+	ctx context.Context,
+	log *slog.Logger,
+	routedIdentity *identity.Identity,
+	databaseCAs []types.CertAuthority,
+	dest bot.Destination,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"writeMongoDatabaseFiles",
+	)
+	defer span.End()
+
+	// Mongo format specifically uses database CAs rather than hostCAs
+	key, err := config.NewClientKey(routedIdentity, databaseCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg := identityfile.WriteConfig{
+		OutputPath: config.DefaultMongoPrefix,
+		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
+		Key:        key,
+		Format:     identityfile.FormatMongo,
+		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
+		OverwriteDestination: true,
+	}
+
+	files, err := identityfile.Write(ctx, cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(ctx, "Wrote MongoDB identity files", "files", files)
 	return nil
 }
 

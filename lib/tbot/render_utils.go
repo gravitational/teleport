@@ -43,7 +43,7 @@ func writeIdentityFile(
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.IdentityFilePath,
-		Writer:     config.NewBotConfigWriter(ctx, dest),
+		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
 		Key:        key,
 		Format:     identityfile.FormatFile,
 
@@ -67,6 +67,12 @@ func writeIdentityFile(
 func writeIdentityFileTLS(
 	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"writeIdentityFileTLS",
+	)
+	defer span.End()
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultTLSPrefix,
 		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
