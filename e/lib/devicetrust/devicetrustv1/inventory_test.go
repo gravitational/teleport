@@ -20,6 +20,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1078,11 +1079,12 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 		})
 	}
 }
+
 func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
 	env := testenv.NewUsingT(t)
 
 	m := modules.GetModules().(*modules.TestModules)
-	m.TestFeatures.MobileDeviceManagement = false
+	m.TestFeatures.Entitlements[entitlements.MobileDeviceManagement] = modules.EntitlementInfo{Enabled: false}
 
 	devices := env.DevicesClient
 	ctx := context.Background()

@@ -15,6 +15,7 @@ import (
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -93,10 +94,10 @@ func NewUsingT(t *testing.T, opts *Opts) *E {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				DeviceTrust: modules.DeviceTrustFeature{
-					Enabled: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DeviceTrust:            {Enabled: true},
+					entitlements.MobileDeviceManagement: {Enabled: true},
 				},
-				MobileDeviceManagement: true,
 			},
 		})
 	}

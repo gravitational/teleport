@@ -114,7 +114,7 @@ class TeleportEContext extends TeleportContext {
       surveyService.submitSurvey({
         companyName: rest.companyName,
         employeeCount: rest.employeeCount,
-        resources: rest.resourcesList,
+        resources: rest.resources,
         role: rest.role,
         team: rest.team,
       });

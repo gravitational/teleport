@@ -35,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/entitlements"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -279,7 +280,7 @@ func TestService_authz(t *testing.T) {
 
 	// Safe because NewUsingT sets a modules.TestModule.
 	m := modules.GetModules().(*modules.TestModules)
-	m.TestFeatures.DeviceTrust.Enabled = false
+	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: false}
 
 	// Test system behavior when the feature is disabled.
 	// The check is bundled with user authz, so it's easy to test it here.
@@ -2261,7 +2262,7 @@ func TestService_GetResourceDevicesUsage(t *testing.T) {
 			name: "usage-based account",
 			modifyFeatures: func(f *modules.Features) {
 				f.IsUsageBasedBilling = true
-				f.DeviceTrust.DevicesUsageLimit = 5
+				f.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Limit: 5}
 			},
 			want: &resourceusagepb.DevicesUsage{
 				DevicesUsageLimit: 5,
@@ -2356,7 +2357,7 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 	// Safe because of NewUsingT.
 	m := modules.GetModules().(*modules.TestModules)
 	m.TestFeatures.IsUsageBasedBilling = true
-	m.TestFeatures.DeviceTrust.DevicesUsageLimit = 1
+	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 
 	if _, _, err := createAndEnroll(ctx, devicesClient, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,

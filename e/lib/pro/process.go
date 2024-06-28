@@ -83,6 +83,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
 
+	// todo (michellescripts) set this in getSelfHostedLicenseFeatures and treat Features as source of truth
 	if cfg.LicenseFile.License.GetSalesCenterReporting() {
 		// forcibly stops when ExitContext closes or is gracefully stopped in
 		// auth.shutdown

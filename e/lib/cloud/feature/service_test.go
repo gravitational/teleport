@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -141,7 +141,7 @@ func requireFeatures(t *testing.T, fakeClock clockwork.FakeClock, backend backen
 	}, 1*time.Second, time.Millisecond*100)
 }
 
-func TestRun_UsageBased(t *testing.T) {
+func TestRun_UpdateCloudFeatures(t *testing.T) {
 	t.Parallel()
 
 	mockCloudClient := &testClient{}
@@ -165,9 +165,11 @@ func TestRun_UsageBased(t *testing.T) {
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
-				Kubernetes:   true,
 				IsUsageBased: true,
 				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_TEAM,
+				Entitlements: map[string]*cloudapi.EntitlementInfo{
+					"K8s": {Enabled: true, Limit: 0},
+				},
 			}, nil
 		},
 	)
@@ -178,234 +180,252 @@ func TestRun_UsageBased(t *testing.T) {
 
 	// Check if the features are stored in the backend.
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		Kubernetes:          true,
-		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
-		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
-		AccessList:          GetUsageBasedAccessListFeatureLimits(),
-		AccessMonitoring:    GetUsageBasedAccessMonitoringFeatureLimits(false),
 		IsUsageBasedBilling: true,
 		ProductType:         modules.ProductTypeTeam,
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s:                    {Enabled: true, Limit: 0},
+			entitlements.AccessLists:            {},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.App:                    {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.DB:                     {},
+			entitlements.Desktop:                {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
+		},
 	})
 
-	// update features again and see if they are stored in the backend
+	// update features
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
-				Kubernetes:   false,
-				App:          true,
 				IsUsageBased: true,
 				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_TEAM,
+				Entitlements: map[string]*cloudapi.EntitlementInfo{
+					"K8s": {Enabled: false, Limit: 0},
+					"App": {Enabled: true, Limit: 0},
+				},
 			}, nil
 		},
 	)
-	// check backend again
-	wantFeatures := modules.Features{
-		Kubernetes:          false,
-		App:                 true,
-		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
-		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
-		AccessList:          GetUsageBasedAccessListFeatureLimits(),
-		AccessMonitoring:    GetUsageBasedAccessMonitoringFeatureLimits(false),
+	// check backend for updated features
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
 		IsUsageBasedBilling: true,
 		ProductType:         modules.ProductTypeTeam,
-	}
-	requireFeatures(t, fakeClock, backend, ctx, wantFeatures)
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.App:                    {Enabled: true, Limit: 0},
+			entitlements.K8s:                    {Enabled: false, Limit: 0},
+			entitlements.AccessLists:            {},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.DB:                     {},
+			entitlements.Desktop:                {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
+		},
+	})
 
-	// Test that the service wont crash if it receives an error
+	// test that the service won't crash if it receives an error
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return nil, errors.New("err fetching features")
 		},
 	)
-	requireFeatures(t, fakeClock, backend, ctx, wantFeatures)
+	// assert backend has last-known features still stored after error
+	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
+		IsUsageBasedBilling: true,
+		ProductType:         modules.ProductTypeTeam,
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.App:                    {Enabled: true, Limit: 0},
+			entitlements.K8s:                    {Enabled: false, Limit: 0},
+			entitlements.AccessLists:            {},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.DB:                     {},
+			entitlements.Desktop:                {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
+		},
+	})
 
-	// Make sure it can recover after a failed request
+	// make sure the service can recover after a failed request; return a limit
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
-				Db:           true,
 				IsUsageBased: true,
 				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_EUB,
-			}, nil
+				Entitlements: map[string]*cloudapi.EntitlementInfo{
+					"DB":          {Enabled: true, Limit: 0},
+					"AccessLists": {Enabled: true, Limit: 1},
+				}}, nil
 		},
 	)
+	// check backend for updated features
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		DB:                      true,
-		DeviceTrust:             GetUsageBasedDeviceTrustFeatureLimits(),
-		AccessRequests:          GetUsageBasedAccessRequestFeatureLimits(),
-		AccessList:              GetUsageBasedAccessListFeatureLimits(),
-		AccessMonitoring:        GetUsageBasedAccessMonitoringFeatureLimits(false),
-		IsUsageBasedBilling:     true,
-		ProductType:             modules.ProductTypeEUB,
-		AdvancedAccessWorkflows: true,
-		HSM:                     true,
-		OIDC:                    true,
-		AccessControls:          true,
-		SAML:                    true,
+		IsUsageBasedBilling: true,
+		ProductType:         modules.ProductTypeEUB,
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.DB:                     {Enabled: true, Limit: 0},
+			entitlements.AccessLists:            {Enabled: true, Limit: 1},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.App:                    {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.Desktop:                {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.K8s:                    {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
+		},
 	})
 
-	// Test removing limit "after upgrade", which in this case
-	// we go from product "eub" to "eub with igs".
+	// Test removing limit; limit read from response
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
-				IsUsageBased:               true,
-				ProductType:                cloudapi.ProductType_PRODUCT_TYPE_EUB,
-				IdentityGovernanceSecurity: true,
-			}, nil
+				IsUsageBased: true,
+				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_EUB,
+				Entitlements: map[string]*cloudapi.EntitlementInfo{
+					"AccessLists": {Enabled: true, Limit: 0},
+				}}, nil
 		},
 	)
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled:           true, // always enabled
-			DevicesUsageLimit: 0,
+		IsUsageBasedBilling: true,
+		ProductType:         modules.ProductTypeEUB,
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.AccessLists:            {Enabled: true, Limit: 0},
+			entitlements.DB:                     {},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.App:                    {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.Desktop:                {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.K8s:                    {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
 		},
-		AccessRequests: modules.AccessRequestsFeature{
-			MonthlyRequestLimit: 0,
-		},
-		AccessList: modules.AccessListFeature{
-			CreateLimit: 0,
-		},
-		AccessMonitoring: modules.AccessMonitoringFeature{
-			Enabled:             false,
-			MaxReportRangeLimit: 0,
-		},
-		IsUsageBasedBilling:        true,
-		IdentityGovernanceSecurity: true,
-		AdvancedAccessWorkflows:    true,
-		HSM:                        true,
-		OIDC:                       true,
-		AccessControls:             true,
-		SAML:                       true,
-		ProductType:                modules.ProductTypeEUB,
 	})
-}
 
-func TestRun_Legacy_NonUsageBased(t *testing.T) {
-	t.Parallel()
-
-	mockCloudClient := &testClient{}
-	backend := newMemoryBackend(t)
-
-	fakeClock := clockwork.NewFakeClock()
-	cfg := Config{
-		Backend:        backend,
-		CloudClient:    mockCloudClient,
-		Interval:       500 * time.Millisecond,
-		RequestTimeout: 500 * time.Millisecond,
-		Clock:          fakeClock,
-	}
-	service, err := NewService(cfg)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Despite getting feature response, teleport should still hard code
-	// features.
+	// Unknown entitlements are dropped
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
 			return &cloudapi.GetFeaturesResponse{
-				Kubernetes:     false, // should be ignored
-				AccessRequests: false, // should be ignored
-				App:            false, // should be ignored
-				// The two fields below are the only ones
-				// modifiable.
-				FeatureHiding: true,
-				CustomTheme:   "llama-theme",
-			}, nil
+				IsUsageBased: false,
+				Entitlements: map[string]*cloudapi.EntitlementInfo{
+					"Foo":     {Enabled: true, Limit: 0},
+					"Bar":     {Enabled: true, Limit: 0},
+					"Desktop": {Enabled: true, Limit: 0},
+					"baz":     {Enabled: true, Limit: 0},
+				}}, nil
 		},
 	)
-
-	// Run the service.
-	go service.Run(ctx)
-	fakeClock.BlockUntil(1)
-
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		Kubernetes:              true,
-		App:                     true,
-		DB:                      true,
-		Desktop:                 true,
-		Cloud:                   true,
-		OIDC:                    true,
-		SAML:                    true,
-		AccessControls:          true,
-		AdvancedAccessWorkflows: true,
-		HSM:                     true,
-		RecoveryCodes:           true,
-		FeatureHiding:           true,
-		CustomTheme:             "llama-theme",
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
+		IsUsageBasedBilling: false,
+		AccessControls:      true,
+		Assist:              false,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Desktop:                {Enabled: true, Limit: 0},
+			entitlements.AccessLists:            {},
+			entitlements.AccessMonitoring:       {},
+			entitlements.AccessRequests:         {},
+			entitlements.App:                    {},
+			entitlements.CloudAuditLogRetention: {},
+			entitlements.DB:                     {},
+			entitlements.DeviceTrust:            {},
+			entitlements.ExternalAuditStorage:   {},
+			entitlements.FeatureHiding:          {},
+			entitlements.HSM:                    {},
+			entitlements.Identity:               {},
+			entitlements.JoinActiveSessions:     {},
+			entitlements.K8s:                    {},
+			entitlements.MobileDeviceManagement: {},
+			entitlements.OIDC:                   {},
+			entitlements.OktaSCIM:               {},
+			entitlements.OktaUserSync:           {},
+			entitlements.Policy:                 {},
+			entitlements.SAML:                   {},
+			entitlements.SessionLocks:           {},
+			entitlements.UpsellAlert:            {},
+			entitlements.UsageReporting:         {},
 		},
-		AccessList:       GetUsageBasedAccessListFeatureLimits(),
-		AccessMonitoring: GetUsageBasedAccessMonitoringFeatureLimits(false),
-		SupportType:      proto.SupportType_SUPPORT_TYPE_PREMIUM,
-	})
-}
-
-func TestRun_Legacy_NonUsageBased_WithIGS(t *testing.T) {
-	t.Parallel()
-
-	mockCloudClient := &testClient{}
-	backend := newMemoryBackend(t)
-
-	fakeClock := clockwork.NewFakeClock()
-	cfg := Config{
-		Backend:        backend,
-		CloudClient:    mockCloudClient,
-		Interval:       500 * time.Millisecond,
-		RequestTimeout: 500 * time.Millisecond,
-		Clock:          fakeClock,
-	}
-	service, err := NewService(cfg)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Despite getting feature response, teleport should still hard code
-	// features.
-	mockCloudClient.setMockGetFeatures(
-		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
-			return &cloudapi.GetFeaturesResponse{
-				Kubernetes:     false, // should be ignored
-				AccessRequests: false, // should be ignored
-				App:            false, // should be ignored
-				// The two fields below are the only ones
-				// modifiable.
-				FeatureHiding: true,
-				CustomTheme:   "llama-theme",
-				// IGS is enabled for a subset of non-usage based products
-				IdentityGovernanceSecurity: true,
-				SupportType:                cloudapi.SupportType_SUPPORT_TYPE_PREMIUM,
-			}, nil
-		},
-	)
-
-	// Run the service.
-	go service.Run(ctx)
-	fakeClock.BlockUntil(1)
-
-	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		Kubernetes:              true,
-		App:                     true,
-		DB:                      true,
-		Desktop:                 true,
-		Cloud:                   true,
-		OIDC:                    true,
-		SAML:                    true,
-		AccessControls:          true,
-		AdvancedAccessWorkflows: true,
-		HSM:                     true,
-		RecoveryCodes:           true,
-		FeatureHiding:           true,
-		CustomTheme:             "llama-theme",
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
-		},
-		IdentityGovernanceSecurity: true,
-		SupportType:                proto.SupportType_SUPPORT_TYPE_PREMIUM,
 	})
 }
 

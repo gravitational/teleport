@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
@@ -583,7 +584,9 @@ func TestSuggestAccessLists(t *testing.T) {
 		TestModules: modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				IdentityGovernanceSecurity: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
 			},
 		},
 	})
@@ -739,8 +742,10 @@ func TestPromoteAccessRequest(t *testing.T) {
 		TestModules: modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				AdvancedAccessWorkflows:    true,
-				IdentityGovernanceSecurity: true,
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
 			},
 		},
 	})

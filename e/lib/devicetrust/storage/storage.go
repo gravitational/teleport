@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -1623,11 +1624,12 @@ func (s *S) getDevicesUsage(ctx context.Context, limit int) (*DevicesUsage, erro
 // the limits are already reached.
 func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
+	deviceEntitlement := f.GetEntitlement(entitlements.DeviceTrust)
+	if deviceEntitlement.Limit == 0 {
 		return nil // unlimited
 	}
 
-	limit := f.DeviceTrust.DevicesUsageLimit
+	limit := int(deviceEntitlement.Limit)
 	if limit <= 0 {
 		return trace.Wrap(ErrEnrolledDeviceLimit)
 	}

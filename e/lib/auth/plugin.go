@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports"
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -193,7 +194,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && modules.GetModules().Features().ExternalAuditStorage {
+	if modules.GetModules().Features().Cloud && modules.GetModules().Features().GetEntitlement(entitlements.ExternalAuditStorage).Enabled {
 		if err := p.registerExternalAuditStorageService(ctx); err != nil {
 			return trace.Wrap(err)
 		}
@@ -464,6 +465,12 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	athenaURI, ok := athena.GetAthenaURI(auditConf.AuditEventsURIs())
 	if !ok {
 		log.Warn("Access Monitoring Enabled but Athena backend is not configured.")
+		return nil
+	}
+
+	features := modules.GetModules().Features()
+	if !features.GetEntitlement(entitlements.AccessMonitoring).Enabled {
+		log.Warn(ctx, "Access Monitoring specified in config, but the subscription does not include Access Monitoring. Access Monitoring will not be enabled.")
 		return nil
 	}
 

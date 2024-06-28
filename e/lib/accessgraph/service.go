@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
@@ -144,7 +145,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// since Cloud features are loaded dynamically. More detailed explanation in:
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
 		features := modules.GetModules().Features()
-		if !features.Policy.Enabled {
+		if !features.GetEntitlement(entitlements.Policy).Enabled {
 			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 			return nil
 		}

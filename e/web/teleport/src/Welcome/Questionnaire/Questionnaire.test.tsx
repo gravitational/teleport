@@ -216,13 +216,14 @@ describe('questionnaire', () => {
           medium: 'm_1',
           intent: 't_i',
         },
-        resourcesList: [
+        resources: [
           'RESOURCE_WEB_APPLICATIONS',
           'RESOURCE_WINDOWS_DESKTOPS',
           'RESOURCE_KUBERNETES',
         ],
         role: 'VP',
         team: 'LEGAL',
+        username: 'user-000',
       })
     );
     localStorage.clear();

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -21,8 +22,10 @@ import (
 func startAuthServer(t *testing.T) *client.Client {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			OIDC:                    true,
-			SAML:                    true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 			AdvancedAccessWorkflows: true,
 		},
 	})

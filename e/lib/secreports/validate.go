@@ -6,6 +6,7 @@ import (
 	"github.com/gravitational/trace"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -76,11 +77,11 @@ func validateRequest(req any) error {
 
 func verifyAccessMonitoringMaxReportRangeLimit(days int32) error {
 	f := modules.GetModules().Features()
-	if f.IGSEnabled() {
+	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return nil // any range supported
 	}
 
-	if days > int32(f.AccessMonitoring.MaxReportRangeLimit) {
+	if days > f.GetEntitlement(entitlements.AccessMonitoring).Limit {
 		return trace.AccessDenied("day range is not supported, please contact the cluster administrator")
 	}
 

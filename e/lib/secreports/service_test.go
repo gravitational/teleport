@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/query"
 	"github.com/gravitational/teleport/e/lib/secreports/reports"
 	"github.com/gravitational/teleport/e/lib/secreports/scheduler"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -32,21 +33,21 @@ func TestService(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				MaxReportRangeLimit: maxLimit,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
 			},
 		},
 	})
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	memory, err := memory.New(memory.Config{
+	m, err := memory.New(memory.Config{
 		Clock:   clock,
 		Context: ctx,
 	})
 	require.NoError(t, err)
 
-	store, err := local.NewSecReportsService(memory, clock)
+	store, err := local.NewSecReportsService(m, clock)
 	require.NoError(t, err)
 
 	mockAthena := &athenaMock{
@@ -62,7 +63,7 @@ func TestService(t *testing.T) {
 		},
 	}
 	svc := Service{
-		backend: memory,
+		backend: m,
 		log:     logrus.New(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
@@ -165,9 +166,9 @@ func TestService(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				MaxReportRangeLimit: maxLimit,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity:         {Enabled: true},
+				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
 			},
 		},
 	})
@@ -327,16 +328,16 @@ func TestUpsertSecurityReport(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	memory, err := memory.New(memory.Config{
+	m, err := memory.New(memory.Config{
 		Clock:   clock,
 		Context: ctx,
 	})
 	require.NoError(t, err)
 
-	store, err := local.NewSecReportsService(memory, clock)
+	store, err := local.NewSecReportsService(m, clock)
 	require.NoError(t, err)
 	svc := Service{
-		backend:   memory,
+		backend:   m,
 		log:       logrus.New(),
 		semaphore: &mockSemaphore{},
 		storage:   store,
@@ -382,8 +383,10 @@ var (
 func TestScheduleReportUpdate(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IsUsageBasedBilling:        true,
-			IdentityGovernanceSecurity: true,
+			IsUsageBasedBilling: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
 		},
 	})
 
@@ -452,8 +455,10 @@ func TestReportUpdateThreshold(t *testing.T) {
 	t.Run("IGS license", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{
-				IsUsageBasedBilling:        true,
-				IdentityGovernanceSecurity: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+				IsUsageBasedBilling: true,
 			},
 		})
 
@@ -499,10 +504,10 @@ func TestReportUpdateThreshold(t *testing.T) {
 	t.Run("no-IGS license", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{
-				IsUsageBasedBilling:        false,
-				IdentityGovernanceSecurity: false,
-				AccessMonitoring: modules.AccessMonitoringFeature{
-					MaxReportRangeLimit: 30,
+				IsUsageBasedBilling: false,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity:         {Enabled: false},
+					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
 				},
 			},
 		})
@@ -548,8 +553,8 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 			name: "limited range",
 			features: modules.Features{
 				IsUsageBasedBilling: true,
-				AccessMonitoring: modules.AccessMonitoringFeature{
-					MaxReportRangeLimit: 30,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
 				},
 			},
 			want: []int32{7, 30},
@@ -557,10 +562,10 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 		{
 			name: "IGS flag enabled limit should be ignored",
 			features: modules.Features{
-				IsUsageBasedBilling:        true,
-				IdentityGovernanceSecurity: true,
-				AccessMonitoring: modules.AccessMonitoringFeature{
-					MaxReportRangeLimit: 30,
+				IsUsageBasedBilling: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity:         {Enabled: true},
+					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
 				},
 			},
 			want: []int32{7, 30, 90, 120},
@@ -606,13 +611,13 @@ func newSuite(t *testing.T) *suite {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	memory, err := memory.New(memory.Config{
+	m, err := memory.New(memory.Config{
 		Clock:   clock,
 		Context: ctx,
 	})
 	require.NoError(t, err)
 
-	store, err := local.NewSecReportsService(memory, clock)
+	store, err := local.NewSecReportsService(m, clock)
 	require.NoError(t, err)
 
 	queryDataScannedInBytes := int64(100)
@@ -652,7 +657,7 @@ func newSuite(t *testing.T) *suite {
 	require.NoError(t, err)
 
 	svc := Service{
-		backend:   memory,
+		backend:   m,
 		Scheduler: sched,
 		log:       logrus.New(),
 		authorizer: &mockAuthorizer{

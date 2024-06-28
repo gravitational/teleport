@@ -143,6 +143,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 	}
 
 	// Only create the SCIM token credential if IGS is enabled
+	// todo (michellescripts) replace this with teleport.OktaSCIM
 	if args.clusterFeatures.GetIdentityGovernance() {
 		pluginCredentials = append(pluginCredentials, &types.PluginStaticCredentialsV1{
 			ResourceHeader: types.ResourceHeader{

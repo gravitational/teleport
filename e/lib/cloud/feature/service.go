@@ -110,7 +110,7 @@ func (s *Service) Run(ctx context.Context) error {
 				s.log.Errorf("Failed storing features in the backend: %+v", err)
 				continue
 			}
-			s.log.Info("Done updating cluster features")
+			s.log.Infof("Done updating cluster features: %+v", f)
 		case <-ctx.Done():
 			s.log.Info("Feature service has stopped")
 			return nil
@@ -121,5 +121,5 @@ func (s *Service) Run(ctx context.Context) error {
 func (s *Service) getFeatures(ctx context.Context) (*modules.Features, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.requestTimeout)
 	defer cancel()
-	return FetchFromCloud(ctx, s.cloudClient)
+	return GetCloudFeatures(ctx, s.cloudClient)
 }

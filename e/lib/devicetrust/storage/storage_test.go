@@ -34,6 +34,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -3447,9 +3448,9 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	const devicesLimit = 3
 	features := modules.GetModules().Features()
 	features.IsUsageBasedBilling = true
-	features.DeviceTrust = modules.DeviceTrustFeature{
-		Enabled:           true,
-		DevicesUsageLimit: devicesLimit,
+	features.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{
+		Enabled: true,
+		Limit:   devicesLimit,
 	}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -3501,7 +3502,7 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 		assertUsage(t, 0 /* wantEnrolled */)
 	})
 
-	// Enroll a few devices and verify the side-effects.
+	// Enroll a few devices and verify the side effects.
 	const owner = "llama"
 	wantEnrolled := devicesLimit - 1
 	for _, dev := range allDevs[:wantEnrolled] {
@@ -3546,20 +3547,9 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 		}
 	})
 
-	// Lift limit with IGS.
-	features.IdentityGovernanceSecurity = true
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  features,
-	})
-	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
-		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
-			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
-		}
-	})
-
-	// Put back limit.
-	features.IdentityGovernanceSecurity = false
+	// Add limit back to Device Trust & disable Identity
+	features.Entitlements[entitlements.Identity] = modules.EntitlementInfo{Enabled: false, Limit: 0}
+	features.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures:  features,
@@ -3567,18 +3557,6 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
 		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
 			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
-		}
-	})
-
-	// Lift limit with legacy non usage based.
-	features.IsUsageBasedBilling = false
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  features,
-	})
-	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
-		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
-			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
 		}
 	})
 }

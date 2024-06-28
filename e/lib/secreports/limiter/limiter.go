@@ -310,12 +310,13 @@ const (
 //   - Enterprise: 20TB
 //
 // TODO(smallinksy): Ideally this limits should be managed by Sales Center.
+// todo (michellescripts) add this to sales center
 func cloudLimits(resp *cloudapi.GetBillingInformationResponse) uint64 {
 	f := modules.GetModules().Features()
 	switch {
 	case resp.Trial:
 		return trialProductLimit
-	case f.IsTeam():
+	case f.ProductType == modules.ProductTypeTeam:
 		return teamProductLimit
 	default:
 		return enterpriseProductLimit

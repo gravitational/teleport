@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/services"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -53,7 +54,8 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
-	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().IGSEnabled()
+	// todo (michellescripts) replace with entitlements.OktaUserSync
+	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled
 	return func() error {
 		closeEvent := services.InitOktaPlugin(deps.lifetime,
 			services.OktaPluginPrams{

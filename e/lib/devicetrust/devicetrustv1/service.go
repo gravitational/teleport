@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/entitlements"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1001,7 +1002,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		return trace.Wrap(err)
 	}
 
-	if f := modules.GetModules().Features(); !f.MobileDeviceManagement {
+	if f := modules.GetModules().Features(); !f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled {
 		// TODO(sshah): update event type once Intune integration is supported.
 		s.emitDeviceLimitEvent(prehogv1alpha.LicenseLimit_LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF)
 		return trace.AccessDenied(
@@ -1075,7 +1076,7 @@ func (s *Service) GetResourceDevicesUsage(ctx context.Context, f *modules.Featur
 	}
 
 	return &resourceusagepb.DevicesUsage{
-		DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
 		DevicesInUse:      int32(usage.NumEnrolled),
 	}, nil
 }
@@ -1287,7 +1288,7 @@ func (s *Service) authorize(ctx context.Context) (*authz.Context, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().DeviceTrust.Enabled {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.DeviceTrust).Enabled {
 		return nil, trace.AccessDenied("this Teleport cluster is not licensed for device trust, please contact the cluster administrator")
 	}
 

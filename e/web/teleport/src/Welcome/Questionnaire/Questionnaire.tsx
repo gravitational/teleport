@@ -114,7 +114,7 @@ export const Questionnaire = ({
       // set survey result and marketing params in localstorage
       const lsRequest: LocalStorageSurvey = {
         ...request,
-        resourcesList: formFields.resources,
+        resources: formFields.resources,
         clusterResources: clusterResources,
         marketingParams: marketingPref,
       };

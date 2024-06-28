@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
@@ -191,7 +192,8 @@ func (s *Service) makeProviderShim(ctx context.Context, pluginID string) (provid
 // authorizeGRPCRequest checks that the service has the correct license GRPC call that is forwarding a SCIM
 // request to the server comes from a Teleport proxy.
 func (s *Service) authorizeGRPCRequest(ctx context.Context) error {
-	if !modules.GetModules().Features().IGSEnabled() {
+	// todo (michellescripts) replace with entitlements.OktaSCIM
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
 		return trace.NotImplemented("SCIM support requires IGS license")
 	}
 

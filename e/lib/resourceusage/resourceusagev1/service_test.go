@@ -15,6 +15,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
@@ -128,7 +129,7 @@ func Test_GetUsage(t *testing.T) {
 		const monthlyLimit = 42
 		features := modules.GetModules().Features()
 		features.IsUsageBasedBilling = true
-		features.AccessRequests.MonthlyRequestLimit = monthlyLimit
+		features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Limit: monthlyLimit, Enabled: true}
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: features,
 		})

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -51,7 +52,7 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 	}
 
 	p.licenseExpiry = licenseFile.License.Expiry()
-	features := getLicenseFeatures(licenseFile.License)
+	features := getSelfHostedLicenseFeatures(licenseFile.License)
 
 	// Fetch supported features from salescenter "subscriptions" db table for
 	// cloud based subscriptions:
@@ -74,7 +75,7 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 		ctx, cancel := context.WithTimeout(context.Background(), cloudFeatureRequestTimeout)
 		defer cancel()
 
-		f, err := feature.FetchFromCloud(ctx, client)
+		f, err := feature.GetCloudFeatures(ctx, client)
 		if err != nil {
 			p.log.Errorf("failed fetching features from Cloud: %+v", err)
 			return trace.Wrap(err)
@@ -131,7 +132,7 @@ func (p *enterpriseModules) SetFeatures(f modules.Features) {
 	f.RecoveryCodes = p.features.RecoveryCodes
 	f.Plugins = p.features.Plugins
 	f.AccessGraph = p.features.AccessGraph
-	f.AccessMonitoring = p.features.AccessMonitoring
+	f.AccessMonitoringConfigured = p.features.AccessMonitoringConfigured
 
 	p.features = f
 }
@@ -161,7 +162,7 @@ func (p *enterpriseModules) EnableAccessGraph() {
 func (p *enterpriseModules) EnableAccessMonitoring() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.features.AccessMonitoring.Enabled = true
+	p.features.AccessMonitoringConfigured = true
 }
 
 // BuildType returns build type (OSS or Enterprise)
@@ -221,57 +222,112 @@ func (p *enterpriseModules) GetSuggestedAccessLists(ctx context.Context, identit
 	return accessrequest.GetSuggestedAccessLists(ctx, identity, clt, accessListGetter, requestID)
 }
 
-// getLicenseFeatures is only used to read `on-prem` licenses.
-// For cloud subscriptions, the features are read from `FetchFromCloud`.
-func getLicenseFeatures(license types.License) modules.Features {
-	f := modules.Features{
-		Kubernetes:              license.GetSupportsKubernetes().Value(),
-		App:                     license.GetSupportsApplicationAccess().Value(),
-		DB:                      license.GetSupportsDatabaseAccess().Value(),
-		Desktop:                 license.GetSupportsDesktopAccess().Value(),
-		Cloud:                   license.GetCloud().Value(),
-		OIDC:                    true,
-		SAML:                    true,
-		AccessControls:          true,
-		AdvancedAccessWorkflows: true,
-		HSM:                     true,
-		RecoveryCodes:           license.GetCloud().Value(),
-		IsUsageBasedBilling:     license.GetUsageBasedBilling().Value(),
-		FeatureHiding:           license.GetSupportsFeatureHiding().Value(),
-		CustomTheme:             license.GetCustomTheme(),
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
-		},
-		IdentityGovernanceSecurity: license.GetSupportsIdentityGovernanceSecurity().Value(),
-		Policy: modules.PolicyFeature{
-			Enabled: license.GetSupportsPolicy().Value(),
-		},
-		Questionnaire:          false,
-		IsStripeManaged:        false, // On-prem billing is never Stripe managed
-		ExternalAuditStorage:   false, // EAS is a Cloud-only feature
-		SupportType:            proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		JoinActiveSessions:     true,
-		MobileDeviceManagement: true,
+// getSelfHostedLicenseFeatures is only used to read features for `self-hosted` licenses.
+// For cloud subscriptions, the features are read from `GetCloudFeatures`.
+func getSelfHostedLicenseFeatures(license types.License) modules.Features {
+	// Set Legacy Values first; backwards compatibility with older licenses
+	f := setLegacyLogic(license)
+
+	// Set Entitlement values last; override features if present; use Modern license values
+	if license.GetEntitlements() != nil && len(license.GetEntitlements()) > 0 {
+		e := license.GetEntitlements()
+
+		f.Entitlements[entitlements.AccessLists] = feature.GetLicenseEntitlement(e, entitlements.AccessLists)
+		f.Entitlements[entitlements.AccessMonitoring] = feature.GetLicenseEntitlement(e, entitlements.AccessMonitoring)
+		f.Entitlements[entitlements.AccessRequests] = feature.GetLicenseEntitlement(e, entitlements.AccessRequests)
+		f.Entitlements[entitlements.App] = feature.GetLicenseEntitlement(e, entitlements.App)
+		f.Entitlements[entitlements.CloudAuditLogRetention] = feature.GetLicenseEntitlement(e, entitlements.CloudAuditLogRetention)
+		f.Entitlements[entitlements.DB] = feature.GetLicenseEntitlement(e, entitlements.DB)
+		f.Entitlements[entitlements.Desktop] = feature.GetLicenseEntitlement(e, entitlements.Desktop)
+		f.Entitlements[entitlements.DeviceTrust] = feature.GetLicenseEntitlement(e, entitlements.DeviceTrust)
+		f.Entitlements[entitlements.ExternalAuditStorage] = feature.GetLicenseEntitlement(e, entitlements.ExternalAuditStorage)
+		f.Entitlements[entitlements.FeatureHiding] = feature.GetLicenseEntitlement(e, entitlements.FeatureHiding)
+		f.Entitlements[entitlements.HSM] = feature.GetLicenseEntitlement(e, entitlements.HSM)
+		f.Entitlements[entitlements.Identity] = feature.GetLicenseEntitlement(e, entitlements.Identity)
+		f.Entitlements[entitlements.JoinActiveSessions] = feature.GetLicenseEntitlement(e, entitlements.JoinActiveSessions)
+		f.Entitlements[entitlements.K8s] = feature.GetLicenseEntitlement(e, entitlements.K8s)
+		f.Entitlements[entitlements.MobileDeviceManagement] = feature.GetLicenseEntitlement(e, entitlements.MobileDeviceManagement)
+		f.Entitlements[entitlements.OIDC] = feature.GetLicenseEntitlement(e, entitlements.OIDC)
+		f.Entitlements[entitlements.OktaSCIM] = feature.GetLicenseEntitlement(e, entitlements.OktaSCIM)
+		f.Entitlements[entitlements.OktaUserSync] = feature.GetLicenseEntitlement(e, entitlements.OktaUserSync)
+		f.Entitlements[entitlements.Policy] = feature.GetLicenseEntitlement(e, entitlements.Policy)
+		f.Entitlements[entitlements.SAML] = feature.GetLicenseEntitlement(e, entitlements.SAML)
+		f.Entitlements[entitlements.SessionLocks] = feature.GetLicenseEntitlement(e, entitlements.SessionLocks)
+		f.Entitlements[entitlements.UpsellAlert] = feature.GetLicenseEntitlement(e, entitlements.UpsellAlert)
+		f.Entitlements[entitlements.UsageReporting] = feature.GetLicenseEntitlement(e, entitlements.UsageReporting)
 	}
 
+	return f
+}
+
+func setLegacyLogic(license types.License) modules.Features {
+	f := modules.Features{
+		// From License
+		CustomTheme:         license.GetCustomTheme(),
+		RecoveryCodes:       license.GetCloud().Value(),
+		IsUsageBasedBilling: license.GetUsageBasedBilling().Value(),
+		Cloud:               license.GetCloud().Value(),
+		// Hard-coded
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+		IsStripeManaged:         false,
+		Questionnaire:           false,
+		SupportType:             proto.SupportType_SUPPORT_TYPE_PREMIUM,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			// from License
+			entitlements.App:           {Enabled: license.GetSupportsApplicationAccess().Value()},
+			entitlements.DB:            {Enabled: license.GetSupportsDatabaseAccess().Value()},
+			entitlements.Desktop:       {Enabled: license.GetSupportsDesktopAccess().Value()},
+			entitlements.FeatureHiding: {Enabled: license.GetSupportsFeatureHiding().Value()},
+			entitlements.Identity:      {Enabled: license.GetSupportsIdentityGovernanceSecurity().Value()},
+			entitlements.K8s:           {Enabled: license.GetSupportsKubernetes().Value()},
+			entitlements.Policy:        {Enabled: license.GetSupportsPolicy().Value()},
+			// Hard-coded
+			entitlements.ExternalAuditStorage:   {Enabled: false},
+			entitlements.HSM:                    {Enabled: true},
+			entitlements.JoinActiveSessions:     {Enabled: true},
+			entitlements.MobileDeviceManagement: {Enabled: true},
+			entitlements.OIDC:                   {Enabled: true},
+			entitlements.SAML:                   {Enabled: true},
+
+			// The following features are not applicable to self-hosted customers
+			entitlements.CloudAuditLogRetention: {Enabled: false},
+			entitlements.UpsellAlert:            {Enabled: false},
+			entitlements.UsageReporting:         {Enabled: false},
+			entitlements.OktaSCIM:               {Enabled: false},
+			entitlements.OktaUserSync:           {Enabled: false},
+			entitlements.SessionLocks:           {Enabled: false},
+
+			// Default all customers to Identity entitlement previews
+			entitlements.AccessRequests:   {Enabled: true, Limit: 5},
+			entitlements.DeviceTrust:      {Enabled: true, Limit: 5},
+			entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
+			entitlements.AccessLists:      {Enabled: true, Limit: 1},
+		},
+	}
 	// There is only two types of `on-prem` licenses:
 	//  1. enterprise usage based (EUB)
-	//  2. non usage-based: refers to legacy license before EUB product.
-	if license.GetUsageBasedBilling() {
+	//  2. non usage based: refers to legacy license before EUB product.
+	if f.IsUsageBasedBilling {
 		f.ProductType = modules.ProductTypeEUB
 	}
 
-	if !license.GetSupportsIdentityGovernanceSecurity() {
-		f.AccessList = feature.GetUsageBasedAccessListFeatureLimits()
-		// access monitoring enabling will be determined outside of license reading.
-		f.AccessMonitoring = feature.GetUsageBasedAccessMonitoringFeatureLimits(false)
+	// Set Identity Entitlements second; override legacy license with hard coded previews; backwards compatibility with older licenses
+	// Override legacy license values
+	legacyLicense := !f.IsUsageBasedBilling
+	if legacyLicense && !f.Entitlements[entitlements.Identity].Enabled {
+		// Legacy licenses (non-usage based) without Identity will continue to have unlimited support
+		// for feature AccessRequests & DeviceTrust.
+		f.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true}
+	}
 
-		// Legacy licenses (non-usage based) will continue to have unlimited support
-		// for feature AR & DT.
-		if notLegacyEnterprise := license.GetUsageBasedBilling(); notLegacyEnterprise {
-			f.AccessRequests = feature.GetUsageBasedAccessRequestFeatureLimits()
-			f.DeviceTrust = feature.GetUsageBasedDeviceTrustFeatureLimits()
-		}
+	// Override if Identity is enabled (unlimited & enabled identity entitlements)
+	if f.Entitlements[entitlements.Identity].Enabled {
+		f.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.AccessMonitoring] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.AccessLists] = modules.EntitlementInfo{Enabled: true}
 	}
 
 	return f

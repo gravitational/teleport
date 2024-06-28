@@ -24,6 +24,7 @@ import (
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -50,10 +51,10 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 	modules.SetModules(&modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			DeviceTrust: modules.DeviceTrustFeature{
-				Enabled: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust:            {Enabled: true},
+				entitlements.MobileDeviceManagement: {Enabled: true},
 			},
-			MobileDeviceManagement: true,
 		},
 	})
 	b.Cleanup(func() { modules.SetModules(beforeModules) })

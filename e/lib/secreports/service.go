@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/reports"
 	"github.com/gravitational/teleport/e/lib/secreports/scheduler"
 	"github.com/gravitational/teleport/e/lib/secreports/store"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
@@ -261,12 +262,12 @@ var reportValidDaysRange = []int32{7, 30, 90, 120}
 // where unsupported days are filtered out.
 func getReportExecutionDaysRange() []int32 {
 	f := modules.GetModules().Features()
-	if f.IGSEnabled() {
+	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return reportValidDaysRange
 	}
 	var out []int32
 	for _, v := range reportValidDaysRange {
-		if v > int32(f.AccessMonitoring.MaxReportRangeLimit) {
+		if v > f.Entitlements[entitlements.AccessMonitoring].Limit {
 			continue
 		}
 		out = append(out, v)
@@ -490,7 +491,7 @@ func (s *Service) schedulesReportsUpdate(ctx context.Context) error {
 // This threshold is applied to restrict the volume of events.
 func getReportUpdateThreshold() time.Duration {
 	f := modules.GetModules().Features()
-	if f.IGSEnabled() {
+	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return time.Hour
 	}
 	return time.Hour * 24

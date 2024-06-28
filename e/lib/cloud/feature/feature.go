@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -16,112 +17,57 @@ import (
 
 var featuresBackendKey = backend.Key("cloud", "features")
 
-// FetchFromCloud performs a gRPC call to Cloud's tenant service to query
-// the features enabled by the licenses's subscription
-func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Features, error) {
+// GetCloudFeatures performs a gRPC call to Cloud's tenant service to query entitlements
+func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.Features, error) {
 	resp, err := cloudClient.GetFeatures(ctx, &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Legacy enterprise cloud (non-usage based) will continue to maintain
-	// legacy behavior where all (most) features were enabled, and license
-	// settings were ignored.
-	// 14-day self-signup trials of Enterprise Cloud are currently set up as "legacy", non-usage-based products.
-	//
-	// Mimic's how we used to set legacy cloud from [func getLicenseFeatures]:
-	// https://github.com/gravitational/teleport.e/blob/9b826916ba7d79b1b649286607c358252061f5c5/tool/modules/modules.go#L184
-	if isLegacyEnterpiseCloud := !resp.IsUsageBased; isLegacyEnterpiseCloud {
-		f := &modules.Features{
-			Kubernetes:              true,
-			App:                     true,
-			DB:                      true,
-			Desktop:                 true,
-			Cloud:                   true,
-			OIDC:                    true,
-			SAML:                    true,
-			AccessControls:          true,
-			AdvancedAccessWorkflows: true,
-			HSM:                     true,
-			RecoveryCodes:           true,
-			FeatureHiding:           resp.FeatureHiding,
-			CustomTheme:             resp.CustomTheme,
-			// IGS is enabled for a subset of non-usage based products
-			IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
-			DeviceTrust: modules.DeviceTrustFeature{
-				Enabled: true,
-			},
-			Questionnaire:        resp.Questionnaire,
-			IsStripeManaged:      resp.StripeManaged,
-			ExternalAuditStorage: resp.ExternalAuditStorage,
-			// TODO(mcbattirola): read SupportType from response when
-			// Cloud subscriptions are updated to include this flag
-			SupportType:            proto.SupportType_SUPPORT_TYPE_PREMIUM,
-			JoinActiveSessions:     resp.JoinActiveSessions,
-			MobileDeviceManagement: resp.MobileDeviceManagement,
-			Policy: modules.PolicyFeature{
-				Enabled: resp.Policy,
-			},
-		}
-
-		if !resp.IdentityGovernanceSecurity {
-			// New features that are limited even for legacies.
-			f.AccessList = GetUsageBasedAccessListFeatureLimits()
-			f.AccessMonitoring = GetUsageBasedAccessMonitoringFeatureLimits(false)
-		}
-
-		return f, nil
-	}
-
-	// From here on, it is usage based billing.
-
 	f := &modules.Features{
-		ProductType:                modules.ProductType(resp.ProductType),
-		Kubernetes:                 resp.Kubernetes,
-		App:                        resp.App,
-		DB:                         resp.Db,
-		Desktop:                    resp.Desktop,
-		AdvancedAccessWorkflows:    resp.AccessRequests,
-		Cloud:                      resp.IsCloud,
-		OIDC:                       resp.Oidc,
-		SAML:                       resp.SAML,
-		AccessControls:             resp.AccessControls,
-		HSM:                        resp.Hsm,
-		IsUsageBasedBilling:        resp.IsUsageBased,
-		IdentityGovernanceSecurity: resp.IdentityGovernanceSecurity,
-		// The hardcoded values below are used to gate actions from OSS builds.
-		DeviceTrust: modules.DeviceTrustFeature{
-			Enabled: true,
-		},
-		Policy: modules.PolicyFeature{
-			Enabled: resp.Policy,
-		},
-		Questionnaire:          resp.Questionnaire,
-		IsStripeManaged:        resp.StripeManaged,
-		ExternalAuditStorage:   resp.ExternalAuditStorage,
-		SupportType:            proto.SupportType(resp.SupportType),
-		JoinActiveSessions:     resp.JoinActiveSessions,
-		MobileDeviceManagement: resp.MobileDeviceManagement,
-	}
+		// Cloud Settings
+		Cloud:               resp.IsCloud,
+		CustomTheme:         resp.CustomTheme,
+		IsStripeManaged:     resp.StripeManaged,
+		IsUsageBasedBilling: resp.IsUsageBased,
+		Questionnaire:       resp.Questionnaire,
+		SupportType:         proto.SupportType(resp.SupportType),
 
-	// TODO(lisa): these should be set to true from salescenter.
-	if resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_EUB {
-		f.AdvancedAccessWorkflows = true // Gate action from OSS builds.
-		f.OIDC = true
-		f.SAML = true
-		f.AccessControls = true
-		f.HSM = true
-	}
+		// Cloud Entitlements
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.AccessLists:            GetCloudEntitlement(resp.Entitlements, entitlements.AccessLists),
+			entitlements.AccessMonitoring:       GetCloudEntitlement(resp.Entitlements, entitlements.AccessMonitoring),
+			entitlements.AccessRequests:         GetCloudEntitlement(resp.Entitlements, entitlements.AccessRequests),
+			entitlements.App:                    GetCloudEntitlement(resp.Entitlements, entitlements.App),
+			entitlements.CloudAuditLogRetention: GetCloudEntitlement(resp.Entitlements, entitlements.CloudAuditLogRetention),
+			entitlements.DB:                     GetCloudEntitlement(resp.Entitlements, entitlements.DB),
+			entitlements.Desktop:                GetCloudEntitlement(resp.Entitlements, entitlements.Desktop),
+			entitlements.DeviceTrust:            GetCloudEntitlement(resp.Entitlements, entitlements.DeviceTrust),
+			entitlements.ExternalAuditStorage:   GetCloudEntitlement(resp.Entitlements, entitlements.ExternalAuditStorage),
+			entitlements.FeatureHiding:          GetCloudEntitlement(resp.Entitlements, entitlements.FeatureHiding),
+			entitlements.HSM:                    GetCloudEntitlement(resp.Entitlements, entitlements.HSM),
+			entitlements.Identity:               GetCloudEntitlement(resp.Entitlements, entitlements.Identity),
+			entitlements.JoinActiveSessions:     GetCloudEntitlement(resp.Entitlements, entitlements.JoinActiveSessions),
+			entitlements.K8s:                    GetCloudEntitlement(resp.Entitlements, entitlements.K8s),
+			entitlements.MobileDeviceManagement: GetCloudEntitlement(resp.Entitlements, entitlements.MobileDeviceManagement),
+			entitlements.OIDC:                   GetCloudEntitlement(resp.Entitlements, entitlements.OIDC),
+			entitlements.OktaSCIM:               GetCloudEntitlement(resp.Entitlements, entitlements.OktaSCIM),
+			entitlements.OktaUserSync:           GetCloudEntitlement(resp.Entitlements, entitlements.OktaUserSync),
+			entitlements.Policy:                 GetCloudEntitlement(resp.Entitlements, entitlements.Policy),
+			entitlements.SAML:                   GetCloudEntitlement(resp.Entitlements, entitlements.SAML),
+			entitlements.SessionLocks:           GetCloudEntitlement(resp.Entitlements, entitlements.SessionLocks),
+			entitlements.UpsellAlert:            GetCloudEntitlement(resp.Entitlements, entitlements.UpsellAlert),
+			entitlements.UsageReporting:         GetCloudEntitlement(resp.Entitlements, entitlements.UsageReporting),
+		},
 
-	// Features will be limited for the following:
-	//   1) Team subscriptions
-	//   2) EUB subscriptions without IGS enabled
-	if resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_TEAM || (resp.ProductType == cloudapi.ProductType_PRODUCT_TYPE_EUB && !resp.IdentityGovernanceSecurity) {
-		f.AccessList = GetUsageBasedAccessListFeatureLimits()
-		f.AccessRequests = GetUsageBasedAccessRequestFeatureLimits()
-		f.DeviceTrust = GetUsageBasedDeviceTrustFeatureLimits()
-		// access monitoring enabling will be determined outside of feature reading.
-		f.AccessMonitoring = GetUsageBasedAccessMonitoringFeatureLimits(false)
+		// todo (michellescripts) remove deprecated features
+		ProductType:    modules.ProductType(resp.ProductType), // Use entitlements/settings
+		AccessControls: true,                                  // AccessControls is true for all customers
+
+		// The following features exist on modules.Features but are not set by Cloud, so they are not set here.
+		// AdvancedAccessWorkflows, RecoveryCodes, Plugins, AutomaticUpgrades,
+		// The following features are enabled elsewhere if the cluster is configured for that feature
+		//AccessGraph, AccessMonitoringConfigured
 	}
 
 	return f, nil
@@ -147,42 +93,8 @@ func Load(ctx context.Context, b backend.Backend) (*modules.Features, error) {
 	}
 	stored := &modules.Features{}
 	if err := json.Unmarshal(item.Value, stored); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling features")
+		return nil, trace.Wrap(err, "unmarshalling features")
 	}
 
 	return stored, nil
-}
-
-// GetUsageBasedAccessListFeatureLimits defines limits for access list
-// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
-func GetUsageBasedAccessListFeatureLimits() modules.AccessListFeature {
-	return modules.AccessListFeature{
-		CreateLimit: 1,
-	}
-}
-
-// GetUsageBasedAccessRequestFeatureLimits defines limits for access request
-// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
-func GetUsageBasedAccessRequestFeatureLimits() modules.AccessRequestsFeature {
-	return modules.AccessRequestsFeature{
-		MonthlyRequestLimit: 5,
-	}
-}
-
-// GetUsageBasedDeviceTrustFeatureLimits defines limits for device trust
-// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
-func GetUsageBasedDeviceTrustFeatureLimits() modules.DeviceTrustFeature {
-	return modules.DeviceTrustFeature{
-		Enabled:           true, // always enabled currently
-		DevicesUsageLimit: 5,
-	}
-}
-
-// GetUsageBasedAccessRequestFeatureLimits defines limits for device trust
-// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
-func GetUsageBasedAccessMonitoringFeatureLimits(enabled bool) modules.AccessMonitoringFeature {
-	return modules.AccessMonitoringFeature{
-		Enabled:             enabled,
-		MaxReportRangeLimit: 30,
-	}
 }

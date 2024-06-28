@@ -28,12 +28,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestGetAccessGraph(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{IdentityGovernanceSecurity: true, Policy: modules.PolicyFeature{Enabled: true}},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+				entitlements.Policy:   {Enabled: true},
+			},
+		},
 	})
 
 	tests := []struct {
@@ -135,7 +141,12 @@ var expectedListIntegrationsResponse string
 
 func TestGetAccessGraphIntegrations(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{IdentityGovernanceSecurity: true, Policy: modules.PolicyFeature{Enabled: true}},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+				entitlements.Policy:   {Enabled: true},
+			},
+		},
 	})
 
 	s := newWebSuite(t)

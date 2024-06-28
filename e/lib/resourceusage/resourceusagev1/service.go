@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -112,7 +113,7 @@ func (s *Service) getAccessRequestsUsage(ctx context.Context, f *modules.Feature
 	}
 
 	return &resourceusagepb.AccessRequestsUsage{
-		MonthlyLimit: int32(f.AccessRequests.MonthlyRequestLimit),
+		MonthlyLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
 		MonthlyUsed:  int32(monthlyUsed),
 	}, nil
 }

@@ -20,6 +20,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -649,7 +650,7 @@ func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
 	m := modules.GetModules().(*modules.TestModules)
 	m.TestFeatures.IsUsageBasedBilling = true
 	const devicesLimit = 3
-	m.TestFeatures.DeviceTrust.DevicesUsageLimit = devicesLimit
+	m.TestFeatures.Entitlements[entitlements.DeviceTrust] = modules.EntitlementInfo{Enabled: true, Limit: devicesLimit}
 	modules.SetModules(m)
 
 	// 1. Register limit+1 devices. This is allowed.
