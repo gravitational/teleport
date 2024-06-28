@@ -8,31 +8,21 @@ The Teleport team delivers a new major release roughly every 4 months.
 ## Teleport
 
 | Version | Date           |
-| ------- | ---------------|
-| 16.0.0  | June 14, 2024  |
+|---------|----------------|
+| 16.1.0  | July 15, 2024  |
+| 16.2.0  | August 15, 2024 |
 
-### 16.0.0
+### 16.1.0
 
-#### Teleport VNet
+#### Database Access session replay
 
-Teleport 16 introduces Teleport VNet, a new feature that provides a virtual IP
-subnet and DNS server that automatically proxies TCP connections to Teleport
-apps over mutually authenticated tunnels.
+Database Access users will be able to watch PostgreSQL query replays in the web UI or with `tsh`.
 
-This will allow scripts and software applications to connect to any
-Teleport-protected application as if they were connected to a VPN, without the
-need to manage local tunnels.
+### 16.2.0
 
-#### Per-session MFA for applications
+#### Nested access lists
 
-Teleport 16 will support per-session MFA checks when accessing web and TCP applications.
-
-#### Device Trust support for the Web UI
-
-With Teleport 16, Device Trust checks can be enforced for workflows that require the Web UI.
-This includes access to web applications and Windows desktops.
-
-Teleport Connect must be installed on user workstations in order to satisfy device checks.
+Teleport admins and access list owners will be able to add access lists as members in other access lists.
 
 ## Teleport Cloud
 
@@ -40,8 +30,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of       | Description                                                  |
 |---------------|--------------------------------------------------------------|
-| July 15, 2024 | Teleport 16.1 will begin rollout on Cloud.                   |
-| July 15, 2024 | Teleport 16.1 agents will begin rollout to eligible tenants. |
+| July 22, 2024 | Teleport 16.1 will begin rollout on Cloud.                   |
+| July 22, 2024 | Teleport 16.1 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

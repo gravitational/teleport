@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.0.0
+VERSION=16.0.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -45,8 +45,10 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -99,10 +101,12 @@ RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
+CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
+CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
-CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
+CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 
 # If set to 1, Windows RDP client is not built.
 RDPCLIENT_SKIP_BUILD ?= 0
@@ -115,12 +119,21 @@ ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
-# Do not build RDP client on ARM or 386.
+is_fips_on_arm64 := no
+ifneq ("$(FIPS)","")
+ifeq ("$(ARCH)","arm64")
+is_fips_on_arm64 := yes
+endif
+endif
+
+# Do not build RDP client on 32-bit ARM or 386, or for FIPS builds on arm64.
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
+ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+endif
 endif
 endif
 
@@ -139,6 +152,9 @@ export C_ARCH
 # Eagerly enable if we detect the package, we want to test as much as possible.
 ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
 LIBFIDO2_TEST_TAG := libfido2
+ifeq ($(FIDO2),)
+FIDO2 ?= dynamic
+endif
 endif
 
 # Build tsh against libfido2?
@@ -196,7 +212,7 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINS_default = teleport tctl tsh tbot
+BINS_default = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh tctl
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
@@ -264,6 +280,7 @@ $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -299,6 +316,9 @@ binaries:
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
+	@if [[ -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
+		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
+	fi
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
@@ -317,11 +337,20 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
+	@if [[ -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
+		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
+	fi
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
+$(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ./tool/tbot
+# The -buildmode=pie flag requires external cgo linking.
+ifeq ("$(CGO_ENABLED)", "1")
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ./tool/tbot
+else
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+endif
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -339,6 +368,11 @@ teleport-hot-reload:
 		--log-prefix=false \
 		--build="make $(BUILDDIR)/teleport" \
 		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+
+.PHONY: $(BUILDDIR)/fdpass-teleport
+$(BUILDDIR)/fdpass-teleport:
+	cd tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
+	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
 
 #
 # BPF support (IF ENABLED)
@@ -551,6 +585,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
 	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif

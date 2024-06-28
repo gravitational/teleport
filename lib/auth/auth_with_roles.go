@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -1547,6 +1548,8 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	return extendedContext, nil
 }
 
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
+
 // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
 // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
@@ -1559,7 +1562,15 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher := apiutils.NewSSHRouteMatcher(req.Host, req.Port, caseInsensitiveRouting)
+	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+		Host:                      req.Host,
+		Port:                      req.Port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	lreq := proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
@@ -4571,6 +4582,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := newAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4583,6 +4598,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4608,12 +4624,17 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = a.authServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	defaultAuthPref := types.DefaultAuthPreference()
+	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := defaultAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4626,6 +4647,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -6569,6 +6591,11 @@ func (a *ServerWithRoles) GenerateWindowsDesktopCert(ctx context.Context, req *p
 		return nil, trace.AccessDenied("access denied")
 	}
 	return a.authServer.GenerateWindowsDesktopCert(ctx, req)
+}
+
+func (a *ServerWithRoles) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
+	// No sensitive information is returned in the bootstrap script.
+	return a.authServer.GetDesktopBootstrapScript(ctx)
 }
 
 // GetConnectionDiagnostic returns the connection diagnostic with the matching name

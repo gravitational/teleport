@@ -1108,7 +1108,7 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 		}
 		defer remoteFD.Close()
 
-		_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		_, _, err = uds.WriteWithFDs(proc.Conn, []byte(addr), []*os.File{remoteFD})
 		if err != nil {
 			local.Close()
 			return nil, trace.Wrap(err)
@@ -1152,7 +1152,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 		return nil, trace.Wrap(err)
 	}
 	defer remoteFD.Close()
-	_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+	_, _, err = uds.WriteWithFDs(proc.Conn, []byte(addr), []*os.File{remoteFD})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1166,7 +1166,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 		defer close(fileCh)
 
 		fbuf := make([]*os.File, 1)
-		if _, fn, _ := localConn.ReadWithFDs(nil, fbuf); fn == 0 {
+		if _, fn, _ := uds.ReadWithFDs(localConn, nil, fbuf); fn == 0 {
 			fileCh <- nil
 		}
 		select {
@@ -1187,7 +1187,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (*net.TCPListe
 	if listenerFD == nil {
 		return nil, trace.BadParameter("forwarding process did not return a listener")
 	}
-	if err := validateListenerSocket(scx, localConn.UnixConn, listenerFD); err != nil {
+	if err := validateListenerSocket(scx, localConn, listenerFD); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

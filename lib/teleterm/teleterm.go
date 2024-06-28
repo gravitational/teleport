@@ -27,6 +27,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -48,9 +49,12 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	clock := clockwork.NewRealClock()
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Clock:              clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -78,6 +82,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		ListeningC:         cfg.ListeningC,
 		ClusterIDCache:     clusterIDCache,
 		InstallationID:     cfg.InstallationID,
+		Clock:              clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -1084,13 +1084,13 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
 	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
 
-	cfg.Auth.KeyStore.PKCS11.Pin = pkcs11Config.Pin
-	if pkcs11Config.PinPath != "" {
-		if pkcs11Config.Pin != "" {
+	cfg.Auth.KeyStore.PKCS11.PIN = pkcs11Config.PIN
+	if pkcs11Config.PINPath != "" {
+		if pkcs11Config.PIN != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
 
-		fi, err := utils.StatFile(pkcs11Config.PinPath)
+		fi, err := utils.StatFile(pkcs11Config.PINPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1099,16 +1099,16 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 		if fi.Mode().Perm()&worldReadableBits != 0 {
 			return trace.Errorf(
 				"HSM pin file (%s) must not be world-readable",
-				pkcs11Config.PinPath,
+				pkcs11Config.PINPath,
 			)
 		}
 
-		pinBytes, err := os.ReadFile(pkcs11Config.PinPath)
+		pinBytes, err := os.ReadFile(pkcs11Config.PINPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		pin := strings.TrimRight(string(pinBytes), "\r\n")
-		cfg.Auth.KeyStore.PKCS11.Pin = pin
+		cfg.Auth.KeyStore.PKCS11.PIN = pin
 	}
 	return nil
 }
@@ -1825,9 +1825,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ServerVersion: database.MySQL.ServerVersion,
 			},
 			TLS: servicecfg.DatabaseTLS{
-				CACert:     caBytes,
-				ServerName: database.TLS.ServerName,
-				Mode:       servicecfg.TLSMode(database.TLS.Mode),
+				CACert:              caBytes,
+				ServerName:          database.TLS.ServerName,
+				Mode:                servicecfg.TLSMode(database.TLS.Mode),
+				TrustSystemCertPool: database.TLS.TrustSystemCertPool,
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
 				Name:            database.AdminUser.Name,

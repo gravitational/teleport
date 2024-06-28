@@ -35,11 +35,15 @@ type Listener struct {
 // NewListener creates a [Listener] that enforces the limits of
 // the provided [ConnectionsLimiter] on the all connections accepted
 // by the provided [net.Listener].
-func NewListener(ln net.Listener, limiter *ConnectionsLimiter) *Listener {
+func NewListener(ln net.Listener, limiter *ConnectionsLimiter) (*Listener, error) {
+	if ln == nil {
+		return nil, trace.BadParameter("listener cannot be nil")
+	}
+
 	return &Listener{
 		Listener: ln,
 		limiter:  limiter,
-	}
+	}, nil
 }
 
 // Accept waits for and returns the next connection to the listener

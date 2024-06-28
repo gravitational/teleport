@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -686,7 +687,7 @@ func handleRemotePortForward(ctx context.Context, addr string, file *os.File) er
 	} else {
 		payload = []byte(err.Error())
 	}
-	_, _, err2 := controlConn.WriteWithFDs(payload, files)
+	_, _, err2 := uds.WriteWithFDs(controlConn, payload, files)
 	return trace.NewAggregate(err, err2)
 }
 
@@ -763,7 +764,7 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
-		n, fn, err := conn.ReadWithFDs(buf, fbuf)
+		n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return errorWriter, teleport.RemoteCommandSuccess, nil
@@ -1104,6 +1105,29 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// Add extra files if applicable.
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
+	}
+
+	// For remote port forwarding, the child needs to run as the user to
+	// create listeners with the correct permissions.
+	if subCommand == teleport.RemoteForwardSubCommand {
+		localUser, err := user.Lookup(ctx.Identity.Login)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Ensure that the working directory is one that the child has access to.
+		cmd.Dir = "/"
+		credential, err := getCmdCredential(localUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log := slog.With("uid", credential.Uid, "gid", credential.Gid, "groups", credential.Groups)
+		if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
+			cmd.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
+			log.DebugContext(ctx.Context, "Creating process with new credentials.")
+		} else {
+			log.DebugContext(ctx.Context, "Creating process with environment credentials.")
+		}
 	}
 
 	// Perform OS-specific tweaks to the command.

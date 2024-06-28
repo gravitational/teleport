@@ -1,5 +1,59 @@
 # Changelog
 
+## 16.0.3 (06/27/24)
+
+This release of Teleport contains a fix for medium-level security issue impacting
+Teleport Enterprise, as well as various other updates and improvements
+
+### Security Fixes
+
+* **[Medium]** Fixes issue where a SCIM client could potentially overwrite.
+  Teleport system Roles using specially crafted groups. This issue impacts
+  Teleport Enterprise deployments using the Okta integration with SCIM support
+  enabled.
+  
+We strongly recommend all customers upgrade to the latest releases of Teleport.
+
+### Other updates and improvements
+ 
+* Update `go-retryablehttp` to v0.7.7 (fixes CVE-2024-6104). [#43474](https://github.com/gravitational/teleport/pull/43474)
+* Fixed Discover setup access error when updating user. [#43560](https://github.com/gravitational/teleport/pull/43560)
+* Added audit event field describing if the "MFA for admin actions" requirement changed. [#43541](https://github.com/gravitational/teleport/pull/43541)
+* Fixed remote port forwarding validation error. [#43516](https://github.com/gravitational/teleport/pull/43516)
+* Added support to trust system CAs for self-hosted databases. [#43493](https://github.com/gravitational/teleport/pull/43493)
+* Added error display in the Web UI for SSH and Kubernetes sessions. [#43485](https://github.com/gravitational/teleport/pull/43485)
+* Fixed accurate inventory reporting of the updater after it is removed. [#43454](https://github.com/gravitational/teleport/pull/43454)
+* `tctl alerts ls` now displays remaining alert ttl. [#43436](https://github.com/gravitational/teleport/pull/43436)
+* Fixed input search for Teleport Connect's access request listing. [#43429](https://github.com/gravitational/teleport/pull/43429)
+* Added `Debug` setting for event-handler. [#43408](https://github.com/gravitational/teleport/pull/43408)
+* Fixed Headless auth for sso users, including when local auth is disabled. [#43361](https://github.com/gravitational/teleport/pull/43361)
+* Added configuration for custom CAs in the event-handler helm chart. [#43340](https://github.com/gravitational/teleport/pull/43340)
+* Updated VNet panel in Teleport Connect to list custom DNS zones and DNS zones from leaf clusters. [#43312](https://github.com/gravitational/teleport/pull/43312)
+* Fixed an issue with Database Access Controls preventing users from making additional database connections. [#43303](https://github.com/gravitational/teleport/pull/43303)
+* Fixed bug that caused gRPC connections to be disconnected when their certificate expired even though DisconnectCertExpiry was false. [#43290](https://github.com/gravitational/teleport/pull/43290)
+* Fixed Connect My Computer in Teleport Connect failing with "bind: invalid argument". [#43287](https://github.com/gravitational/teleport/pull/43287)
+* Fix a bug where a Teleport instance running only Jamf or Discovery service would never have a healthy  `/readyz` endpoint. [#43283](https://github.com/gravitational/teleport/pull/43283)
+* Added a missing `[Install]` section to the `teleport-acm` systemd unit file as used by Teleport AMIs. [#43257](https://github.com/gravitational/teleport/pull/43257)
+* Patched timing variability in curve25519-dalek. [#43246](https://github.com/gravitational/teleport/pull/43246)
+* Fixed setting request reason for automatic ssh access requests. [#43178](https://github.com/gravitational/teleport/pull/43178)
+* Improved log rotation logic in Teleport Connect; now the non-numbered files always contain recent logs. [#43161](https://github.com/gravitational/teleport/pull/43161)
+* Added `tctl desktop bootstrap` for bootstrapping AD environments to work with Desktop Access. [#43150](https://github.com/gravitational/teleport/pull/43150)
+
+### Enterprise only changes and improvements
+
+* The teleport updater will no longer default to using the global version channel, avoiding incompatible updates.
+* Fixed sync error in Okta SCIM integration.
+
+## 16.0.1 (06/17/24)
+
+* `tctl` now ignores any configuration file if the auth_service section is disabled, and prefer loading credentials from a given identity file or tsh profile instead. [#43115](https://github.com/gravitational/teleport/pull/43115)
+* Skip `jamf_service` validation when the service is not enabled. [#43095](https://github.com/gravitational/teleport/pull/43095)
+* Fix v16.0.0 amd64 Teleport plugin images using arm64 binaries. [#43084](https://github.com/gravitational/teleport/pull/43084)
+* Add ability to edit user traits from the Web UI. [#43067](https://github.com/gravitational/teleport/pull/43067)
+* Enforce limits when reading events from Firestore for large time windows to prevent OOM events. [#42966](https://github.com/gravitational/teleport/pull/42966)
+* Allow all authenticated users to read the cluster `vnet_config`. [#42957](https://github.com/gravitational/teleport/pull/42957)
+* Improve search and predicate/label based dialing performance in large clusters under very high load. [#42943](https://github.com/gravitational/teleport/pull/42943)
+
 ## 16.0.0 (06/13/24)
 
 Teleport 16 brings the following new features and improvements:
@@ -176,11 +230,18 @@ consistent with other access request plugins: a role must now contain the
 
 Detailed setup instructions are available in the [documentation](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/access-controls/access-request-plugins/opsgenie.mdx).
 
+#### Teleport Assist has been removed
+
+Teleport Assist chat has been removed from Teleport 16. `auth_service.assist` and `proxy_service.assist`
+options have been removed from the configuration. Teleport will not start if these options are present.
+
+During the migration from v15 to v16, the options mentioned above should be removed from the configuration.
+
 #### New required permissions for DynamoDB
 
 Teleport clusters using the DynamoDB backend on AWS now require the
 `dynamodb:ConditionCheckItem` permissions. For a full list of required
-permissions, see the IAM policy [example](https://github.com/gravitational/teleport/blob/branch/v16/docs/pages/includes/dynamodb-iam-policy.mdx).
+permissions, see the IAM policy [example](docs/pages/reference/backends.mdx#dynamodb).
 
 #### Updated keyboard shortcuts in Teleport connect
 
@@ -1036,9 +1097,9 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
    designed for Windows Server 2008 R2 SP1
 1. Remote Session Environment > Limit maximum color depth
 
-Detailed instructions are available in the [setup
-guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx). A
-reboot may be required for these changes to take effect.
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 
@@ -4998,7 +5059,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to easily edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an easy 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](./docs/pages/access-controls/access-request-plugins/index.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/access-controls/access-request-plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -5261,7 +5322,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/access-controls/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
 *   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx)

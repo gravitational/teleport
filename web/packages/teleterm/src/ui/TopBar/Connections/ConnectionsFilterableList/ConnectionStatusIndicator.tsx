@@ -17,30 +17,40 @@
  */
 
 import styled, { css } from 'styled-components';
-import { Box } from 'design';
+import { Box, blink } from 'design';
 
-type Status = 'on' | 'off' | 'error';
+type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
 
 export const ConnectionStatusIndicator = (props: {
   status: Status;
+  inline?: boolean;
   [key: string]: any;
 }) => {
-  const { status, ...styles } = props;
+  const { status, inline, ...styles } = props;
 
-  return <StyledStatus {...styles} $status={status} />;
+  return <StyledStatus {...styles} $status={status} $inline={inline} />;
 };
 
 const StyledStatus = styled(Box)`
   position: relative;
+  ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
   border-radius: 50%;
+
   ${(props: { $status: Status; [key: string]: any }) => {
     const { $status, theme } = props;
 
     switch ($status) {
       case 'on': {
         return { backgroundColor: theme.colors.success.main };
+      }
+      case 'processing': {
+        return css`
+          background-color: ${props => props.theme.colors.success.main};
+          animation: ${blink} 1.4s ease-in-out;
+          animation-iteration-count: infinite;
+        `;
       }
       case 'off': {
         return { border: `1px solid ${theme.colors.grey[300]}` };
@@ -60,11 +70,30 @@ const StyledStatus = styled(Box)`
           color: ${theme.colors.error.main};
           &:after {
             content: '𐄂';
-            position: absolute;
+            font-size: 19px;
+
+            ${!props.$inline &&
+            `position: absolute;
             top: -3px;
             left: -1px;
+            line-height: 8px;`}
+          }
+        `;
+      }
+      case 'warning': {
+        return css`
+          color: ${theme.colors.warning.main};
+          &:after {
+            content: '⚠';
+            font-size: 12px;
+
+            ${!props.$inline &&
+            `
+            position: absolute;
+            top: -1px;
+            left: -2px;
             line-height: 8px;
-            font-size: 19px;
+            `}
           }
         `;
       }

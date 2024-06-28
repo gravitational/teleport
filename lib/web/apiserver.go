@@ -2166,9 +2166,35 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 		}
 	}
 
+	clt, err := ctx.GetClient()
+	if err != nil {
+		h.log.
+			WithError(err).
+			Warnf("Failed to retrieve user client, SAML single logout will be skipped for user %s.", ctx.GetUser())
+	}
+
+	var user types.User
+	// Only run this if we successfully retrieved the client.
+	if err == nil {
+		user, err = clt.GetUser(r.Context(), ctx.GetUser(), false)
+		if err != nil {
+			h.log.
+				WithError(err).
+				Warnf("Failed to retrieve user during logout, SAML single logout will be skipped for user %s.", ctx.GetUser())
+		}
+	}
+
 	err = h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If the user has SAML SLO (single logout) configured, return a redirect link to the SLO URL.
+	if user != nil && len(user.GetSAMLIdentities()) > 0 && user.GetSAMLIdentities()[0].SAMLSingleLogoutURL != "" {
+		// The WebUI will redirect the user to this URL to initiate the SAML SLO on the IdP side. This is safe because this URL
+		// is hard-coded in the auth connector and can't be modified by the end user. Additionally, the user's Teleport session has already
+		// been invalidated by this point so there is nothing to hijack.
+		return map[string]interface{}{"samlSloUrl": user.GetSAMLIdentities()[0].SAMLSingleLogoutURL}, nil
 	}
 
 	return OK(), nil
@@ -4129,6 +4155,7 @@ func (h *Handler) writeErrToWebSocket(ws *websocket.Conn, err error) {
 		return
 	}
 	errEnvelope := terminal.Envelope{
+		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketError,
 		Payload: trace.UserMessage(err),
 	}

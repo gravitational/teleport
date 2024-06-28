@@ -1,13 +1,14 @@
 ---
-title: Discover AWS Access Patterns with Teleport Access Graph
-description: Describes how to import and visualize AWS accounts access patterns using Teleport Access Graph.
+title: Discover AWS Access Patterns with Teleport Policy
+description: Describes how to import and visualize AWS accounts access patterns using Teleport Policy and Access Graph.
 ---
 
-Teleport Access Graph offers insights into access patterns within
-your AWS account. By scanning IAM permissions, users, groups, resources, and 
-identities, it provides a visual representation and aids in enhancing the 
-permission model within your AWS environment. This functionality enables you
-to address queries such as:
+Teleport Policy streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds, 
+viewing unified, up-to-date relationships and policies between all users, groups, and computing resources.
+
+Teleport Policy with Access Graph offers insights into access patterns within your AWS account. By scanning IAM 
+permissions, users, groups, resources, and identities, it provides a visual representation and aids in 
+enhancing the permission model within your AWS environment. This functionality enables you to address queries such as:
 
 - What resources are accessible to AWS users and roles?
 - Which resources can be reached via identities associated with EC2 instances?
@@ -24,12 +25,11 @@ to Teleport Enterprise customers.
 After logging in to the Teleport UI, go to the Management tab. If enabled, 
 Access Graph options can be found under the Permission Management section.
 
-## How TAG discovers AWS access patterns
+## How it works
 
-Teleport Access Graph synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, 
-EKS clusters, and RDS databases. These resources are then visualized
-using the graph representation detailed in the
+Teleport Access Graph discovers AWS access patterns, synchronizes various AWS resources,
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
+These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../access-graph.mdx).
 
 The importing process involves two primary steps:
@@ -37,8 +37,7 @@ The importing process involves two primary steps:
 ### Polling Cloud APIs
 
 The Teleport Discovery Service continuously scans the configured AWS accounts. 
-At intervals of 15 minutes, it retrieves the following resources from your
-AWS account:
+At intervals of 15 minutes, it retrieves the following resources from your AWS account:
 
 - Users
 - Groups
@@ -76,8 +75,8 @@ from Teleport Auth Service and Discovery Service.
 
 <Notice type="warning">
 
-If you have a Teleport Cloud cluster, you can disregard
-this step, as Teleport Cloud already operates a properly configured 
+If you have a managed Teleport Enterprise cluster, you can disregard
+this step, as managed Teleport Enterprise already operates a properly configured 
 Discovery Service within your cluster.
 </Notice>
 
@@ -143,6 +142,7 @@ The IAM policy includes the following directives:
         "eks:ListAccessEntries",
         "eks:ListAccessPolicies",
         "eks:ListAssociatedAccessPolicies",
+        "eks:DescribeAccessEntry",
 
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
@@ -177,7 +177,11 @@ The IAM policy includes the following directives:
         "iam:GetPolicyVersion",
         "iam:ListRolePolicies",
         "iam:ListAttachedRolePolicies",
-        "iam:GetRolePolicy"
+        "iam:GetRolePolicy",
+        "iam:ListSAMLProviders",
+        "iam:GetSAMLProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:GetOpenIDConnectProvider"
       ],
       "Resource": "*"
     }
