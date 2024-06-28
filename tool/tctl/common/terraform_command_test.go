@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -99,6 +100,7 @@ func TestTerraformCommand_createRoleIfNeeded(t *testing.T) {
 			c := &TerraformCommand{
 				resourcePrefix: resourcePrefix,
 				existingRole:   tt.existingRoleFlag,
+				userOutput:     os.Stderr,
 			}
 			roleName, err := c.createRoleIfNeeded(ctx, adminClient)
 			tt.wantErr(t, err)
