@@ -173,7 +173,7 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
 	return yaml.Marshal(crd)
 }
 
-var crdDocTmpl string = `## {{.Kind}} {{.Version}}
+var crdDocTmpl string = `## {{.Spec.Names.Kind}} 
 `
 
 func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
@@ -254,6 +254,9 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			return trace.Wrap(err, "generating CRD")
 		}
 		data, err := format(crd)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)
 		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
