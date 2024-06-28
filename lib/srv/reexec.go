@@ -893,7 +893,6 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer listener.Close()
 
 	if err := os.Lchown(socketPath, uid, gid); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -924,7 +923,10 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	<-context.Background().Done()
+	if _, err := fconn.Read(make([]byte, 1)); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	return
 }
 

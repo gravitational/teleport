@@ -1923,6 +1923,7 @@ func (s *Server) serveAgent(scx *srv.ServerContext) error {
 	scx.Parent().SetEnv(teleport.SSHAuthSock, l.Addr().String())
 	scx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", os.Getpid()))
 	scx.Parent().AddCloser(agentServer)
+	scx.Parent().AddCloser(l)
 	scx.Debugf("Starting agent server for Teleport user %v and socket %v.", scx.Identity.TeleportUser, agentServer.Path)
 	go func() {
 		if err := agentServer.Serve(); err != nil {
@@ -1991,6 +1992,10 @@ func (s *Server) startAgentForwardingListener(scx *srv.ServerContext) (*net.Unix
 	unixListener, ok := listener.(*net.UnixListener)
 	if !ok {
 		return nil, trace.BadParameter("listener is not a UnixListener")
+	}
+
+	if _, err := localConn.Write([]byte{0}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return unixListener, nil
