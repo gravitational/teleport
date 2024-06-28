@@ -65,8 +65,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, defaultStoragePath, storageImpl.Path)
 
 	// A single default Destination should exist
-	require.Len(t, cfg.Outputs, 1)
-	output := cfg.Outputs[0]
+	require.Len(t, cfg.LegacyOutputs, 1)
+	output := cfg.LegacyOutputs[0]
 
 	destImpl := output.GetDestination()
 	require.NoError(t, err)
@@ -82,6 +82,7 @@ func TestConfigFile(t *testing.T) {
 	configData := fmt.Sprintf(exampleConfigFile, "foo")
 	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
+	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
@@ -96,8 +97,8 @@ func TestConfigFile(t *testing.T) {
 	_, ok := cfg.Storage.Destination.(*DestinationMemory)
 	require.True(t, ok)
 
-	require.Len(t, cfg.Outputs, 1)
-	output := cfg.Outputs[0]
+	require.Len(t, cfg.LegacyOutputs, 1)
+	output := cfg.LegacyOutputs[0]
 	_, ok = output.(*IdentityOutput)
 	require.True(t, ok)
 
