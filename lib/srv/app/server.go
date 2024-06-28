@@ -272,7 +272,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: app.GetDynamicLabels(),
-		Log:    s.log,
+		// TODO: pass s.log through after it's been converted to slog
 	})
 	if err != nil {
 		return trace.Wrap(err)
