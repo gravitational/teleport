@@ -21,9 +21,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -369,16 +367,14 @@ func (a *Server) generateCertsBot(
 		},
 	}
 
-	fingerprint := sha256.Sum256(req.PublicTLSKey)
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:   provisionToken.GetSafeName(),
-		JoinMethod:  string(provisionToken.GetJoinMethod()),
-		PublicKey:   req.PublicTLSKey,
-		Fingerprint: hex.EncodeToString(fingerprint[:]),
+		JoinToken:  provisionToken.GetSafeName(),
+		JoinMethod: string(provisionToken.GetJoinMethod()),
+		PublicKey:  req.PublicTLSKey,
 
 		// Note: Generation will be set during `generateInitialBotCerts()` as
 		// needed.

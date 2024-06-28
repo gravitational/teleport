@@ -26,12 +26,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -170,15 +174,71 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	return nil
 }
 
+func (a *ServerWithRoles) updateBotAuthentications(ctx context.Context, req *certRequest) error {
+	ident := a.context.Identity.GetIdentity()
+
+	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
+		AuthenticatedAt: timestamppb.New(a.authServer.GetClock().Now()),
+		PublicKey:       req.publicKey,
+
+		// TODO: for now, this copy of the certificate generation only is
+		// informational. Future changes will transition to trusting (and
+		// verifying) this value in lieu of the old generation label on bot
+		// users.
+		Generation: req.generation,
+
+		// Note: This auth path can only ever be for token joins; all other join
+		// types effectively rejoin every renewal. Other fields will be unset
+		// (metadata, join token name, etc).
+		JoinMethod: string(types.JoinMethodToken),
+	}
+
+	_, err := a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+		if bi.Status == nil {
+			bi.Status = &machineidv1pb.BotInstanceStatus{}
+		}
+
+		// If we're at or above the limit, remove enough of the front elements
+		// to make room for the new one at the end.
+		if len(bi.Status.LatestAuthentications) >= machineidv1.AuthenticationHistoryLimit {
+			toRemove := len(bi.Status.LatestAuthentications) - machineidv1.AuthenticationHistoryLimit + 1
+			bi.Status.LatestAuthentications = bi.Status.LatestAuthentications[toRemove:]
+		}
+
+		// An initial auth record should have been added during initial join,
+		// but if not, add it now.
+		if bi.Status.InitialAuthentication == nil {
+			log.WithFields(logrus.Fields{
+				"bot_name":        ident.BotName,
+				"bot_instance_id": ident.BotInstanceID,
+			}).Warn("bot instance is missing its initial authentication record, a new one will be added")
+			bi.Status.InitialAuthentication = authRecord
+		}
+
+		bi.Status.LatestAuthentications = append(bi.Status.LatestAuthentications, authRecord)
+
+		return bi, nil
+	})
+
+	return trace.Wrap(err)
+}
+
 // newBotInstance constructs a new bot instance from a spec and initial authentication
-func newBotInstance(spec *machineidv1.BotInstanceSpec, initialAuth *machineidv1.BotInstanceStatusAuthentication) *machineidv1.BotInstance {
-	return &machineidv1.BotInstance{
+func newBotInstance(
+	spec *machineidv1pb.BotInstanceSpec,
+	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
+	expires time.Time,
+) *machineidv1pb.BotInstance {
+	return &machineidv1pb.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec:    spec,
-		Status: &machineidv1.BotInstanceStatus{
+		Metadata: &headerv1.Metadata{
+			Expires: timestamppb.New(expires),
+		},
+		Spec: spec,
+		Status: &machineidv1pb.BotInstanceStatus{
 			InitialAuthentication: initialAuth,
-			LatestAuthentications: []*machineidv1.BotInstanceStatusAuthentication{initialAuth},
+			LatestAuthentications: []*machineidv1pb.BotInstanceStatusAuthentication{initialAuth},
 		},
 	}
 }
@@ -192,7 +252,7 @@ func newBotInstance(spec *machineidv1.BotInstanceSpec, initialAuth *machineidv1.
 // is allowed to issue the (possibly renewable) certificates.
 func (a *Server) generateInitialBotCerts(
 	ctx context.Context, botName, username, loginIP string, pubKey []byte,
-	expires time.Time, renewable bool, initialAuth *machineidv1.BotInstanceStatusAuthentication,
+	expires time.Time, renewable bool, initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 ) (*proto.Certs, error) {
 	var err error
 
@@ -244,13 +304,10 @@ func (a *Server) generateInitialBotCerts(
 			return nil, trace.Wrap(err)
 		}
 
-		bi := newBotInstance(&machineidv1.BotInstanceSpec{
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: uuid.String(),
-
-			// TODO: set TTL? should we rely on the known expiration instead?
-			// (auth may overwrite the value now or later)
-		}, initialAuth)
+		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {

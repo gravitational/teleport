@@ -3309,6 +3309,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if err := a.updateBotAuthentications(ctx, &certReq); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	certs, err := a.authServer.generateUserCert(ctx, certReq)
