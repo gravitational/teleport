@@ -6,6 +6,10 @@ PROTOS = \
 	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
+.PHONY: build-docs
+build-docs:
+	cd cmd/protoc-gen-crd-docs; go build -o protoc-gen-crd-docs
+
 .PHONY: test
 test: build
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
