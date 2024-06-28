@@ -19,15 +19,16 @@
 package labels
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -58,7 +59,7 @@ const (
 type CloudConfig struct {
 	Client               imds.Client
 	Clock                clockwork.Clock
-	Log                  logrus.FieldLogger
+	Log                  *slog.Logger
 	namespace            string
 	instanceMetadataHint string
 }
@@ -67,12 +68,9 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 	if conf.Client == nil {
 		return trace.BadParameter("missing parameter: Client")
 	}
-	if conf.Clock == nil {
-		conf.Clock = clockwork.NewRealClock()
-	}
-	if conf.Log == nil {
-		conf.Log = logrus.WithField(teleport.ComponentKey, "cloudlabels")
-	}
+
+	conf.Clock = cmp.Or(conf.Clock, clockwork.NewRealClock())
+	conf.Log = cmp.Or(conf.Log, slog.With(teleport.ComponentKey, "cloudlabels"))
 	return nil
 }
 
@@ -150,7 +148,7 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 			// Only show the error the first time around.
 			l.instanceTagsNotFoundOnce.Do(func() {
-				l.Log.Warning(l.instanceMetadataHint)
+				l.Log.WarnContext(ctx, l.instanceMetadataHint) //nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
 			})
 			return nil
 		}
@@ -160,7 +158,7 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 	m := make(map[string]string)
 	for key, value := range tags {
 		if !types.IsValidLabelKey(key) {
-			l.Log.Debugf("Skipping cloud tag %q, not a valid label key.", key)
+			l.Log.DebugContext(ctx, "Skipping cloud tag due to invalid label key", "tag", key)
 			continue
 		}
 		m[FormatCloudLabelKey(l.namespace, key)] = value
@@ -183,7 +181,7 @@ func (l *CloudImporter) periodicUpdateLabels(ctx context.Context) {
 
 	for {
 		if err := l.Sync(ctx); err != nil {
-			l.Log.Warningf("Error fetching cloud tags: %v", err)
+			l.Log.WarnContext(ctx, "Failed to fetch cloud tags", "error", err)
 		}
 		select {
 		case <-ticker.Chan():
