@@ -1651,6 +1651,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	policy := clusterFeatures.GetPolicy()
 
+	// todo (michellescripts) entitlements phase 3: update webCfg
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
