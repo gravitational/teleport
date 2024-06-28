@@ -34,6 +34,16 @@ Use configuration files and dynamic resources to adjust access controls, enroll 
 - [Infrastructure as Code Guides (section)](admin-guides/configure-teleport/dynamic-resources.mdx): Guides to using Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code.
 - [Teleport API Introduction (section)](admin-guides/configure-teleport/api.mdx): Introduction to the Teleport gRPC API.
 
+## Device Trust
+
+Device Trust allows Teleport admins to enforce the use of trusted devices. ([more info](admin-guides/device-trust.mdx))
+
+- [Device Trust Overview](admin-guides/device-trust/concepts.mdx): Teleport Device Trust Concepts
+- [Enforce Device Trust](admin-guides/device-trust/enforcing-device-trust.mdx): Learn how to enforce trusted devices with Teleport
+- [Getting Started with Device Trust](admin-guides/device-trust/guide.mdx): Get started with Teleport Device Trust
+- [Jamf Pro Integration](admin-guides/device-trust/jamf-integration.mdx): Sync your Jamf Pro inventory into Teleport
+- [Manage Trusted Devices](admin-guides/device-trust/device-management.mdx): Learn how to manage Trusted Devices
+
 ## Just-in-Time Access Request Plugins
 
 Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity. ([more info](admin-guides/access-request-plugins.mdx))
@@ -93,7 +103,6 @@ Guides to configuring the access that Teleport users have to infrastructure reso
 
 Guides for configuring the way users authenticate to Teleport. ([more info](admin-guides/authentication.mdx))
 
-- [Device Trust (section)](admin-guides/authentication/device-trust.mdx): Device Trust allows Teleport admins to enforce the use of trusted devices.
 - [Dual Authorization](admin-guides/authentication/dual-authz.mdx): Dual Authorization for SSH and Kubernetes.
 - [Hardware Key Support](admin-guides/authentication/hardware-key-support.mdx): Hardware Key Support
 - [Headless WebAuthn](admin-guides/authentication/headless.mdx): Headless WebAuthn
@@ -101,7 +110,6 @@ Guides for configuring the way users authenticate to Teleport. ([more info](admi
 - [Passwordless](admin-guides/authentication/passwordless.mdx): Learn how to use passwordless authentication with Teleport.
 - [Per-session MFA](admin-guides/authentication/per-session-mfa.mdx): Require MFA checks to initiate sessions.
 - [Second Factor: WebAuthn](admin-guides/authentication/webauthn.mdx): Configuring WebAuthn support in Teleport clusters.
-- [Teleport Single-Sign-On (section)](admin-guides/authentication/sso.mdx): Learn how to configure your single sign-on provider to allow authentication to Teleport.
 
 ## Teleport Label Guides
 
@@ -120,3 +128,17 @@ Guides to Teleport Policy, which allows you to unify and control access policies
 - [Teleport Policy Usage](admin-guides/teleport-policy/policy-how-to-use.mdx): Using Access Graph with Teleport Policy.
 - [Teleport Policy integrations](admin-guides/teleport-policy/policy-integrations.mdx): Integrations in Access Graph with Teleport Policy.
 - [Teleport Policy](admin-guides/teleport-policy/getting-started-policy.mdx): A reference for Access Graph with Teleport Policy.
+
+## Teleport Single-Sign-On
+
+Learn how to configure your single sign-on provider to allow authentication to Teleport. ([more info](admin-guides/sso.mdx))
+
+- [Authentication With GitLab as an SSO provider](admin-guides/sso/gitlab.mdx): How to configure Teleport access using GitLab for SSO
+- [Authentication With Okta as an SSO Provider](admin-guides/sso/okta.mdx): How to configure Teleport access using Okta for SSO
+- [OAuth2 and OIDC authentication](admin-guides/sso/oidc.mdx): How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
+- [SSO with Active Directory Federation Services](admin-guides/sso/adfs.mdx): How to configure Teleport access with Active Directory Federation Services
+- [Set up Single Sign-On with GitHub](admin-guides/sso/github-sso.mdx): Setting up GitHub SSO
+- [Teleport Authentication with Azure Active Directory (AD)](admin-guides/sso/azuread.mdx): How to configure Teleport access with Azure Active Directory.
+- [Teleport Authentication with Google Workspace (G Suite)](admin-guides/sso/google-workspace.mdx): How to configure Teleport access with Google Workspace (formerly known as G Suite)
+- [Teleport Authentication with OneLogin as an SSO Provider](admin-guides/sso/one-login.mdx): How to configure Teleport access using OneLogin as an SSO provider
+- [Teleport Single Sign-On Overview](admin-guides/sso/overview.mdx): How to set up single sign-on (SSO) for SSH using Teleport
