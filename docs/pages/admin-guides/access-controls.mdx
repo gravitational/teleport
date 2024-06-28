@@ -13,13 +13,35 @@ description: Guides to configuring the access that Teleport users have to infras
 - [Session and Identity Locking](access-controls/locking.mdx): How to lock compromised users or agents
 - [Teleport Role Templates](access-controls/role-templates.mdx): This guide explains templating in Teleport roles. Templates allow you to enable access to resources depending on the traits of a local or single sign-on user.
 
-## Just-in-Time Access with Teleport
+## Access Lists
 
-Provide elevated privileges for a limited period of time to allow users to access resources without the need for permanent admin roles. ([more info](access-controls/just-in-time.mdx))
+Use Access Lists in Teleport ([more info](access-controls/access-lists.mdx))
 
-- [Access Lists (section)](access-controls/just-in-time/access-lists.mdx): Use Access Lists in Teleport
-- [Just-in-Time Access Request Plugins (section)](access-controls/just-in-time/access-request-plugins.mdx): Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity.
-- [Just-in-Time Access Requests (section)](access-controls/just-in-time/access-requests.mdx): Just-in-time Access Requests allow Teleport users to request access to a resource or role depending on need.
+- [Getting Started with Access Lists](access-controls/access-lists/guide.mdx): Learn how to use Access Lists to manage and audit long lived access to Teleport resources.
+
+## Just-in-Time Access Request Plugins
+
+Use Teleport's Access Request plugins to least-privilege access without sacrificing productivity. ([more info](access-controls/access-request-plugins.mdx))
+
+- [Access Requests with Microsoft Teams](access-controls/access-request-plugins/ssh-approval-msteams.mdx): How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
+- [Access Requests with Opsgenie](access-controls/access-request-plugins/opsgenie.mdx): How to set up Teleport's Opsgenie plugin for privilege elevation approvals.
+- [Access Requests with ServiceNow](access-controls/access-request-plugins/servicenow.mdx): How to set up Teleport's ServiceNow plugin for privilege elevation approvals.
+- [Routing Access Request notifications](access-controls/access-request-plugins/notification-routing-rules.mdx): How to set up Teleport's Access Monitoring Rules to route Access Request notifications
+- [Run the Discord Access Request Plugin](access-controls/access-request-plugins/ssh-approval-discord.mdx): How to set up Teleport's Discord plugin for privilege elevation approvals.
+- [Run the Jira Access Request Plugin](access-controls/access-request-plugins/ssh-approval-jira.mdx): How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
+- [Run the Mattermost Access Request plugin](access-controls/access-request-plugins/ssh-approval-mattermost.mdx): How to set up Teleport's Mattermost plugin for privilege elevation approvals.
+- [Run the PagerDuty Access Request Plugin](access-controls/access-request-plugins/ssh-approval-pagerduty.mdx): How to set up Teleport's PagerDuty plugin for privilege elevation approvals.
+- [Run the Slack Access Request Plugin](access-controls/access-request-plugins/ssh-approval-slack.mdx): How to set up Teleport's Slack plugin for privilege elevation approvals.
+- [Teleport Access Requests with Email](access-controls/access-request-plugins/ssh-approval-email.mdx): How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
+
+## Just-in-Time Access Requests
+
+Just-in-time Access Requests allow Teleport users to request access to a resource or role depending on need. ([more info](access-controls/access-requests.mdx))
+
+- [Just-in-Time Access Requests](access-controls/access-requests/overview.mdx): Use just-in-time Access Requests to request elevated privileges.
+- [Resource Access Requests](access-controls/access-requests/resource-requests.mdx): Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+- [Role Access Requests](access-controls/access-requests/role-requests.mdx): Use Just-in-time Access Requests to request new roles with elevated privileges.
+- [Teleport Community Edition Role Access Requests](access-controls/access-requests/oss-role-requests.mdx): Teleport Community Edition allows users to request access to roles from the CLI.
 
 ## Login Rules
 
