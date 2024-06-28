@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 const sockSuffix = ".sock"
@@ -92,7 +93,10 @@ func (r *SSHServerWrapper) dialHandover(token resumptionToken) (net.Conn, error)
 		return nil, trace.Wrap(errNoDataDir)
 	}
 
-	c, err := net.DialTimeout("unix", sockPath(r.dataDir, token), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	c, err := uds.DialUnix(ctx, "unix", sockPath(r.dataDir, token))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -117,7 +121,7 @@ func (r *SSHServerWrapper) createHandoverListener(token resumptionToken) (net.Li
 	}
 
 	_ = os.MkdirAll(sockDir(r.dataDir), teleport.PrivateDirMode)
-	l, err := net.Listen("unix", sockPath(r.dataDir, token))
+	l, err := uds.ListenUnix(context.Background(), "unix", sockPath(r.dataDir, token))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -239,11 +243,11 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 // sockets, returning all and only the ones that exist and that refuse the
 // connection.
 func retainNonConnectableSockets(ctx context.Context, paths []string) ([]string, error) {
-	var d net.Dialer
+	var d uds.Dialer
 	var errs []error
 	filtered := paths[:0]
 	for _, path := range paths {
-		c, err := d.DialContext(ctx, "unix", path)
+		c, err := d.DialUnix(ctx, "unix", path)
 		if err == nil {
 			_ = c.Close()
 			continue
