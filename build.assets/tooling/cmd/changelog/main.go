@@ -118,31 +118,28 @@ func prereqCheck() error {
 // getBranch will return branch if parsed otherwise will attempt to find it
 // Branch should be in the format "branch/v*"
 func getBranch(branch, dir string) (string, error) {
-	if branch == "" { // flag and env var not set, attempt to find
-		// get ref
-		ref, err := git.RunCmd(dir, "symbolic-ref", "HEAD")
-		if err != nil {
-			return "", trace.Wrap(err, "not on a branch")
-		}
-
-		// remove prefix and ensure that branch is in expected format
-		branch, _ = strings.CutPrefix(ref, "refs/heads/")
-		if branch == ref {
-			return "", trace.Errorf("not on a branch: %s", ref)
-		}
-
-		// if the branch is not in the branch/v* format then check it's root
-		if !strings.HasPrefix(branch, "branch/v") {
-			fbranch, err := getForkedBranch(dir)
-			if err != nil {
-				return "", trace.Wrap(err, "could not determine a root branch")
-			}
-			branch = fbranch
-		}
+	if branch != "" {
+		return branch, nil
+	}
+	// get ref
+	ref, err := git.RunCmd(dir, "symbolic-ref", "HEAD")
+	if err != nil {
+		return "", trace.Wrap(err, "not on a branch")
 	}
 
+	// remove prefix and ensure that branch is in expected format
+	branch, _ = strings.CutPrefix(ref, "refs/heads/")
+	if branch == ref {
+		return "", trace.BadParameter("not on a branch: %s", ref)
+	}
+
+	// if the branch is not in the branch/v* format then check it's root
 	if !strings.HasPrefix(branch, "branch/v") {
-		return "", trace.Errorf("not on a release branch, expected 'branch/v*', got %s", branch)
+		fbranch, err := getForkedBranch(dir)
+		if err != nil {
+			return "", trace.Wrap(err, "could not determine a root branch")
+		}
+		branch = fbranch
 	}
 
 	return branch, nil

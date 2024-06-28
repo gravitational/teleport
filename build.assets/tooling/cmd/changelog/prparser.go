@@ -146,14 +146,16 @@ func parsePRList(data string) ([]parsedPR, error) {
 
 	for _, p := range list {
 		found, clSummary := findChangelog(p.Body)
-		if found {
-			parsed := parsedPR{
-				Summary: prettierSummary(clSummary),
-				Number:  p.Number,
-				URL:     p.URL,
-			}
-			parsedList = append(parsedList, parsed)
+		if !found {
+			// Pull out title and indicate no changelog found
+			clSummary = fmt.Sprintf("NOCL: %s", p.Title)
 		}
+		parsed := parsedPR{
+			Summary: prettierSummary(clSummary),
+			Number:  p.Number,
+			URL:     p.URL,
+		}
+		parsedList = append(parsedList, parsed)
 	}
 	return parsedList, nil
 }
