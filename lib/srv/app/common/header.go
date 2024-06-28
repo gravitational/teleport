@@ -55,6 +55,8 @@ const (
 	// TeleportAWSAssumedRoleAuthorization contains the original authorization
 	// header for requests signed by assumed roles.
 	TeleportAWSAssumedRoleAuthorization = "X-Teleport-Aws-Assumed-Role-Authorization"
+	// TODO
+	TeleportOriginalGitURL = "X-Teleport-Original-Git-Url"
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.
@@ -65,6 +67,7 @@ var ReservedHeaders = append([]string{
 	TeleportAPIInfoHeader,
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
+	TeleportOriginalGitURL,
 },
 	reverseproxy.XHeaders...,
 )
