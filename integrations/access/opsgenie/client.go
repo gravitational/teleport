@@ -221,13 +221,13 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 	for _, s := range schedules {
 		responders = append(responders, Responder{
 			Type: ResponderTypeSchedule,
-			ID:   s,
+			Name: s,
 		})
 	}
 	for _, t := range teams {
 		responders = append(responders, Responder{
 			Type: ResponderTypeTeam,
-			ID:   t,
+			Name: t,
 		})
 	}
 	return responders
