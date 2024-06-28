@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -56,7 +56,7 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				currentVersion)
 		}
-		if err := process.storage.WriteTeleportVersion(currentVersion); err != nil {
+		if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -75,7 +75,7 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 			localVersion, currentVersion, localMajor+1)
 	}
-	if err := process.storage.WriteTeleportVersion(currentVersion); err != nil {
+	if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -217,12 +217,12 @@ func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (string, error)
 }
 
 // WriteTeleportVersion writes the last known Teleport version to the storage.
-func (p *ProcessStorage) WriteTeleportVersion(version string) error {
+func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version string) error {
 	item := backend.Item{
 		Key:   backend.Key(teleportPrefix, lastKnownVersion),
 		Value: []byte(version),
 	}
-	_, err := p.stateStorage.Put(context.Background(), item)
+	_, err := p.stateStorage.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}

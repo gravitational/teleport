@@ -117,7 +117,7 @@ func TestVersionCheck(t *testing.T) {
 			processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(authDir, teleport.ComponentProcess))
 			require.NoError(t, err)
 			if test.initialVersion != "" {
-				err := processStorage.WriteTeleportVersion(test.initialVersion)
+				err := processStorage.WriteTeleportVersion(ctx, test.initialVersion)
 				require.NoError(t, err)
 			}
 
