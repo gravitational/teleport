@@ -3,7 +3,7 @@ import { TopicContentsFragment } from './gen-topic-pages.js';
 
 describe('generate a menu page', () => {
   const testFilesTwoSections = {
-    '/docs.mdx': `---
+    '/docs/docs.mdx': `---
 title: "Documentation Home"
 description: "Guides to setting up the product."
 ---
@@ -12,7 +12,7 @@ Guides to setting up the product.
 
 {/*TOPICS*/}
 `,
-    '/docs/database-access.mdx': `---
+    '/docs/database-access/database-access.mdx': `---
 title: "Database Access"
 description: "Guides related to Database Access."
 ---
@@ -29,7 +29,7 @@ description: "Protecting DB 1 with Teleport"
 title: "Database Access Page 2"
 description: "Protecting DB 2 with Teleport"
 ---`,
-    '/docs/application-access.mdx': `---
+    '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---
@@ -58,8 +58,8 @@ Guides related to Database Access.
 
 {/*TOPICS*/}
 
-- [Database Access Page 1](database-access/page1.mdx): Protecting DB 1 with Teleport
-- [Database Access Page 2](database-access/page2.mdx): Protecting DB 2 with Teleport
+- [Database Access Page 1](page1.mdx): Protecting DB 1 with Teleport
+- [Database Access Page 2](page2.mdx): Protecting DB 2 with Teleport
 `;
 
     const vol = Volume.fromJSON(testFilesTwoSections);
@@ -81,14 +81,14 @@ Guides for setting up the product.
 
 ## Application Access
 
-Guides related to Application Access ([more info](docs/application-access.mdx))
+Guides related to Application Access ([more info](application-access/application-access.mdx))
 
-- [Application Access Page 1](docs/application-access/page1.mdx): Protecting App 1 with Teleport
-- [Application Access Page 2](docs/application-access/page2.mdx): Protecting App 2 with Teleport
+- [Application Access Page 1](application-access/page1.mdx): Protecting App 1 with Teleport
+- [Application Access Page 2](application-access/page2.mdx): Protecting App 2 with Teleport
 `;
 
     const vol = Volume.fromJSON({
-      '/docs.mdx': `---
+      '/docs/docs.mdx': `---
 title: Documentation Home
 description: Guides for setting up the product.
 ---
@@ -97,7 +97,7 @@ Guides for setting up the product.
 
 {/*TOPICS*/}
 `,
-      '/docs/application-access.mdx': `---
+      '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---
@@ -131,17 +131,17 @@ Guides to setting up the product.
 
 ## Application Access
 
-Guides related to Application Access ([more info](docs/application-access.mdx))
+Guides related to Application Access ([more info](application-access/application-access.mdx))
 
-- [Application Access Page 1](docs/application-access/page1.mdx): Protecting App 1 with Teleport
-- [Application Access Page 2](docs/application-access/page2.mdx): Protecting App 2 with Teleport
+- [Application Access Page 1](application-access/page1.mdx): Protecting App 1 with Teleport
+- [Application Access Page 2](application-access/page2.mdx): Protecting App 2 with Teleport
 
 ## Database Access
 
-Guides related to Database Access. ([more info](docs/database-access.mdx))
+Guides related to Database Access. ([more info](database-access/database-access.mdx))
 
-- [Database Access Page 1](docs/database-access/page1.mdx): Protecting DB 1 with Teleport
-- [Database Access Page 2](docs/database-access/page2.mdx): Protecting DB 2 with Teleport
+- [Database Access Page 1](database-access/page1.mdx): Protecting DB 1 with Teleport
+- [Database Access Page 2](database-access/page2.mdx): Protecting DB 2 with Teleport
 `;
 
     const vol = Volume.fromJSON(testFilesTwoSections);
@@ -163,15 +163,15 @@ Guides to setting up the product.
 
 ## Application Access
 
-Guides related to Application Access ([more info](docs/application-access.mdx))
+Guides related to Application Access ([more info](application-access/application-access.mdx))
 
-- [Application Access Page 1](docs/application-access/page1.mdx): Protecting App 1 with Teleport
-- [Application Access Page 2](docs/application-access/page2.mdx): Protecting App 2 with Teleport
-- [JWT Guides (section)](docs/application-access/jwt.mdx): Guides related to JWTs
+- [Application Access Page 1](application-access/page1.mdx): Protecting App 1 with Teleport
+- [Application Access Page 2](application-access/page2.mdx): Protecting App 2 with Teleport
+- [JWT Guides (section)](application-access/jwt/jwt.mdx): Guides related to JWTs
 `;
 
     const vol = Volume.fromJSON({
-      '/docs.mdx': `---
+      '/docs/docs.mdx': `---
 title: Documentation Home
 description: Guides to setting up the product.
 ---
@@ -180,7 +180,7 @@ Guides to setting up the product.
 
 {/*TOPICS*/}
 `,
-      '/docs/application-access.mdx': `---
+      '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---
@@ -195,7 +195,7 @@ description: "Protecting App 1 with Teleport"
 title: "Application Access Page 2"
 description: "Protecting App 2 with Teleport"
 ---`,
-      '/docs/application-access/jwt.mdx': `---
+      '/docs/application-access/jwt/jwt.mdx': `---
 title: "JWT Guides"
 description: "Guides related to JWTs"
 ---`,
@@ -216,11 +216,11 @@ description: "Protecting JWT App 2 with Teleport"
 
   test(`throws an error if a root menu page does not have "TOPICS" delimiter`, () => {
     const vol = Volume.fromJSON({
-      '/docs.mdx': `---
+      '/docs/docs.mdx': `---
 title: "Documentation Home"
 description: "Guides to setting up the product."
 `,
-      '/docs/application-access.mdx': `---
+      '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---`,
@@ -235,14 +235,14 @@ description: "Guides related to Application Access"
 
   test(`throws an error on a generated menu page that does not correspond to a subdirectory`, () => {
     const vol = Volume.fromJSON({
-      '/docs.mdx': `---
+      '/docs/docs.mdx': `---
 title: "Documentation Home"
 description: "Guides to setting up the product."
 ---
 
 {/*TOPICS*/}
 `,
-      '/docs/application-access.mdx': `---
+      '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---
@@ -279,8 +279,8 @@ Guides related to Database Access.
 
 {/*TOPICS*/}
 
-- [Database Access Page 1](database-access/page1.mdx): Protecting DB 1 with Teleport
-- [Database Access Page 2](database-access/page2.mdx): Protecting DB 2 with Teleport
+- [Database Access Page 1](page1.mdx): Protecting DB 1 with Teleport
+- [Database Access Page 2](page2.mdx): Protecting DB 2 with Teleport
 `;
 
     const vol = Volume.fromJSON(testFilesTwoSections);
@@ -301,25 +301,25 @@ Guides to setting up the product.
 
 {/*TOPICS*/}
 
-- [API Usage](docs/api.mdx): Using the API.
-- [Initial Setup](docs/initial-setup.mdx): How to set up the product for the first time.
-- [Kubernetes](docs/kubernetes.mdx): A guide related to Kubernetes.
+- [API Usage](api.mdx): Using the API.
+- [Initial Setup](initial-setup.mdx): How to set up the product for the first time.
+- [Kubernetes](kubernetes.mdx): A guide related to Kubernetes.
 
 ## Application Access
 
-Guides related to Application Access ([more info](docs/application-access.mdx))
+Guides related to Application Access ([more info](application-access/application-access.mdx))
 
-- [Application Access Page 1](docs/application-access/page1.mdx): Protecting App 1 with Teleport
+- [Application Access Page 1](application-access/page1.mdx): Protecting App 1 with Teleport
 
 ## Desktop Access
 
-Guides related to Desktop Access ([more info](docs/desktop-access.mdx))
+Guides related to Desktop Access ([more info](desktop-access/desktop-access.mdx))
 
-- [Get Started](docs/desktop-access/get-started.mdx): Get started with desktop access.
+- [Get Started](desktop-access/get-started.mdx): Get started with desktop access.
 `;
 
     const vol = Volume.fromJSON({
-      '/docs.mdx': `---
+      '/docs/docs.mdx': `---
 title: Documentation Home
 description: Guides to setting up the product.
 ---
@@ -328,7 +328,7 @@ Guides to setting up the product.
 
 {/*TOPICS*/}
 `,
-      '/docs/desktop-access.mdx': `---
+      '/docs/desktop-access/desktop-access.mdx': `---
 title: "Desktop Access"
 description: "Guides related to Desktop Access"
 ---
@@ -336,7 +336,7 @@ description: "Guides related to Desktop Access"
 {/*TOPICS*/}
 `,
 
-      '/docs/application-access.mdx': `---
+      '/docs/application-access/application-access.mdx': `---
 title: "Application Access"
 description: "Guides related to Application Access"
 ---

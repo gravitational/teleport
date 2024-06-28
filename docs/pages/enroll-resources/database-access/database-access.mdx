@@ -1,0 +1,86 @@
+---
+title: Protect Databases
+description: How to enrolls databases in your Teleport cluster.
+---
+
+Teleport can provide secure connections to your databases while improving both
+access control and visibility.
+
+Some of the things you can do with database access:
+
+- Enable users to retrieve short-lived database certificates using a Single Sign-On
+  flow, thus maintaining their organization-wide identity.
+- Configure role-based access controls for databases and implement custom
+  [Access Request](../access-controls/just-in-time/access-requests.mdx) workflows.
+- Capture database activity in the Teleport audit log.
+
+Teleport protects databases through the Teleport Database Service, which is a
+Teleport agent service. For more information on agent services, read [Teleport
+Agent Architecture](../../reference/architecture/agents.mdx). You can also learn how to
+deploy a [pool of Teleport agents](agents/introduction.mdx) to run multiple
+agent services.
+
+![Teleport Database Access Diagram](../../../img/database-access/architecture.svg)
+
+{/*TOPICS*/}
+
+- [Database Access Controls](rbac.mdx): Role-based access control (RBAC) for Teleport database access.
+- [Database Access Getting Started Guide](getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
+- [Troubleshooting Database Access](troubleshooting.mdx): Common issues and resolutions for Teleport's Database Access
+
+## Enroll AWS Databases
+
+Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport. ([more info](enroll-aws-databases/enroll-aws-databases.mdx))
+
+- [AWS Cross-Account Database Access](enroll-aws-databases/aws-cross-account.mdx): How to connect AWS databases in external AWS accounts to Teleport.
+- [Database Access with AWS ElastiCache and AWS MemoryDB for Redis](enroll-aws-databases/redis-aws.mdx): How to configure Teleport database access with AWS ElastiCache and AWS MemoryDB for Redis.
+- [Database Access with AWS OpenSearch](enroll-aws-databases/aws-opensearch.mdx): How to access AWS OpenSearch with Teleport database access
+- [Database Access with AWS RDS Proxy for MariaDB/MySQL](enroll-aws-databases/rds-proxy-mysql.mdx): How to configure Teleport database access with AWS RDS Proxy for MariaDB/MySQL.
+- [Database Access with AWS RDS Proxy for Microsoft SQL Server](enroll-aws-databases/rds-proxy-sqlserver.mdx): How to configure Teleport database access with AWS RDS Proxy for Microsoft SQL Server
+- [Database Access with AWS RDS Proxy for PostgreSQL](enroll-aws-databases/rds-proxy-postgres.mdx): How to configure Teleport database access with AWS RDS Proxy for PostgreSQL
+- [Database Access with AWS RDS and Aurora](enroll-aws-databases/rds.mdx): How to configure Teleport database access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+- [Database Access with Amazon DynamoDB](enroll-aws-databases/aws-dynamodb.mdx): How to access Amazon DynamoDB with Teleport database access
+- [Database Access with Amazon Keyspaces (Apache Cassandra)](enroll-aws-databases/aws-cassandra-keyspaces.mdx): How to configure Teleport database access with Amazon Keyspaces (Apache Cassandra)
+- [Database Access with Microsoft SQL Server with Active Directory authentication](enroll-aws-databases/sql-server-ad.mdx): How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
+- [Database Access with Redshift Serverless on AWS](enroll-aws-databases/redshift-serverless.mdx): How to configure Teleport database access with Amazon Redshift Serverless.
+- [Database Access with Redshift on AWS](enroll-aws-databases/postgres-redshift.mdx): How to configure Teleport database access with Amazon Redshift PostgreSQL.
+
+## Enroll Azure Databases
+
+Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport. ([more info](enroll-azure-databases/enroll-azure-databases.mdx))
+
+- [Database Access with Azure Cache for Redis](enroll-azure-databases/azure-redis.mdx): How to configure Teleport database access with Azure Cache for Redis
+- [Database Access with Azure PostgreSQL and MySQL](enroll-azure-databases/azure-postgres-mysql.mdx): How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
+- [Database Access with SQL Server on Azure](enroll-azure-databases/azure-sql-server-ad.mdx): How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
+
+## Enroll Cloud-Hosted Database Platforms
+
+Provides instructions on protecting managed databases in your infrastructure with Teleport. ([more info](enroll-managed-databases/enroll-managed-databases.mdx))
+
+- [Database Access with MongoDB Atlas](enroll-managed-databases/mongodb-atlas.mdx): How to configure Teleport database access with MongoDB Atlas.
+- [Database Access with Snowflake](enroll-managed-databases/snowflake.mdx): How to configure Teleport database access with Snowflake.
+
+## Enroll Google Cloud Databases
+
+Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport. ([more info](enroll-google-cloud-databases/enroll-google-cloud-databases.mdx))
+
+- [Database Access with Cloud SQL for MySQL](enroll-google-cloud-databases/mysql-cloudsql.mdx): How to configure Teleport database access with Cloud SQL for MySQL.
+- [Database Access with Cloud SQL for PostgreSQL](enroll-google-cloud-databases/postgres-cloudsql.mdx): How to configure Teleport database access with Cloud SQL for PostgreSQL.
+- [Database Access with Cloud Spanner](enroll-google-cloud-databases/spanner.mdx): How to configure Teleport database access with GCP's Cloud Spanner.
+
+## Enroll Self-Hosted Databases
+
+Provides instructions on protecting self-hosted databases in your infrastructure with Teleport. ([more info](enroll-self-hosted-databases/enroll-self-hosted-databases.mdx))
+
+- [Database Access with Cassandra and ScyllaDB](enroll-self-hosted-databases/cassandra-self-hosted.mdx): How to configure Teleport database access with Cassandra and ScyllaDB.
+- [Database Access with ClickHouse](enroll-self-hosted-databases/clickhouse-self-hosted.mdx): How to configure Teleport database access with ClickHouse.
+- [Database Access with Elasticsearch](enroll-self-hosted-databases/elastic.mdx): How to configure Teleport database access with Elasticsearch.
+- [Database Access with Oracle](enroll-self-hosted-databases/oracle-self-hosted.mdx): How to configure Teleport database access with Oracle.
+- [Database Access with Redis Cluster](enroll-self-hosted-databases/redis-cluster.mdx): How to configure Teleport database access with Redis Cluster.
+- [Database Access with Redis](enroll-self-hosted-databases/redis.mdx): How to configure Teleport database access with Redis.
+- [Database Access with Self-Hosted CockroachDB](enroll-self-hosted-databases/cockroachdb-self-hosted.mdx): How to configure Teleport database access with self-hosted CockroachDB.
+- [Database Access with Self-Hosted MongoDB](enroll-self-hosted-databases/mongodb-self-hosted.mdx): How to configure Teleport database access with self-hosted MongoDB.
+- [Database Access with Self-Hosted MySQL/MariaDB](enroll-self-hosted-databases/mysql-self-hosted.mdx): How to configure Teleport database access with self-hosted MySQL/MariaDB.
+- [Database Access with Self-Hosted PostgreSQL](enroll-self-hosted-databases/postgres-self-hosted.mdx): How to configure Teleport database access with self-hosted PostgreSQL.
+- [Database Access with Vitess (MySQL protocol)](enroll-self-hosted-databases/vitess.mdx): How to configure Teleport database access for Vitess (MySQL protocol)
+- [Microsoft SQL Server access with PKINIT authentication](enroll-self-hosted-databases/sql-server-ad-pkinit.mdx): How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.

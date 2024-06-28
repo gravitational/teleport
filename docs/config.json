@@ -3,86 +3,32 @@
     {
       "icon": "home",
       "title": "Get Started",
-      "entries": [
-	{
-	  "title": "Introduction to Teleport",
-	  "slug": "/"
-	},
-	{
-	  "title": "How Teleport Works",
-	  "slug": "/get-started/core-concepts/"
-	},
-        {
-          "title": "Try out Teleport",
-          "slug": "/get-started/try-out-teleport/"
-        },
-	{
-	  "title": "All Topics",
-	  "slug": "/get-started/"
-	}
-      ]
+      "entries": [],
+      "generateFrom": "get-started"
     },
     {
-    	"title": "Admin Guides",
-    	"icon": "wrench",
-    	"entries": [
-	    {
-	       "title": "Protect Resources",
-	       "slug": "/admin-guides/enroll-resources/"
-	    },
-	    {
-	       "title": "Set up Single Sign-On",
-	       "slug": "/admin-guides/authentication/sso/overview/"
-	    },
-	    {
-	    	"title": "Use Infrastructure as Code",
-	    	"slug": "/admin-guides/configure-teleport/dynamic-resources/overview/"
-	    },
-	    {
-	    	"title": "All Topics",
-	    	"slug": "/admin-guides/"
-	    }
-	]
+      "title": "Admin Guides",
+      "icon": "wrench",
+      "entries": [], 
+      "generateFrom": "admin-guides"
+    },
+    {
+      "title": "Enroll Resources",
+      "icon": "stack",
+      "entries": [],
+      "generateFrom": "enroll-resources"
     },
     {
       "icon": "connect",
       "title": "User Guides",
-      "entries": [
-        {
-          "title": "Using the Web UI",
-          "slug": "/user-guides/web-ui/"
-        },
-        {
-          "title": "Teleport Desktop App",
-          "slug": "/user-guides/teleport-connect/"
-        },
-        {
-          "title": "Teleport CLI",
-          "slug": "/user-guides/tsh/"
-        },
-	{
-	   "title": "All Topics",
-	   "slug": "/user-guides/"
-	}
-      ]
+      "entries": [],
+      "generateFrom": "user-guides"
     },
     {
       "icon": "book",
       "title": "References",
-      "entries": [
-	{
-	   "title": "Command Line Tools",
-	   "slug": "/reference/cli/overview/"
-	},
-	{
-	    "title": "Terraform Provider",
-	    "slug": "/reference/config-references/terraform-provider/"
-	},
-	{
-	    "title": "All Topics",
-	    "slug": "/reference/"
-	}
-      ]
+      "entries": [],
+      "generateFrom": "reference"
     }
   ],
   "variables": {
