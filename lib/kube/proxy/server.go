@@ -241,7 +241,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
+			Handler:           httplib.TracingMiddleware(teleport.ComponentKube, "http.Server/Handler")(limiter),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
 			// Setting ReadTimeout and WriteTimeout will cause the server to
 			// terminate long running requests. This will cause issues with

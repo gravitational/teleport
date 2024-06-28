@@ -335,6 +335,9 @@ type TerminalHandler struct {
 // events: raw input/output events for what's happening on the terminal itself
 // and audit log events relevant to this session.
 func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, span := t.tracer.Start(r.Context(), "TerminalHandler/ServeHTTP")
+	defer span.End()
+
 	// This allows closing of the websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
