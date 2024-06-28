@@ -6160,6 +6160,19 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+func containsSubsequence(s, subseq string) bool {
+	i := 0
+	for _, c := range []byte(s) {
+		if i == len(subseq) {
+			return true
+		}
+		if c == subseq[i] {
+			i++
+		}
+	}
+	return i == len(subseq)
+}
+
 // TestCmdLabels verifies the behavior of running commands via labels
 // with a mixture of regular and reversetunnel nodes.
 func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
@@ -6207,7 +6220,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 		return tconf
 	}
-	_, err := teleport.StartReverseTunnelNode(nodeConfig())
+	_, err := teleport.StartNode(nodeConfig())
 	require.NoError(t, err)
 
 	// test label patterns that match both nodes, and each
@@ -6248,10 +6261,12 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 			output, err := runCommand(t, teleport, tt.command, cfg, 1)
 			require.NoError(t, err)
-			outputLines := strings.Split(strings.TrimSpace(output), "\n")
-			require.Len(t, outputLines, len(tt.expectLines))
+			output = strings.TrimSpace(output)
+			// Output from multiple nodes occasionally interleaves, so we have to be
+			// a little creative in asserting it.
+			require.Equal(t, len(tt.expectLines)-1, strings.Count(output, "\n"))
 			for _, line := range tt.expectLines {
-				require.Contains(t, outputLines, line)
+				require.True(t, containsSubsequence(output, line), "command output %q does not contain line %q", output, line)
 			}
 		})
 	}
