@@ -19,8 +19,10 @@
 package lib
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"text/template"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
@@ -171,11 +173,16 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
 	return yaml.Marshal(crd)
 }
 
-var crdDocTmpl := `
+var crdDocTmpl string = `## {{.Kind}} {{.Version}}
 `
 
 func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, error) {
-
+	var buf bytes.Buffer
+	err := template.Must(template.New("docs").Parse(crdDocTmpl)).Execute(&buf, crd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
 
 func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {

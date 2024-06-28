@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/gogo/protobuf/vanity/command"
+	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen/lib"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -31,7 +32,7 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stderr)
 	req := command.Read()
-	if err := handleRequest(req); err != nil {
+	if err := crdgen.HandleDocsRequest(req); err != nil {
 		log.WithError(err).Error("Failed to generate schema")
 		os.Exit(-1)
 	}
