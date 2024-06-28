@@ -242,7 +242,7 @@ The following authentication connectors are supported:
 Before you can create an authentication connector, you must enable
 authentication via that connector's protocol.
 
-To set the default authentication type as `saml` or `oidc`, either modify your
+To set the default authentication type as `saml`, `oidc` or `github`, either modify your
 Auth Service configuration file (if using a self-hosted edition of Teleport) or
 create a `cluster_auth_preference` resource.
 
@@ -256,7 +256,6 @@ create a `cluster_auth_preference` resource.
       type: saml|oidc|github
   ```
 
-  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
   <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
@@ -278,9 +277,10 @@ create a `cluster_auth_preference` resource.
   $ tctl create -f cap.yaml
   ```
 
-  (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
 </Tabs>
+
+(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 Next, define an authentication connector. Create a file called `connector.yaml`
 based on one of the following examples.
@@ -350,20 +350,51 @@ fetching from a URL.
 </TabItem>
 <TabItem scope="oss" label="Teleport Community Edition">
 
+Before you can create an authentication connector, you must enable
+authentication via that connector's protocol.
+
+To set the default authentication type as `github`, either modify your
+Auth Service configuration file or
+create a `cluster_auth_preference` resource.
+
+<Tabs>
+  <TabItem label="Static Config" >
+ Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+  ```yaml
+  auth_service:
+    authentication:
+      # Set as github
+      type: github
+  ```
+
+  </TabItem>
+  <TabItem label="Dynamic Resources">
+  Create a file called `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    # Set as github
+    type: github
+  version: v2
+  ```
+
+  Create the resource:
+
+  ```code
+  # Log in to your cluster with tsh so you can run tctl commands.
+  $ tsh login --proxy=<Var name="teleport.example.com" /> --user=myuser
+  $ tctl create -f cap.yaml
+  ```
+  </TabItem>
+</Tabs>
+
 Next, define an authentication connector. Create a file called `connector.yaml`
 with the following content:
 
 ```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-  webauthn:
-    # Replace with the address of your Teleport cluster
-    rp_id: 'example.teleport.sh'
-version: v2
-
+(!/examples/resources/github.yaml!)
 ```
 
 </TabItem>
