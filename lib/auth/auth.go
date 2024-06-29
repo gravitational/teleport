@@ -1293,6 +1293,12 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer dynamicLabelsCheck.Stop()
 
+	notificationsCleanup := interval.New(interval.Config{
+		Duration:      2 * 24 * time.Hour, // every 2 days
+		FirstDuration: utils.HalfJitter(time.Second * 10),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1357,6 +1363,8 @@ func (a *Server) runPeriodicOperations() {
 			a.syncDesktopsLimitAlert(ctx)
 		case <-dynamicLabelsCheck.Next():
 			a.syncDynamicLabelsAlert(ctx)
+		case <-notificationsCleanup.Next():
+			a.cleanupNotifications(ctx)
 		}
 	}
 }
@@ -5576,6 +5584,82 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
 		log.Warnf("Failed to set %s alert: %v", dynamicLabelAlertID, err)
+	}
+}
+
+func (a *Server) cleanupNotifications(ctx context.Context) {
+	userNotifications, _, err := a.Cache.ListUserNotifications(ctx, 0, "")
+	if err != nil {
+		slog.WarnContext(ctx, "failed to list first set of notifications for periodic cleanup", "error", err)
+	}
+	globalNotifications, _, err := a.Cache.ListGlobalNotifications(ctx, 0, "")
+	if err != nil {
+		slog.WarnContext(ctx, "failed to list second set of notifications for periodic cleanup", "error", err)
+	}
+
+	timeNow := time.Now()
+
+	// Convert into a map where the key is the notification id.
+	globalNotificationsByID := make(map[string]*notificationsv1.GlobalNotification)
+	for _, gn := range globalNotifications {
+		globalNotificationsByID[gn.GetMetadata().GetName()] = gn
+	}
+
+	// Delete expired global notifications.
+	for notificationID, gn := range globalNotificationsByID {
+		expiry := gn.GetSpec().GetNotification().GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			if err := a.DeleteGlobalNotification(ctx, notificationID); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification", "error", err)
+			} else {
+				// Also remove it from the map so that we can pass it to the notification states cleanup
+				// without needing to list notifications again.
+				delete(globalNotificationsByID, notificationID)
+			}
+		}
+	}
+
+	// Convert into a map where the key is the notification id.
+	userNotificationsByID := make(map[string]*notificationsv1.Notification)
+	for _, un := range userNotifications {
+		userNotificationsByID[un.GetMetadata().GetName()] = un
+	}
+
+	// Delete expired user notifications.
+	for notificationID, un := range userNotificationsByID {
+		expiry := un.GetMetadata().GetExpires()
+		user := un.GetSpec().GetUsername()
+
+		if timeNow.After(expiry.AsTime()) {
+			if err := a.DeleteUserNotification(ctx, user, notificationID); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification", "error", err)
+			} else {
+				// Also remove it from the map so that the notification states cleanup can use it an updated source of truth
+				// without needing to list notifications again.
+				delete(userNotificationsByID, notificationID)
+			}
+
+		}
+	}
+
+	// Delete notification states for notifications which don't exist.
+	userNotificationStates, _, err := a.ListNotificationStatesForAllUsers(ctx, 0, "")
+	if err != nil {
+		slog.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
+	}
+
+	for _, uns := range userNotificationStates {
+		id := uns.GetSpec().GetNotificationId()
+		username := uns.GetSpec().GetUsername()
+
+		// If this notification state is for a notification which doesn't exist in either the global notifications map or
+		// the user notifications map, then delete it.
+		if globalNotificationsByID[id] == nil && userNotificationsByID[id] == nil {
+			if err := a.DeleteUserNotificationState(ctx, username, id); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification state", "user", username, "id", id, "error", "error", err)
+			}
+		}
 	}
 }
 

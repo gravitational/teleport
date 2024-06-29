@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"sort"
 	"sync"
 	"testing"
@@ -63,16 +64,23 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	log        logrus.FieldLogger
-	bcryptCost int
+	log              logrus.FieldLogger
+	bcryptCost       int
+	notificationsSvc *NotificationsService
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+	if err != nil {
+		slog.Warn("error initializing notifications service with identity service", err)
+	}
+
 	return &IdentityService{
-		Backend:    backend,
-		log:        logrus.WithField(teleport.ComponentKey, "identity"),
-		bcryptCost: bcrypt.DefaultCost,
+		Backend:          backend,
+		log:              logrus.WithField(teleport.ComponentKey, "identity"),
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
 	}
 }
 
@@ -670,8 +678,30 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
-	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
+	if err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete notification objects associated with this user.
+	if (s.notificationsSvc != &NotificationsService{}) {
+		// Delete all user-specific notifications for this user.
+		deleteNotifsErr := s.notificationsSvc.DeleteAllUserNotificationsForUser(ctx, user)
+
+		// Delete all user notification states for this user.
+		deleteNotifStatesErr := s.notificationsSvc.DeleteAllUserNotificationStatesForUser(ctx, user)
+
+		if deleteNotifsErr != nil && deleteNotifStatesErr != nil {
+			return trace.NewAggregate(deleteNotifsErr, deleteNotifStatesErr)
+		}
+		if deleteNotifsErr != nil {
+			return trace.Wrap(deleteNotifsErr, "failed to delete notifications for user %s", user)
+		}
+		if deleteNotifStatesErr != nil {
+			return trace.Wrap(deleteNotifStatesErr, "failed to delete notification states for user %s", user)
+		}
+	}
+
+	return nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
