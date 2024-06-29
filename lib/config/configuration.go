@@ -72,6 +72,13 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+const (
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0666
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+)
+
 // CommandLineFlags stores command line flag values, it's a much simplified subset
 // of Teleport configuration (which is fully expressed via YAML config file)
 type CommandLineFlags struct {
@@ -786,16 +793,14 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = sw
 	default:
 		// assume it's a file path:
-		var flag int = os.O_WRONLY | os.O_CREATE | os.O_APPEND
-		var mode = fs.FileMode(0666)
-		logFile, err := os.OpenFile(loggerConfig.Output, flag, mode)
+		logFile, err := os.OpenFile(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
 			return trace.Wrap(err, "failed to create the log file")
 		}
-		fileWriter := logutils.NewFileSharedWriter(logFile, flag, mode)
-		cfg.LogFileReopen = fileWriter.Reopen
-
-		w = fileWriter
+		w, err = logutils.NewFileSharedWriter(logFile, logFileDefaultFlag, logFileDefaultMode, cfg.LogFileReopen)
+		if err != nil {
+			return trace.Wrap(err, "failed to init the log file")
+		}
 	}
 
 	level := new(slog.LevelVar)

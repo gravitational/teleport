@@ -152,11 +152,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 				process.Shutdown(timeoutCtx)
 				process.logger.InfoContext(process.ExitContext(), "All services stopped, exiting.")
 				return nil
-			case syscall.SIGCONT:
-				process.logger.InfoContext(process.ExitContext(), "Rotating log file.")
-				if err := process.Config.LogFileReopen(); err != nil {
-					return trace.Wrap(err)
-				}
 			default:
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}

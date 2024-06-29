@@ -19,11 +19,14 @@
 package log
 
 import (
+	"context"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gravitational/trace"
 )
 
@@ -79,7 +82,53 @@ func (s *FileSharedWriter) Reopen() (err error) {
 	return trace.Wrap(err)
 }
 
+// runWatcher spawns goroutine with the watcher loop to consume events of moving
+// or removing the log file to re-open it for log rotation purposes.
+func (s *FileSharedWriter) runWatcher() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = watcher.Add(s.Name())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
+					slog.DebugContext(context.Background(), "Log file was moved/removed, reopen new one", "file", event.Name)
+					if err := s.Reopen(); err != nil {
+						slog.ErrorContext(context.Background(), "Failed to reopen new file", err, "file", event.Name)
+						continue
+					}
+					if err = watcher.Add(s.Name()); err != nil {
+						slog.ErrorContext(context.Background(), "Failed to reinit watcher", err, "file", event.Name)
+						continue
+					}
+				}
+			case err := <-watcher.Errors:
+				slog.ErrorContext(context.Background(), "Error received on logger watcher", "error", err)
+			}
+		}
+	}()
+
+	return nil
+}
+
 // NewFileSharedWriter wraps the provided [os.File] in a writer that is thread safe.
-func NewFileSharedWriter(f *os.File, flag int, mode fs.FileMode) *FileSharedWriter {
-	return &FileSharedWriter{File: f, fileFlag: flag, fileMode: mode}
+func NewFileSharedWriter(f *os.File, flag int, mode fs.FileMode, watcherEnabled bool) (*FileSharedWriter, error) {
+	sharedWriter := &FileSharedWriter{File: f, fileFlag: flag, fileMode: mode}
+	if watcherEnabled {
+		if err := sharedWriter.runWatcher(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return sharedWriter, nil
 }
