@@ -162,7 +162,7 @@ func TestSanitizeHeaders(t *testing.T) {
 
 		dst := maps.Clone(innoffensiveHeaders)
 		for i := 0; i < len(extras); i += 2 {
-			dst[extras[i]] = []string{extras[i+1]}
+			dst.Set(extras[i], extras[i+1])
 		}
 		return dst
 	}

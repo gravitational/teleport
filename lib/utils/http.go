@@ -23,8 +23,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -193,10 +193,12 @@ func (m *maxBytesReader) Read(p []byte) (int, error) {
 // sensitiveHeaderKeys is the list HTTP headers deemed to be too sensitive
 // to be written to a log.
 var sensitiveHeaderKeys = []string{
-	"authorization",
-	"proxy-authorization",
-	"set-cookie",
-	"x-amz-security-token",
+	"Authorization",
+	"Cookie",
+	"Proxy-Authorization",
+	"Set-Cookie",
+	"X-Amz-Security-Token",
+	"X-Csrf-Token",
 }
 
 // sensitiveHeaderFragments is a list of suspect header fragments. If a header
@@ -227,20 +229,21 @@ func SanitizeHeaders(src http.Header) http.Header {
 		return nil
 	}
 
-	dst := make(http.Header, len(src))
-	for key, value := range src {
+	dst := maps.Clone(src)
+	for _, k := range sensitiveHeaderKeys {
+		dst.Del(k)
+	}
+
+nextkey:
+	for key := range dst {
 		lcKey := strings.ToLower(key)
 
-		if slices.Contains(sensitiveHeaderKeys, lcKey) {
-			continue
+		for _, frag := range sensitiveHeaderFragments {
+			if strings.Contains(lcKey, frag) {
+				dst.Del(key)
+				continue nextkey
+			}
 		}
-
-		if slices.ContainsFunc(sensitiveHeaderFragments,
-			func(frag string) bool { return strings.Contains(lcKey, frag) }) {
-			continue
-		}
-
-		dst[key] = value
 	}
 
 	return dst
