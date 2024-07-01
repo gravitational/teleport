@@ -8,8 +8,6 @@ should match the snapshot:
         batch = 20
         window-size = "24h"
         debug = false
-        skip-event-types = ""
-        skip-session-types = ""
 
         [teleport]
         addr = "teleport.example.com:1234"
