@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -84,6 +86,7 @@ func (s *MattermostBaseSuite) SetupTest() {
 	conf.Mattermost.Token = "000000"
 	conf.Mattermost.URL = s.fakeMattermost.URL()
 	conf.StatusSink = s.fakeStatusSink
+	conf.PluginType = types.PluginTypeMattermost
 
 	s.appConfig = &conf
 }
@@ -702,4 +705,79 @@ func (s *MattermostSuiteOSS) TestRecipientsConfig() {
 
 	assert.Equal(t, directChannel1.ID, messages[0].ChannelID)
 	assert.Equal(t, channel2.ID, messages[1].ChannelID)
+}
+
+func (s *MattermostSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser)
+
+	team := s.fakeMattermost.StoreTeam(mattermost.Team{Name: "team-llama"})
+	channel2 := s.fakeMattermost.StoreChannel(mattermost.Channel{Name: "channel-llama", TeamID: team.ID})
+
+	// Setup base config to ensure access monitoring rule recipient take precidence
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		types.Wildcard: []string{
+			"team-llama/channel-llama",
+			"somethingThatWillBeOverWritten",
+		},
+	}
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-mattermost-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "mattermost",
+					Recipients: []string{
+						"team-llama/channel-llama",
+						s.reviewer1MattermostUser.Email,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, 2)
+
+	messageSet := make(MattermostDataPostSet)
+
+	msg, err := s.fakeMattermost.CheckNewPost(ctx)
+	require.NoError(t, err)
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	var messages []mattermost.Post
+	messages = append(messages, msg)
+
+	msg, err = s.fakeMattermost.CheckNewPost(ctx)
+	require.NoError(t, err)
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messages = append(messages, msg)
+
+	assert.Len(t, messageSet, 2)
+	assert.Contains(t, messageSet, pluginData.SentMessages[0])
+	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+
+	sort.Sort(MattermostPostSlice(messages))
+
+	assert.Equal(t, directChannel1.ID, messages[0].ChannelID)
+	assert.Equal(t, channel2.ID, messages[1].ChannelID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-mattermost-amr"))
 }
