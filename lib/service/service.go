@@ -40,10 +40,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
@@ -294,9 +296,10 @@ const (
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
-	// clientIdentity is the identity to be used in internal cluster
+	// ClientIdentity is the identity to be used in internal cluster
 	// clients to the auth service.
-	clientIdentity *state.Identity
+	// TODO(espadolini): unexport after changes to e
+	ClientIdentity *state.Identity
 
 	// serverIdentity is the identity to be used in servers - serving SSH
 	// and x509 certificates to clients.
@@ -311,27 +314,31 @@ type Connector struct {
 }
 
 func (c *Connector) ClusterName() string {
-	return c.clientIdentity.ClusterName
+	return c.ClientIdentity.ClusterName
 }
 
 func (c *Connector) HostID() string {
-	return c.clientIdentity.ID.HostUUID
+	return c.ClientIdentity.ID.HostUUID
 }
 
 func (c *Connector) Role() types.SystemRole {
-	return c.clientIdentity.ID.Role
+	return c.ClientIdentity.ID.Role
 }
 
 func (c *Connector) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	return c.clientIdentity.TLSConfig(cipherSuites)
+	return c.ClientIdentity.TLSConfig(cipherSuites)
 }
 
 func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
-	return []ssh.AuthMethod{ssh.PublicKeys(c.clientIdentity.KeySigner)}
+	return []ssh.AuthMethod{ssh.PublicKeys(c.ClientIdentity.KeySigner)}
 }
 
 func (c *Connector) ClientIdentityString() string {
-	return c.clientIdentity.String()
+	return c.ClientIdentity.String()
+}
+
+func (c *Connector) ClientInstanceSystemRoles() []string {
+	return slices.Clone(c.ClientIdentity.SystemRoles)
 }
 
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
@@ -340,6 +347,10 @@ func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) 
 
 func (c *Connector) GetServerHostSigners() []ssh.Signer {
 	return []ssh.Signer{c.serverIdentity.KeySigner}
+}
+
+func (c *Connector) GetServerPrincipals() []string {
+	return slices.Clone(c.serverIdentity.Cert.ValidPrincipals)
 }
 
 func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
@@ -435,9 +446,6 @@ type TeleportProcess struct {
 	// set up when the teleport process starts, hosted plugin roles are dynamically assigned by
 	// runtime configuration, and may not necessarily be present on the instance cert.
 	hostedPluginRoles map[types.SystemRole]string
-
-	// identities of this process (credentials to auth sever, basically)
-	Identities map[types.SystemRole]*state.Identity
 
 	// connectors is a list of connected clients and their identities
 	connectors map[types.SystemRole]*Connector
@@ -701,54 +709,63 @@ func (process *TeleportProcess) getAuthSubjectiveAddr() string {
 	return process.authSubjectiveAddr
 }
 
-// GetIdentity returns the process identity (credentials to the auth server) for a given
-// teleport Role. A teleport process can have any combination of 3 roles: auth, node, proxy
-// and they have their own identities
+// TODO: delete after e changes
 func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *state.Identity, err error) {
-	var found bool
+	return process.getIdentity(role)
+}
 
+func (process *TeleportProcess) GetIdentityForTesting(t *testing.T, role types.SystemRole) (i *state.Identity, err error) {
+	if !testing.Testing() {
+		panic("GetIdentityForTesting can only be called in tests")
+	}
+	return process.getIdentity(role)
+}
+
+// getIdentity returns the current identity (credentials to the auth server) for
+// a given system role.
+func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Identity, err error) {
 	process.Lock()
 	defer process.Unlock()
 
-	i, found = process.Identities[role]
-	if found {
+	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+
+	if err == nil {
 		return i, nil
 	}
-	i, err = process.storage.ReadIdentity(state.IdentityCurrent, role)
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	id := state.IdentityID{
 		Role:     role,
 		HostUUID: process.Config.HostUUID,
 		NodeName: process.Config.Hostname,
 	}
-	if err != nil {
-		if !trace.IsNotFound(err) {
+	if role == types.RoleAdmin {
+		// for admin identity use local auth server
+		// because admin identity is requested by auth server
+		// itself
+		principals, dnsNames, err := process.getAdditionalPrincipals(role)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if role == types.RoleAdmin {
-			// for admin identity use local auth server
-			// because admin identity is requested by auth server
-			// itself
-			principals, dnsNames, err := process.getAdditionalPrincipals(role)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			// try to locate static identity provided in the file
-			i, err = process.findStaticIdentity(id)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			process.logger.InfoContext(process.ExitContext(), "Found static identity in the config file, writing to disk.", "identity", logutils.StringerAttr(&id))
-			if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		return i, nil
 	}
-	process.Identities[role] = i
+
+	// try to locate static identity provided in the file
+	i, err = process.findStaticIdentity(id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.logger.InfoContext(process.ExitContext(), "Found static identity in the config file, writing to disk.", "identity", logutils.StringerAttr(&id))
+	if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return i, nil
 }
 
@@ -1091,7 +1108,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		instanceConnectorReady: make(chan struct{}),
 		instanceRoles:          make(map[types.SystemRole]string),
 		hostedPluginRoles:      make(map[types.SystemRole]string),
-		Identities:             make(map[types.SystemRole]*state.Identity),
 		connectors:             make(map[types.SystemRole]*Connector),
 		importedDescriptors:    cfg.FileDescriptors,
 		storage:                storage,
@@ -4379,32 +4395,30 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		webConfig := web.Config{
-			Proxy:            tsrv,
-			AuthServers:      cfg.AuthServerAddresses()[0],
-			DomainName:       cfg.Hostname,
-			ProxyClient:      conn.Client,
-			ProxySSHAddr:     proxySSHAddr,
-			ProxyWebAddr:     cfg.Proxy.WebAddr,
-			ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
-			CipherSuites:     cfg.CipherSuites,
-			FIPS:             cfg.FIPS,
-			AccessPoint:      accessPoint,
-			Emitter:          asyncEmitter,
-			PluginRegistry:   process.PluginRegistry,
-			HostUUID:         process.Config.HostUUID,
-			Context:          process.GracefulExitContext(),
-			StaticFS:         fs,
-			ClusterFeatures:  process.GetClusterFeatures(),
-			GetProxyIdentity: func() (*state.Identity, error) {
-				return process.GetIdentity(types.RoleProxy)
-			},
-			UI:              cfg.Proxy.UI,
-			ProxySettings:   proxySettings,
-			PublicProxyAddr: process.proxyPublicAddr().Addr,
-			ALPNHandler:     alpnHandlerForWeb.HandleConnection,
-			ProxyKubeAddr:   proxyKubeAddr,
-			TraceClient:     traceClt,
-			Router:          proxyRouter,
+			Proxy:                   tsrv,
+			AuthServers:             cfg.AuthServerAddresses()[0],
+			DomainName:              cfg.Hostname,
+			ProxyClient:             conn.Client,
+			ProxySSHAddr:            proxySSHAddr,
+			ProxyWebAddr:            cfg.Proxy.WebAddr,
+			ProxyPublicAddrs:        cfg.Proxy.PublicAddrs,
+			CipherSuites:            cfg.CipherSuites,
+			FIPS:                    cfg.FIPS,
+			AccessPoint:             accessPoint,
+			Emitter:                 asyncEmitter,
+			PluginRegistry:          process.PluginRegistry,
+			HostUUID:                process.Config.HostUUID,
+			Context:                 process.GracefulExitContext(),
+			StaticFS:                fs,
+			ClusterFeatures:         process.GetClusterFeatures(),
+			GetProxyClientTLSConfig: conn.ClientTLSConfig,
+			UI:                      cfg.Proxy.UI,
+			ProxySettings:           proxySettings,
+			PublicProxyAddr:         process.proxyPublicAddr().Addr,
+			ALPNHandler:             alpnHandlerForWeb.HandleConnection,
+			ProxyKubeAddr:           proxyKubeAddr,
+			TraceClient:             traceClt,
+			Router:                  proxyRouter,
 			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 				controller := srv.WebSessionController(sessionController)
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)

@@ -130,7 +130,8 @@ func TestInstanceCertReissue(t *testing.T) {
 				return nil, trace.Wrap(err)
 			}
 
-			identity, err := proc.GetIdentity(types.RoleInstance)
+			// TODO(espadolini): get rid of the dependency on GetIdentity
+			identity, err := proc.GetIdentityForTesting(t, types.RoleInstance)
 			if err != nil {
 				proc.Close()
 				return nil, trace.Wrap(err)
@@ -187,7 +188,7 @@ func TestInstanceCertReissue(t *testing.T) {
 				return nil, trace.Wrap(err)
 			}
 
-			identity, err := proc.GetIdentity(types.RoleInstance)
+			identity, err := proc.GetIdentityForTesting(t, types.RoleInstance)
 			if err != nil {
 				proc.Close()
 				return nil, trace.Wrap(err)
