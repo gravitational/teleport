@@ -5856,13 +5856,12 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 
 	if process.forkedTeleportCount.Load() == 0 {
 		if process.inventoryHandle != nil {
-			process.inventoryHandle.Shutdown(ctx)
+			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
+				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
+			}
 		}
 	} else {
 		ctx = services.ProcessForkedContext(ctx)
-		if process.inventoryHandle != nil {
-			process.inventoryHandle.Close()
-		}
 	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
@@ -5884,6 +5883,10 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 			if err := process.storage.Close(); err != nil {
 				process.logger.WarnContext(process.ExitContext(), "Failed closing process storage.", "error", err)
 			}
+		}
+
+		if process.inventoryHandle != nil {
+			process.inventoryHandle.Close()
 		}
 	}()
 	go process.printShutdownStatus(localCtx)

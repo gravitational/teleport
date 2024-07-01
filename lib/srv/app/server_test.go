@@ -564,12 +564,11 @@ func TestShutdown(t *testing.T) {
 			// Shutdown should not return error.
 			require.NoError(t, s.appServer.Shutdown(ctx))
 
-			// Terminate the ICS appropriately to simulate the process ending.
+			// Send a Goodbye to simulate process shutdown.
 			if !test.hasForkedChild {
-				require.NoError(t, s.appServer.c.InventoryHandle.Shutdown(ctx))
-			} else {
-				require.NoError(t, s.appServer.c.InventoryHandle.Close())
+				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
 			}
+			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.
 			if test.wantAppServersAfterShutdown {

@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -62,9 +61,12 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
-	// Shutdown closes the downstream handle and alerts the upstream
-	// to delete any heartbeats associated with the instance.
-	Shutdown(context.Context) error
+	// SendGoodbye indicates the downstream half of the connection is terminating. This
+	// has no impact on the health of the inventory control stream, nor does it perform
+	// any clean up of the connection. A Goodbye is merely information so that the
+	// upstream half of the connection may take different actions when the downstream
+	// half of the connection is shutting down for good vs. restarting.
+	SendGoodbye(context.Context) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -85,15 +87,12 @@ type DownstreamSender interface {
 // NewDownstreamHandle creates a new downstream inventory control handle which will create control streams via the
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
-	closeCtx, closeCancel := context.WithCancel(context.Background())
-	shutdownCtx, shutdownCancel := context.WithCancel(closeCtx)
+	ctx, cancel := context.WithCancel(context.Background())
 	handle := &downstreamHandle{
-		senderC:         make(chan DownstreamSender),
-		pingHandlers:    make(map[uint64]DownstreamPingHandler),
-		closeContext:    closeCtx,
-		closeCancel:     closeCancel,
-		shutdownContext: shutdownCtx,
-		shutdownCancel:  shutdownCancel,
+		senderC:      make(chan DownstreamSender),
+		pingHandlers: make(map[uint64]DownstreamPingHandler),
+		closeContext: ctx,
+		cancel:       cancel,
 	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
@@ -105,16 +104,13 @@ type downstreamHandle struct {
 	handlerNonce      uint64
 	pingHandlers      map[uint64]DownstreamPingHandler
 	senderC           chan DownstreamSender
-	shutdownContext   context.Context
-	shutdownCancel    context.CancelFunc
 	closeContext      context.Context
-	closeCancel       context.CancelFunc
+	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
-	deleteOnClose     atomic.Bool
 }
 
 func (h *downstreamHandle) closing() bool {
-	return h.shutdownContext.Err() != nil
+	return h.closeContext.Err() != nil
 }
 
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
@@ -161,8 +157,6 @@ func (h *downstreamHandle) autoEmitMetadata() {
 }
 
 func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
-	defer h.closeCancel()
-
 	retry := utils.NewDefaultLinear()
 	for {
 		h.tryRun(fn, hello)
@@ -175,14 +169,14 @@ func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInve
 		select {
 		case <-retry.After():
 			retry.Inc()
-		case <-h.CloseContext().Done():
+		case <-h.closeContext.Done():
 			return
 		}
 	}
 }
 
 func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
-	stream, err := fn(h.closeContext)
+	stream, err := fn(h.CloseContext())
 	if err != nil {
 		if !h.closing() {
 			log.Warnf("Failed to create inventory control stream: %v.", err)
@@ -199,17 +193,9 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 }
 
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream, upstreamHello proto.UpstreamInventoryHello) error {
-	defer func() {
-		if h.closing() && h.deleteOnClose.Load() {
-			if err := stream.Send(h.closeContext, proto.UpstreamInventoryGoodbye{DeleteResources: true}); err != nil {
-				log.WithError(err).Warn("failed to send delete request on shutdown")
-			}
-		}
-
-		stream.Close()
-	}()
+	defer stream.Close()
 	// send upstream hello
-	if err := stream.Send(h.CloseContext(), upstreamHello); err != nil {
+	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
@@ -231,7 +217,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			return nil
 		}
 		return trace.Wrap(stream.Error())
-	case <-h.CloseContext().Done():
+	case <-h.closeContext.Done():
 		return nil
 	}
 
@@ -257,7 +243,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return nil
 			}
 			return trace.Wrap(stream.Error())
-		case <-h.CloseContext().Done():
+		case <-h.closeContext.Done():
 			return nil
 		}
 	}
@@ -310,22 +296,21 @@ func (h *downstreamHandle) Sender() <-chan DownstreamSender {
 }
 
 func (h *downstreamHandle) CloseContext() context.Context {
-	return h.shutdownContext
+	return h.closeContext
 }
 
 func (h *downstreamHandle) Close() error {
-	h.closeCancel()
+	h.cancel()
 	return nil
 }
 
-func (h *downstreamHandle) Shutdown(ctx context.Context) error {
-	h.deleteOnClose.Store(true)
-	h.shutdownCancel()
-
+func (h *downstreamHandle) SendGoodbye(ctx context.Context) error {
 	select {
+	case sender := <-h.Sender():
+		return trace.Wrap(sender.Send(ctx, proto.UpstreamInventoryGoodbye{DeleteResources: true}))
 	case <-ctx.Done():
-		return trace.Wrap(h.Close())
-	case <-h.closeContext.Done():
+		return trace.Wrap(ctx.Err())
+	case <-h.CloseContext().Done():
 		return nil
 	}
 }
@@ -520,7 +505,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
 	hello   proto.UpstreamInventoryHello
-	goodbye proto.UpstreamInventoryGoodbye
+	goodbye *proto.UpstreamInventoryGoodbye
 
 	agentMDLock   sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata
