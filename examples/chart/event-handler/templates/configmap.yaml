@@ -14,8 +14,12 @@ data:
     {{- if .Values.eventHandler.types }}
     types = "{{ .Values.eventHandler.types }}"
     {{- end }}
-    skip-event-types = "{{ default "" .Values.eventHandler.skipEventTypes }}"
-    skip-session-types = "{{ default "" .Values.eventHandler.skipSessionTypes }}"
+    {{- if .Values.eventHandler.skipEventTypes }}
+    skip-event-types = "{{ .Values.eventHandler.skipEventTypes }}"
+    {{- end }}
+    {{- if .Values.eventHandler.skipSessionTypes  }}
+    skip-session-types = "{{ .Values.eventHandler.skipSessionTypes }}"
+    {{- end }}
 
     [teleport]
     addr = "{{ .Values.teleport.address }}"
