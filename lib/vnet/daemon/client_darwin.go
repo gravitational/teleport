@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -98,7 +99,14 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		}
 	}
 
-	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
+	if err := startByCalling(ctx, socketPath, ipv6Prefix, dnsAddr); err != nil {
+		return trace.Wrap(err, "starting the daemon")
+	}
+
+	// TODO(ravicious): Implement monitoring the state of the daemon.
+	// Meanwhile, simply block until ctx is canceled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
 
 func register(ctx context.Context) (serviceStatus, error) {
@@ -194,4 +202,43 @@ func (s serviceStatus) String() string {
 	default:
 		return fmt.Sprintf("%d", int(s))
 	}
+}
+
+func startByCalling(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+	var pinner runtime.Pinner
+	defer pinner.Unpin()
+
+	req := C.StartVnetRequest{
+		vnet_params: &C.VnetParams{
+			socket_path: C.CString(socketPath),
+			ipv6_prefix: C.CString(ipv6Prefix),
+			dns_addr:    C.CString(dnsAddr),
+		},
+	}
+	pinner.Pin(req.vnet_params)
+	defer func() {
+		C.free(unsafe.Pointer(req.vnet_params.socket_path))
+		C.free(unsafe.Pointer(req.vnet_params.ipv6_prefix))
+		C.free(unsafe.Pointer(req.vnet_params.dns_addr))
+	}()
+
+	var res C.StartVnetResponse
+	defer func() {
+		C.free(unsafe.Pointer(res.error_domain))
+		C.free(unsafe.Pointer(res.error_description))
+	}()
+
+	go func() {
+		<-ctx.Done()
+
+		C.InvalidateDaemonClient()
+	}()
+
+	C.StartVnet(&req, &res)
+
+	if !res.ok {
+		return trace.Errorf("%v: %v", C.GoString(res.error_domain), C.GoString(res.error_description))
+	}
+
+	return nil
 }
