@@ -1364,6 +1364,7 @@ With an SSH node registered to the Teleport cluster:
 
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
+- [ ] Verify you are able to connect to the SSH node using the SSH multiplexer service
 
 With a Postgres DB registered to the Teleport cluster:
 
@@ -1374,6 +1375,8 @@ With a Postgres DB registered to the Teleport cluster:
 With a Kubernetes cluster registered to the Teleport cluster:
 
 - [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+  - [ ] With ALPN routing
+  - [ ] Without ALPN routing
 
 With a HTTP application registered to the Teleport cluster:
 
