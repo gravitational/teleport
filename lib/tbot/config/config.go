@@ -580,11 +580,8 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 }
 
-// Initable represents any Output or ServiceConfig which is compatible with
+// Initable represents any ServiceConfig which is compatible with
 // `tbot init`.
-// TODO(Noah): This is really a temporary patch whilst we migrate Outputs to
-// Services. Once that's done, we can go back to just directly referring to
-// conf.Services.
 type Initable interface {
 	GetDestination() bot.Destination
 	Init(ctx context.Context) error
@@ -599,23 +596,6 @@ func (conf *BotConfig) GetInitables() []Initable {
 		}
 	}
 	return out
-}
-
-// newTestConfig creates a new minimal bot configuration from defaults for use
-// in tests
-func newTestConfig(authServer string) (*BotConfig, error) {
-	// Note: we need authServer for CheckAndSetDefaults to succeed.
-	cfg := BotConfig{
-		AuthServer: authServer,
-		Onboarding: OnboardingConfig{
-			JoinMethod: types.JoinMethodToken,
-		},
-	}
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &cfg, nil
 }
 
 func destinationFromURI(uriString string) (bot.Destination, error) {

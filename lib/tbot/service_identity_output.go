@@ -25,13 +25,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
@@ -175,7 +178,26 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 	}
 
 	if s.cfg.SSHConfigMode == config.SSHConfigModeOn {
-		if err := s.renderSSHConfig(ctx); err != nil {
+		clusterNames, err := getClusterNames(ctx, impersonatedClient, id.ClusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		proxyPing, err := s.proxyPingCache.ping(ctx)
+		if err != nil {
+			return trace.Wrap(err, "pinging proxy")
+		}
+		if err := renderSSHConfig(
+			ctx,
+			proxyPing,
+			clusterNames,
+			s.cfg.Destination,
+			s.botAuthClient,
+			s.executablePath,
+			openssh.GetSystemSSHVersion,
+			s.getEnv,
+			s.alpnUpgradeCache,
+			s.botCfg,
+		); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -215,31 +237,49 @@ func (s *IdentityOutputService) render(
 	return nil
 }
 
-func (s *IdentityOutputService) renderSSHConfig(
+type certAuthGetter interface {
+	GetCertAuthority(
+		ctx context.Context,
+		id types.CertAuthID,
+		includeSigningKeys bool,
+	) (types.CertAuthority, error)
+}
+
+type alpnTester interface {
+	isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error)
+}
+
+func renderSSHConfig(
 	ctx context.Context,
+	proxyPing *webclient.PingResponse,
+	clusterNames []string,
+	dest bot.Destination,
+	certAuthGetter certAuthGetter,
+	getExecutablePath func() (string, error),
+	getOpenSSHVersion func() (*semver.Version, error),
+	getEnv func(key string) string,
+	alpnTester alpnTester,
+	botCfg *config.BotConfig,
 ) error {
-	ping, err := s.proxyPingCache.ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxyHost, proxyPort, err := utils.SplitHostPort(ping.Proxy.SSH.PublicAddr)
-	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
-	}
-
-	clusterNames, err := getClusterNames(
-		ctx, s.botAuthClient, s.getBotIdentity().ClusterName,
+	ctx, span := tracer.Start(
+		ctx,
+		"renderSSHConfig",
 	)
+	defer span.End()
+
+	proxyHost, proxyPort, err := utils.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter(
+			"proxy %+v has no usable public address: %v",
+			proxyPing.Proxy.SSH.PublicAddr, err,
+		)
 	}
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
 	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
-		s.botAuthClient,
+		certAuthGetter,
 		clusterNames,
 		proxyHost,
 	)
@@ -247,14 +287,14 @@ func (s *IdentityOutputService) renderSSHConfig(
 		return trace.Wrap(err)
 	}
 
-	if err := s.cfg.Destination.Write(
+	if err := dest.Write(
 		ctx, ssh.KnownHostsName, []byte(knownHosts),
 	); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We only want to proceed further if we have a directory destination
-	destDirectory, ok := s.cfg.Destination.(*config.DestinationDirectory)
+	destDirectory, ok := dest.(*config.DestinationDirectory)
 	if !ok {
 		return nil
 	}
@@ -269,7 +309,7 @@ func (s *IdentityOutputService) renderSSHConfig(
 		return trace.Wrap(err)
 	}
 
-	executablePath, err := s.executablePath()
+	executablePath, err := getExecutablePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -279,9 +319,9 @@ func (s *IdentityOutputService) renderSSHConfig(
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
-	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
+	sshConf := openssh.NewSSHConfig(getOpenSSHVersion, nil)
 
-	if s.getEnv(sshConfigProxyModeEnv) == "legacy" {
+	if getEnv(sshConfigProxyModeEnv) == "legacy" {
 		// Deprecated: this block will be removed in v17. It exists so users can
 		// revert to the old behavior if necessary.
 		// TODO(strideynet) DELETE IN 17.0.0
@@ -302,9 +342,9 @@ func (s *IdentityOutputService) renderSSHConfig(
 		// Test if ALPN upgrade is required, this will only be necessary if we
 		// are using TLS routing.
 		connUpgradeRequired := false
-		if ping.Proxy.TLSRoutingEnabled {
-			connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
-				ctx, ping.Proxy.SSH.PublicAddr, s.botCfg.Insecure,
+		if proxyPing.Proxy.TLSRoutingEnabled {
+			connUpgradeRequired, err = alpnTester.isUpgradeRequired(
+				ctx, proxyPing.Proxy.SSH.PublicAddr, botCfg.Insecure,
 			)
 			if err != nil {
 				return trace.Wrap(err, "determining if ALPN upgrade is required")
@@ -324,9 +364,9 @@ func (s *IdentityOutputService) renderSSHConfig(
 			DestinationDir:      absDestPath,
 
 			PureTBotProxyCommand: true,
-			Insecure:             s.botCfg.Insecure,
-			FIPS:                 s.botCfg.FIPS,
-			TLSRouting:           ping.Proxy.TLSRoutingEnabled,
+			Insecure:             botCfg.Insecure,
+			FIPS:                 botCfg.FIPS,
+			TLSRouting:           proxyPing.Proxy.TLSRoutingEnabled,
 			ConnectionUpgrade:    connUpgradeRequired,
 
 			// Session resumption is enabled by default, this can be
