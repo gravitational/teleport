@@ -147,7 +147,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
-		Writer:     config.NewBotConfigWriter(ctx, s.cfg.Destination),
+		Writer:     config.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
 		Key:        key,
 		Format:     identityfile.FormatOpenSSH,
 

@@ -43,7 +43,7 @@ func writeIdentityFile(
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.IdentityFilePath,
-		Writer:     config.NewBotConfigWriter(ctx, dest),
+		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
 		Key:        key,
 		Format:     identityfile.FormatFile,
 
@@ -57,6 +57,38 @@ func writeIdentityFile(
 	}
 
 	log.DebugContext(ctx, "Wrote identity file", "files", files)
+	return nil
+}
+
+// writeIdentityFileTLS writes the identity file in TLS format according to the
+// core identityfile.Write method. This isn't usually needed but can be
+// useful when writing out TLS certificates with alternative prefix and file
+// extensions for application compatibility reasons.
+func writeIdentityFileTLS(
+	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"writeIdentityFileTLS",
+	)
+	defer span.End()
+
+	cfg := identityfile.WriteConfig{
+		OutputPath: config.DefaultTLSPrefix,
+		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
+		Key:        key,
+		Format:     identityfile.FormatTLS,
+
+		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
+		OverwriteDestination: true,
+	}
+
+	files, err := identityfile.Write(ctx, cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(ctx, "Wrote TLS identity files", "files", files)
 	return nil
 }
 

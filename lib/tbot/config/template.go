@@ -100,7 +100,7 @@ type template interface {
 
 // NewBotConfigWriter returns a new BotConfigWriter that writes to the given
 // Destination.
-func NewBotConfigWriter(ctx context.Context, dest bot.Destination) *BotConfigWriter {
+func NewBotConfigWriter(ctx context.Context, dest bot.Destination, subPath string) *BotConfigWriter {
 	return &BotConfigWriter{
 		ctx:  ctx,
 		dest: dest,
