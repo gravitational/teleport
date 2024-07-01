@@ -2,6 +2,7 @@
 #define client_darwin_h
 
 #import <Foundation/Foundation.h>
+#import "protocol_darwin.h"
 
 typedef struct BundlePathResult {
     const char * bundlePath;
@@ -45,6 +46,39 @@ void RegisterDaemon(struct RegisterDaemonResult *result);
 int DaemonStatus(void);
 
 void OpenSystemSettingsLoginItems(void);
+
+typedef struct StartVnetRequest {
+    struct VnetParams * vnet_params;
+} StartVnetRequest;
+
+typedef struct StartVnetResponse {
+    bool ok;
+    const char * error_domain;
+    const char * error_description;
+} StartVnetResponse;
+
+// StartVnet spawns the daemon process. Only the first call does that,
+// subsequent calls are noops. The daemon process exits after the socket file
+// in request.vnet_params.socket_path is removed. After that it can be spawned
+// again by calling StartVnet.
+//
+// Blocks until the daemon receives the message or until the client gets
+// invalidated.
+//
+// After calling StartVnet, the caller is expected to call InvalidateDaemonClient
+// when a surrounding context in Go gets canceled.
+void StartVnet(struct StartVnetRequest *request, struct StartVnetResponse *response);
+
+// InvalidateDaemonClient closes the connection to the daemon and unblocks
+// any calls awaiting a reply from the daemon.
+void InvalidateDaemonClient(void);
+
+@interface VNEDaemonClient : NSObject
+-(void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError * error))completion;
+// invalidate executes all outstanding reply blocks, error handling blocks,
+// and invalidation blocks and forbids from sending or receiving new messages.
+-(void)invalidate;
+@end
 
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.

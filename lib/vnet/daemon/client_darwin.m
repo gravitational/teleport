@@ -91,6 +91,84 @@ void OpenSystemSettingsLoginItems(void) {
     }
 }
 
+@interface VNEDaemonClient ()
+
+@property (nonatomic, strong, readwrite) NSXPCConnection *connection;
+
+@end
+
+@implementation VNEDaemonClient
+
+-(NSXPCConnection *)connection {
+    // Create the XPC Connection on demand.
+    if (_connection == nil) {
+        _connection = [[NSXPCConnection alloc] initWithMachServiceName:DaemonLabel() options:NSXPCConnectionPrivileged];
+        _connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
+        _connection.invalidationHandler = ^{
+            self->_connection = nil;
+            NSLog(@"connection has been invalidated");
+        };
+        _connection.interruptionHandler = ^{
+            NSLog(@"connection has been interrupted");
+        };
+        
+        // New connections always start in a suspended state.
+        [_connection resume];
+    }
+    return _connection;
+}
+
+-(void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError *))completion {
+    // This way of calling the XPC proxy ensures either the error handler or
+    // the reply block gets called.
+    // https://forums.developer.apple.com/forums/thread/713429
+    id proxy = [self.connection remoteObjectProxyWithErrorHandler: ^(NSError * error) {
+        completion(error);
+    }];
+    
+    [(id<VNEDaemonProtocol>) proxy startVnet:vnetParams completion:^(void) {
+        completion(nil);
+    }];
+}
+
+-(void)invalidate {
+    if (_connection) {
+        [_connection invalidate];
+    }
+}
+
+@end
+
+static VNEDaemonClient *daemonClient = NULL;
+
+void StartVnet(struct StartVnetRequest *request, struct StartVnetResponse *response) {
+    if (!daemonClient) {
+        daemonClient = [[VNEDaemonClient alloc] init];
+    }
+    
+    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+    
+    [daemonClient startVnet:request->vnet_params completion:^(NSError * error) {
+        if (error) {
+            response->error_domain = VNECopyNSString([error domain]);
+            response->error_description = VNECopyNSString([error description]);
+            dispatch_semaphore_signal(sema);
+            return;
+        }
+        
+        response->ok = true;
+        dispatch_semaphore_signal(sema);
+    }];
+    
+    dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+}
+
+void InvalidateDaemonClient(void) {
+    if (daemonClient) {
+        [daemonClient invalidate];
+    }
+}
+
 char *VNECopyNSString(NSString *val) {
     if (val) {
         return strdup([val UTF8String]);
