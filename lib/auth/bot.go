@@ -185,7 +185,7 @@ func (a *ServerWithRoles) updateBotAuthentications(ctx context.Context, req *cer
 		// informational. Future changes will transition to trusting (and
 		// verifying) this value in lieu of the old generation label on bot
 		// users.
-		Generation: req.generation,
+		Generation: int32(req.generation),
 
 		// Note: This auth path can only ever be for token joins; all other join
 		// types effectively rejoin every renewal. Other fields will be unset
