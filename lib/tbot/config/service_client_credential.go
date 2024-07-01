@@ -19,7 +19,6 @@
 package config
 
 import (
-	"context"
 	"crypto/tls"
 	"sync"
 
@@ -106,29 +105,19 @@ func (o *UnstableClientCredentialOutput) Facade() (*identity.Facade, error) {
 	return o.facade, nil
 }
 
-// Render implements the Destination interface and is called regularly by the
-// bot with new credentials. Render passes these credentials down to the
-// underlying facade so that they can be used in TLS/SSH configs.
-func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider, ident *identity.Identity) error {
-	_, span := tracer.Start(
-		ctx,
-		"UnstableClientCredentialOutput/Render",
-	)
-	defer span.End()
-
-	// We're hijacking the Render method to receive a new identity in each
-	// renewal round.
+// SetOrUpdateFacade sets up the underlying facade or updates it if it has
+// already been created.
+func (o *UnstableClientCredentialOutput) SetOrUpdateFacade(id *identity.Identity) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.facade == nil {
 		if o.ready != nil {
 			close(o.ready)
 		}
-		o.facade = identity.NewFacade(false, false, ident)
-		return nil
+		o.facade = identity.NewFacade(false, false, id)
+		return
 	}
-	o.facade.Set(ident)
-	return nil
+	o.facade.Set(id)
 }
 
 // CheckAndSetDefaults implements the Destination interface and does nothing in

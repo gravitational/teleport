@@ -75,8 +75,7 @@ type defaultBotConfigOpts struct {
 	// Makes the bot connect via the Auth Server instead of the Proxy server.
 	useAuthServer bool
 	// Makes the bot accept an insecure auth or proxy server
-	insecure       bool
-	serviceConfigs config.ServiceConfigs
+	insecure bool
 }
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
@@ -137,7 +136,7 @@ func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
 	onboarding *config.OnboardingConfig,
-	outputs []config.Output,
+	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
 	t.Helper()
@@ -154,11 +153,10 @@ func defaultBotConfig(
 			Destination: &config.DestinationMemory{},
 		},
 		Oneshot: true,
-		Outputs: outputs,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.insecure,
-		Services: opts.serviceConfigs,
+		Services: serviceConfigs,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -340,7 +338,7 @@ func TestBot(t *testing.T) {
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
-		t, process, botParams, []config.Output{
+		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
 			identityOutputWithRoles,
 			appOutput,
@@ -522,7 +520,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
@@ -566,7 +564,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: false,
 			insecure:      true,
@@ -760,49 +758,48 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SPIFFEWorkloadAPIService{
-					Listen: socketPath,
-					SVIDs: []config.SVIDRequestWithRules{
-						// Intentionally unmatching PID to ensure this SVID
-						// is not issued.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/bar",
-							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: ptr(0),
-									},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.SPIFFEWorkloadAPIService{
+				Listen: socketPath,
+				SVIDs: []config.SVIDRequestWithRules{
+					// Intentionally unmatching PID to ensure this SVID
+					// is not issued.
+					{
+						SVIDRequest: config.SVIDRequest{
+							Path: "/bar",
+						},
+						Rules: []config.SVIDRequestRule{
+							{
+								Unix: config.SVIDRequestRuleUnix{
+									PID: ptr(0),
 								},
 							},
 						},
-						// SVID with rule that matches on PID.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/foo",
-								Hint: "hint",
-								SANS: config.SVIDRequestSANs{
-									DNS: []string{"example.com"},
-									IP:  []string{"10.0.0.1"},
-								},
+					},
+					// SVID with rule that matches on PID.
+					{
+						SVIDRequest: config.SVIDRequest{
+							Path: "/foo",
+							Hint: "hint",
+							SANS: config.SVIDRequestSANs{
+								DNS: []string{"example.com"},
+								IP:  []string{"10.0.0.1"},
 							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: &pid,
-									},
+						},
+						Rules: []config.SVIDRequestRule{
+							{
+								Unix: config.SVIDRequestRuleUnix{
+									PID: &pid,
 								},
 							},
 						},
 					},
 				},
 			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
 		},
 	)
 	botConfig.Oneshot = false
@@ -904,20 +901,19 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.DatabaseTunnelService{
+				Listener: botListener,
+				Service:  "test-database",
+				Database: "mydb",
+				Username: "llama",
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			// insecure required as the db tunnel will connect to proxies
 			// self-signed.
 			insecure: true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.DatabaseTunnelService{
-					Listener: botListener,
-					Service:  "test-database",
-					Database: "mydb",
-					Username: "llama",
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
@@ -999,17 +995,16 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.SSHMultiplexerService{
+				Destination: &config.DestinationDirectory{
+					Path: tmpDir,
+				},
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SSHMultiplexerService{
-					Destination: &config.DestinationDirectory{
-						Path: tmpDir,
-					},
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
