@@ -1,6 +1,8 @@
 #ifndef TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
 #define TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
 
+#include "protocol_darwin.h"
+
 #import <Foundation/Foundation.h>
 
 typedef struct RegisterDaemonResult {
@@ -33,5 +35,40 @@ int DaemonStatus(const char *bundle_path);
 // Should be used in conjunction with a message guiding the user towards enabling
 // the login item for the daemon.
 void OpenSystemSettingsLoginItems(void);
+
+typedef struct StartVnetRequest {
+  const char *bundle_path;
+  VnetParams *vnet_params;
+} StartVnetRequest;
+
+typedef struct StartVnetResult {
+  bool ok;
+  const char *error_domain;
+  const char *error_description;
+} StartVnetResult;
+
+// StartVnet spawns the daemon process. Only the first call does that,
+// subsequent calls are noops. The daemon process exits after the socket file
+// in request.vnet_params.socket_path is removed. After that it can be spawned
+// again by calling StartVnet.
+//
+// Blocks until the daemon receives the message or until the client gets
+// invalidated.
+//
+// After calling StartVnet, the caller is expected to call InvalidateDaemonClient
+// when a surrounding context in Go gets canceled, to check outResult.ok to see
+// if the client was able to connect to the daemon, and to free strings in StartVnetResult.
+void StartVnet(StartVnetRequest *request, StartVnetResult *outResult);
+
+// InvalidateDaemonClient closes the connection to the daemon and unblocks
+// any calls awaiting a reply from the daemon.
+void InvalidateDaemonClient(void);
+
+@interface VNEDaemonClient : NSObject
+- (void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError *error))completion;
+// invalidate executes all outstanding reply blocks, error handling blocks,
+// and invalidation blocks and forbids from sending or receiving new messages.
+- (void)invalidate;
+@end
 
 #endif /* TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_ */

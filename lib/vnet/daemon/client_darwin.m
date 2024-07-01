@@ -97,3 +97,90 @@ void OpenSystemSettingsLoginItems(void) {
     [SMAppService openSystemSettingsLoginItems];
   }
 }
+
+@interface VNEDaemonClient ()
+
+@property(nonatomic, strong, readwrite) NSXPCConnection *connection;
+@property(nonatomic, strong, readonly) NSString *bundlePath;
+
+@end
+
+@implementation VNEDaemonClient
+
+- (id)initWithBundlePath:(NSString *)bundlePath {
+  self = [super init];
+  if (self) {
+    _bundlePath = bundlePath;
+  }
+  return self;
+}
+
+- (NSXPCConnection *)connection {
+  // Create the XPC Connection on demand.
+  if (_connection == nil) {
+    _connection = [[NSXPCConnection alloc] initWithMachServiceName:DaemonLabel(_bundlePath)
+                                                           options:NSXPCConnectionPrivileged];
+    _connection.remoteObjectInterface =
+        [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
+    _connection.invalidationHandler = ^{
+      self->_connection = nil;
+    };
+
+    // New connections always start in a suspended state.
+    [_connection resume];
+  }
+  return _connection;
+}
+
+- (void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError *))completion {
+  // This way of calling the XPC proxy ensures either the error handler or
+  // the reply block gets called.
+  // https://forums.developer.apple.com/forums/thread/713429
+  id proxy = [self.connection remoteObjectProxyWithErrorHandler:^(NSError *error) {
+    completion(error);
+  }];
+
+  [(id<VNEDaemonProtocol>)proxy startVnet:vnetParams
+                               completion:^(void) {
+                                 completion(nil);
+                               }];
+}
+
+- (void)invalidate {
+  if (_connection) {
+    [_connection invalidate];
+  }
+}
+
+@end
+
+static VNEDaemonClient *daemonClient = NULL;
+
+void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
+  if (!daemonClient) {
+    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path)];
+  }
+
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+
+  [daemonClient startVnet:request->vnet_params
+               completion:^(NSError *error) {
+                 if (error) {
+                   outResult->error_domain = VNECopyNSString([error domain]);
+                   outResult->error_description = VNECopyNSString([error description]);
+                   dispatch_semaphore_signal(sema);
+                   return;
+                 }
+
+                 outResult->ok = true;
+                 dispatch_semaphore_signal(sema);
+               }];
+
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+}
+
+void InvalidateDaemonClient(void) {
+  if (daemonClient) {
+    [daemonClient invalidate];
+  }
+}

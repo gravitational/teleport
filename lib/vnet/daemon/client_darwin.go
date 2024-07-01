@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -74,7 +75,14 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		}
 	}
 
-	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
+	if err := startByCalling(ctx, bundlePath, socketPath, ipv6Prefix, dnsAddr); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(ravicious): Implement monitoring the state of the daemon.
+	// Meanwhile, simply block until ctx is canceled.
+	<-ctx.Done()
+	return trace.Wrap(ctx.Err())
 }
 
 func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
@@ -206,4 +214,62 @@ func bundlePath() (string, error) {
 	}
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
+}
+
+func startByCalling(ctx context.Context, bundlePath, socketPath, ipv6Prefix, dnsAddr string) error {
+	// C.StartVnet might hang if the daemon cannot be successfully spawned.
+	const daemonStartTimeout = 20 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,
+		fmt.Errorf("could not connect to the VNet daemon within the timeout"))
+	defer cancel()
+
+	defer C.InvalidateDaemonClient()
+
+	errC := make(chan error, 1)
+
+	go func() {
+		var pinner runtime.Pinner
+		defer pinner.Unpin()
+
+		req := C.StartVnetRequest{
+			bundle_path: C.CString(bundlePath),
+			vnet_params: &C.VnetParams{
+				socket_path: C.CString(socketPath),
+				ipv6_prefix: C.CString(ipv6Prefix),
+				dns_addr:    C.CString(dnsAddr),
+			},
+		}
+		defer func() {
+			C.free(unsafe.Pointer(req.bundle_path))
+			C.free(unsafe.Pointer(req.vnet_params.socket_path))
+			C.free(unsafe.Pointer(req.vnet_params.ipv6_prefix))
+			C.free(unsafe.Pointer(req.vnet_params.dns_addr))
+		}()
+		// Structs passed directly as arguments to cgo functions are automatically pinned.
+		// However, structs within structs have to be pinned by hand.
+		pinner.Pin(req.vnet_params)
+
+		var res C.StartVnetResult
+		defer func() {
+			C.free(unsafe.Pointer(res.error_domain))
+			C.free(unsafe.Pointer(res.error_description))
+		}()
+
+		// This call gets unblocked when C.InvalidateDaemonClient is called when startByCalling exits.
+		C.StartVnet(&req, &res)
+
+		if !res.ok {
+			errC <- trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
+			return
+		}
+
+		errC <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(context.Cause(ctx))
+	case err := <-errC:
+		return trace.Wrap(err, "connecting to the VNet daemon")
+	}
 }
