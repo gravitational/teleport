@@ -75,6 +75,22 @@ void RegisterDaemon(struct RegisterDaemonResult *result) {
     }
 }
 
+int DaemonStatus(void) {
+    if (@available(macOS 13, *)) {
+        SMAppService *service;
+        service = [SMAppService daemonServiceWithPlistName:(DaemonPlist())];
+        return (int) service.status;
+    } else {
+        return -1;
+    }
+}
+
+void OpenSystemSettingsLoginItems(void) {
+    if (@available(macOS 13, *)) {
+        [SMAppService openSystemSettingsLoginItems];
+    }
+}
+
 char *VNECopyNSString(NSString *val) {
     if (val) {
         return strdup([val UTF8String]);

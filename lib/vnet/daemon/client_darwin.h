@@ -40,6 +40,12 @@ typedef struct RegisterDaemonResult {
 // Pretty much a noop if the daemon is already registered and enabled.
 void RegisterDaemon(struct RegisterDaemonResult *result);
 
+// DaemonStatus returns the current status of the daemon's service in SMAppService.
+// Returns -1 if the given macOS version doesn't support SMAppService.
+int DaemonStatus(void);
+
+void OpenSystemSettingsLoginItems(void);
+
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.
 char *VNECopyNSString(NSString *val);
