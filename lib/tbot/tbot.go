@@ -239,7 +239,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 	services = append(services, &outputsService{
-		authPingCache:    authPingCache,
 		proxyPingCache:   proxyPingCache,
 		alpnUpgradeCache: alpnUpgradeCache,
 		getBotIdentity:   b.botIdentitySvc.GetIdentity,
@@ -327,6 +326,32 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
 				executablePath:    os.Executable,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.SPIFFESVIDOutput:
+			svc := &SPIFFESVIDOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.SSHHostOutput:
+			svc := &SSHHostOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

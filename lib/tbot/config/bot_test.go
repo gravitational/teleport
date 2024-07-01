@@ -21,27 +21,12 @@ package config
 import (
 	"context"
 	"slices"
-	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -148,31 +133,6 @@ func (p *mockProvider) GetCertAuthorities(ctx context.Context, caType types.Cert
 	return []types.CertAuthority{ca}, nil
 }
 
-func (p *mockProvider) AuthPing(_ context.Context) (*proto.PingResponse, error) {
-	return &proto.PingResponse{
-		ProxyPublicAddr: p.proxyAddr,
-		ClusterName:     p.clusterName,
-	}, nil
-}
-
-func (p *mockProvider) SignX509SVIDs(
-	ctx context.Context,
-	in *machineidv1pb.SignX509SVIDsRequest,
-	opts ...grpc.CallOption,
-) (*machineidv1pb.SignX509SVIDsResponse, error) {
-	return nil, nil
-}
-
-func (p *mockProvider) GenerateHostCert(
-	ctx context.Context, req *trustpb.GenerateHostCertRequest,
-) (*trustpb.GenerateHostCertResponse, error) {
-	// We could generate a cert easily enough here, but the template generates a
-	// random key each run so the resulting cert will change too.
-	// The CA fixture isn't even a cert but we never examine it, so it'll do the
-	// job.
-	return &trustpb.GenerateHostCertResponse{SshCertificate: []byte(fixtures.SSHCAPublicKey)}, nil
-}
-
 func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
 	return &webclient.PingResponse{
 		ClusterName: p.clusterName,
@@ -187,80 +147,4 @@ func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, 
 
 func (p *mockProvider) Config() *BotConfig {
 	return p.cfg
-}
-
-// identRequest is a function used to add additional requests to an identity in
-// getTestIdent.
-type identRequest func(id *tlsca.Identity)
-
-// getTestIdent returns a mostly-valid bot Identity without starting up an
-// entire Teleport server instance.
-func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity.Identity {
-	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	require.NoError(t, err)
-
-	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-
-	tlsPublicKeyPEM, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	tlsPublicKey, err := keys.ParsePublicKey(tlsPublicKeyPEM)
-	require.NoError(t, err)
-
-	// Note: it'd be nice to make this more universally useful in our tests at
-	// some point.
-	clock := clockwork.NewFakeClock()
-	notAfter := clock.Now().Add(time.Hour)
-	id := tlsca.Identity{
-		Username:         username,
-		KubernetesUsers:  []string{"foo"},
-		KubernetesGroups: []string{"bar"},
-		RouteToCluster:   mockClusterName,
-	}
-	for _, req := range reqs {
-		req(&id)
-	}
-	subject, err := id.Subject()
-	require.NoError(t, err)
-	certBytes, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
-		PublicKey: tlsPublicKey,
-		Subject:   subject,
-		NotAfter:  notAfter,
-	})
-	require.NoError(t, err)
-
-	caSigner, err := ssh.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
-	require.NoError(t, err)
-	ta := testauthority.New()
-	sshCertBytes, err := ta.GenerateUserCert(services.UserCertParams{
-		CASigner:          caSigner,
-		PublicUserKey:     sshPublicKey,
-		Username:          username,
-		CertificateFormat: constants.CertificateFormatStandard,
-		TTL:               time.Minute,
-		AllowedLogins:     []string{"foo"},
-		RouteToCluster:    mockClusterName,
-	})
-
-	require.NoError(t, err)
-
-	certs := &proto.Certs{
-		SSH:        sshCertBytes,
-		TLS:        certBytes,
-		TLSCACerts: [][]byte{[]byte(fixtures.TLSCACertPEM)},
-		SSHCACerts: [][]byte{[]byte(fixtures.SSHCAPublicKey)},
-	}
-
-	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKey,
-		PublicKeyBytes:  tlsPublicKeyPEM,
-	}, certs)
-	require.NoError(t, err)
-
-	return ident
 }
