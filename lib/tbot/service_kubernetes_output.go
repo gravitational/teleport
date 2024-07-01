@@ -198,7 +198,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	key, err := config.NewClientKey(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

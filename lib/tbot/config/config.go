@@ -284,12 +284,12 @@ func (conf *OnboardingConfig) Token() (string, error) {
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".
 type BotConfig struct {
-	Version       Version          `yaml:"version"`
-	Onboarding    OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage       *StorageConfig   `yaml:"storage,omitempty"`
-	Outputs       Outputs          `yaml:"outputs,omitempty"`
-	LegacyOutputs []LegacyOutput   `yaml:"-"`
-	Services      ServiceConfigs   `yaml:"services,omitempty"`
+	Version    Version          `yaml:"version"`
+	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
+	Storage    *StorageConfig   `yaml:"storage,omitempty"`
+	// Deprecated: Use Services
+	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
+	Services ServiceConfigs `yaml:"services,omitempty"`
 
 	Debug      bool   `yaml:"debug"`
 	AuthServer string `yaml:"auth_server,omitempty"`
@@ -364,30 +364,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// Here we do something a little unusual - we're partway through migrating
-	// outputs to become services. For outputs which are still legacy, we put
-	// them into LegacyOutputs, and for those which are services, we put them
-	// into Services.
+	// We've migrated Outputs to Services, so copy all Outputs to Services.
 	for _, output := range conf.Outputs {
-		switch output := output.(type) {
-		case ServiceConfig:
-			conf.Services = append(conf.Services, output)
-		case LegacyOutput:
-			conf.LegacyOutputs = append(conf.LegacyOutputs, output)
-		default:
-			return trace.BadParameter("unrecognized output type: %T", output)
-		}
-	}
-
-	for _, output := range conf.LegacyOutputs {
-		if err := output.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validating service[%d]", i)
-		}
+		conf.Services = append(conf.Services, output)
 	}
 
 	destinationPaths := map[string]int{}
@@ -398,9 +377,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		case *DestinationKubernetesSecret:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
-	}
-	for _, output := range conf.LegacyOutputs {
-		addDestinationToKnownPaths(output.GetDestination())
 	}
 	for _, svc := range conf.Services {
 		v, ok := svc.(interface{ GetDestination() bot.Destination })
@@ -543,72 +519,14 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		default:
-			return trace.BadParameter("unrecognized service type (%s)", header.Type)
-		}
-	}
-
-	*o = out
-	return nil
-}
-
-// Outputs assists polymorphic unmarshaling of a slice of Outputs
-type Outputs []Output
-
-func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
-	var out []Output
-	for _, node := range node.Content {
-		header := struct {
-			Type string `yaml:"type"`
-		}{}
-		if err := node.Decode(&header); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch header.Type {
 		case IdentityOutputType:
 			v := &IdentityOutput{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case ApplicationOutputType:
-			// Migrated
-			v := &ApplicationOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case KubernetesOutputType:
-			// Migrated.
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case DatabaseOutputType:
-			// Migrated.
-			v := &DatabaseOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SSHHostOutputType:
-			// Migrated
-			v := &SSHHostOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SPIFFESVIDOutputType:
-			// Migrated.
-			v := &SPIFFESVIDOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
 		default:
-			return trace.BadParameter("unrecognized output type (%s)", header.Type)
+			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
 	}
 
@@ -675,9 +593,6 @@ type Initable interface {
 
 func (conf *BotConfig) GetInitables() []Initable {
 	var out []Initable
-	for _, output := range conf.LegacyOutputs {
-		out = append(out, output)
-	}
 	for _, service := range conf.Services {
 		if v, ok := service.(Initable); ok {
 			out = append(out, v)
@@ -827,7 +742,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
-		if len(config.Outputs) > 0 {
+		if len(config.Services) > 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding destinations",
@@ -837,7 +752,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 		// When using the CLI --Destination-dir we configure an Identity type
 		// output for that directory.
-		config.Outputs = []Output{
+		config.Services = []ServiceConfig{
 			&IdentityOutput{
 				Destination: &DestinationDirectory{
 					Path: cf.DestinationDir,

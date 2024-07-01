@@ -183,7 +183,7 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	key, err := config.NewClientKey(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,14 +239,14 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	key, err := config.NewClientKey(routedIdentity, databaseCAs)
+	key, err := NewClientKey(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultCockroachDirName,
-		Writer:     config.NewBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
+		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
 		Key:        key,
 		Format:     identityfile.FormatCockroach,
 
@@ -277,14 +277,14 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	key, err := config.NewClientKey(routedIdentity, databaseCAs)
+	key, err := NewClientKey(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultMongoPrefix,
-		Writer:     config.NewBotConfigWriter(ctx, dest, ""),
+		Writer:     newBotConfigWriter(ctx, dest, ""),
 		Key:        key,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

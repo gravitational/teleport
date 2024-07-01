@@ -27,15 +27,15 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-// Assert that this UnstableClientCredentialOutput can be used as client
-// credential.
-var _ client.Credentials = new(UnstableClientCredentialOutput)
-
 const UnstableClientCredentialOutputType = "unstable_client_credential"
+
+var (
+	_ ServiceConfig      = &UnstableClientCredentialOutput{}
+	_ client.Credentials = &UnstableClientCredentialOutput{}
+)
 
 // UnstableClientCredentialOutput is an experimental tbot output which is
 // compatible with the client.Credential interface. This allows tbot to be
@@ -131,35 +131,10 @@ func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider,
 	return nil
 }
 
-// Init implements the Destination interface and does nothing in this
-// implementation.
-func (o *UnstableClientCredentialOutput) Init(ctx context.Context) error {
-	return nil
-}
-
-// GetDestination implements the Destination interface and does nothing in this
-// implementation.
-func (o *UnstableClientCredentialOutput) GetDestination() bot.Destination {
-	return &DestinationNop{}
-}
-
-// GetRoles implements the Destination interface and returns an empty slice in
-// this implementation. This causes all available roles to be used with the
-// identity.
-func (o *UnstableClientCredentialOutput) GetRoles() []string {
-	return []string{}
-}
-
 // CheckAndSetDefaults implements the Destination interface and does nothing in
 // this implementation.
 func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
 	return nil
-}
-
-// Describe implements the Destination interface and returns no file
-// descriptions in this implementation, this is because no files are written.
-func (o *UnstableClientCredentialOutput) Describe() []FileDescription {
-	return []FileDescription{}
 }
 
 // MarshalYAML enables the yaml package to correctly marshal the Destination
@@ -169,7 +144,7 @@ func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
 	return withTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }
 
-// String returns a human readable description of this output.
-func (o *UnstableClientCredentialOutput) String() string {
+// Type returns a human readable description of this output.
+func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }

@@ -238,18 +238,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			),
 		})
 	}
-	services = append(services, &outputsService{
-		proxyPingCache:   proxyPingCache,
-		alpnUpgradeCache: alpnUpgradeCache,
-		getBotIdentity:   b.botIdentitySvc.GetIdentity,
-		botClient:        b.botIdentitySvc.GetClient(),
-		cfg:              b.cfg,
-		resolver:         resolver,
-		log: b.log.With(
-			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
-		),
-		reloadBroadcaster: reloadBroadcaster,
-	})
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
@@ -267,7 +255,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			// Create a credential output for the SPIFFE Workload API service to
 			// use as a source of an impersonated identity.
 			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.LegacyOutputs = append(b.cfg.LegacyOutputs, svcIdentity)
+			b.cfg.Services = append(b.cfg.Services, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
 				botClient:             b.botIdentitySvc.GetClient(),

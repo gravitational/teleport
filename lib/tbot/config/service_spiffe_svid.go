@@ -91,7 +91,6 @@ func (o *SVIDRequest) CheckAndSetDefaults() error {
 
 var (
 	_ ServiceConfig = &SPIFFESVIDOutput{}
-	_ Output        = &SPIFFESVIDOutput{}
 	_ Initable      = &SPIFFESVIDOutput{}
 )
 

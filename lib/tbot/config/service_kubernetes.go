@@ -29,7 +29,6 @@ import (
 
 var (
 	_ ServiceConfig = &KubernetesOutput{}
-	_ Output        = &KubernetesOutput{}
 	_ Initable      = &KubernetesOutput{}
 )
 

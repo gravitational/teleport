@@ -176,7 +176,7 @@ func (s *ApplicationOutputService) render(
 	)
 	defer span.End()
 
-	key, err := config.NewClientKey(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
