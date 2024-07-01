@@ -6,9 +6,7 @@
   "scripts": {
     "start": "yarn build-wasm && vite",
     "build-wasm": "RUST_MIN_STACK=16777216 wasm-pack build ./src/ironrdp --target web",
-    "build": "yarn build-wasm && vite build",
-    "test": "npx jest",
-    "tdd": "jest . --watch"
+    "build": "yarn build-wasm && vite build"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
