@@ -238,6 +238,79 @@ $ tsh login --proxy=example.teleport.sh
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
+## U2F
+
+WebAuthn has replaced U2F in Teleport from previous versions. If you haven't configured U2F
+before, no further action is necessary—any U2F devices are automatically
+supported.
+
+If you have an existing U2F configuration, but haven't explicitly configured
+WebAuthn yet, Teleport will automatically derive your WebAuthn configuration
+from your existing U2F configuration.
+
+You may write the WebAuthn configuration yourself, but keep the U2F `app_id`
+field. Doing so ensures that any already-registered U2F devices won't need to be
+re-registered.
+
+For example, consider the U2F configuration below:
+
+```yaml
+# snippet from /etc/teleport.yaml showing a U2F configuration:
+auth_service:
+  authentication:
+    type: local
+    second_factor: u2f
+    u2f:
+      app_id: https://example.com
+      facets:
+      - "https://example.com"
+      - "https://example.com:443"
+      device_attestation_cas:
+      - "/path/to/u2f_attestation_ca.pem"
+```
+
+You can replace this configuration with its WebAuthn equivalent using a
+`cluster_auth_preference` similar to the following:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: "on" # changed from "u2f"
+  u2f:
+    # Keep the app_id to avoid re-registering U2F devices.
+    app_id: https://example.com
+  webauthn:
+    # rp_id is the public domain of the Teleport Proxy Service.
+    # It's similar to the U2F app_id, but without "https://" or port number.
+    rp_id: example.com
+    attestation_allowed_cas:
+    - "/path/to/u2f_attestation_ca.pem"
+```
+
+On a self-hosted cluster, you can configure WebAuthn with a Teleport Auth
+Service configuration similar to the following:
+
+```yaml
+# snippet from /etc/teleport.yaml:
+auth_service:
+  authentication:
+    type: local
+    second_factor: on # changed from "u2f"
+    u2f:
+      # Keep the app_id to avoid re-registering U2F devices.
+      app_id: https://example.com
+    webauthn:
+      # rp_id is the public domain of the Teleport Proxy Service.
+      # It's similar to the U2F app_id, but without "https://" or port number.
+      rp_id: example.com
+      attestation_allowed_cas:
+      - "/path/to/u2f_attestation_ca.pem"
+```
+
 ## Next steps
 
 - [Cluster-wide per-session MFA](./per-session-mfa.mdx)
