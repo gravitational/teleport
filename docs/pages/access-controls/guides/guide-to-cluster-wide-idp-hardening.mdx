@@ -25,19 +25,19 @@ or vulnerabilities that can be exploited.
 ### Prerequisites
 
 - A running Teleport cluster version 16.0.0-dev or above. If you want to get started with Teleport, 
-[sign up](https://goteleport.com/signup) for a free trial or [set up a demo environment](../index.mdx).
+[sign up](https://goteleport.com/signup) for a free trial or [set up a demo environment](../../index.mdx).
 
 - The `tctl` admin tool and `tsh` client tool.
 
-  Visit [Installation](../installation.mdx) for instructions on downloading
-  `tctl` and `tsh`.
+  Visit [Installation](../../installation.mdx) for instructions on downloading `tctl` and `tsh`.
 
 - WebAuthn hardware device, such as YubiKey or SoloKey
-- A Web browser with [WebAuthn support](
-  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
+
+- A Web browser with [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
+
 - (!docs/pages/includes/tctl.mdx!)
 
-To significantly enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures:
+To enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures.
 
 ## Set up cluster-wide WebAuthn
 Implement strong, phishing-resistant authentication across 
@@ -492,9 +492,8 @@ Teleport supports auto-enrollment. When enabled, auto-enrollment automatically
 enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
-- A device must be registered. Registration may be
-[manual](#register-a-trusted-device) or performed using an
-integration, like the [Jamf Pro integration](./jamf-integration.mdx).
+- A device must be registered. Registration may be [manual](#register-a-trusted-device) or performed using an
+integration, like the [Jamf Pro integration](../device-trust/jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
 
@@ -583,13 +582,12 @@ In the following sections, we'll dive deeper into each of these recommendations,
 ### Prerequisites
 
 - (!docs/pages/includes/tctl.mdx!)
-- [WebAuthn configured](webauthn.mdx) on this cluster
+- [WebAuthn configured](#set-up-cluster-wide-WebAuthn) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
 
-MFA for administrative actions is automatically enforced for clusters where
-WebAuthn is the only form of second factor allowed.
+MFA for administrative actions is automatically enforced for clusters where WebAuthn is the only form of second factor allowed.
 
 <Notice type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
