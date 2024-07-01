@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -127,6 +128,7 @@ func (b *Bot) BotIdentity() *identity.Identity {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	startedAt := time.Now()
 
 	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
 		return trace.Wrap(err)
@@ -237,6 +239,19 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			),
 		})
 	}
+	services = append(services, &heartbeatService{
+		now:       time.Now,
+		botCfg:    b.cfg,
+		startedAt: startedAt,
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+		),
+		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+			b.botIdentitySvc.GetClient().GetConnection(),
+		),
+		interval:   time.Minute * 30,
+		retryLimit: 5,
+	})
 	services = append(services, &outputsService{
 		authPingCache:    authPingCache,
 		proxyPingCache:   proxyPingCache,
