@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -1422,7 +1421,6 @@ type ClientI interface {
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
-	services.Assistant
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -1432,6 +1430,7 @@ type ClientI interface {
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
+	services.VnetConfigGetter
 	types.Events
 
 	types.WebSessionsGetter
@@ -1451,9 +1450,6 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	LoginRuleClient() loginrulepb.LoginRuleServiceClient
-
-	// EmbeddingClient returns a client to the Embedding gRPC service.
-	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
@@ -1610,11 +1606,18 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	SecReportsClient() *secreport.Client
 
-	// BotServiceClient returns a client for security reports.
+	// BotServiceClient returns a client for the Machine ID Bot Service.
 	// Clients connecting to older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
+
+	// BotInstanceServiceClient returns a client for interacting with Machine ID
+	// Bot Instances.
+	// Clients connecting to older Teleport versions, still get a bot service client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client

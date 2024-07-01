@@ -671,10 +671,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
-	// Apply regardless of Jamf being enabled.
-	// If a config is present, we want it to be valid.
-	if err := applyJamfConfig(fc, cfg); err != nil {
-		return trace.Wrap(err)
+	if fc.Jamf.Enabled() {
+		if err := applyJamfConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -960,19 +960,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
-	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
-		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
-		key, err := os.ReadFile(keyPath)
-		if err != nil {
-			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		}
-		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
-
-		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
-			return trace.BadParameter("command_execution_workers must not be negative")
-		}
-	}
-
 	// Set cluster audit configuration from file configuration.
 	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
@@ -987,23 +974,18 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
-		var assistCommandExecutionWorkers int32
-		if fc.Auth.Assist != nil {
-			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
-		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
-			RoutingStrategy:               fc.Auth.RoutingStrategy,
-			TunnelStrategy:                fc.Auth.TunnelStrategy,
-			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
-			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
-			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
+			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
+			RoutingStrategy:          fc.Auth.RoutingStrategy,
+			TunnelStrategy:           fc.Auth.TunnelStrategy,
+			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1102,13 +1084,13 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
 	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
 
-	cfg.Auth.KeyStore.PKCS11.Pin = pkcs11Config.Pin
-	if pkcs11Config.PinPath != "" {
-		if pkcs11Config.Pin != "" {
+	cfg.Auth.KeyStore.PKCS11.PIN = pkcs11Config.PIN
+	if pkcs11Config.PINPath != "" {
+		if pkcs11Config.PIN != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
 
-		fi, err := utils.StatFile(pkcs11Config.PinPath)
+		fi, err := utils.StatFile(pkcs11Config.PINPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1117,16 +1099,16 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 		if fi.Mode().Perm()&worldReadableBits != 0 {
 			return trace.Errorf(
 				"HSM pin file (%s) must not be world-readable",
-				pkcs11Config.PinPath,
+				pkcs11Config.PINPath,
 			)
 		}
 
-		pinBytes, err := os.ReadFile(pkcs11Config.PinPath)
+		pinBytes, err := os.ReadFile(pkcs11Config.PINPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		pin := strings.TrimRight(string(pinBytes), "\r\n")
-		cfg.Auth.KeyStore.PKCS11.Pin = pin
+		cfg.Auth.KeyStore.PKCS11.PIN = pin
 	}
 	return nil
 }
@@ -1235,17 +1217,6 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			constants.ShowResourcesRequestable:
 		default:
 			return trace.BadParameter("show resources %q not supported", cfg.Proxy.UI.ShowResources)
-		}
-	}
-
-	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
-		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
-		key, err := os.ReadFile(keyPath)
-		if err != nil {
-			return trace.BadParameter("failed to read OpenAI API key file at path %s: %v",
-				keyPath, trace.ConvertSystemError(err))
-		} else {
-			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
 		}
 	}
 
@@ -1854,9 +1825,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ServerVersion: database.MySQL.ServerVersion,
 			},
 			TLS: servicecfg.DatabaseTLS{
-				CACert:     caBytes,
-				ServerName: database.TLS.ServerName,
-				Mode:       servicecfg.TLSMode(database.TLS.Mode),
+				CACert:              caBytes,
+				ServerName:          database.TLS.ServerName,
+				Mode:                servicecfg.TLSMode(database.TLS.Mode),
+				TrustSystemCertPool: database.TLS.TrustSystemCertPool,
 			},
 			AdminUser: servicecfg.DatabaseAdminUser{
 				Name:            database.AdminUser.Name,

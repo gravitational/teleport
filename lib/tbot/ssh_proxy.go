@@ -214,24 +214,44 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 	}
 	defer apiClient.Close()
 
-	nodes, err := client.GetAllResources[types.Server](ctx, apiClient, &proto.ListResourcesRequest{
-		ResourceType:        types.KindNode,
+	return resolveTargetHostWithClient(ctx, apiClient, search, query)
+}
+
+// resolveTargetHostWithClient resolves the target host using the provided
+// client and search and query parameters.
+func resolveTargetHostWithClient(
+	ctx context.Context, clt client.ListUnifiedResourcesClient, search, query string,
+) (types.Server, error) {
+	resources, _, err := client.GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		// We only want a single node, but, we set limit=2 so we can throw a
+		// helpful error when multiple match. In the happy path, where a single
+		// node matches, this does not degrade performance because even if
+		// limit=1 the UnifiedResource cache will still iterate to the end to
+		// determine if there is a NextKey to return.
+		Limit:               2,
+		Kinds:               []string{types.KindNode},
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if len(nodes) == 0 {
+	if len(resources) == 0 {
 		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
 	}
-
-	if len(nodes) > 1 {
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
+	if len(resources) > 1 {
+		names := make([]string, len(resources))
+		for i, res := range resources {
+			names[i] = res.GetName()
+		}
+		return nil, trace.BadParameter("found multiple matching SSH hosts %v", names)
 	}
-
-	return nodes[0], nil
+	node := resources[0].ResourceWithLabels.(*types.ServerV2)
+	if node == nil {
+		return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+	}
+	return node, nil
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {

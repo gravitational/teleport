@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -530,4 +531,13 @@ func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2
 		},
 	})
 	require.NoError(t, err)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
+	require.NoError(t, err)
+	return fileConfPath
 }

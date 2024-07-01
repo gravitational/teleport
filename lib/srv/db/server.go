@@ -175,10 +175,18 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
+	if c.CloudClients == nil {
+		cloudClients, err := clients.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
+	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
 			AuthClient: c.AuthClient,
 			Clock:      c.Clock,
+			Clients:    c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -204,13 +212,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
-	}
-	if c.CloudClients == nil {
-		cloudClients, err := clients.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -489,7 +490,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, database types.Database
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: database.GetDynamicLabels(),
-		Log:    s.log,
+		// TODO: pass s.log through after it's been converted to slog
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -891,7 +892,7 @@ func (s *Server) close(ctx context.Context) error {
 		s.watcher.Close()
 	}
 	// Close all cloud clients.
-	errors = append(errors, s.cfg.Auth.Close())
+	errors = append(errors, s.cfg.CloudClients.Close())
 	return trace.NewAggregate(errors...)
 }
 
@@ -1090,7 +1091,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         s.cfg.Auth,
+		Auth:         common.NewAuthForSession(s.cfg.Auth, sessionCtx),
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,

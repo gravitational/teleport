@@ -45,16 +45,25 @@ let ctx: TeleportContext;
 
 const mio = mockIntersectionObserver();
 
+beforeEach(() => {
+  class ResizeObserver {
+    observe() {}
+
+    unobserve() {}
+
+    disconnect() {}
+  }
+
+  global.ResizeObserver = ResizeObserver;
+  jest.resetAllMocks();
+});
 beforeEach(() => jest.resetAllMocks());
 
 function setup(): void {
   ctx = new TeleportContext();
-  jest
-    .spyOn(ctx, 'getFeatureFlags')
-    .mockReturnValue({ ...disabledFeatureFlags, assist: true });
+  jest.spyOn(ctx, 'getFeatureFlags').mockReturnValue(disabledFeatureFlags);
   ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
 
-  ctx.assistEnabled = true;
   ctx.storeUser.state = makeUserContext({
     userName: 'admin',
     cluster: {

@@ -14,6 +14,7 @@ when running the `teleport-kube-agent` chart.
 | Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
 | Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
 | Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
+| Teleport Jamf service        | `jamf`            | [`jamfApiEndpoint`](#jamfapiendpoint), [`jamfClientId`](#jamfclientid) |
 
 For example:
 ```yaml
@@ -197,6 +198,17 @@ appResources:
 Once `appResources` is set, you can dynamically register application with
 `tsh` by following [the Dynamic App Registration guide](../../../application-access/guides/dynamic-registration.mdx).
 </Admonition>
+
+## `clusterDomain`
+
+| Type | Default |
+|------|---------|
+| `string` | `"cluster.local"` |
+
+`clusterDomain` sets the domain name used by the Kubernetes cluster. This value is used to build the
+FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
+`myapp` running in the `default` namespace at `http://myapp.default.svc.anything.local`. You must manually set this value
+to match your cluster domain if it is different from the default value `cluster.local`.
 
 ## `awsDatabases`
 
@@ -452,6 +464,85 @@ kubernetesDiscovery:
   namespaces: [ "seattle", "oakland" ]
   labels:
     env: testing
+```
+
+## `jamfApiEndpoint`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jamfApiEndpoint` sets the Jamf Pro API endpoint used for Jamf service.
+Example: "https://yourtenant.jamfcloud.com/api".
+
+This setting is required if the chart `roles` contains `jamf`.
+
+## `jamfClientId`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jamfClientId` sets the Jamf Pro API Client ID used for Jamf service.
+
+This setting is required if the chart `roles` contains `jamf`.
+
+## `jamfClientSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`jamfClientSecret` sets the Jamf Pro API client secret used for Jamf service.
+
+This setting is required if the chart `roles` contains `jamf` and `jamfCredentialsSecret.create` is set to `true`.
+If you provide your own Kubernetes Secret, this setting can remain unset.
+
+## `jamfCredentialsSecret`
+
+`jamfCredentialsSecret` manages the Kubernetes Secret containing the Jamf API credentials (either Jamf client secret or password).
+
+### `jamfCredentialsSecret.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`jamfCredentialsSecret.create` controls whether the chart creates the
+Kubernetes `Secret` containing the Jamf Pro API Client Secret.
+If false, you must create a Kubernetes Secret with the configured name in
+the Helm release namespace.
+
+### `jamfCredentialsSecret.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `"teleport-jamf-api-credentials"` |
+
+`jamfCredentialsSecret.name` is the name of the Kubernetes Secret
+containing the Jamf Pro API Client Secret used by the chart.
+
+If `jamfCredentialsSecret.create` is `false`, the chart will not attempt to create the secret itself.
+Instead, it will read the value from an existing Kubernetes Secret. `jamfCredentialsSecret.name`
+configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
+Jamf Pro API Client Secret stored in your Teleport chart values.
+
+To create your own Kubernetes Secret containing Jamf Pro API Client Secret, run the command:
+
+```code
+$ kubectl --namespace teleport create secret generic my-jamf-secret --from-literal=credential=<replace-with-actual-secret>
+```
+
+<Admonition type="note">
+  The key used for the Jamf Pro API Client Secret inside the secret must be `credential`, as in the command above.
+</Admonition>
+
+For example:
+
+```yaml
+jamfCredentialsSecret:
+  create: false
+  name: my-jamf-secret
 ```
 
 ## `teleportVersionOverride`

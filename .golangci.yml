@@ -128,6 +128,7 @@ linters-settings:
           - '**/lib/service/servicecfg/**'
           - '**/lib/reversetunnelclient/**'
           - '**/lib/auth/authclient/**'
+          - '**/lib/cloud/imds/**'
         allow:
           - github.com/gravitational/teleport/lib/cloud/imds
         deny:
@@ -166,6 +167,11 @@ linters-settings:
     context: all
     key-naming-case: snake
     static-msg: true
+    forbidden-keys:
+      - level
+      - msg
+      - source
+      - time
   testifylint:
     disable-all: true
     enable:

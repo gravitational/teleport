@@ -50,6 +50,8 @@ type UploaderConfig struct {
 	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
+	// InitialScanDelay is how long to wait before performing the initial scan.
+	InitialScanDelay time.Duration
 	// ScanPeriod is a uploader dir scan period
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
@@ -193,9 +195,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step:  u.cfg.ScanPeriod,
-		Max:   u.cfg.ScanPeriod * 100,
-		Clock: u.cfg.Clock,
+		First:  u.cfg.InitialScanDelay,
+		Step:   u.cfg.ScanPeriod,
+		Max:    u.cfg.ScanPeriod * 100,
+		Clock:  u.cfg.Clock,
+		Jitter: retryutils.NewSeventhJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -221,8 +225,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			default:
 				backoff.Inc()
-				u.log.WithError(event.Error).Warningf(
-					"Backing off, will retry after %v.", backoff.Duration())
+				u.log.Warnf("Increasing session upload backoff due to error, will retry after %v.", backoff.Duration())
 			}
 			// forward the event to channel that used in tests
 			if u.cfg.EventsC != nil {
@@ -234,18 +237,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 			}
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
-			var failed bool
 			if _, err := u.Scan(ctx); err != nil {
 				if !errors.Is(trace.Unwrap(err), errContext) {
-					failed = true
-					u.log.WithError(err).Warningf("Uploader scan failed.")
+					backoff.Inc()
+					u.log.WithError(err).Warningf("Uploader scan failed, will retry after %v.", backoff.Duration())
 				}
-			}
-			if failed {
-				backoff.Inc()
-				u.log.Debugf("Scan failed, backing off, will retry after %v.", backoff.Duration())
-			} else {
-				backoff.ResetToDelay()
 			}
 		}
 	}
@@ -384,7 +380,7 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
-func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
+func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -421,6 +417,20 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		}
 	}
 
+	start := time.Now()
+	if err := u.takeSemaphore(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			_ = u.releaseSemaphore(ctx)
+		}
+	}()
+
+	if time.Since(start) > 500*time.Millisecond {
+		log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
+	}
+
 	// Apparently, exclusive lock can be obtained only in RDWR mode on NFS
 	sessionFile, err := os.OpenFile(sessionFilePath, os.O_RDWR, 0)
 	if err != nil {
@@ -431,7 +441,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		if e := sessionFile.Close(); e != nil {
 			log.WithError(e).Warningf("Failed to close %v.", fileName)
 		}
-		return trace.WrapWithMessage(err, "could not acquire file lock for %q", sessionFilePath)
+		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
 	upload := &upload{
@@ -448,16 +458,6 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		return trace.ConvertSystemError(err)
 	}
 
-	start := time.Now()
-	if err := u.takeSemaphore(ctx); err != nil {
-		if err := upload.Close(); err != nil {
-			log.WithError(err).Warningf("Failed to close upload.")
-		}
-		return trace.Wrap(err)
-	}
-	if time.Since(start) > 500*time.Millisecond {
-		log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
-	}
 	u.wg.Add(1)
 	go func() {
 		defer u.wg.Done()
@@ -532,6 +532,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	select {
 	case <-u.closeC:
 		return trace.Errorf("operation has been canceled, uploader is closed")
+	case <-stream.Done():
+		if errStream, ok := stream.(interface{ Error() error }); ok {
+			return trace.ConnectionProblem(errStream.Error(), errStream.Error().Error())
+		}
+
+		return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
 	case <-stream.Status():
 	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")

@@ -806,9 +806,6 @@ type Auth struct {
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
-
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
 }
@@ -851,8 +848,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
+		a.ProxyPingInterval != empty.ProxyPingInterval
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -887,13 +883,13 @@ type PKCS11 struct {
 	// SlotNumber is the slot number of the HSM token to use. Set this or
 	// TokenLabel to select a token.
 	SlotNumber *int `yaml:"slot_number,omitempty"`
-	// Pin is the raw pin for connecting to the HSM. Set this or PinPath to set
+	// PIN is the raw pin for connecting to the HSM. Set this or PINPath to set
 	// the pin.
-	Pin string `yaml:"pin,omitempty"`
-	// PinPath is a path to a file containing a pin for connecting to the HSM.
+	PIN string `yaml:"pin,omitempty"`
+	// PINPath is a path to a file containing a pin for connecting to the HSM.
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
-	PinPath string `yaml:"pin_path,omitempty"`
+	PINPath string `yaml:"pin_path,omitempty"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -1278,31 +1274,6 @@ func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNum
 		Enabled:               enabled,
 		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
-}
-
-// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
-type AssistOptions struct {
-	// OpenAI is a set of options related to the OpenAI assist backend.
-	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
-}
-
-// ProxyAssistOptions is a set of proxy service options related to the Assist feature
-type ProxyAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-}
-
-// AuthAssistOptions is a set of auth service options related to the Assist feature
-type AuthAssistOptions struct {
-	AssistOptions `yaml:",inline"`
-	// CommandExecutionWorkers determines the number of workers that will
-	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
-}
-
-// OpenAIOptions stores options related to the OpenAI assist backend.
-type OpenAIOptions struct {
-	// APITokenPath is the path to a file with OpenAI API key.
-	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -1872,6 +1843,9 @@ type DatabaseTLS struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// CACertFile is an optional path to the database CA certificate.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool `yaml:"trust_system_cert_pool,omitempty"`
 }
 
 // DatabaseMySQL are an additional MySQL database options.
@@ -2123,9 +2097,6 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
-
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
 
 	// TrustXForwardedFor enables the service to take client source IPs from
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load

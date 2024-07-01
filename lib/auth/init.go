@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -46,8 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -81,7 +81,7 @@ type InitConfig struct {
 
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
-	KeyStoreConfig keystore.Config
+	KeyStoreConfig servicecfg.KeystoreConfig
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -159,9 +159,6 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
-	// Assist is a service that implements the Teleport Assist functionality.
-	Assist services.Assistant
-
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
 
@@ -220,9 +217,6 @@ type InitConfig struct {
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
-	// Embeddings is a service that manages Embeddings
-	Embeddings services.Embeddings
-
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -276,12 +270,6 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	// EmbeddingRetriever is a retriever for embeddings.
-	EmbeddingRetriever *ai.SimpleRetriever
-
-	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient embedding.Embedder
-
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
 
@@ -301,6 +289,9 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -709,6 +700,20 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
+var secondFactorUpgradeInstructions = `
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
+
+auth_service:
+  authentication:
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+
+For more information:
+- https://goteleport.com/docs/access-controls/guides/webauthn/
+`
+
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
@@ -724,7 +729,13 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if !shouldReplace {
 			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				return trace.Wrap(modules.ValidateResource(storedAuthPref))
+				err := modules.ValidateResource(storedAuthPref)
+				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+					return trace.Wrap(err, secondFactorUpgradeInstructions)
+				}
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			return nil
 		}
@@ -743,6 +754,9 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
 		if trace.IsCompareFailed(err) {
 			continue
+		}
+		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)
@@ -1104,20 +1118,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		}
 	}
 	return nil
-}
-
-// Identity alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type Identity = state.Identity
-
-// IdentityID alias left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-type IdentityID = state.IdentityID
-
-// ReadLocalIdentity left to prevent breaking builds
-// TODO(tross): Delete after teleport.e is updated
-func ReadLocalIdentity(dataDir string, id state.IdentityID) (*Identity, error) {
-	return state.ReadLocalIdentity(dataDir, id)
 }
 
 // GenerateIdentity generates identity for the auth server

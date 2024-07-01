@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import { PropsWithChildren, useEffect, useRef } from 'react';
 import { StepComponentProps } from 'design/StepSlider';
-import { Box, Flex, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { useRefAutoFocus } from 'shared/hooks';
-import * as whatwg from 'whatwg-url';
+import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { useVnetContext } from './vnetContext';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
@@ -38,14 +38,6 @@ export const VnetSliderStep = (props: StepComponentProps) => {
   const autoFocusRef = useRefAutoFocus<HTMLElement>({
     shouldFocus: visible,
   });
-  const clusters = useStoreSelector(
-    'clustersService',
-    useCallback(state => state.clusters, [])
-  );
-  const rootClusters = [...clusters.values()].filter(cluster => !cluster.leaf);
-  const rootProxyHostnames = rootClusters.map(
-    cluster => new whatwg.URL(`https://${cluster.proxyHost}`).hostname
-  );
 
   return (
     // Padding needs to align with the padding of the previous slider step.
@@ -62,7 +54,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
       <VnetSliderStepHeader goBack={props.prev} />
       <Flex
         p={textSpacing}
-        gap={1}
+        gap={3}
         flexDirection="column"
         css={`
           &:empty {
@@ -71,43 +63,119 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         `}
       >
         {startAttempt.status === 'error' && (
-          <Text>Could not start VNet: {startAttempt.statusText}</Text>
+          <ErrorText>Could not start VNet: {startAttempt.statusText}</ErrorText>
         )}
         {stopAttempt.status === 'error' && (
-          <Text>Could not stop VNet: {stopAttempt.statusText}</Text>
+          <ErrorText>Could not stop VNet: {stopAttempt.statusText}</ErrorText>
         )}
 
         {status.value === 'stopped' &&
           (status.reason.value === 'unexpected-shutdown' ? (
-            <Text>
+            <ErrorText>
               VNet unexpectedly shut down:{' '}
               {status.reason.errorMessage ||
                 'no direct reason was given, please check logs'}
               .
-            </Text>
+            </ErrorText>
           ) : (
-            <Text>
-              VNet automatically authenticates connections to TCP apps.
-            </Text>
+            <Flex flexDirection="column" gap={1}>
+              <Text>
+                VNet enables any program to connect to TCP applications
+                protected by Teleport.
+              </Text>
+              <Text>
+                Start VNet and connect to any TCP app over its public address –
+                VNet authenticates the connection for you under the hood.
+              </Text>
+            </Flex>
           ))}
       </Flex>
 
-      {status.value === 'running' &&
-        (rootClusters.length === 0 ? (
-          <Text p={textSpacing}>
-            No clusters connected yet, VNet is not proxying any connections.
-          </Text>
-        ) : (
-          <>
-            {/* TODO(ravicious): Add leaf clusters and custom DNS zones when support for them
-                lands in VNet. */}
-            <Text p={textSpacing}>
-              Proxying TCP connections to {rootProxyHostnames.join(', ')}
-            </Text>
-          </>
-        ))}
+      {status.value === 'running' && <DnsZones />}
     </Box>
   );
 };
 
 const textSpacing = 1;
+
+const ErrorText = (props: PropsWithChildren) => (
+  <Text>
+    <ConnectionStatusIndicator status="error" inline mr={2} />
+    {props.children}
+  </Text>
+);
+
+/**
+ * DnsZones displays the list of currently proxied DNS zones, as understood by the VNet admin
+ * process. The list is cached in the context and updated when the VNet panel gets opened.
+ *
+ * As for 95% of users the list will never change during the lifespan of VNet, the VNet panel always
+ * optimistically displays previously fetched results while fetching new list.
+ */
+const DnsZones = () => {
+  const { listDNSZones, listDNSZonesAttempt: eagerListDNSZonesAttempt } =
+    useVnetContext();
+  const listDNSZonesAttempt = useDelayedRepeatedAttempt(
+    eagerListDNSZonesAttempt
+  );
+  const dnsZonesRefreshRequestedRef = useRef(false);
+
+  useEffect(function refreshListOnOpen() {
+    if (!dnsZonesRefreshRequestedRef.current) {
+      dnsZonesRefreshRequestedRef.current = true;
+      listDNSZones();
+    }
+  }, []);
+
+  if (listDNSZonesAttempt.status === 'error') {
+    return (
+      <Text p={textSpacing}>
+        <ConnectionStatusIndicator status="warning" inline mr={2} />
+        VNet is working, but Teleport Connect could not fetch DNS zones:{' '}
+        {listDNSZonesAttempt.statusText}
+        <ButtonSecondary
+          ml={2}
+          size="small"
+          type="button"
+          onClick={listDNSZones}
+        >
+          Retry
+        </ButtonSecondary>
+      </Text>
+    );
+  }
+
+  if (
+    listDNSZonesAttempt.status === '' ||
+    (listDNSZonesAttempt.status === 'processing' && !listDNSZonesAttempt.data)
+  ) {
+    return (
+      <Text p={textSpacing}>
+        <ConnectionStatusIndicator status="processing" inline mr={2} />
+        Updating the list of DNS zones…
+      </Text>
+    );
+  }
+
+  const dnsZones = listDNSZonesAttempt.data;
+
+  return (
+    <Text p={textSpacing}>
+      <ConnectionStatusIndicator
+        status={listDNSZonesAttempt.status === 'success' ? 'on' : 'processing'}
+        title={
+          listDNSZonesAttempt.status === 'processing'
+            ? 'Updating the list of DNS zones…'
+            : undefined
+        }
+        inline
+        mr={2}
+      />
+      {dnsZones.length === 0 ? (
+        <>No clusters connected yet, VNet is not proxying any connections.</>
+      ) : (
+        <>Proxying TCP connections to {dnsZones.join(', ')}</>
+      )}
+    </Text>
+  );
+};

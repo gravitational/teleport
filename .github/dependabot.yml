@@ -198,7 +198,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
@@ -220,7 +219,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
@@ -228,6 +226,30 @@ updates:
       - "rust"
       - "no-changelog"
 
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    labels:
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
+    groups:
+      ui:
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 20
+    reviewers:
+      - avatus
+      - kimlisa
+      - rudream
+      - bl-nero
+      - gzdnunek
+      - ravicious
+      - ryanclark
   - package-ecosystem: github-actions
     directory: "/.github/workflows"
     schedule:

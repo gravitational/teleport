@@ -17,10 +17,11 @@
  */
 
 import api from 'teleport/services/api';
+import cfg from 'teleport/config';
 
 import user from './user';
 import { makeTraits } from './makeUser';
-import { PasswordState } from './types';
+import { ExcludeUserField, PasswordState, User } from './types';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -236,13 +237,6 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      assist: {
-        list: false,
-        read: false,
-        edit: false,
-        create: false,
-        remove: false,
-      },
       samlIdpServiceProvider: {
         list: false,
         read: false,
@@ -377,3 +371,79 @@ test('makeTraits', async () => {
     color: [],
   });
 });
+
+test('excludeUserFields when updating user', async () => {
+  // we are not testing the reply, so reply doesn't matter.
+  jest.spyOn(api, 'put').mockResolvedValue({} as any);
+
+  const userReq: User = {
+    name: 'name',
+    roles: [],
+    traits: blankTraits,
+    allTraits: {},
+  };
+
+  await user.updateUser(userReq, ExcludeUserField.AllTraits);
+  expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
+    name: 'name',
+    roles: [],
+    traits: blankTraits,
+  });
+
+  jest.clearAllMocks();
+
+  await user.updateUser(userReq, ExcludeUserField.Traits);
+  expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
+    name: 'name',
+    roles: [],
+    allTraits: {},
+  });
+});
+
+test('excludeUserFields when creating user', async () => {
+  // we are not testing the reply, so reply doesn't matter.
+  jest.spyOn(api, 'post').mockResolvedValue({} as any);
+
+  const userReq: User = {
+    name: 'name',
+    roles: [],
+    traits: blankTraits,
+    allTraits: {},
+  };
+
+  await user.createUser(userReq, ExcludeUserField.AllTraits);
+  expect(api.post).toHaveBeenCalledWith(
+    cfg.api.usersPath,
+    {
+      name: 'name',
+      roles: [],
+      traits: blankTraits,
+    },
+    null,
+    undefined
+  );
+
+  jest.clearAllMocks();
+
+  await user.createUser(userReq, ExcludeUserField.Traits);
+  expect(api.post).toHaveBeenCalledWith(
+    cfg.api.usersPath,
+    {
+      name: 'name',
+      roles: [],
+      allTraits: {},
+    },
+    null,
+    undefined
+  );
+});
+
+const blankTraits = {
+  logins: [],
+  databaseUsers: [],
+  databaseNames: [],
+  kubeUsers: [],
+  kubeGroups: [],
+  windowsLogins: [],
+  awsRoleArns: [],
+};

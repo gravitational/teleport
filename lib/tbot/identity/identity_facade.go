@@ -176,7 +176,7 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
 				f.mu.RLock()
 				defer f.mu.RUnlock()
-				return []ssh.Signer{f.identity.KeySigner}, nil
+				return []ssh.Signer{f.identity.CertSigner}, nil
 			}),
 		},
 		HostKeyCallback: hostKeyCallback,

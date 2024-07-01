@@ -25,16 +25,22 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"log/slog"
 
+	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Manager provides an interface to interact with teleport CA private keys,
@@ -48,29 +54,30 @@ type Manager struct {
 	// signers from, in preference order. [backendForNewKeys] is expected to be
 	// the first element.
 	usableSigningBackends []backend
+
+	authPrefGetter cryptosuites.AuthPreferenceGetter
 }
 
-// RSAKeyOptions configure options for RSA key generation.
-type RSAKeyOptions struct {
-	DigestAlgorithm crypto.Hash
+// rsaKeyOptions configure options for RSA key generation.
+type rsaKeyOptions struct {
+	digestAlgorithm crypto.Hash
 }
 
-// RSAKeyOption is a functional option for RSA key generation.
-type RSAKeyOption func(*RSAKeyOptions)
+// rsaKeyOption is a functional option for RSA key generation.
+type rsaKeyOption func(*rsaKeyOptions)
 
-func WithDigestAlgorithm(alg crypto.Hash) RSAKeyOption {
-	return func(opts *RSAKeyOptions) {
-		opts.DigestAlgorithm = alg
+func withRSADigestAlgorithm(alg crypto.Hash) rsaKeyOption {
+	return func(opts *rsaKeyOptions) {
+		opts.digestAlgorithm = alg
 	}
 }
 
 // backend is an interface that holds private keys and provides signing
 // operations.
 type backend interface {
-	// generateRSA creates a new RSA key pair and returns its identifier and a
-	// crypto.Signer. The returned identifier can be passed to getSigner later
-	// to get the same crypto.Signer.
-	generateRSA(context.Context, ...RSAKeyOption) (keyID []byte, signer crypto.Signer, err error)
+	// generateRSA creates a new key pair and returns its identifier and a crypto.Signer. The returned
+	// identifier can be passed to getSigner later to get an equivalent crypto.Signer.
+	generateKey(context.Context, cryptosuites.Algorithm, ...rsaKeyOption) (keyID []byte, signer crypto.Signer, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
 	// The public key is passed as well so that it does not need to be fetched
@@ -96,78 +103,83 @@ type backend interface {
 	keyTypeDescription() string
 }
 
-// Config holds configuration parameters for the keystore. A software keystore
-// will be the default if no other is configured. Only one inner config other
-// than Software should be set. It is okay to always set the Software config even
-// when a different keystore is desired because it will only be used if all
-// others are empty.
-type Config struct {
-	// Software holds configuration parameters specific to software keystores.
-	Software SoftwareConfig
-	// PKCS11 holds configuration parameters specific to PKCS#11 keystores.
-	PKCS11 PKCS11Config
-	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
-	GCPKMS GCPKMSConfig
-	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
-	AWSKMS AWSKMSConfig
+// Options holds keystore options.
+type Options struct {
+	// HostUUID is the ID of the Auth Service host.
+	HostUUID string
+	// ClusterName provides the name of the Teleport cluster.
+	ClusterName types.ClusterName
 	// Logger is a logger to be used by the keystore.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
+	// AuthPreferenceGetter provides the current cluster auth preference.
+	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
+	// CloudClients provides cloud clients.
+	CloudClients CloudClientProvider
+
+	kmsClient         *kms.KeyManagementClient
+	clockworkOverride clockwork.Clock
+	// GCPKMS uses a special fake clock that seemed more testable at the time.
+	faketimeOverride faketime.Clock
 }
 
-func (cfg *Config) CheckAndSetDefaults() error {
-	if cfg.Logger == nil {
-		cfg.Logger = logrus.StandardLogger()
+// CheckAndSetDefaults checks that the options are valid and sets defaults.
+func (opts *Options) CheckAndSetDefaults() error {
+	if opts.ClusterName == nil {
+		return trace.BadParameter("ClusterName is required")
 	}
-
-	if err := cfg.Software.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	if opts.CloudClients == nil {
+		return trace.BadParameter("CloudClients is required")
 	}
-
-	// We check for mutual exclusion when parsing the file config.
-	if (cfg.PKCS11 != PKCS11Config{}) {
-		return trace.Wrap(cfg.PKCS11.CheckAndSetDefaults())
+	if opts.AuthPreferenceGetter == nil {
+		return trace.BadParameter("AuthPreferenceGetter is required")
 	}
-	if (cfg.GCPKMS != GCPKMSConfig{}) {
-		return trace.Wrap(cfg.GCPKMS.CheckAndSetDefaults())
-	}
-	if (cfg.AWSKMS != AWSKMSConfig{}) {
-		return trace.Wrap(cfg.AWSKMS.CheckAndSetDefaults())
+	if opts.Logger == nil {
+		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
 	}
 	return nil
 }
 
 // NewManager returns a new keystore Manager
-func NewManager(ctx context.Context, cfg Config) (*Manager, error) {
+func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Options) (*Manager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := opts.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	softwareBackend := newSoftwareKeyStore(&cfg.Software, cfg.Logger)
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	var backendForNewKeys backend = softwareBackend
+	usableSigningBackends := []backend{softwareBackend}
 
-	if (cfg.PKCS11 != PKCS11Config{}) {
-		pkcs11Backend, err := newPKCS11KeyStore(&cfg.PKCS11, cfg.Logger)
-		return &Manager{
-			backendForNewKeys:     pkcs11Backend,
-			usableSigningBackends: []backend{pkcs11Backend, softwareBackend},
-		}, trace.Wrap(err)
+	switch {
+	case cfg.PKCS11 != (servicecfg.PKCS11Config{}):
+		pkcs11Backend, err := newPKCS11KeyStore(&cfg.PKCS11, opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		backendForNewKeys = pkcs11Backend
+		usableSigningBackends = []backend{pkcs11Backend, softwareBackend}
+	case cfg.GCPKMS != (servicecfg.GCPKMSConfig{}):
+		gcpBackend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		backendForNewKeys = gcpBackend
+		usableSigningBackends = []backend{gcpBackend, softwareBackend}
+	case cfg.AWSKMS != (servicecfg.AWSKMSConfig{}):
+		awsBackend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		backendForNewKeys = awsBackend
+		usableSigningBackends = []backend{awsBackend, softwareBackend}
 	}
-	if (cfg.GCPKMS != GCPKMSConfig{}) {
-		gcpBackend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, cfg.Logger)
-		return &Manager{
-			backendForNewKeys:     gcpBackend,
-			usableSigningBackends: []backend{gcpBackend, softwareBackend},
-		}, trace.Wrap(err)
-	}
-	if (cfg.AWSKMS != AWSKMSConfig{}) {
-		awsBackend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, cfg.Logger)
-		return &Manager{
-			backendForNewKeys:     awsBackend,
-			usableSigningBackends: []backend{awsBackend, softwareBackend},
-		}, trace.Wrap(err)
-	}
+
 	return &Manager{
-		backendForNewKeys:     softwareBackend,
-		usableSigningBackends: []backend{softwareBackend},
+		backendForNewKeys:     backendForNewKeys,
+		usableSigningBackends: usableSigningBackends,
+		authPrefGetter:        opts.AuthPreferenceGetter,
 	}, nil
 }
 
@@ -207,8 +219,11 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// SHA-512 to match NewSSHKeyPair.
-			return toRSASHA512Signer(sshSigner), trace.Wrap(err)
+			if sshSigner.PublicKey().Type() == ssh.KeyAlgoRSA {
+				// SHA-512 to match NewSSHKeyPair.
+				sshSigner = toRSASHA512Signer(sshSigner)
+			}
+			return sshSigner, trace.Wrap(err)
 		}
 	}
 	return nil, trace.NotFound("no usable SSH key pairs found")
@@ -306,7 +321,7 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 			if !canSign {
 				continue
 			}
-			pub, err := utils.ParsePublicKey(keyPair.PublicKey)
+			pub, err := keys.ParsePublicKey(keyPair.PublicKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -318,9 +333,13 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 }
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
-func (m *Manager) NewSSHKeyPair(ctx context.Context) (*types.SSHKeyPair, error) {
+func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// The default hash length for SSH signers is 512 bits.
-	sshKey, cryptoSigner, err := m.backendForNewKeys.generateRSA(ctx, WithDigestAlgorithm(crypto.SHA512))
+	sshKey, cryptoSigner, err := m.backendForNewKeys.generateKey(ctx, alg, withRSADigestAlgorithm(crypto.SHA512))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -337,8 +356,12 @@ func (m *Manager) NewSSHKeyPair(ctx context.Context) (*types.SSHKeyPair, error) 
 }
 
 // NewTLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
-func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string) (*types.TLSKeyPair, error) {
-	tlsKey, signer, err := m.backendForNewKeys.generateRSA(ctx)
+func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -360,12 +383,16 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string) (*types
 
 // New JWTKeyPair create a new JWT keypair in the keystore backend and returns
 // it.
-func (m *Manager) NewJWTKeyPair(ctx context.Context) (*types.JWTKeyPair, error) {
-	jwtKey, signer, err := m.backendForNewKeys.generateRSA(ctx)
+func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, err := utils.MarshalPublicKey(signer)
+	jwtKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicKey, err := keys.MarshalPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1,9 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "lib/srv/desktop/rdp/rdpclient",
-    "web/packages/teleport/src/ironrdp"
-]
+members = ["lib/srv/desktop/rdp/rdpclient", "web/packages/teleport/src/ironrdp"]
 
 [workspace.package]
 edition = "2021"

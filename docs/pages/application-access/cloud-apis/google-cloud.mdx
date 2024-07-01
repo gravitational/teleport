@@ -94,15 +94,6 @@ $ gcloud iam service-accounts create teleport-google-cloud-cli \
   --display-name="teleport-google-cloud-cli"
 ```
 
-Enable your service account to act as other service accounts by assigning it the
-predefined "Service Account User" role:
-
-```code
-$ gcloud projects add-iam-policy-binding <Var name="google-cloud-project" /> \
-   --member="serviceAccount:teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com" \
-   --role="roles/iam.serviceAccountUser"
-```
-
 ### Set up a service account that Teleport users can access
 
 When a Teleport user executes a Google Cloud CLI command against the Teleport
@@ -640,7 +631,7 @@ command.
   temporarily, with no longstanding admin roles for attackers to hijack. View
   our documentation on [Role Access
   Requests](../../access-controls/access-requests/role-requests.mdx) and [Access
-  Request plugins](../../access-controls/access-request-plugins/index.mdx).
+  Request plugins](../../access-controls/access-request-plugins.mdx).
 - You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and

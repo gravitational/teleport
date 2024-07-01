@@ -86,7 +86,7 @@ export function AccessRequestCheckout() {
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
     data,
-    suggestedReviewers,
+    shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
     assumedRequests,
@@ -94,10 +94,14 @@ export function AccessRequestCheckout() {
     goToRequestsList,
     setShowCheckout,
     maxDuration,
-    setMaxDuration,
+    onMaxDurationChange,
+    maxDurationOptions,
     dryRunResponse,
-    requestTTL,
-    setRequestTTL,
+    pendingRequestTtl,
+    setPendingRequestTtl,
+    pendingRequestTtlOptions,
+    startTime,
+    onStartTimeChange,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = data[0]?.kind === 'role';
@@ -109,7 +113,6 @@ export function AccessRequestCheckout() {
   // We should rather detect how much space we have,
   // but for simplicity we only count items.
   const moreToShow = Math.max(data.length - MAX_RESOURCES_IN_BAR_TO_SHOW, 0);
-
   return (
     <>
       {data.length > 0 && !isCollapsed() && (
@@ -134,11 +137,15 @@ export function AccessRequestCheckout() {
                 {pluralize(data.length, isRoleRequest ? 'role' : 'resource')}{' '}
                 added to access request:
               </Text>
-              <Flex direction="row" gap={1} flexWrap="wrap">
+              <Flex gap={1} flexWrap="wrap">
                 {data
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
-                    let resource = { name: c.name, Icon: undefined };
+                    let resource = {
+                      name: c.name,
+                      key: `${c.clusterName}-${c.kind}-${c.id}`,
+                      Icon: undefined,
+                    };
                     switch (c.kind) {
                       case 'app':
                         resource.Icon = Icon.Application;
@@ -155,14 +162,14 @@ export function AccessRequestCheckout() {
                       case 'role':
                         break;
                       default:
-                        c.kind satisfies never;
+                        c satisfies never;
                     }
                     return resource;
                   })
                   .map(c => (
                     <Label
                       kind="secondary"
-                      key={c.name}
+                      key={c.key}
                       css={`
                         display: flex;
                         align-items: center;
@@ -228,6 +235,7 @@ export function AccessRequestCheckout() {
             }
             reset={reset}
             data={data}
+            showClusterNameColumn={shouldShowClusterNameColumn}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}
             fetchResourceRequestRolesAttempt={fetchResourceRolesAttempt}
@@ -235,7 +243,6 @@ export function AccessRequestCheckout() {
             setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
-            reviewers={suggestedReviewers}
             selectedReviewers={selectedReviewers}
             setSelectedReviewers={setSelectedReviewers}
             requireReason={false}
@@ -244,9 +251,13 @@ export function AccessRequestCheckout() {
             fetchStatus={'loaded'}
             dryRunResponse={dryRunResponse}
             maxDuration={maxDuration}
-            setMaxDuration={setMaxDuration}
-            requestTTL={requestTTL}
-            setRequestTTL={setRequestTTL}
+            onMaxDurationChange={onMaxDurationChange}
+            maxDurationOptions={maxDurationOptions}
+            pendingRequestTtl={pendingRequestTtl}
+            pendingRequestTtlOptions={pendingRequestTtlOptions}
+            setPendingRequestTtl={setPendingRequestTtl}
+            startTime={startTime}
+            onStartTimeChange={onStartTimeChange}
           />
         )}
       </Transition>

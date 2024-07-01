@@ -14,8 +14,17 @@ configuration file. The public address can take an IP or a DNS name. It can also
 be a list of values:
 
 ```yaml
-public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
+public_addr: ["service1.example.com", "service2.example.com"]
 ```
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  Only a single Proxy Service `public_addr` should be configured. Attempting
+  to have multiple addresses can result in redirects to the first listed address
+  that may not be available to the client.
+</Admonition>
 
 Specifying a public address for a Teleport service may be useful in the
 following use cases:
@@ -60,7 +69,7 @@ environment variables when running Teleport. You can also optionally set the
 specified hosts/netmasks/ports.
 
 By default, Teleport installations based on package managers (such as `apt` and
-`yum`) configure The `teleport` systemd unit to read environment variables from
+`yum`) configure the `teleport` systemd unit to read environment variables from
 the file `/etc/default/teleport` by using the `EnvironmentFile` field:
 
 ```ini
@@ -104,7 +113,7 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   type="warning"
   title="Note"
 >
-  The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
+  The Proxy Service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local Kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
 </Admonition>
 
 ## Ports

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Flex, Text, ButtonIcon, Box, LabelInput } from 'design';
 import * as Icon from 'design/Icon';
 
@@ -24,48 +24,22 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../../Shared/utils';
-import { getDurationOptionIndexClosestToOneWeek } from '../../AccessDuration/durationOptions';
-
-import { getPendingRequestDurationOptions } from './utils';
 
 export function AdditionalOptions({
   selectedMaxDurationTimestamp,
-  setRequestTTL,
-  requestTTL,
+  setPendingRequestTtl,
+  pendingRequestTtl,
   dryRunResponse,
-  maxDuration,
+  pendingRequestTtlOptions,
 }: {
   selectedMaxDurationTimestamp: number;
-  setRequestTTL(o: Option<number>): void;
-  requestTTL: Option<number>;
+  setPendingRequestTtl(o: Option<number>): void;
+  pendingRequestTtl: Option<number>;
   dryRunResponse: AccessRequest;
-  maxDuration: Option<number>;
+  pendingRequestTtlOptions: Option<number>[];
 }) {
-  // Options for extending pending TTL.
-  const [requestTTLDurationOptions, setRequestTTLDurationOptions] = useState<
-    Option<number>[]
-  >([]);
-
   const [expanded, setExpanded] = useState(false);
   const ArrowIcon = expanded ? Icon.ChevronDown : Icon.ChevronRight;
-
-  // With every max duration change, recalculate the pending TTL
-  // options to never succeed the max duration.
-  useEffect(() => {
-    const options = getPendingRequestDurationOptions(
-      dryRunResponse.created,
-      maxDuration.value
-    );
-    setRequestTTLDurationOptions(options);
-
-    if (options.length >= 1) {
-      const index = getDurationOptionIndexClosestToOneWeek(
-        options,
-        dryRunResponse.created
-      );
-      setRequestTTL(options[index]);
-    }
-  }, [maxDuration]);
 
   return (
     <>
@@ -92,8 +66,8 @@ export function AdditionalOptions({
       </Flex>
       {expanded && (
         <Box data-testid="reviewers">
-          {requestTTLDurationOptions.length > 0 && (
-            <LabelInput typography="body2" color="text.slightlyMuted" mb={3}>
+          {pendingRequestTtlOptions.length > 0 && (
+            <LabelInput color="text.slightlyMuted" mb={3}>
               <Flex alignItems="center">
                 <Text mr={1}>Request expires if not reviewed in</Text>
                 <ToolTipInfo>
@@ -102,13 +76,15 @@ export function AdditionalOptions({
                 </ToolTipInfo>
               </Flex>
               <Select
-                options={requestTTLDurationOptions}
-                onChange={(option: Option<number>) => setRequestTTL(option)}
-                value={requestTTL}
+                options={pendingRequestTtlOptions}
+                onChange={(option: Option<number>) =>
+                  setPendingRequestTtl(option)
+                }
+                value={pendingRequestTtl}
               />
             </LabelInput>
           )}
-          <LabelInput typography="body2" color="text.slightlyMuted">
+          <LabelInput color="text.slightlyMuted">
             <Flex alignItems="center">
               <Text mr={1}>Access Request Lifetime</Text>
               <ToolTipInfo>
