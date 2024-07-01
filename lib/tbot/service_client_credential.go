@@ -20,7 +20,6 @@ package tbot
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -44,7 +43,7 @@ type ClientCredentialOutputService struct {
 }
 
 func (s *ClientCredentialOutputService) String() string {
-	return fmt.Sprintf("client-credential-output")
+	return "client-credential-output"
 }
 
 func (s *ClientCredentialOutputService) OneShot(ctx context.Context) error {

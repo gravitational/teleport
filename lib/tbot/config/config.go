@@ -365,9 +365,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	// We've migrated Outputs to Services, so copy all Outputs to Services.
-	for _, output := range conf.Outputs {
-		conf.Services = append(conf.Services, output)
-	}
+	conf.Services = append(conf.Services, conf.Outputs...)
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)

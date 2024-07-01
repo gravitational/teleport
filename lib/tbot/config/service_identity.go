@@ -92,8 +92,6 @@ type IdentityOutput struct {
 	// SSHConfigMode controls whether to write an ssh_config file to the
 	// destination directory. Defaults to SSHConfigModeOn.
 	SSHConfigMode SSHConfigMode `yaml:"ssh_config,omitempty"`
-
-	destPath string
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
