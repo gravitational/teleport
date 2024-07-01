@@ -77,7 +77,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		Clock:           a.clock,
 		PublicKey:       csr.PublicKey,
 		Subject:         csr.Subject,
-		NotAfter:        a.clock.Now().UTC().Add(240 * time.Hour),
+		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.

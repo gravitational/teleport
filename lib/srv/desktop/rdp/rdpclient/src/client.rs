@@ -1422,7 +1422,6 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
         client_name: "Teleport".to_string(),
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
-        keyboard_layout: 0,
         keyboard_functional_keys_count: 12,
         keyboard_layout: 0,
         ime_file_name: "".to_string(),
