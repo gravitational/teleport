@@ -252,14 +252,24 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
-			// Create a credential output for the SPIFFE Workload API service to
-			// use as a source of an impersonated identity.
-			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.Services = append(b.cfg.Services, svcIdentity)
+			clientCredential := &config.UnstableClientCredentialOutput{}
+			svcIdentity := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               clientCredential,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svcIdentity.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(
+					componentTBot, "svc", svcIdentity.String(),
+				),
+			)
+			services = append(services, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
 				botClient:             b.botIdentitySvc.GetClient(),
-				svcIdentity:           svcIdentity,
+				svcIdentity:           clientCredential,
 				botCfg:                b.cfg,
 				cfg:                   svcCfg,
 				resolver:              resolver,
@@ -366,6 +376,35 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:    b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.IdentityOutput:
+			svc := &IdentityOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+				getEnv:            os.Getenv,
+				alpnUpgradeCache:  alpnUpgradeCache,
+				proxyPingCache:    proxyPingCache,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.UnstableClientCredentialOutput:
+			svc := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
