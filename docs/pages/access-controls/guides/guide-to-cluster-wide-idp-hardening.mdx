@@ -22,9 +22,15 @@ or vulnerabilities that can be exploited.
 
 ## Hardening measures
 
-## Prerequisites
+### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- A running Teleport cluster version 16.0.0-dev or above. If you want to get started with Teleport, 
+[sign up](https://goteleport.com/signup) for a free trial or [set up a demo environment](../index.mdx).
+
+- The `tctl` admin tool and `tsh` client tool.
+
+  Visit [Installation](../installation.mdx) for instructions on downloading
+  `tctl` and `tsh`.
 
 - WebAuthn hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
@@ -39,7 +45,6 @@ your entire infrastructure using WebAuthn standards. WebAuthn, a W3C standard an
 enables public-key cryptography for web authentication. Teleport supports WebAuthn as a second factor 
 for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
 It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
-
 
 ### Step 1/3. Enable WebAuthn support
 
@@ -235,7 +240,6 @@ $ tsh login --proxy=example.teleport.sh
 ```
 
 </TabItem>
-
 </Tabs>
 
 <Admonition type="note">
@@ -249,7 +253,6 @@ Ensure that multi-factor authentication is required for each session, not just a
 to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
 against compromised on-disk certificates. It requires additional MFA checks when initiating new SSH, Kubernetes, database, or desktop sessions.
 
-
 Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
@@ -259,9 +262,6 @@ when starting new:
 - Application sessions
 - Desktop sessions
 
-This is an advanced security feature that protects users against compromises of
-their on-disk Teleport certificates.
-
 <Notice type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
@@ -269,7 +269,7 @@ their on-disk Teleport certificates.
   to improve security.
 </Notice>
 
-### Configure per-session MFA
+## Configure per-session MFA
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -557,7 +557,7 @@ Detected security key tap
 The presence of the `teleport-device-*` extensions shows that the device was
 successfully enrolled and authenticated.
 
-### Enable MFA for admin actions
+## Require MFA for administrative actions
 Add an extra layer of security for sensitive administrative operations by requiring multi-factor authentication 
 for these high-privilege actions. Teleport enforces additional MFA verification for administrative 
 actions across all clients (tctl, tsh, Web UI, and Connect). This feature adds an extra security 
@@ -580,16 +580,13 @@ In the following sections, we'll dive deeper into each of these recommendations,
   legacy self-hosted setups.
 </Notice>
 
-## Prerequisites
+### Prerequisites
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](webauthn.mdx) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
-- A Web browser with [WebAuthn support](
-  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
+- A Web browser with [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
-
-### Require MFA for administrative actions
 
 MFA for administrative actions is automatically enforced for clusters where
 WebAuthn is the only form of second factor allowed.
@@ -598,6 +595,22 @@ WebAuthn is the only form of second factor allowed.
   In a future major version, Teleport may enforce MFA for administrative actions
   for a wider range of cluster configurations.
 </Notice>
+
+Examples of administrative actions include, but are not limited to:
+
+- Resetting or recovering user accounts
+- Inviting new users
+- Updating cluster configuration resources
+- Modifying access management resources
+- Approving access requests
+- Generating new join tokens
+- Impersonation
+- Creating new bots for Machine ID
+
+This is an advanced security feature that protects users against compromises of
+their on-disk Teleport certificates.
+
+### Enable MFA for admin actions
 
 <Tabs>
   <TabItem label="Dynamic Resources" scope={["team", "cloud"]}>
@@ -646,13 +659,5 @@ WebAuthn is the only form of second factor allowed.
 
   </TabItem>
 </Tabs>
-
-
-## Resources
-
-- Set up cluster-wide [WebAuthn](./webauthn.mdx)
-- Implement [per-session MFA](./per-session-mfa.mdx)
-- Enable cluster-wide [device trust](../device-trust/guide.mdx)
-- Enable MFA for [admin actions](./mfa-for-admin-actions.mdx)
 
 
