@@ -32,7 +32,7 @@
     "@opentelemetry/sdk-trace-web": "1.25.0",
     "@opentelemetry/semantic-conventions": "1.25.0",
     "@storybook/addon-toolbars": "^6.5.16",
-    "@storybook/builder-webpack5": "^6.5.16",
+    "@storybook/builder-webpack5": "^8.1.11",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
     "@swc/plugin-styled-components": "^1.5.122",
