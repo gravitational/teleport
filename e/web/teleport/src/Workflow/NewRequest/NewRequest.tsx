@@ -9,11 +9,8 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Text,
-  ButtonBorder,
-  Button,
   ButtonIcon,
 } from 'design';
-import { kinds } from 'design/Button/Button';
 import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import {
@@ -27,9 +24,7 @@ import {
 import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { Info } from 'design/Alert';
-import { SearchPanel } from 'shared/components/Search';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
@@ -63,8 +58,6 @@ import useTeleportE from 'e-teleport/useTeleportE';
 import { RequestCheckout } from './RequestCheckout';
 import { useNewRequest, State, getResourceId } from './useNewRequest';
 import { AppRequestButton, RequestButton } from './RequestButton';
-
-import type { TransitionStatus } from 'react-transition-group';
 
 const agentOptions: ResourceOption[] = [
   // Order matters. On initial render
@@ -129,9 +122,7 @@ function NewRequest(props: State) {
     unifiedFetchAttempt,
     resources,
     addSelectedResources,
-    updateQuery,
     resourceRequestsDisabled,
-    updateSearch,
     fetchStatus,
     onAgentLabelClick,
     selectedResource,
@@ -139,7 +130,6 @@ function NewRequest(props: State) {
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
     addOrRemoveResource,
-    pageCount,
     customSort,
     nextPage,
     prevPage,
@@ -147,11 +137,6 @@ function NewRequest(props: State) {
     clearAddedResources,
     dryRunAttempt,
     requestableRoles,
-    toggleAddCurrentPage,
-    toggleAddAllPages,
-    numOfPages,
-    numAddedOnPage,
-    addedAll,
     addAllFetchAttempt,
     usage,
     fetchUsage,
@@ -216,9 +201,6 @@ function NewRequest(props: State) {
   const numAddedRoles = Object.keys(addedResources.role).length;
 
   const numTotalSelections = numAddedResources + numAddedRoles;
-
-  const showAddAllPagesPanel =
-    numAddedOnPage === agents.length && numOfPages > 1 && !isRoleList;
 
   // 'confirmed' parameter is only true when user agrees to the warning dialogue.
   function handleOnChangeResourceOption(o: ResourceOption, confirmed = false) {
@@ -416,54 +398,6 @@ function NewRequest(props: State) {
           )}
           {attempt.status !== 'processing' && (
             <StyledWrapper>
-              {/*roles use client-side search */}
-              {!isRoleList && (
-                <>
-                  <SearchPanel
-                    updateQuery={updateQuery}
-                    updateSearch={updateSearch}
-                    pageIndicators={pageCount}
-                    filter={agentFilter}
-                    showSearchBar={true}
-                    disableSearch={fetchStatus === 'loading'}
-                    extraChildren={
-                      <AddPageButton
-                        toggleAddCurrentPage={toggleAddCurrentPage}
-                        toggleAddAllPages={toggleAddAllPages}
-                        agentOption={currResourceOpt}
-                        areAllPagesAdded={addedAll[currResourceOpt.value]}
-                        numAdded={
-                          addedAll[currResourceOpt.value]
-                            ? Object.keys(addedResources[currResourceOpt.value])
-                                .length
-                            : numAddedOnPage
-                        }
-                      />
-                    }
-                  />
-                  <Transition
-                    in={showAddAllPagesPanel}
-                    timeout={50}
-                    mountOnEnter
-                    unmountOnExit
-                    enter
-                    exit
-                  >
-                    {transitionState => (
-                      <AddAllPagesPanel
-                        toggleAddAllPages={toggleAddAllPages}
-                        totalCount={pageCount.total}
-                        pageCount={numOfPages}
-                        areAllPagesAdded={addedAll[currResourceOpt.value]}
-                        numAddedOnPage={numAddedOnPage}
-                        agentOption={currResourceOpt}
-                        attempt={addAllFetchAttempt}
-                        transitionState={transitionState}
-                      />
-                    )}
-                  </Transition>
-                </>
-              )}
               <ResourceList
                 agents={agents}
                 selectedResource={selectedResource}
@@ -545,121 +479,6 @@ const StyledWrapper = styled.div`
   border-radius: 8px;
 `;
 
-function AddPageButton({
-  toggleAddCurrentPage,
-  toggleAddAllPages,
-  numAdded,
-  areAllPagesAdded,
-  agentOption,
-}: {
-  toggleAddCurrentPage: () => void;
-  toggleAddAllPages: () => void;
-  numAdded: number;
-  areAllPagesAdded: boolean;
-  agentOption: ResourceOption;
-}) {
-  let agentButtonText =
-    agentOption.label === 'kubernetes' ? 'clusters' : agentOption.label;
-
-  // Removes the 's' at the end if only one is selected
-  if (numAdded === 1) {
-    agentButtonText = agentButtonText.slice(0, -1);
-  }
-
-  function onClick() {
-    if (areAllPagesAdded) {
-      toggleAddAllPages();
-    } else {
-      toggleAddCurrentPage();
-    }
-  }
-
-  return (
-    <AnimatedButton
-      ml={3}
-      onClick={onClick}
-      className={numAdded > 0 ? 'primary' : 'border'}
-    >
-      <Text className={numAdded > 0 ? 'primary' : 'border'}>
-        {numAdded > 0 ? `Remove ${numAdded} ${agentButtonText}` : '+ Add all'}
-      </Text>
-    </AnimatedButton>
-  );
-}
-
-function AddAllPagesPanel({
-  toggleAddAllPages,
-  totalCount,
-  pageCount,
-  numAddedOnPage,
-  areAllPagesAdded,
-  agentOption,
-  attempt,
-  transitionState,
-}: {
-  toggleAddAllPages: () => void;
-  totalCount: number;
-  pageCount: number;
-  numAddedOnPage: number;
-  areAllPagesAdded: boolean;
-  agentOption: ResourceOption;
-  attempt: Attempt;
-  transitionState: TransitionStatus;
-}) {
-  const agentText =
-    agentOption.label === 'kubernetes'
-      ? 'kubernetes clusters'
-      : agentOption.label;
-
-  const agentButtonText =
-    agentOption.label === 'kubernetes' ? 'clusters' : agentOption.label;
-
-  if (areAllPagesAdded) {
-    return (
-      <>
-        {attempt.status === 'success' && (
-          <StyledSelectAllPanel className={transitionState}>
-            <StyledSelectAllPanelContent className={transitionState}>
-              <Text>
-                All{' '}
-                <Text as="span" bold>
-                  {totalCount} {agentText} across {pageCount} pages
-                </Text>{' '}
-                have been added to your request.
-              </Text>
-              <ButtonPrimary ml={3} onClick={toggleAddAllPages} width="320px">
-                Remove all {totalCount} matching {agentButtonText}
-              </ButtonPrimary>
-            </StyledSelectAllPanelContent>
-          </StyledSelectAllPanel>
-        )}
-      </>
-    );
-  } else {
-    return (
-      <StyledSelectAllPanel className={transitionState}>
-        <StyledSelectAllPanelContent className={transitionState}>
-          <Text>
-            All{' '}
-            <Text as="span" bold>
-              {numAddedOnPage} {agentText} on this page
-            </Text>{' '}
-            have been added to your request.
-          </Text>
-          <ButtonBorder
-            ml={3}
-            onClick={toggleAddAllPages}
-            disabled={attempt.status === 'processing'}
-            width="320px"
-          >
-            + Add all {totalCount} matching {agentButtonText}
-          </ButtonBorder>
-        </StyledSelectAllPanelContent>
-      </StyledSelectAllPanel>
-    );
-  }
-}
-
 function UsageInfo(usage: { limit: number; used: number }) {
   const ctx = useTeleportE();
   // limit will be 0 if not using usage-based billing
@@ -730,78 +549,6 @@ const UsageNotice = styled(Flex)`
 function usageLimitReached({ limit, used }: { limit: number; used: number }) {
   return used >= limit;
 }
-
-const StyledSelectAllPanel = styled(StyledPanel)`
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-  border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
-
-  &.entering {
-    height: 24px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-    transition:
-      height 100ms ease-out,
-      padding-top 100ms ease-out,
-      padding-bottom 100ms ease-out;
-  }
-
-  &.entered {
-    height: 24px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-    overflow: visible;
-  }
-
-  &.exiting {
-    height: 0px;
-    padding: 0px;
-    padding-bottom: 0px;
-    transition:
-      height 50ms linear,
-      padding-top 50ms linear,
-      padding-bottom 50ms linear;
-  }
-
-  &.exited {
-    height: 0px;
-    padding-top: 0px;
-    padding-bottom: 0px;
-    border: none;
-  }
-`;
-
-const StyledSelectAllPanelContent = styled(Flex)`
-  align-items: center;
-  justify-content: center;
-
-  &.exiting,
-  &.exited {
-    display: none;
-  }
-`;
-
-const ButtonBorderStyles = theme => ({ ...kinds({ kind: 'border', theme }) });
-const ButtonPrimaryStyles = theme => ({ ...kinds({ kind: 'primary', theme }) });
-
-const AnimatedButton = styled(Button)`
-  white-space: nowrap;
-
-  &.primary {
-    width: 224px;
-    transition: all 50ms ease-in;
-
-    ${props => ButtonPrimaryStyles(props.theme)}
-  }
-
-  &.border {
-    width: 120px;
-    transition: all 50ms ease-in;
-
-    ${props => ButtonBorderStyles(props.theme)}
-  }
-`;
 
 type ResourceOption = {
   value: ResourceKind;

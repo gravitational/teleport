@@ -29,7 +29,6 @@ import type {
   ResourceLabel,
   ResourceFilter,
   ResourcesResponse,
-  ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
 
@@ -125,7 +124,6 @@ export function useNewRequest(ctx: Ctx) {
     };
   }, [clusterId]);
 
-  const [addedAll, setAddedAll] = useState(getDefaultAddedAll());
   const addAllFetchAttempt = useAttempt('');
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
@@ -309,14 +307,6 @@ export function useNewRequest(ctx: Ctx) {
     setAgentFilter({ ...agentFilter, sort });
   }
 
-  function updateSearch(search: string) {
-    setAgentFilter({ ...agentFilter, query: '', search });
-  }
-
-  function updateQuery(query: string) {
-    setAgentFilter({ ...agentFilter, search: '', query });
-  }
-
   function clearAddedResources() {
     setAddedResources(getEmptyResourceState());
   }
@@ -360,7 +350,6 @@ export function useNewRequest(ctx: Ctx) {
     const newResources: ResourceMap = deepCopyResourceMap(addedResources);
     if (newResources[kind][resourceId]) {
       delete newResources[kind][resourceId];
-      updateAddedAll(kind as ResourceIdKind, false);
     } else {
       newResources[kind][resourceId] = resourceName ? resourceName : resourceId;
     }
@@ -486,56 +475,6 @@ export function useNewRequest(ctx: Ctx) {
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function addAgents(agents: UnifiedResource[]) {
-    switch (selectedResource) {
-      case 'node':
-        (agents as Node[]).forEach(
-          node => (addedResources[selectedResource][node.id] = node.hostname)
-        );
-        break;
-      case 'app':
-        (agents as App[]).forEach(
-          app =>
-            (addedResources[selectedResource][app.name] =
-              app.friendlyName || app.name)
-        );
-        break;
-      case 'db':
-        (agents as Database[]).forEach(
-          db => (addedResources[selectedResource][db.name] = db.hostname)
-        );
-        break;
-      case 'kube_cluster':
-        (agents as Kube[]).forEach(
-          kube => (addedResources[selectedResource][kube.name] = kube.name)
-        );
-        break;
-      case 'user_group':
-        (agents as UserGroup[]).forEach(
-          userGroup =>
-            (addedResources[selectedResource][userGroup.name] =
-              userGroup.friendlyName || userGroup.name)
-        );
-        break;
-      case 'windows_desktop':
-        (agents as Desktop[]).forEach(
-          desktop =>
-            (addedResources[selectedResource][desktop.name] = desktop.addr)
-        );
-        break;
-    }
-
-    setAddedResources({
-      ...addedResources,
-      app: { ...addedResources.app },
-      db: { ...addedResources.db },
-      kube_cluster: { ...addedResources.kube_cluster },
-      node: { ...addedResources.node },
-      windows_desktop: { ...addedResources.windows_desktop },
-      user_group: { ...addedResources.user_group },
-    });
-  }
-
   function unAddCurrentPage() {
     switch (selectedResource) {
       case 'node':
@@ -579,63 +518,6 @@ export function useNewRequest(ctx: Ctx) {
       windows_desktop: { ...addedResources.windows_desktop },
       user_group: { ...addedResources.user_group },
     });
-  }
-
-  function updateAddedAll(agentKind: ResourceIdKind, isAddedAll: boolean) {
-    addedAll[agentKind] = isAddedAll;
-    setAddedAll({
-      app: addedAll.app,
-      db: addedAll.db,
-      kube_cluster: addedAll.kube_cluster,
-      node: addedAll.node,
-      user_group: addedAll.user_group,
-      windows_desktop: addedAll.windows_desktop,
-    });
-  }
-
-  function toggleAddCurrentPage() {
-    if (numAddedOnPage === 0) {
-      addAgents(fetchedData.agents);
-    } else {
-      unAddCurrentPage();
-    }
-    updateAddedAll(selectedResource as ResourceIdKind, false);
-  }
-
-  function toggleAddAllPages() {
-    if (!addedAll[selectedResource]) {
-      const cb = getAgentsFetchCallback(ctx, selectedResource);
-      addAllFetchAttempt.setAttempt({ status: 'processing' });
-      setFetchStatus('loading');
-
-      cb(clusterId, {
-        ...agentFilter,
-        limit: fetchedData.totalCount,
-        searchAsRoles: 'yes',
-      })
-        .then(res => {
-          addAgents(res.agents);
-          addAllFetchAttempt.setAttempt({ status: 'success' });
-          setFetchStatus('');
-          updateAddedAll(selectedResource as ResourceIdKind, true);
-        })
-        .catch((err: Error) => {
-          addAllFetchAttempt.handleError(err);
-          setFetchStatus('');
-        });
-    } else {
-      updateAddedAll(selectedResource as ResourceIdKind, false);
-      addedResources[selectedResource] = {};
-      setAddedResources({
-        ...addedResources,
-        app: { ...addedResources.app },
-        db: { ...addedResources.db },
-        kube_cluster: { ...addedResources.kube_cluster },
-        node: { ...addedResources.node },
-        windows_desktop: { ...addedResources.windows_desktop },
-        user_group: { ...addedResources.user_group },
-      });
-    }
   }
 
   function getNumAddedOnPage() {
@@ -701,20 +583,7 @@ export function useNewRequest(ctx: Ctx) {
     return count;
   }
 
-  // Calculate counts for our resource list.
   const requestableRoles = ctx.storeUser.getRequestableRoles();
-  let fromPage = 0;
-  let toPage = 0;
-  let totalCount = 0;
-  if (selectedResource !== 'role' && fetchedData.totalCount) {
-    fromPage = page.index * pageSize + 1;
-    toPage = fromPage + fetchedData.agents.length - 1;
-    totalCount = fetchedData.totalCount;
-  } else if (selectedResource === 'role' && requestableRoles.length > 0) {
-    fromPage = 1;
-    toPage = requestableRoles.length;
-    totalCount = requestableRoles.length;
-  }
 
   const addSelectedResources = (
     resources: {
@@ -757,10 +626,8 @@ export function useNewRequest(ctx: Ctx) {
     clusterId,
     addSelectedResources,
     updateSort,
-    updateQuery,
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
-    updateSearch,
     fetchStatus,
     onAgentLabelClick,
     selectedResource,
@@ -771,11 +638,6 @@ export function useNewRequest(ctx: Ctx) {
     dryRunAttempt,
     addedResources,
     addOrRemoveResource,
-    pageCount: {
-      to: toPage,
-      from: fromPage,
-      total: totalCount,
-    },
     customSort: {
       dir: agentFilter.sort?.dir,
       fieldName: agentFilter.sort?.fieldName,
@@ -787,10 +649,6 @@ export function useNewRequest(ctx: Ctx) {
     setAddedResources,
     requestableRoles,
     resourceRequestsDisabled,
-    toggleAddCurrentPage,
-    toggleAddAllPages,
-    numOfPages: Math.ceil(fetchedData.totalCount / pageSize),
-    addedAll,
     unAddCurrentPage,
     numAddedOnPage,
     addAllFetchAttempt: addAllFetchAttempt.attempt,
@@ -814,21 +672,6 @@ function getDefaultSort(kind: ResourceKind): SortType {
   }
   return { fieldName: 'name', dir: 'ASC' };
 }
-
-function getDefaultAddedAll(): AddedAll {
-  return {
-    app: false,
-    node: false,
-    db: false,
-    kube_cluster: false,
-    user_group: false,
-    windows_desktop: false,
-  };
-}
-
-type AddedAll = {
-  [K in ResourceIdKind]: boolean;
-};
 
 export type State = ReturnType<typeof useNewRequest>;
 
