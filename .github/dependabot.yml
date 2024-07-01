@@ -198,7 +198,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
@@ -220,7 +219,6 @@ updates:
           - "patch"
     reviewers:
       - codingllama
-      - ibeckermayer
       - rosstimothy
       - zmb3
     labels:
