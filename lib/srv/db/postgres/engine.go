@@ -409,6 +409,23 @@ func (e *Engine) auditUserPermissions(session *common.Session, entries []events.
 	e.Audit.OnPermissionsUpdate(e.Context, session, entries)
 }
 
+// auditResult process backend wire messages and emit result event on
+// appropriate messages.
+func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMessage) {
+	var res common.Result
+
+	switch m := pgMsg.(type) {
+	case *pgproto3.CommandComplete:
+		res.AffectedRecords = uint64(pgconn.CommandTag(m.CommandTag).RowsAffected())
+	case *pgproto3.ErrorResponse:
+		res.Error = common.ConvertError(pgconn.ErrorResponseToPgError(m))
+	default:
+		return
+	}
+
+	e.Audit.OnResult(e.Context, session, res)
+}
+
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
@@ -448,6 +465,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 			count += 1
 			ctr.Inc()
 			log.Tracef("Received server message: %#v.", message)
+			e.auditResult(sessionCtx, message)
 		}
 	}()
 
