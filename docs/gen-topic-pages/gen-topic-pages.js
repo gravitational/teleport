@@ -85,6 +85,7 @@ class TopicContentsFragment {
       const stats = this.fs.statSync(path.join(dirPath, current));
       if (!stats.isDirectory()) {
         mdxFiles.add(path.join(dirPath, current));
+        return accum;
       }
       accum.add(path.join(dirPath, current));
       return accum;
@@ -111,6 +112,14 @@ class TopicContentsFragment {
         );
       }
 
+      // Skip TOC pages (with the same name as the parent directory) since we
+      // process these elswhere.
+      if (
+        path.dirname(f).endsWith(path.parse(f).name)
+      ) {
+        return;
+      }
+
       let relPath = this.relativePathToFile(f);
       const fm = this.getFrontmatter(text);
 
@@ -122,21 +131,21 @@ class TopicContentsFragment {
 
     // Add a blank line between the list of first-level guides and first-level
     // menu pages.
-    if (
-      Object.keys(firstLevelGuides).length > 0 &&
-      dirs.length > 0
-    ) {
+    if (mdxFiles.length > 0 && dirs.length > 0) {
       newText += `
 `;
     }
 
     // Add rows to the menu page for first-level child menu pages
     let menuEntries = [];
+    console.log('dirs:', dirs);
     dirs.forEach((f, idx) => {
-    	const menuPath = path.join(f, path.parse(f).name+".mdx")
-    	if(!this.fs.existsSync(menuPath)){
-    	    throw new Error(`there must be a page called ${menuPath} that includes a line that consists of ${generationLine}`)
-	}
+      const menuPath = path.join(f, path.parse(f).base + '.mdx');
+      if (!this.fs.existsSync(menuPath)) {
+        throw new Error(
+          `there must be a page called ${menuPath} that includes a line that consists of ${generationLine}`
+        );
+      }
       const text = this.fs.readFileSync(menuPath, 'utf8');
       const lines = text.split('\n');
 
@@ -160,7 +169,7 @@ ${fm.description} ([more info](${relPath}))
       childFiles.forEach(fp => {
         const stats = this.fs.statSync(path.join(f, fp));
         if (stats.isDirectory()) {
-          childDirs.add(path.join(f, fp))
+          childDirs.add(path.join(f, fp));
         }
       });
       let childEntries = new Set();
@@ -174,19 +183,17 @@ ${fm.description} ([more info](${relPath}))
         const childText = this.fs.readFileSync(absChildPath, 'utf8');
         const childFM = this.getFrontmatter(childText);
         if (
-          childDirs.has(
-            path.join(f, fp.slice(0, fp.length - '.mdx'.length))
-          )
+          childDirs.has(path.join(f, fp.slice(0, fp.length - '.mdx'.length)))
         ) {
-          childEntries.push(`- [${childFM.title} (section)](${relChildPath}): ${childFM.description}
+          childEntries.add(`- [${childFM.title} (section)](${relChildPath}): ${childFM.description}
 `);
           return;
         }
-        childEntries.push(`- [${childFM.title}](${relChildPath}): ${childFM.description}
+        childEntries.add(`- [${childFM.title}](${relChildPath}): ${childFM.description}
 `);
       });
-      childEntries.sort();
-      newEntry += childEntries.join('');
+      const sortedEntries = [...childEntries].sort();
+      newEntry += sortedEntries.join('');
       menuEntries.push(newEntry);
     });
     menuEntries.sort();
