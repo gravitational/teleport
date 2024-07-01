@@ -29,29 +29,12 @@
               "slug": "/upgrading/overview/"
             },
             {
-              "title": "Teleport Cloud Agents (Linux)",
-              "slug": "/upgrading/cloud-linux/",
-              "forScopes": ["cloud"]
+                "title": "Set up Automatic Agent Updates",
+                "slug": "/upgrading/automatic-agent-updates/"
             },
             {
-              "title": "Teleport Cloud Agents (Kubernetes)",
-              "slug": "/upgrading/cloud-kubernetes/",
-              "forScopes": ["cloud"]
-            },
-            {
-              "title": "Self-Hosted Linux",
-              "slug": "/upgrading/self-hosted-linux/",
-              "forScopes": ["enterprise", "oss"]
-            },
-            {
-              "title": "Self-Hosted Kubernetes",
-              "slug": "/upgrading/self-hosted-kubernetes/",
-              "forScopes": ["enterprise", "oss"]
-            },
-            {
-              "title": "Self-Hosted Automatic Upgrades",
-              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
-              "forScopes": ["enterprise"]
+                "title": "Updating Reference",
+                "slug": "/upgrading/reference/"
             }
           ]
         },
@@ -104,11 +87,6 @@
             {
               "title": "External Audit Storage",
               "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
-              "forScopes": ["cloud"]
-            },
-            {
-              "title": "Downloads",
-              "slug": "/choose-an-edition/teleport-cloud/downloads/",
               "forScopes": ["cloud"]
             },
             {
@@ -493,11 +471,24 @@
         },
         {
           "title": "Teleport Policy",
-          "slug": "/access-controls/access-graph/",
-          "forScopes": [
-            "enterprise"
-          ],
+          "slug": "/access-controls/teleport-policy/getting-started-policy/",
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
+            {
+              "title": "Teleport Policy Integrations",
+              "slug": "/access-controls/teleport-policy/policy-integrations/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Connections",
+              "slug": "/access-controls/teleport-policy/policy-connections/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Teleport Policy Usage",
+              "slug" : "/access-controls/teleport-policy/policy-how-to-use/",
+              "forScopes":["enterprise","cloud"]
+            },
             {
               "title": "Teleport Policy for Self-Hosted Clusters",
               "slug": "/access-controls/access-graph/self-hosted/",
@@ -1051,6 +1042,10 @@
               "slug": "/application-access/guides/tcp/"
             },
             {
+              "title": "VNet",
+              "slug": "/application-access/guides/vnet/"
+            },
+            {
               "title": "API Access",
               "slug": "/application-access/guides/api-access/"
             },
@@ -1094,6 +1089,14 @@
             {
               "title": "Okta Integration",
               "slug": "/application-access/okta/hosted-guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Setting up a SCIM-only integration",
+              "slug": "/application-access/okta/scim-only/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -2302,8 +2305,8 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "source": "/choose-an-edition/teleport-cloud/downloads/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -2414,6 +2417,11 @@
     {
       "source": "/access-controls/faq/",
       "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/teleport-policy/",
+      "destination": "/access-controls/teleport-policy/getting-started-policy/",
       "permanent": true
     },
     {
@@ -2562,16 +2570,6 @@
       "permanent": true
     },
     {
-      "source": "/management/guides/teleport-operator/",
-      "destination": "/management/dynamic-resources/teleport-operator/",
-      "permanent": true
-    },
-    {
-      "source": "/management/guides/terraform-provider/",
-      "destination": "/management/dynamic-resources/terraform-provider/",
-      "permanent": true
-    },
-    {
       "source": "/get-started/",
       "destination": "/",
       "permanent": true
@@ -2623,7 +2621,7 @@
     },
     {
       "source": "/machine-id/guides/",
-      "destination": "/machine-id/",
+      "destination": "/machine-id/introduction/",
       "permanent": true
     },
     {
@@ -2659,11 +2657,6 @@
     {
       "source": "/machine-id/guides/gitlab/",
       "destination": "/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/guides/gitlab/",
-      "destination": "/machine-id/deployment/github-actions/",
       "permanent": true
     },
     {
@@ -2708,7 +2701,7 @@
     },
     {
       "source": "/management/operations/self-hosted-automatic-agent-updates/",
-      "destination": "/upgrading/self-hosted-automatic-agent-updates/",
+      "destination": "/upgrading/",
       "permanent": true
     },
     {
@@ -2724,11 +2717,6 @@
     {
       "source": "/server-access/guides/restricted-session/",
       "destination": "/server-access/guides/",
-      "permanent": true
-    },
-    {
-      "source": "/access-graph/",
-      "destination": "/access-controls/access-graph/",
       "permanent": true
     },
     {

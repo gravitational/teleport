@@ -531,12 +531,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		var err error
-		if config.HTTPMiddleware == nil {
-			err = lp.Start(context.Background())
-		} else {
-			err = lp.StartHTTPAccessProxy(context.Background())
-		}
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -572,6 +567,7 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 			return tls.Certificate{}, nil
 		},
+		CloseContext: context.Background(),
 	})
 }
 

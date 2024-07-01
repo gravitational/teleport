@@ -81,11 +81,11 @@ type defaultBotConfigOpts struct {
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "root.localhost")(o)
+		testenv.WithClusterName(t, "root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
-				{AddrNetwork: "tcp", Addr: net.JoinHostPort("root.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
 			}
 		})(o)
 	}
@@ -828,9 +828,9 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 	require.NoError(t, err)
 
 	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://root.localhost/foo", svid.ID.String())
+	require.Equal(t, "spiffe://root/foo", svid.ID.String())
 	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://root.localhost/foo", cert.URIs[0].String())
+	require.Equal(t, "spiffe://root/foo", cert.URIs[0].String())
 	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
 	require.Equal(t, []string{"example.com"}, cert.DNSNames)
 	require.WithinRange(
@@ -972,7 +972,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.Addr = utils.NetAddr{
 				AddrNetwork: "tcp",
-				Addr:        testenv.NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors),
+				Addr:        testenv.NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors),
 			}
 		}),
 	)
@@ -1037,40 +1037,51 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		agentConn.Close()
-	})
-	agentClient := agent.NewClient(agentConn)
-	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
-	require.NoError(t, err)
-	sshConfig := &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(agentClient.Signers),
-		},
-		User:            currentUser.Username,
-		HostKeyCallback: callback,
+	targets := []string{
+		"server01.root:0\x00",      // Old style target without cluster
+		"server01.root:0|root\x00", // New style target with cluster
 	}
-	conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		conn.Close()
-	})
-	_, err = fmt.Fprint(conn, "server01.root.localhost:0\x00")
-	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root.localhost:22", sshConfig)
-	require.NoError(t, err)
-	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
-	t.Cleanup(func() {
-		sshClient.Close()
-	})
-	sshSess, err := sshClient.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sshSess.Close()
-	})
-	out, err := sshSess.CombinedOutput("echo hello")
-	require.NoError(t, err)
-	require.Equal(t, "hello\n", string(out))
+	for _, target := range targets {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
+			agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				agentConn.Close()
+			})
+			agentClient := agent.NewClient(agentConn)
+			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
+			require.NoError(t, err)
+			sshConfig := &ssh.ClientConfig{
+				Auth: []ssh.AuthMethod{
+					ssh.PublicKeysCallback(agentClient.Signers),
+				},
+				User:            currentUser.Username,
+				HostKeyCallback: callback,
+			}
+			conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				conn.Close()
+			})
+			_, err = fmt.Fprint(conn, target)
+			require.NoError(t, err)
+			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
+			require.NoError(t, err)
+			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
+			t.Cleanup(func() {
+				sshClient.Close()
+			})
+			sshSess, err := sshClient.NewSession()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				sshSess.Close()
+			})
+			out, err := sshSess.CombinedOutput("echo hello")
+			require.NoError(t, err)
+			require.Equal(t, "hello\n", string(out))
+		})
+	}
 }

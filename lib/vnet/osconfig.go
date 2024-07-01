@@ -42,7 +42,7 @@ type osConfig struct {
 
 type osConfigurator struct {
 	clientStore        *client.Store
-	clusterConfigCache *clusterConfigCache
+	clusterConfigCache *ClusterConfigCache
 	tunName            string
 	tunIPv6            string
 	dnsAddr            string
@@ -68,7 +68,7 @@ func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, er
 		homePath:    homePath,
 		clientStore: client.NewFSClientStore(homePath),
 	}
-	configurator.clusterConfigCache = newClusterConfigCache(configurator.getClusterClient, clockwork.NewRealClock())
+	configurator.clusterConfigCache = NewClusterConfigCache(clockwork.NewRealClock())
 
 	return configurator, nil
 }
@@ -89,7 +89,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 				"profile", profileName, "error", err)
 			continue
 		}
-		clusterConfig, err := c.clusterConfigCache.getClusterConfig(ctx, rootClient)
+		clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, rootClient)
 		if err != nil {
 			slog.WarnContext(ctx,
 				"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
@@ -97,13 +97,13 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 			continue
 		}
 
-		dnsZones = append(dnsZones, clusterConfig.dnsZones...)
-		cidrRanges = append(cidrRanges, clusterConfig.ipv4CIDRRange)
+		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 
 		leafClusters, err := getLeafClusters(ctx, rootClient)
 		if err != nil {
 			slog.WarnContext(ctx,
-				"Failed to list leaf clusters, profile may be expired, not configuring VNet for this cluster",
+				"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
 				"profile", profileName, "error", err)
 			continue
 		}
@@ -116,7 +116,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 				continue
 			}
 
-			clusterConfig, err := c.clusterConfigCache.getClusterConfig(ctx, clusterClient)
+			clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 			if err != nil {
 				slog.WarnContext(ctx,
 					"Failed to load VNet configuration, not configuring VNet for this cluster",
@@ -124,8 +124,8 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 				continue
 			}
 
-			dnsZones = append(dnsZones, clusterConfig.dnsZones...)
-			cidrRanges = append(cidrRanges, clusterConfig.ipv4CIDRRange)
+			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+			cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 		}
 	}
 

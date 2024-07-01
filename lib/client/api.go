@@ -593,7 +593,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	case utils.IsPredicateError(fnErr):
 		return trace.Wrap(utils.PredicateError{Err: fnErr})
 	case tc.NonInteractive:
-		return trace.Wrap(fnErr)
+		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}

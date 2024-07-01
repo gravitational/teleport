@@ -160,6 +160,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   }
 
   &:disabled:checked + ${StyledSlider} {
-    background: ${props => props.theme.colors.interactive.tonal.success[2]};
+    background: ${props =>
+      props.theme.colors.interactive.tonal.success[2].background};
   }
 `;

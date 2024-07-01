@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -90,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -328,6 +330,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -337,20 +345,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	keystoreOpts := &keystore.Options{
-		HostUUID:     cfg.HostUUID,
-		ClusterName:  cfg.ClusterName,
-		CloudClients: cfg.CloudClients,
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cfg.ClusterName,
+		CloudClients:         cfg.CloudClients,
+		AuthPreferenceGetter: cfg.ClusterConfiguration,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else {
@@ -412,6 +421,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 	}
 
 	as := Server{
@@ -586,6 +596,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.BotInstance
 }
 
 // SecReportsClient returns the security reports client.
@@ -4252,7 +4263,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(req.PublicSSHKey); err != nil {
 		return nil, trace.BadParameter("failed to parse SSH public key")
 	}
-	cryptoPubKey, err := tlsca.ParsePublicKeyPEM(req.PublicTLSKey)
+	cryptoPubKey, err := keys.ParsePublicKey(req.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5348,7 +5359,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -6707,62 +6718,80 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 // Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
+
+	// Add SSH keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA:
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, sshCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA, types.DatabaseClientCA:
-		// Database CA only contains TLS cert.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.OpenSSHCA:
-		// OpenSSH CA only contains a SSH key pair.
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner, types.OIDCIdPCA:
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	case types.SAMLIDPCA:
-		// SAML IDP CA only contains TLS certs.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.SPIFFECA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
-		// generate a JWT keypair.
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	default:
-		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}
+
+	// Add TLS keys if necessary.
+	switch caID.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	}
+
+	// Add JWT keys if necessary.
+	switch caID.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
 	return keySet, nil
+}
+
+func sshCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCASSH
+	case types.HostCA:
+		return cryptosuites.HostCASSH
+	case types.OpenSSHCA:
+		return cryptosuites.OpenSSHCASSH
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCATLS
+	case types.HostCA:
+		return cryptosuites.HostCATLS
+	case types.DatabaseCA:
+		return cryptosuites.DatabaseCATLS
+	case types.DatabaseClientCA:
+		return cryptosuites.DatabaseClientCATLS
+	case types.SAMLIDPCA:
+		return cryptosuites.SAMLIdPCATLS
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECATLS
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.JWTSigner:
+		return cryptosuites.JWTCAJWT
+	case types.OIDCIdPCA:
+		return cryptosuites.OIDCIdPCAJWT
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECAJWT
+	}
+	return cryptosuites.KeyPurposeUnspecified
 }
 
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
@@ -6854,10 +6883,13 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
-		return nil // unlimited
+	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
+
+	if accessRequestsEntitlement.Limit == 0 {
+		return nil // unlimited access
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	monthlyLimit := accessRequestsEntitlement.Limit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -6865,7 +6897,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage >= monthlyLimit {
+	if usage >= int(monthlyLimit) {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 

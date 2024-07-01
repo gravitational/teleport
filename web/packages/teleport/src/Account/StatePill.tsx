@@ -57,13 +57,13 @@ function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
     case 'active':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.success[0]};
+          props.theme.colors.interactive.tonal.success[0].background};
         color: ${props => props.theme.colors.success.main};
       `;
     case 'inactive':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.neutral[0]};
+          props.theme.colors.interactive.tonal.neutral[0].background};
         color: ${props => props.theme.colors.text.disabled};
       `;
     default:

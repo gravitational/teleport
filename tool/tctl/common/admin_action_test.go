@@ -40,11 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -953,8 +955,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
@@ -1065,7 +1069,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
 	require.NoError(t, err)
-	localAdmin, err := state.ReadLocalIdentity(
+	localAdmin, err := storage.ReadLocalIdentity(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
 		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -1547,6 +1549,8 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	return extendedContext, nil
 }
 
+var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
+
 // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
 // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
@@ -1559,7 +1563,15 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	matcher := apiutils.NewSSHRouteMatcher(req.Host, req.Port, caseInsensitiveRouting)
+	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
+		Host:                      req.Host,
+		Port:                      req.Port,
+		CaseInsensitive:           caseInsensitiveRouting,
+		DisableUnqualifiedLookups: disableUnqualifiedLookups,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	lreq := proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
@@ -3476,7 +3488,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3497,7 +3509,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3517,7 +3529,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3561,7 +3573,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3635,7 +3647,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3658,7 +3670,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3676,7 +3688,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3722,7 +3734,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4571,6 +4583,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := newAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4583,6 +4599,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4608,12 +4625,17 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = a.authServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	defaultAuthPref := types.DefaultAuthPreference()
+	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string
 	if err != nil {
 		msg = err.Error()
 	}
+
+	oldSecondFactor := storedAuthPref.GetSecondFactor()
+	newSecondFactor := defaultAuthPref.GetSecondFactor()
+
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4626,6 +4648,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
