@@ -1,17 +1,20 @@
 ---
-title: "Second Factor: WebAuthn"
-description: Configuring WebAuthn support in Teleport clusters.
+title: Enable Cluster-Wide WebAuthn Authentication
+description: Implement cluster-wide WebAuthn.
 videoBanner: vQgKkD4ZRDU
 ---
 
-Teleport supports [WebAuthn](https://webauthn.guide/) as a second authentication
-factor. WebAuthn can be used for logging in to Teleport (`tsh login` or the
-login page on the Web UI) and for logging in to individual SSH nodes or
-Kubernetes clusters (`tsh ssh` and `kubectl`).
+## Cluster-wide WebAuthn
 
-WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys as
-well as biometric authenticators like Touch ID and Windows Hello (`tsh` and Web
-UI).
+Teleport supports [WebAuthn](https://webauthn.guide/) as a second authentication factor. 
+WebAuthn can be used for logging in to Teleport (`tsh login` or the login page on the Web UI) 
+and for logging in to individual SSH nodes or Kubernetes clusters (`tsh ssh` and `kubectl`). 
+WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys as well as biometric 
+authenticators like Touch ID and Windows Hello (`tsh` and WebUI).
+
+By implementing WebAuthn, you're adopting a phishing-resistant, cryptographically secure method of verifying user identities. 
+Leverage hardware-backed security keys or biometric factors, making it exponentially more difficult for attackers to compromise 
+user accounts, even if they manage to obtain passwords.
 
 ## Prerequisites
 
@@ -48,7 +51,7 @@ Teleport configuration as below:
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
     second_factor: "on"
     webauthn:
-      # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+      # Required, replace with proxy web address (example.com, example.teleport.sh).
       # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
       # (https://) and port number.
       rp_id: example.com
@@ -82,7 +85,7 @@ Teleport configuration as below:
 
   </TabItem>
   <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+  Edit the Auth Server's `teleport.yaml` file and restart all Auth Service instances:
 
   ```yaml
   # snippet from /etc/teleport.yaml:
@@ -92,7 +95,7 @@ Teleport configuration as below:
       # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
       second_factor: on
       webauthn:
-        # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+        # Required, replace with proxy web address (example.com, example.teleport.sh).
         # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
         # (https://) and port number.
         rp_id: example.com
@@ -159,9 +162,9 @@ $ tsh mfa add
 ```
 
 <Admonition type="tip">
-`tsh mfa` picks the strongest known second factor you have for the "Tap any
+`tsh mfa` picks the strongest known multi-factor you have for the "Tap any
 *registered* security key" step. This may be undesirable at times, so you may
-fallback to a weaker second factor, like OTP, using `tsh mfa add
+fallback to a weaker multi-factor, like OTP, using `tsh mfa add
 --mfa-mode=otp`.
 
 See the possible `--mfa-mode` values in the [Teleport CLI
@@ -209,15 +212,15 @@ $ tsh login --proxy=example.com
 
 </TabItem>
 
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise">
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh
+$ tsh login --proxy=example.teleport.sh
 # Enter password for Teleport user codingllama:
 # Tap any security key or enter a code from a OTP device:
-# > Profile URL:        https://mytenant.teleport.sh
+# > Profile URL:        https://example.teleport.sh
 #   Logged in as:       codingllama
-#   Cluster:            mytenant.teleport.sh
+#   Cluster:            example.teleport.sh
 #   Roles:              access, editor, reviewer
 #   Logins:             codingllama
 #   Kubernetes:         enabled
@@ -310,7 +313,5 @@ auth_service:
 
 ## Next steps
 
-- [Passwordless](./passwordless.mdx)
-- [Set up per-session MFA checks](./per-session-mfa.mdx)
-- [Require MFA for administrative actions](./mfa-for-admin-actions.mdx)
-
+- [Cluster-wide per-session MFA](./per-session-mfa.mdx)
+- [Cluster-wide device trust](../device-trust/guide.mdx)
