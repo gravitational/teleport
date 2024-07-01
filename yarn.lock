@@ -3453,10 +3453,10 @@
   resolved "https://registry.yarnpkg.com/@swc/counter/-/counter-0.1.3.tgz#cc7463bd02949611c6329596fccd2b0ec782b0e9"
   integrity sha512-e2BR4lsJkkRlKZ/qCHPw9ZaSxc0MVUd7gtbtaB7aMvHeJVYe8sOB8DBZkP2DtISHGSku9sCK6T6cnY0CtXrOCQ==
 
-"@swc/plugin-styled-components@^1.5.122":
-  version "1.5.122"
-  resolved "https://registry.yarnpkg.com/@swc/plugin-styled-components/-/plugin-styled-components-1.5.122.tgz#f58113205bb40a29f2cc5b7d4f520334991b8408"
-  integrity sha512-FdYfM6/07lbFbti/Ve1PVZFpulWZEDDzTsC3WoU+s2BAG8VP6mZh+6Re1sSZD13RzUU7CbMFsQqEpcVkP75ZQw==
+"@swc/plugin-styled-components@^2.0.9":
+  version "2.0.9"
+  resolved "https://registry.yarnpkg.com/@swc/plugin-styled-components/-/plugin-styled-components-2.0.9.tgz#e65d8e4af5e4f1f2eb86d350e217b3510a83ccd6"
+  integrity sha512-0aPv7lNed27qs8JBklLkVSlLhpPRU3YKRnKplObaAyhNWbpbOkCbVSTay5ArFT2Gz1rz844Np7l4DMozEtZRBg==
   dependencies:
     "@swc/counter" "^0.1.3"
 
@@ -14087,9 +14087,9 @@ webpack-virtual-modules@^0.4.1:
   integrity sha512-5NUqC2JquIL2pBAAo/VfBP6KuGkHIZQXW/lNKupLPfhViwh8wNsu0BObtl09yuKZszeEUfbXz8xhrHvSG16Nqw==
 
 webpack@4, "webpack@>=4.43.0 <6.0.0", webpack@^5.88.2, webpack@^5.9.0:
-  version "5.92.0"
-  resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.92.0.tgz#cc114c71e6851d220b1feaae90159ed52c876bdf"
-  integrity sha512-Bsw2X39MYIgxouNATyVpCNVWBCuUwDgWtN78g6lSdPJRLaQ/PUVm/oXcaRAyY/sMFoKFQrsPeqvTizWtq7QPCA==
+  version "5.92.1"
+  resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.92.1.tgz#eca5c1725b9e189cffbd86e8b6c3c7400efc5788"
+  integrity sha512-JECQ7IwJb+7fgUFBlrJzbyu3GEuNBcdqr1LD7IbSzwkSmIevTm8PF+wej3Oxuz/JFBUZ6O1o43zsPkwm1C4TmA==
   dependencies:
     "@types/eslint-scope" "^3.7.3"
     "@types/estree" "^1.0.5"
