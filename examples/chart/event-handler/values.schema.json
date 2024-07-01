@@ -373,26 +373,26 @@
                 },
                 "types": {
                     "$id": "#/properties/eventHandler/properties/types",
-                    "type": "string",
+                    "type": "array",
                     "default": "",
                     "examples": [
-                        "TYPE1,TYPE2"
+                        ["TYPE1,TYPE2"]
                     ]
                 },
                 "skipEventTypes": {
                     "$id": "#/properties/eventHandler/properties/skipEventTypes",
-                    "type": "string",
+                    "type": "array",
                     "default": "",
                     "examples": [
-                        "TYPE1,TYPE2"
+                        ["TYPE1"]
                     ]
                 },
                 "skipSessionTypes": {
                     "$id": "#/properties/eventHandler/properties/skipSessionTypes",
-                    "type": "string",
+                    "type": "array",
                     "default": "",
                     "examples": [
-                        "print"
+                        ["print"]
                     ]
                 }
             },
