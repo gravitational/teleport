@@ -58,7 +58,7 @@ func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
 		for i := 0; i < outputCount; i++ {
-			cfg.Outputs = append(cfg.Outputs, &config.IdentityOutput{
+			cfg.Services = append(cfg.Services, &config.IdentityOutput{
 				Destination: &config.DestinationDirectory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),
 				},

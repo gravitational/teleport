@@ -19,7 +19,6 @@
 package config
 
 import (
-	"context"
 	"crypto/tls"
 	"sync"
 
@@ -27,15 +26,15 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-// Assert that this UnstableClientCredentialOutput can be used as client
-// credential.
-var _ client.Credentials = new(UnstableClientCredentialOutput)
-
 const UnstableClientCredentialOutputType = "unstable_client_credential"
+
+var (
+	_ ServiceConfig      = &UnstableClientCredentialOutput{}
+	_ client.Credentials = &UnstableClientCredentialOutput{}
+)
 
 // UnstableClientCredentialOutput is an experimental tbot output which is
 // compatible with the client.Credential interface. This allows tbot to be
@@ -106,60 +105,25 @@ func (o *UnstableClientCredentialOutput) Facade() (*identity.Facade, error) {
 	return o.facade, nil
 }
 
-// Render implements the Destination interface and is called regularly by the
-// bot with new credentials. Render passes these credentials down to the
-// underlying facade so that they can be used in TLS/SSH configs.
-func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider, ident *identity.Identity) error {
-	_, span := tracer.Start(
-		ctx,
-		"UnstableClientCredentialOutput/Render",
-	)
-	defer span.End()
-
-	// We're hijacking the Render method to receive a new identity in each
-	// renewal round.
+// SetOrUpdateFacade sets up the underlying facade or updates it if it has
+// already been created.
+func (o *UnstableClientCredentialOutput) SetOrUpdateFacade(id *identity.Identity) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.facade == nil {
 		if o.ready != nil {
 			close(o.ready)
 		}
-		o.facade = identity.NewFacade(false, false, ident)
-		return nil
+		o.facade = identity.NewFacade(false, false, id)
+		return
 	}
-	o.facade.Set(ident)
-	return nil
-}
-
-// Init implements the Destination interface and does nothing in this
-// implementation.
-func (o *UnstableClientCredentialOutput) Init(ctx context.Context) error {
-	return nil
-}
-
-// GetDestination implements the Destination interface and does nothing in this
-// implementation.
-func (o *UnstableClientCredentialOutput) GetDestination() bot.Destination {
-	return &DestinationNop{}
-}
-
-// GetRoles implements the Destination interface and returns an empty slice in
-// this implementation. This causes all available roles to be used with the
-// identity.
-func (o *UnstableClientCredentialOutput) GetRoles() []string {
-	return []string{}
+	o.facade.Set(id)
 }
 
 // CheckAndSetDefaults implements the Destination interface and does nothing in
 // this implementation.
 func (o *UnstableClientCredentialOutput) CheckAndSetDefaults() error {
 	return nil
-}
-
-// Describe implements the Destination interface and returns no file
-// descriptions in this implementation, this is because no files are written.
-func (o *UnstableClientCredentialOutput) Describe() []FileDescription {
-	return []FileDescription{}
 }
 
 // MarshalYAML enables the yaml package to correctly marshal the Destination
@@ -169,7 +133,7 @@ func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
 	return withTypeHeader((*raw)(o), UnstableClientCredentialOutputType)
 }
 
-// String returns a human readable description of this output.
-func (o *UnstableClientCredentialOutput) String() string {
+// Type returns a human readable description of this output.
+func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }

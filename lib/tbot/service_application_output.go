@@ -86,8 +86,6 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 	}
 	// Ensure this destination is also writable. This is a hard fail if
 	// ACLs are misconfigured, regardless of configuration.
-	// TODO: consider not making these a hard error? e.g. write other
-	// destinations even if this one is broken?
 	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "verifying destination")
 	}
@@ -176,7 +174,7 @@ func (s *ApplicationOutputService) render(
 	)
 	defer span.End()
 
-	key, err := config.NewClientKey(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

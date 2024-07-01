@@ -29,7 +29,6 @@ import (
 
 var (
 	_ ServiceConfig = &ApplicationOutput{}
-	_ Output        = &ApplicationOutput{}
 	_ Initable      = &ApplicationOutput{}
 )
 

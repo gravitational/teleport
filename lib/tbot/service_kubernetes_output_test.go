@@ -162,7 +162,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				log:            utils.NewSlogLoggerForTests(),
 			}
 
-			key, err := config.NewClientKey(
+			key, err := NewClientKey(
 				id,
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
 			)

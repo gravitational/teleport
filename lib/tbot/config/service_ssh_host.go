@@ -43,7 +43,6 @@ const (
 
 var (
 	_ ServiceConfig = &SSHHostOutput{}
-	_ Output        = &SSHHostOutput{}
 	_ Initable      = &SSHHostOutput{}
 )
 

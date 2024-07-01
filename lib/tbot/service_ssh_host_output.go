@@ -87,8 +87,6 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	}
 	// Ensure this destination is also writable. This is a hard fail if
 	// ACLs are misconfigured, regardless of configuration.
-	// TODO: consider not making these a hard error? e.g. write other
-	// destinations even if this one is broken?
 	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "verifying destination")
 	}
@@ -147,7 +145,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
-		Writer:     config.NewBotConfigWriter(ctx, s.cfg.Destination, ""),
+		Writer:     newBotConfigWriter(ctx, s.cfg.Destination, ""),
 		Key:        key,
 		Format:     identityfile.FormatOpenSSH,
 

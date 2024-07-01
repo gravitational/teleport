@@ -135,9 +135,6 @@ type destinationHolder interface {
 // invalid.
 func GetDestinationDirectory(botConfig *config.BotConfig) (*config.DestinationDirectory, error) {
 	var destinationHolders []destinationHolder
-	for _, output := range botConfig.LegacyOutputs {
-		destinationHolders = append(destinationHolders, output)
-	}
 	for _, svc := range botConfig.Services {
 		if v, ok := svc.(destinationHolder); ok {
 			destinationHolders = append(destinationHolders, v)

@@ -70,7 +70,6 @@ var databaseFormats = []DatabaseFormat{
 
 var (
 	_ ServiceConfig = &DatabaseOutput{}
-	_ Output        = &DatabaseOutput{}
 	_ Initable      = &DatabaseOutput{}
 )
 
