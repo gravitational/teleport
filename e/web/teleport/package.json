@@ -6,9 +6,7 @@
   "scripts": {
     "start": "yarn build-wasm && vite",
     "build": "yarn build-wasm && vite build",
-    "build-wasm": "yarn workspace @gravitational/teleport build-wasm",
-    "test": "npx jest",
-    "tdd": "npx jest . --watch"
+    "build-wasm": "yarn workspace @gravitational/teleport build-wasm"
   },
   "author": "",
   "license": "UNLICENSED",
