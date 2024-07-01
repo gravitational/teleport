@@ -41,7 +41,7 @@ export const KeysEnum = {
 export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
-  resourcesList: Array<string>;
+  resources: Array<string>;
   role: string;
   team: string;
 };

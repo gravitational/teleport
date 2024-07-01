@@ -303,7 +303,7 @@ const (
 	DataDirParameterName = "data_dir"
 
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
-	// a server keep pining each other with it.
+	// a server keep pinging each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like

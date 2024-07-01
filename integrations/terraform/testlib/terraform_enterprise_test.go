@@ -26,6 +26,7 @@ import (
 
 	eintegration "github.com/gravitational/teleport/e/integration"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
@@ -35,10 +36,12 @@ import (
 func TestTerraformEnterprise(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			OIDC:                    true,
-			SAML:                    true,
 			AdvancedAccessWorkflows: true,
-			DeviceTrust:             modules.DeviceTrustFeature{Enabled: true},
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC:        {Enabled: true},
+				entitlements.SAML:        {Enabled: true},
+				entitlements.DeviceTrust: {Enabled: true},
+			},
 		},
 	})
 

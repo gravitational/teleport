@@ -672,10 +672,11 @@ username which you can search for to get the events history:
 
 Read this section if you run into issues while following this guide.
 
-### `Internal Server Error`
+### `Internal Server Error` or fails to connect in Web UI
 
 When visiting the AWS Management Console from the Teleport Web UI, you may see
-an `InternalServer Error` message instead of the AWS Management Console. 
+an `InternalServer Error` message or other connection issues instead of the
+AWS Management Console. 
 
 If this happens, check the Teleport Application Service logs:
 
@@ -701,6 +702,10 @@ $ kubectl -n teleport-agent logs statefulset/teleport-kube-agent
 
 If the Teleport Application Service encounters an error sending a request to the
 AWS API, the logs will show the error message stack trace.
+
+Within the logs you may see a connection failure such as a i/o timeout
+regarding `sts.amazonaws.com:443`. The Teleport Application Service requires
+connecting to `https://sts.amazonaws.com` to create an authorized AWS console session.
 
 ### The Application Service is not authorized to assume a role
 
