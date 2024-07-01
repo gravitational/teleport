@@ -271,7 +271,7 @@ Host *.{{ $clusterName }}
     HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
     IdentityFile none
     IdentityAgent {{ proxyCommandQuote $dot.AgentSocketPath }}    
-    ProxyCommand {{range $v := $dot.ProxyCommand}}{{ proxyCommandQuote $v }} {{end}}{{ proxyCommandQuote $dot.MuxSocketPath }} '{{ $dot.Data }}'
+    ProxyCommand {{range $v := $dot.ProxyCommand}}{{ proxyCommandQuote $v }} {{end}}{{ proxyCommandQuote $dot.MuxSocketPath }} '%h:%p|{{ $clusterName }}'
     ProxyUseFDPass yes
 {{- end }}
 # End generated Teleport configuration
@@ -286,7 +286,6 @@ type MuxedSSHConfigParameters struct {
 	ProxyCommand    []string
 	MuxSocketPath   string
 	AgentSocketPath string
-	Data            string
 	// Port is the node port to use, defaulting to 3022, if not specified by flag
 	Port int
 }
