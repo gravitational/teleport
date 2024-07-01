@@ -18,21 +18,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package regular
+package networking
 
 import (
-	"net"
+	"errors"
 	"os"
+	"syscall"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
-
-	"github.com/gravitational/teleport/lib/srv"
 )
 
 // validateListenerSocket checks that the socket and listener file descriptor
-// sent from the forwarding process have the expected properties.
-func validateListenerSocket(_ *srv.ServerContext, _ *net.UnixConn, listenerFD *os.File) error {
+// sent from the networking process have the expected properties.
+func validateListenerSocket(listenerFD *os.File) error {
 	if err := controlSyscallConn(listenerFD, func(fd uintptr) error {
 		// Verify the socket type
 		if sockType, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_TYPE); err != nil {
@@ -48,14 +47,20 @@ func validateListenerSocket(_ *srv.ServerContext, _ *net.UnixConn, listenerFD *o
 			return trace.AccessDenied("SO_REUSEADDR is enabled on the socket")
 		}
 		if reusePort, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT); err != nil {
-			// Some systems may not support SO_REUSEPORT, so we ignore the error here
+			// Some systems may not support SO_REUSEPORT.
+			if !errors.Is(err, unix.ENOPROTOOPT) {
+				return trace.Wrap(err)
+			}
 		} else if reusePort != 0 {
 			return trace.AccessDenied("SO_REUSEPORT is enabled on the socket")
 		}
 
 		// Verify that the listener is already listening.
 		if acceptConn, err := unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_ACCEPTCONN); err != nil {
-			return trace.Wrap(err)
+			// Some systems may not support SO_ACCEPTCONN.
+			if !errors.Is(err, unix.ENOPROTOOPT) {
+				return trace.Wrap(err)
+			}
 		} else if acceptConn == 0 {
 			return trace.AccessDenied("SO_ACCEPTCONN is not set, socket is not listening")
 		}
@@ -65,4 +70,17 @@ func validateListenerSocket(_ *srv.ServerContext, _ *net.UnixConn, listenerFD *o
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func controlSyscallConn(conn syscall.Conn, f func(fd uintptr) error) error {
+	syscallConn, err := conn.SyscallConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if cErr := syscallConn.Control(func(fd uintptr) {
+		err = f(fd)
+	}); cErr != nil {
+		return trace.Wrap(cErr)
+	}
+	return trace.Wrap(err)
 }
