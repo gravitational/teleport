@@ -368,6 +368,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	for _, output := range conf.Outputs {
 		conf.Services = append(conf.Services, output)
 	}
+	for i, service := range conf.Services {
+		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+	}
 
 	destinationPaths := map[string]int{}
 	addDestinationToKnownPaths := func(d bot.Destination) {
