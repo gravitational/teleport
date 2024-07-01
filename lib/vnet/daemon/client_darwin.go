@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -77,9 +78,24 @@ func IsSigned(ctx context.Context) (bool, error) {
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
 func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	_, err := register(ctx)
+	initialStatus := daemonStatus()
+	// If the status is equal to "requires approval" before RegisterAndCall called register, it means
+	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
+	// going to show the notification about a new login item. Instead, we just open the login items
+	// ourselves to direct the user towards enabling the login item.
+	if initialStatus == serviceStatusRequiresApproval {
+		C.OpenSystemSettingsLoginItems()
+	}
+
+	status, err := register(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if status != serviceStatusEnabled {
+		if err := waitForEnablement(ctx); err != nil {
+			return trace.Wrap(err, "waiting for the login item to get enabled")
+		}
 	}
 
 	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
@@ -116,6 +132,43 @@ func register(ctx context.Context) (serviceStatus, error) {
 	}
 
 	return serviceStatus(result.service_status), nil
+}
+
+const waitingForEnablementTimeout = time.Minute
+
+var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
+
+// waitForEnablement periodically checks if the status of the daemon has changed to
+// [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
+func waitForEnablement(ctx context.Context) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout, waitingForEnablementTimeoutExceeded)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-ticker.C:
+			switch status := daemonStatus(); status {
+			case serviceStatusEnabled:
+				return nil
+			case serviceStatusRequiresApproval:
+				// Continue waiting for the user to approve the login item.
+			case serviceStatusNotRegistered, serviceStatusNotFound:
+				// Something happened to the service since we started waiting, abort.
+				return trace.Errorf("encountered unexpected service status %q", status)
+			default:
+				return trace.Errorf("encountered unknown service status %q", status)
+			}
+		}
+	}
+}
+
+func daemonStatus() serviceStatus {
+	return serviceStatus(C.DaemonStatus())
 }
 
 type serviceStatus int
