@@ -26,8 +26,8 @@ class TopicContentsFragment {
   // provide context for the subdirectory in the table of contents.
   makeTopicPage() {
     const parts = path.parse(this.root);
-    const rootConfig = path.join(parts.dir, parts.name + '.mdx');
-    const text = this.fs.readFileSync(rootConfig, 'utf-8');
+    const rootTOC = path.join(parts.dir, parts.name, parts.name + '.mdx');
+    const text = this.fs.readFileSync(rootTOC, 'utf-8');
     const lines = text.split('\n');
     if (!lines.includes(generationLine)) {
       throw new Error(
@@ -80,34 +80,15 @@ class TopicContentsFragment {
     let newText = sofar;
     const files = this.fs.readdirSync(dirPath, 'utf8');
 
+    let mdxFiles = new Set();
     const dirs = files.reduce((accum, current) => {
       const stats = this.fs.statSync(path.join(dirPath, current));
       if (!stats.isDirectory()) {
-        return accum;
+        mdxFiles.add(path.join(dirPath, current));
       }
-      accum[path.join(dirPath, current)] = true;
+      accum.add(path.join(dirPath, current));
       return accum;
-    }, {});
-
-    let firstLevelGuides = {};
-    let menuPages = {};
-
-    // Sort files into menu pages and non-menu pages so we can format
-    // them accordingly.
-    files.forEach(current => {
-      if (!current.endsWith('.mdx')) {
-        return;
-      }
-
-      const pathParts = path.parse(path.join(dirPath, current));
-      const asDir = path.join(pathParts.dir, pathParts.name);
-      if (!!dirs[asDir]) {
-        menuPages[path.join(dirPath, current)] = true;
-        return;
-      }
-
-      firstLevelGuides[path.join(dirPath, current)] = true;
-    });
+    }, new Set());
 
     // Preserve the non-generated part of the page while deleting the rest so we
     // can regenerate it.
@@ -115,11 +96,16 @@ class TopicContentsFragment {
 
     // Add rows to the menu page for non-menu pages.
     let entries = [];
-    Object.keys(firstLevelGuides).forEach((f, idx) => {
+    mdxFiles.forEach((f, idx) => {
       const text = this.fs.readFileSync(f, 'utf8');
       const lines = text.split('\n');
 
-      if (lines.includes(generationLine)) {
+      // The file includes a table of contents but does not have the same name
+      // as its parent directory, i.e., isn't a TOC page.
+      if (
+        lines.includes(generationLine) &&
+        !path.dirname(f).endsWith(path.parse(f).name)
+      ) {
         throw new Error(
           'Found a menu page that no longer corresponds to a subdirectory: ' + f
         );
@@ -138,7 +124,7 @@ class TopicContentsFragment {
     // menu pages.
     if (
       Object.keys(firstLevelGuides).length > 0 &&
-      Object.keys(menuPages).length > 0
+      dirs.length > 0
     ) {
       newText += `
 `;
@@ -146,10 +132,13 @@ class TopicContentsFragment {
 
     // Add rows to the menu page for first-level child menu pages
     let menuEntries = [];
-    Object.keys(menuPages).forEach((f, idx) => {
-      const text = this.fs.readFileSync(f, 'utf8');
+    dirs.forEach((f, idx) => {
+    	const menuPath = path.join(f, path.parse(f).name+".mdx")
+    	if(!this.fs.existsSync(menuPath)){
+    	    throw new Error(`there must be a page called ${menuPath} that includes a line that consists of ${generationLine}`)
+	}
+      const text = this.fs.readFileSync(menuPath, 'utf8');
       const lines = text.split('\n');
-      const correspondingDir = f.replace(/\.mdx$/, '');
 
       if (!lines.includes(generationLine)) {
         throw new Error(
@@ -157,7 +146,7 @@ class TopicContentsFragment {
         );
       }
 
-      let relPath = this.relativePathToFile(f);
+      let relPath = this.relativePathToFile(menuPath);
       const fm = this.getFrontmatter(text);
 
       let newEntry = `## ${fm.title}
@@ -166,28 +155,28 @@ ${fm.description} ([more info](${relPath}))
 
 `;
 
-      const childFiles = this.fs.readdirSync(correspondingDir, 'utf8');
-      let childDirs = {};
+      const childFiles = this.fs.readdirSync(f, 'utf8');
+      let childDirs = new Set();
       childFiles.forEach(fp => {
-        const stats = this.fs.statSync(path.join(correspondingDir, fp));
+        const stats = this.fs.statSync(path.join(f, fp));
         if (stats.isDirectory()) {
-          childDirs[path.join(correspondingDir, fp)] = true;
+          childDirs.add(path.join(f, fp))
         }
       });
-      let childEntries = [];
+      let childEntries = new Set();
       childFiles.forEach(fp => {
-        const stats = this.fs.statSync(path.join(correspondingDir, fp));
+        const stats = this.fs.statSync(path.join(f, fp));
         if (stats.isDirectory()) {
           return;
         }
-        const absChildPath = path.join(correspondingDir, fp);
+        const absChildPath = path.join(f, fp);
         const relChildPath = this.relativePathToFile(absChildPath);
         const childText = this.fs.readFileSync(absChildPath, 'utf8');
         const childFM = this.getFrontmatter(childText);
         if (
-          !!childDirs[
-            path.join(correspondingDir, fp.slice(0, fp.length - '.mdx'.length))
-          ]
+          childDirs.has(
+            path.join(f, fp.slice(0, fp.length - '.mdx'.length))
+          )
         ) {
           childEntries.push(`- [${childFM.title} (section)](${relChildPath}): ${childFM.description}
 `);
