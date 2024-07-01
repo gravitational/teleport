@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -613,87 +614,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	return nil
 }
 
-type forwardHandler func(ctx context.Context, addr string, file *os.File) error
-
-func handleLocalPortForward(ctx context.Context, addr string, file *os.File) error {
-	conn, err := uds.FromFile(file)
-	_ = file.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer conn.Close()
-	var d net.Dialer
-	remote, err := d.DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer remote.Close()
-	if err := utils.ProxyConn(ctx, conn, remote); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func createRemotePortForwardingListener(ctx context.Context, addr string) (*os.File, error) {
-	lc := net.ListenConfig{
-		Control: func(network, addr string, conn syscall.RawConn) error {
-			var err error
-			err2 := conn.Control(func(descriptor uintptr) {
-				// Disable address reuse to prevent socket replacement.
-				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
-			})
-			return trace.NewAggregate(err2, err)
-		},
-	}
-
-	listener, err := lc.Listen(ctx, "tcp", addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer listener.Close()
-
-	tcpListener, _ := listener.(*net.TCPListener)
-	if tcpListener == nil {
-		return nil, trace.Errorf("expected listener to be of type *net.TCPListener, but was %T", listener)
-	}
-
-	listenerFD, err := tcpListener.File()
-	return listenerFD, trace.Wrap(err)
-}
-
-func handleRemotePortForward(ctx context.Context, addr string, file *os.File) error {
-	controlConn, err := uds.FromFile(file)
-	_ = file.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	// unblock the final write
-	context.AfterFunc(ctx, func() { _ = controlConn.Close() })
-	go func() {
-		defer cancel()
-		_, _ = controlConn.Read(make([]byte, 1))
-	}()
-
-	var payload []byte
-	var files []*os.File
-	listenerFD, err := createRemotePortForwardingListener(ctx, addr)
-	if err == nil {
-		files = []*os.File{listenerFD}
-	} else {
-		payload = []byte(err.Error())
-	}
-	_, _, err2 := uds.WriteWithFDs(controlConn, payload, files)
-	return trace.NewAggregate(err, err2)
-}
-
-// runForward reads in the command to run from the parent process (over a
-// pipe) then port forwards.
-func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
+func RunNetworking() (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -752,7 +673,7 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
 
-	conn, err := uds.FromFile(ffd)
+	parentConn, err := uds.FromFile(ffd)
 	ffd.Close()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -764,39 +685,139 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
-		n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
+		n, fn, err := uds.ReadWithFDs(parentConn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return errorWriter, teleport.RemoteCommandSuccess, nil
 			}
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-		addr := string(buf[:n])
-		if fn == 0 {
-			log.Errorf("Parent did not send a file descriptor for address %q.", addr)
-			continue
-		}
 
 		go func() {
-			if err := handler(ctx, addr, fbuf[0]); err != nil {
-				log.WithError(err).Errorf("Error handling forwarding request for address %q.", addr)
+			var req networking.Request
+			if err := json.Unmarshal(buf[:n], &req); err != nil {
+				slog.With("error", err).Error("Error parsing networking request.")
+				return
+			}
+			log := slog.With("request", req)
+
+			if fn == 0 {
+				log.Error("Networking request requires a control file.")
+				return
+			}
+
+			controlConn, err := uds.FromFile(fbuf[0])
+			_ = fbuf[0].Close()
+			if err != nil {
+				log.Error("Failed to get a connection from control file.")
+				return
+			}
+			defer controlConn.Close()
+
+			log.Debug("Handling networking request")
+			netFile, err := handleNetworkingRequest(ctx, req)
+			if err != nil {
+				log.With("error", err).Error("Error handling networking request.")
+				if _, err2 := controlConn.Write([]byte(err.Error())); err2 != nil {
+					log.With("error", err2.Error()).Error("Failed to write error to control conn.")
+				}
+			}
+			defer netFile.Close()
+
+			if _, _, err := uds.WriteWithFDs(controlConn, nil, []*os.File{netFile}); err != nil {
+				log.With("error", err.Error()).Error("Failed to write networking file to control conn.")
 			}
 		}()
 	}
 }
 
-// RunLocalForward reads in the command to run from the parent process (over a
-// pipe) then port forwards.
-func RunLocalForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleLocalPortForward)
-	return errw, code, trace.Wrap(err)
+func handleNetworkingRequest(ctx context.Context, req networking.Request) (*os.File, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	switch req.Operation {
+	case networking.NetworkingOperationDial:
+		connFD, err := newConnFile(ctx, req.Network, req.Address)
+		return connFD, trace.Wrap(err)
+
+	case networking.NetworkingOperationListen:
+		listenerFD, err := newListenerFile(ctx, req.Network, req.Address)
+		return listenerFD, trace.Wrap(err)
+
+	case networking.NetworkingOperationListenAgent:
+		// Create a temp directory to hold the agent socket.
+		sockDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
+
+		listenerFD, err := newListenerFile(ctx, "unix", socketPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the agent forwarding socket with more restrictive permissions.
+		if err = os.Chmod(socketPath, teleport.FileMaskOwnerOnly); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return listenerFD, trace.Wrap(err)
+
+	default:
+		return nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
+	}
 }
 
-// RunRemoteForward reads in the command to run from the parent process (over a
-// pipe) then listens for port forwarding.
-func RunRemoteForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleRemotePortForward)
-	return errw, code, trace.Wrap(err)
+func newListenerFile(ctx context.Context, network string, addr string) (*os.File, error) {
+	lc := net.ListenConfig{
+		Control: func(network, addr string, conn syscall.RawConn) error {
+			var err error
+			err2 := conn.Control(func(descriptor uintptr) {
+				// Disable address reuse to prevent socket replacement.
+				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+			})
+			return trace.NewAggregate(err2, err)
+		},
+	}
+
+	listener, err := lc.Listen(ctx, network, addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer listener.Close()
+
+	switch l := listener.(type) {
+	case *net.UnixListener:
+		l.SetUnlinkOnClose(false)
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	case *net.TCPListener:
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", listener)
+	}
+}
+
+func newConnFile(ctx context.Context, network string, addr string) (*os.File, error) {
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	switch c := conn.(type) {
+	case *net.UnixConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	case *net.TCPConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
+	}
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -831,10 +852,8 @@ func RunAndExit(commandType string) {
 	switch commandType {
 	case teleport.ExecSubCommand:
 		w, code, err = RunCommand()
-	case teleport.LocalForwardSubCommand:
-		w, code, err = RunLocalForward()
-	case teleport.RemoteForwardSubCommand:
-		w, code, err = RunRemoteForward()
+	case teleport.NetworkingSubCommand:
+		w, code, err = RunNetworking()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
@@ -854,7 +873,7 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.LocalForwardSubCommand, teleport.RemoteForwardSubCommand,
+		case teleport.ExecSubCommand, teleport.NetworkingSubCommand,
 			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
@@ -1071,10 +1090,8 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// port forwarding).
 	var subCommand string
 	switch ctx.ExecType {
-	case teleport.ChanDirectTCPIP:
-		subCommand = teleport.LocalForwardSubCommand
-	case teleport.TCPIPForwardRequest:
-		subCommand = teleport.RemoteForwardSubCommand
+	case teleport.NetworkingSubCommand:
+		subCommand = teleport.NetworkingSubCommand
 	default:
 		subCommand = teleport.ExecSubCommand
 	}
@@ -1109,7 +1126,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// For remote port forwarding, the child needs to run as the user to
 	// create listeners with the correct permissions.
-	if subCommand == teleport.RemoteForwardSubCommand {
+	if subCommand == teleport.NetworkingSubCommand {
 		localUser, err := user.Lookup(ctx.Identity.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)

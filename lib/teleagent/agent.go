@@ -79,6 +79,12 @@ func NewServer(getter Getter) *AgentServer {
 	return &AgentServer{getAgent: getter}
 }
 
+func (a *AgentServer) SetListener(l net.Listener) {
+	a.listener = l
+	a.Path = l.Addr().String()
+	a.Dir = filepath.Dir(a.Path)
+}
+
 // ListenUnixSocket starts listening on a new unix socket.
 func (a *AgentServer) ListenUnixSocket(sockDir, sockName string, user *user.User) error {
 	// Create a temp directory to hold the agent socket.

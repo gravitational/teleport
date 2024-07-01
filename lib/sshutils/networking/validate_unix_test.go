@@ -18,7 +18,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package regular
+package networking
 
 import (
 	"net"
@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -123,7 +122,7 @@ func TestValidateListenerSocket(t *testing.T) {
 			if tc.mutateConn != nil {
 				tc.mutateConn(t, listenerFD)
 			}
-			err := validateListenerSocket(&srv.ServerContext{}, conn, listenerFD)
+			err := validateListenerSocket(listenerFD)
 			tc.assert(t, err)
 		})
 	}

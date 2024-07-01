@@ -1,5 +1,5 @@
-//go:build !darwin && !linux
-// +build !darwin,!linux
+//go:build !unix
+// +build !unix
 
 /*
  * Teleport
@@ -18,18 +18,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package regular
+package networking
 
 import (
-	"net"
 	"os"
 	"runtime"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/srv"
 )
 
-func validateListenerSocket(scx *srv.ServerContext, controlConn *net.UnixConn, listenerFD *os.File) error {
-	return trace.BadParameter("remote forwarding is not implemented for %s", runtime.GOOS)
+func validateListenerSocket(_ *os.File) error {
+	return trace.BadParameter("networking operations are not implemented for %s", runtime.GOOS)
 }
