@@ -123,13 +123,17 @@ func (a *App) Err() error {
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+	}
+	accessMonitoringEnabled := true
+	if accessMonitoringEnabled {
+		watchKinds = append(watchKinds, types.WatchKind{Kind: types.KindAccessMonitoringRule})
+	}
 	job, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{
-				{Kind: types.KindAccessRequest},
-				{Kind: types.KindAccessMonitoringRule},
-			}},
+			Watch:            types.Watch{Kinds: watchKinds},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -145,8 +149,10 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-		return trace.Wrap(err)
+	if accessMonitoringEnabled {
+		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	a.job.SetReady(ok)
@@ -156,6 +162,16 @@ func (a *App) run(ctx context.Context) error {
 
 	<-job.Done()
 	return nil
+}
+
+func (a *App) accessMonitoringEnabled(ctx context.Context) (bool, error) {
+	pong, err := a.apiClient.Ping(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return pong.ServerFeatures.AdvancedAccessWorkflows &&
+		pong.ServerFeatures.AccessMonitoring != nil &&
+		pong.ServerFeatures.AccessMonitoring.Enabled, nil
 }
 
 func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
