@@ -299,15 +299,15 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 		// protocol flow used by prepared statements.
 		case *pgproto3.Parse:
 			switch msg.Query {
-			case activateQuery:
+			case activateQuery, activateQueryRedshift:
 				if err := s.handleActivateUser(client); err != nil {
 					s.log.WithError(err).Error("Failed to handle user activation.")
 				}
-			case deleteQuery:
+			case deleteQuery, deleteQueryRedshift:
 				if err := s.handleDeactivateUser(client, true); err != nil {
 					s.log.WithError(err).Error("Failed to handle user deletion.")
 				}
-			case deactivateQuery:
+			case deactivateQuery, deactivateQueryRedshift:
 				if err := s.handleDeactivateUser(client, false); err != nil {
 					s.log.WithError(err).Error("Failed to handle user deactivation.")
 				}
@@ -426,10 +426,8 @@ func (s *TestServer) handleCreateStoredProcedure(query string) error {
 		return trace.BadParameter("failed to extract stored procedure name from query")
 	}
 
-	if _, ok := ephemeralProcs[match[1]]; !ok {
-		if _, ok := procs[match[1]]; !ok {
-			return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
-		}
+	if _, ok := procs[match[1]]; !ok {
+		return trace.BadParameter("test server doesn't support stored procedure %q", match[1])
 	}
 
 	s.log.Debugf("Created stored procedure %q.", match[1])

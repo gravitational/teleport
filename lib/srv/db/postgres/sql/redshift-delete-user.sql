@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE teleport_delete_user(username varchar)
+CREATE OR REPLACE PROCEDURE pg_temp.teleport_delete_user(username varchar)
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -17,7 +17,7 @@ BEGIN
 
             -- Drop user/role will fail if user has dependent objects.
             -- In this scenario, fallback into disabling the user.
-            CALL teleport_deactivate_user(username);
+            CALL pg_temp.teleport_deactivate_user(username);
         END;
     END IF;
 END;$$;

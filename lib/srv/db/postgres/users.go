@@ -67,11 +67,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 	defer conn.Close(ctx)
 
-	// We could call this once when the database is being initialized but
-	// doing it here has a nice "self-healing" property in case the Teleport
-	// bookkeeping group or stored procedures get deleted or changed offband.
-	err = e.initAutoUsers(ctx, sessionCtx, conn)
-	if err != nil {
+	if err := e.updateAutoUsersRole(ctx, conn); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{activateProcName, deactivateProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -81,7 +81,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	e.Log.WithField("user", sessionCtx.DatabaseUser).WithField("roles", roles).Info("Activating PostgreSQL user")
-	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
+	err = e.callProcedure(ctx, sessionCtx, conn, activateProcName, sessionCtx.DatabaseUser, roles)
 	if err != nil {
 		e.Log.WithError(err).Debug("Call teleport_activate_user failed.")
 		errOut := convertActivateError(sessionCtx, err)
@@ -230,17 +230,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
-	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
-	_, err = conn.Exec(ctx, removePermissionsProc)
-	if err != nil {
-		e.Log.WithError(err).Errorf("Creating temporary stored procedure %q failed.", removePermissionsProcName)
-		return trace.Wrap(err)
-	}
-
-	_, err = conn.Exec(ctx, updatePermissionsProc)
-	if err != nil {
-		e.Log.WithError(err).Errorf("Creating temporary stored procedure %q failed.", updatePermissionsProcName)
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName, updatePermissionsProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -272,10 +262,7 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 	}
 	defer conn.Close(ctx)
 
-	// teleport_remove_permissions is created in pg_temp table of the session database.
-	_, err = conn.Exec(ctx, removePermissionsProc)
-	if err != nil {
-		e.Log.WithError(err).Errorf("Creating temporary stored procedure %q failed.", removePermissionsProcName)
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{removePermissionsProcName}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -301,6 +288,10 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 	defer conn.Close(ctx)
+
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deactivateProcName, deleteProcName}); err != nil {
+		return trace.Wrap(err)
+	}
 
 	e.Log.WithField("user", sessionCtx.DatabaseUser).Info("Deactivating PostgreSQL user.")
 
@@ -328,6 +319,10 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
 	defer conn.Close(ctx)
+
+	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deleteProcName}); err != nil {
+		return trace.Wrap(err)
+	}
 
 	e.Log.WithField("user", sessionCtx.DatabaseUser).Info("Deleting PostgreSQL user.")
 
@@ -364,7 +359,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 // into the returned error instead of doing this on state returned (like regular
 // PostgreSQL).
 func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
-	_, err := conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	_, err := conn.Exec(ctx, deleteQueryRedshift, sessionCtx.DatabaseUser)
 	if err == nil {
 		*state = common.SQLStateUserDropped
 		return nil
@@ -381,29 +376,56 @@ func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Sess
 	return trace.Wrap(err)
 }
 
-// initAutoUsers installs procedures for activating and deactivating users and
-// creates the bookkeeping role for auto-provisioned users.
-func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn) error {
-	// Create a role/group which all auto-created users will be a part of.
+// updateAutoUsersRole ensures the bookkeeping role for auto-provisioned users
+// is present.
+func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn) error {
 	_, err := conn.Exec(ctx, fmt.Sprintf("create role %q", teleportAutoUserRole))
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
 			return trace.Wrap(err)
 		}
 		e.Log.Debugf("PostgreSQL role %q already exists.", teleportAutoUserRole)
-	} else {
-		e.Log.Debugf("Created PostgreSQL role %q.", teleportAutoUserRole)
 	}
 
-	// Install stored procedures for creating and disabling database users.
-	for name, sql := range pickProcedures(sessionCtx) {
-		_, err := conn.Exec(ctx, sql)
-		if err != nil {
+	e.Log.Debugf("Created PostgreSQL role %q.", teleportAutoUserRole)
+	return nil
+}
+
+// createProcedures creates a list of procedures.
+func (e *Engine) createProcedures(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, procNames []string) error {
+	var selectedProcs map[string][]string
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		selectedProcs = redshiftProcs
+	default:
+		selectedProcs = procs
+	}
+
+	for _, procName := range procNames {
+		procInfo, ok := selectedProcs[procName]
+		if !ok {
+			return trace.BadParameter("procedure %q not supported", procName)
+		}
+
+		if _, err := conn.Exec(ctx, procInfo[1]); err != nil {
+			e.Log.WithError(err).Errorf("Failed to install procedure %q.", procName)
 			return trace.Wrap(err)
 		}
-		e.Log.Debugf("Installed PostgreSQL stored procedure %q.", name)
+
+		e.Log.Debugf("Installed procedure %q.", procName)
 	}
+
 	return nil
+}
+
+func (e *Engine) callProcedure(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, procName string, args ...any) error {
+	query, err := procedureQuery(sessionCtx, procName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = conn.Exec(ctx, query, args...)
+	return trace.Wrap(err)
 }
 
 // pgxConnect connects to the database using pgx driver which is higher-level
@@ -452,11 +474,21 @@ func convertActivateError(sessionCtx *common.Session, err error) error {
 	}
 }
 
-func pickProcedures(sessionCtx *common.Session) map[string]string {
-	if sessionCtx.Database.IsRedshift() {
-		return redshiftProcs
+func procedureQuery(sessionCtx *common.Session, procName string) (string, error) {
+	var selectedProcs map[string][]string
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		selectedProcs = redshiftProcs
+	default:
+		selectedProcs = procs
 	}
-	return procs
+
+	procInfo, ok := selectedProcs[procName]
+	if !ok {
+		return "", trace.BadParameter("procedure %q not supported", procName)
+	}
+
+	return procInfo[0], nil
 }
 
 const (
@@ -483,18 +515,29 @@ const (
 var (
 	//go:embed sql/activate-user.sql
 	activateProc string
-	// activateQuery is the query for calling user activation procedure.
-	activateQuery = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
+	// activateQuery is the query for calling user activation temporary
+	// procedure.
+	activateQuery = fmt.Sprintf(`call pg_temp.%v($1, $2)`, activateProcName)
+	// activateQuery is the query for calling user activation procedure for
+	// Redshift databases.
+	activateQueryRedshift = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
 
 	//go:embed sql/deactivate-user.sql
 	deactivateProc string
-	// deactivateQuery is the query for calling user deactivation procedure.
-	deactivateQuery = fmt.Sprintf(`call %v($1)`, deactivateProcName)
+	// deactivateQuery is the query for calling user deactivation temporary
+	// procedure.
+	deactivateQuery = fmt.Sprintf(`call pg_temp.%v($1)`, deactivateProcName)
+	// deactivateQueryRedshift is the query for calling user deactivation
+	// procedure for Redshift databases.
+	deactivateQueryRedshift = fmt.Sprintf(`call %v($1)`, deactivateProcName)
 
 	//go:embed sql/delete-user.sql
 	deleteProc string
-	// deleteQuery is the query for calling user deletion procedure.
-	deleteQuery = fmt.Sprintf(`call %v($1)`, deleteProcName)
+	// deleteQuery is the query for calling user deletion temporary procedure.
+	deleteQuery = fmt.Sprintf(`call pg_temp.%v($1)`, deleteProcName)
+	// deleteQueryRedshift is the query for calling user deletion procedure for
+	// Redshift databases.
+	deleteQueryRedshift = fmt.Sprintf(`call %v($1)`, deleteProcName)
 
 	//go:embed sql/redshift-activate-user.sql
 	redshiftActivateProc string
@@ -515,20 +558,21 @@ var (
 	// the procedure is created on demand in the pg_temp table in the session database.
 	removePermissionsQuery = fmt.Sprintf(`call %v($1)`, removePermissionsProcName)
 
-	procs = map[string]string{
-		activateProcName:   activateProc,
-		deactivateProcName: deactivateProc,
-		deleteProcName:     deleteProc,
+	// procs defines the call query and procedure contents for PostgreSQL
+	// databases.
+	procs = map[string][]string{
+		activateProcName:          {activateQuery, activateProc},
+		deactivateProcName:        {deactivateQuery, deactivateProc},
+		deleteProcName:            {deleteQuery, deleteProc},
+		updatePermissionsProcName: {updatePermissionsQuery, updatePermissionsProc},
+		removePermissionsProcName: {removePermissionsQuery, removePermissionsProc},
 	}
 
-	redshiftProcs = map[string]string{
-		activateProcName:   redshiftActivateProc,
-		deactivateProcName: redshiftDeactivateProc,
-		deleteProcName:     redshiftDeleteProc,
-	}
-
-	ephemeralProcs = map[string]string{
-		updatePermissionsProcName: updatePermissionsProc,
-		removePermissionsProcName: removePermissionsProc,
+	// redshiftProcs defines the call query and procedure contents for Redshift
+	// databases.
+	redshiftProcs = map[string][]string{
+		activateProcName:   {activateQueryRedshift, redshiftActivateProc},
+		deactivateProcName: {deactivateQueryRedshift, redshiftDeactivateProc},
+		deleteProcName:     {deleteQueryRedshift, redshiftDeleteProc},
 	}
 )
