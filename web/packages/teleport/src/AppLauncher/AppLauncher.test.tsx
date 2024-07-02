@@ -119,6 +119,9 @@ describe('app launcher path is properly formed', () => {
   });
 
   test('arn is url decoded', () => {
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'test-app.test.teleport',
+    });
     jest.spyOn(service, 'createAppSession');
 
     const launcherPath =
