@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"regexp"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -244,6 +245,11 @@ func (t *transport) rewriteResponse(resp *http.Response) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+    case t.app.GetRewrite() != nil && len(t.app.GetRewrite().RedirectRegex.Regex) > 0:
+		err := t.rewriteRedirectRegex(resp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 	}
 	return nil
@@ -258,20 +264,36 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 			return trace.Wrap(err)
 		}
 
-		// Check if the redirect location matches any entry in the rewrite list.
-		for _, rewriteHost := range t.app.GetRewrite().Redirect {
-			if strings.Contains(u.String(), rewriteHost) {
-				// Replace occurrences of the rewrite host in the URL.
-				u.Scheme = "https"
-				u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
-				if t.app.GetRewrite().FullHeaderRewrite {
-					u.Path = strings.Replace(u.Path, rewriteHost, t.app.GetPublicAddr(), -1)
-					u.RawQuery = strings.Replace(u.RawQuery, rewriteHost, t.app.GetPublicAddr(), -1)
-					u.Fragment = strings.Replace(u.Fragment, rewriteHost, t.app.GetPublicAddr(), -1)
-				}
-			}
+		// If the redirect location is one of the hosts specified in the list of
+		// redirects, rewrite the header.
+		if slices.Contains(t.app.GetRewrite().Redirect, host(u.Host)) {
+			u.Scheme = "https"
+			u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
+	}
+	return nil
+}
+
+// rewriteRedirectRegex applies redirect rules to the response.
+func (t *transport) rewriteRedirectRegex(resp *http.Response) error {
+	if utils.IsRedirect(resp.StatusCode) {
+		// Parse the "Location" header.
+		u, err := url.Parse(resp.Header.Get("Location"))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Get the regex and replacement from the config.
+		regexPattern := t.app.GetRewrite().RedirectRegex.Regex
+		replacement := t.app.GetRewrite().RedirectRegex.Replacement
+
+		regex, err := regexp.Compile(regexPattern)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newURL := regex.ReplaceAllString(u.String(), replacement)
+		resp.Header.Set("Location", newURL)
 	}
 	return nil
 }
