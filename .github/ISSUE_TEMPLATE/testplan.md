@@ -1224,7 +1224,7 @@ manualy testing.
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
-    - [ ] Attempting to share directory logs a sensible warning in the warning dropdown
+    - [ ] Directory sharing option is not available in the dropdown
   - On supported, chromium based browsers (Chrome/Edge)
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
@@ -1286,7 +1286,7 @@ manualy testing.
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
-    start (due to RBAC, for example)
+    start (due to RBAC, or a desktop lock, for example)
   - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
     to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
@@ -1300,12 +1300,20 @@ manualy testing.
 - Warnings/Errors (test by applying [this patch](https://gist.github.com/ibeckermayer/7591333275e87ad0d7afa028a7bb54cb))
   - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
   - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
-  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
+  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown. Confirm that the error is
+        shown at the end of the playback of this session (confirms backwards compatibility w/ recordings from older w_d_s pre Teleport 12).
 - Trusted Cluster / Tunneling
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
-- Screen size
+- Screen size/resize
+  - resize
+    - [ ] Screen can be resized during an active session
+    - [ ] Screen can be resized during login (meaning before resize dvc is opened).
+          The screen won't resize immediately, but it should resize when the dvc is opened (about when login completes).
+    - [ ] Screen can be resized during mfa dialog without losing the session
+    - [ ] Screen can be resized during "Active Session" dialog without losing the session
+  - `screen_size`
     - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
     - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
     - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
@@ -1318,8 +1326,8 @@ manualy testing.
   - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance works with Enterprise license always
-  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade
-  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5
+  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade (check occurs every 5 minutes so you may need to wait to confirm)
+  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
@@ -1364,6 +1372,7 @@ With an SSH node registered to the Teleport cluster:
 
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
+- [ ] Verify you are able to connect to the SSH node using the SSH multiplexer service
 
 With a Postgres DB registered to the Teleport cluster:
 
@@ -1374,6 +1383,8 @@ With a Postgres DB registered to the Teleport cluster:
 With a Kubernetes cluster registered to the Teleport cluster:
 
 - [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
+  - [ ] With ALPN routing
+  - [ ] Without ALPN routing
 
 With a HTTP application registered to the Teleport cluster:
 
