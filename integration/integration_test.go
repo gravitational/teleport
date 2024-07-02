@@ -5279,7 +5279,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
 		require.NotNil(t, conn, err)
 
-		require.Subset(t, conn.GetServerPrincipals(), []string{
+		require.Subset(t, conn.ServerGetValidPrincipals(), []string{
 			svc.Config.Hostname,
 			svc.Config.Hostname + "." + helpers.Site,
 			helpers.HostID,
@@ -5446,7 +5446,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
 		require.NotNil(t, conn, err)
 
-		require.Subset(t, conn.GetServerPrincipals(), []string{
+		require.Subset(t, conn.ServerGetValidPrincipals(), []string{
 			svc.Config.Hostname,
 			svc.Config.Hostname + "." + helpers.Site,
 			helpers.HostID,

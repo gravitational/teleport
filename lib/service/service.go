@@ -328,6 +328,14 @@ func (c *Connector) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) 
 	return c.clientIdentity.TLSConfig(cipherSuites)
 }
 
+func (c *Connector) ClientGetCertificate() (*tls.Certificate, error) {
+	cert, err := keys.X509KeyPair(c.clientIdentity.TLSCertBytes, c.clientIdentity.KeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &cert, nil
+}
+
 func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
 	return []ssh.AuthMethod{ssh.PublicKeys(c.clientIdentity.KeySigner)}
 }
@@ -344,11 +352,11 @@ func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) 
 	return c.serverIdentity.TLSConfig(cipherSuites)
 }
 
-func (c *Connector) GetServerHostSigners() []ssh.Signer {
+func (c *Connector) ServerGetHostSigners() []ssh.Signer {
 	return []ssh.Signer{c.serverIdentity.KeySigner}
 }
 
-func (c *Connector) GetServerPrincipals() []string {
+func (c *Connector) ServerGetValidPrincipals() []string {
 	return slices.Clone(c.serverIdentity.Cert.ValidPrincipals)
 }
 
@@ -2798,7 +2806,7 @@ func (process *TeleportProcess) initSSH() error {
 			process.ExitContext(),
 			cfg.SSH.Addr,
 			cfg.Hostname,
-			conn.GetServerHostSigners,
+			conn.ServerGetHostSigners,
 			authClient,
 			cfg.DataDir,
 			cfg.AdvertiseIP,
@@ -4176,7 +4184,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterName:           clusterName,
 				ClientTLS:             clientTLSConfig,
 				Listener:              rtListener,
-				GetHostSigners:        conn.GetServerHostSigners,
+				GetHostSigners:        conn.ServerGetHostSigners,
 				LocalAuthClient:       conn.Client,
 				LocalAccessPoint:      accessPoint,
 				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
@@ -4554,7 +4562,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.ExitContext(),
 		cfg.SSH.Addr,
 		cfg.Hostname,
-		conn.GetServerHostSigners,
+		conn.ServerGetHostSigners,
 		accessPoint,
 		cfg.DataDir,
 		"",
