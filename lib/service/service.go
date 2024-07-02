@@ -1770,6 +1770,18 @@ func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
 
+	// We have to ensure that the process database is newly created before
+	// version update check.
+	var firstTimeStart bool
+	if _, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin); trace.IsNotFound(err) {
+		firstTimeStart = true
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := process.validateAndUpdateTeleportVersion(teleport.SemVersion, firstTimeStart); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
 	if err != nil {
@@ -1860,6 +1872,7 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
+
 	clusterName := cfg.Auth.ClusterName.GetClusterName()
 	ident, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleAdmin)
 	if err != nil && !trace.IsNotFound(err) {
