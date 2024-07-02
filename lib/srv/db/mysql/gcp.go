@@ -128,7 +128,7 @@ func (e *Engine) getGCPIAMAuthToken(ctx context.Context, sessionCtx *common.Sess
 	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with IAM auth.")
 
 	// Note that sessionCtx.DatabaseUser is the service account.
-	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
+	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx.DatabaseUser)
 	return password, trace.Wrap(err)
 }
 
@@ -154,7 +154,7 @@ func (e *Engine) getGCPOneTimePassword(ctx context.Context, sessionCtx *common.S
 			e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
 		}
 	}()
-	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
+	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
