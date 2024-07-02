@@ -38,7 +38,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -391,7 +391,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
 		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
