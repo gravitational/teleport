@@ -18,7 +18,7 @@ const args = yargs(hideBin(process.argv))
 const addTopicsForDir = (dirPath, command) => {
   const frag = new TopicContentsFragment(fs, dirPath, '');
   const parts = path.parse(dirPath);
-  const newPath = path.join(parts.dir, parts.name + '.mdx');
+  const newPath = path.join(parts.dir, parts.name, parts.name + '.mdx');
   fs.writeFileSync(newPath, frag.makeTopicPage());
 
   fs.readdirSync(dirPath).forEach(filePath => {

@@ -1,62 +1,12 @@
 ---
-title: Health Monitoring
-description: Monitoring health and readiness.
+title: Teleport Monitoring References
+description: How to obtain information about activity in your Teleport cluster.
 ---
 
-Teleport provides health checking mechanisms in order to verify that it
-is healthy and ready to serve traffic. These can be used by things like
-Kubernetes probes to monitor the health of a Teleport process.
+{/*TOPICS*/}
 
-## Enable health monitoring
-
-(!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
-
-Now you can collect monitoring information from several endpoints.
-
-## `/healthz`
-
-The `http://127.0.0.1:3000/healthz` endpoint responds with a body of
-`{"status":"ok"}` and an HTTP 200 OK status code if the process is running.
-
-This is a simple check, suitable for determining if the Teleport process is
-still running.
-
-## `/readyz`
-
-The `http://127.0.0.1:3000/readyz` endpoint is similar to `/healthz`, but its
-response includes information about the state of the process.
-
-The response body is a JSON object of the form:
-
-```
-{ "status": "a status message here"}
-```
-
-### `/readyz` and heartbeats
-
-If a Teleport component fails to execute its heartbeat procedure, it will enter
-a degraded state. Teleport will begin recovering from this state when a
-heartbeat completes successfully.
-
-The first successful heartbeat will transition Teleport into a recovering state.
-
-A second consecutive successful heartbeat will cause Teleport to transition to
-the OK state.
-
-Teleport heartbeats run approximately every 60 seconds when healthy, and failed
-heartbeats are retried approximately every 5 seconds. This means that depending
-on the timing of heartbeats, it can take 60-70 seconds after connectivity is
-restored for `/readyz` to start reporting healthy again.
-
-### Status codes
-
-The status code of the response can be one of:
-
-- HTTP 200 OK: Teleport is operating normally
-- HTTP 503 Service Unavailable: Teleport has encountered a connection error and
-  is running in a degraded state. This happens when a Teleport heartbeat fails.
-- HTTP 400 Bad Request: Teleport is either entering its initial startup phase or
-  has begun recovering from a degraded state.
-
-The same state information is also available via the `process_state` metric
-under the `/metrics` endpoint.
+- [Distributed Tracing Configuration Reference](configuration.mdx): Configuration reference for Distributed Tracing.
+- [Distributed Tracing](tracing.mdx): How to enable tracing within Teleport.
+- [Health Monitoring](overview.mdx): Monitoring health and readiness.
+- [Metrics](metrics.mdx): How to enable and consume metrics
+- [Profiling](profiles.mdx): Collecting pprof profiles.
