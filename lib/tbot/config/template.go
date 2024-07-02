@@ -98,6 +98,15 @@ type template interface {
 	) error
 }
 
+// NewBotConfigWriter returns a new BotConfigWriter that writes to the given
+// Destination.
+func NewBotConfigWriter(ctx context.Context, dest bot.Destination) *BotConfigWriter {
+	return &BotConfigWriter{
+		ctx:  ctx,
+		dest: dest,
+	}
+}
+
 // BotConfigWriter is a trivial adapter to use the identityfile package with
 // bot destinations.
 type BotConfigWriter struct {
@@ -141,8 +150,8 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 // identityfile.ConfigWriter interface
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
-// newClientKey returns a sane client.Key for the given bot identity.
-func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
+// NewClientKey returns a sane client.Key for the given bot identity.
+func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)

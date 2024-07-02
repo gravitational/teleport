@@ -116,13 +116,14 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
 	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
+	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	return cfg
 }
 
 // validateFileDestinations ensures all files in a destination exist on disk as
 // expected, and returns the destination.
-func validateFileDestination(t *testing.T, output config.Output) *config.DestinationDirectory {
+func validateFileDestination(t *testing.T, output config.LegacyOutput) *config.DestinationDirectory {
 	destImpl := output.GetDestination()
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
@@ -153,7 +154,7 @@ func TestInit(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Outputs[0])
+	_ = validateFileDestination(t, cfg.LegacyOutputs[0])
 }
 
 // TestInitMaybeACLs tests defaults with ACLs possibly enabled, by supplying
@@ -200,7 +201,7 @@ func TestInitMaybeACLs(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	destDir := validateFileDestination(t, cfg.Outputs[0])
+	destDir := validateFileDestination(t, cfg.LegacyOutputs[0])
 
 	// If we expect ACLs, verify them.
 	if expectACLs {
@@ -245,7 +246,7 @@ func TestInitSymlink(t *testing.T) {
 	require.NoError(t, onInit(cfg, &config.CLIConf{}))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Outputs[0])
+	_ = validateFileDestination(t, cfg.LegacyOutputs[0])
 }
 
 // TestInitSymlinksInsecure should work on all platforms.

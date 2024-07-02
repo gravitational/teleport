@@ -810,10 +810,19 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 
 	// Spin up goroutine for bot to run in
 	botCtx, cancelBot := context.WithCancel(ctx)
-	botCh := make(chan error, 1)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		botCh <- b.Run(botCtx)
+		defer wg.Done()
+		err := b.Run(botCtx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancelBot()
 	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancelBot()
+		wg.Wait()
+	})
 
 	// This has a little flexibility internally in terms of waiting for the
 	// socket to come up, so we don't need a manual sleep/retry here.
@@ -839,10 +848,6 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		cert.NotBefore.Add(time.Hour-time.Minute),
 		cert.NotBefore.Add(time.Hour+time.Minute),
 	)
-
-	// Shut down bot and make sure it exits cleanly.
-	cancelBot()
-	require.NoError(t, <-botCh)
 }
 
 func TestBotDatabaseTunnel(t *testing.T) {

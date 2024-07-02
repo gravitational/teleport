@@ -66,7 +66,7 @@ func (t *templateCockroach) render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(identity, dbCAs)
+	key, err := NewClientKey(identity, dbCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

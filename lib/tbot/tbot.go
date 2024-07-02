@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -267,7 +268,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			// Create a credential output for the SPIFFE Workload API service to
 			// use as a source of an impersonated identity.
 			svcIdentity := &config.UnstableClientCredentialOutput{}
-			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+			b.cfg.LegacyOutputs = append(b.cfg.LegacyOutputs, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
 				botClient:             b.botIdentitySvc.GetClient(),
@@ -311,6 +312,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.KubernetesOutput:
+			svc := &KubernetesOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -439,8 +455,8 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	// TODO: consider warning if ownership of all destinations is not expected.
-	for _, output := range cfg.Outputs {
-		if err := output.Init(ctx); err != nil {
+	for _, initable := range cfg.GetInitables() {
+		if err := initable.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
