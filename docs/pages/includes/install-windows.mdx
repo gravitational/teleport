@@ -4,21 +4,32 @@ can be run under `cmd.exe`, PowerShell, and Windows Terminal.
 To install `tsh` and `tctl` on Windows, run the following commands in
 **PowerShell** (these commands will not work in `cmd.exe`):
 
+
 <Tabs>
+<TabItem label="Teleport Enterprise (Managed)" scope="cloud">
+
+  ```code
+  # Set the desired teleport version
+  $ $TELEPORT_VERSION="(=cloud.version=)"
+  ```
+
+</TabItem>
+<TabItem label="Teleport Enterprise (Self-Hosted)" scope="enterprise">
+
+  ```code
+  # Set the desired teleport version
+  $ $TELEPORT_VERSION="(=teleport.version=)"
+  ```
+
+</TabItem>
 <TabItem label="Teleport Community Edition" scope="oss">
 
-  (!docs/pages/includes/install-windows-clients.mdx version="(=teleport.version=)" !)
-
-</TabItem>
-<TabItem label="Teleport Enterprise" scope="enterprise">
-
-  (!docs/pages/includes/install-windows-clients.mdx version="(=teleport.version=)" !)
-
-</TabItem>
-
-<TabItem  label="Teleport Enterprise Cloud" scope="cloud">
-
-  (!docs/pages/includes/install-windows-clients.mdx version="(=cloud.version=)" !)
+  ```code
+  # Set the desired teleport version
+  $ $TELEPORT_VERSION="(=teleport.version=)"
+  ```
 
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/install-windows-clients.mdx!)
