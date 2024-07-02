@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol/testdata"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -167,7 +168,7 @@ type checkerMock struct {
 	t *testing.T
 }
 
-func (c checkerMock) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (c checkerMock) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	c.t.Helper()
 	return services.AccessState{}
 }
