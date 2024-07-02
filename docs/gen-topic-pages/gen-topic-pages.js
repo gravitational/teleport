@@ -34,7 +34,7 @@ class TopicContentsFragment {
     const lines = text.split('\n');
     if (!lines.includes(generationLine)) {
       throw new Error(
-        `Found a root menu page that was not automatically generated (${this.root + '.mdx'}). Add "${generationLine}" where you want to include a list of section topics and run the menu generator again..`
+        `Found a root menu page that was not automatically generated (${rootTOC}). Add "${generationLine}" where you want to include a list of section topics and run the menu generator again..`
       );
     }
 
@@ -154,7 +154,7 @@ class TopicContentsFragment {
 
       if (!lines.includes(generationLine)) {
         throw new Error(
-          `Found a menu page that was not automatically generated (${f}). Add "${generationLine}" where you want to include a list of section topics and run the menu generator again..`
+          `Found a menu page that was not automatically generated (${menuPath}). Add "${generationLine}" where you want to include a list of section topics and run the menu generator again..`
         );
       }
 
