@@ -69,7 +69,8 @@ export enum KubeLocation {
   Aws,
 }
 
-/** SamlServiceProviderPreset defines SAML service provider preset types.
+/**
+ * SamlServiceProviderPreset defines SAML service provider preset types.
  * Used to define custom or pre-defined configuration flow.
  */
 export enum SamlServiceProviderPreset {
