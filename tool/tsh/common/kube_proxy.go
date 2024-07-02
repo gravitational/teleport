@@ -342,6 +342,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
 		Logger:       log,
+		CloseContext: cf.Context,
 	})
 
 	localProxy, err := alpnproxy.NewLocalProxy(

@@ -56,6 +56,9 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// SAMLAppPreset is the preset value of SAML IdP service provider. The SAML service provider
+	// preset value is used to process custom configuration for the service provider.
+	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 	// Integration is the integration name that must be used to access this Application.
@@ -163,6 +166,7 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 		ClusterID:       c.AppClusterName,
 		FriendlyName:    types.FriendlyName(app),
 		SAMLApp:         true,
+		SAMLAppPreset:   app.GetPreset(),
 		RequiresRequest: c.RequiresRequest,
 	}
 

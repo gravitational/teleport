@@ -188,6 +188,7 @@ type Controller struct {
 	serviceCounter             *serviceCounter
 	auth                       Auth
 	authID                     string
+	serverKeepAliveEnabled     bool
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
@@ -200,6 +201,18 @@ type Controller struct {
 	onDisconnectFunc           func(string)
 	closeContext               context.Context
 	cancel                     context.CancelFunc
+}
+
+// serverKeepAliveDisabledEnv checks if the periodic server keepalive has been
+// explicitly disabled via environment variable.
+func serverKeepAliveDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE") == "yes"
+}
+
+// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
+// via environment variable.
+func instanceHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 // NewController sets up a new controller instance.
@@ -220,6 +233,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	return &Controller{
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
+		serverKeepAliveEnabled:     !serverKeepAliveDisabledEnv(),
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
@@ -325,9 +339,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.testEvent(handlerClose)
 	}()
 
-	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
-	// upon receipt of the first heartbeat since not all servers send heartbeats.
-	var keepAliveInit bool
+	// keepAliveNeedInit tracks wether or not we should initialize the server
+	// keepalive sub-interval upon receiving a heartbeat. We do this lazily upon
+	// receipt of the first heartbeat since not all servers send heartbeats.
+	keepAliveNeedInit := c.serverKeepAliveEnabled
 
 	for {
 		select {
@@ -344,7 +359,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
-				if !keepAliveInit {
+				if keepAliveNeedInit {
 					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
 					handle.ticker.Push(interval.SubInterval[intervalKey]{
 						Key:           serverKeepAliveKey,
@@ -352,7 +367,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 						FirstDuration: halfJitter(c.serverKeepAlive),
 						Jitter:        seventhJitter,
 					})
-					keepAliveInit = true
+					keepAliveNeedInit = false
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
@@ -389,12 +404,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
-}
-
-// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
-// via environment variable.
-func instanceHeartbeatsDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {

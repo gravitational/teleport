@@ -30,7 +30,7 @@ Access Graph options can be found under the Permission Management section.
 Teleport Access Graph discovers AWS access patterns, synchronizes various AWS resources,
 including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
 These resources are then visualized using the graph representation detailed in the
-[Access Graph page](../access-graph.mdx).
+[Access Graph page](../teleport-policy/getting-started-policy.mdx).
 
 The importing process involves two primary steps:
 
@@ -66,7 +66,7 @@ graphical representation thereof.
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
 - For self-hosted clusters, a running Teleport Access Graph node v1.17.0 or later. 
-Check [Access Graph page](../access-graph.mdx) for details on
+Check [Access Graph page](../teleport-policy/getting-started-policy.mdx) for details on
 how to setup Teleport Access Graph.
 - The node running the Access Graph service must be reachable
 from Teleport Auth Service and Discovery Service. 
@@ -142,6 +142,7 @@ The IAM policy includes the following directives:
         "eks:ListAccessEntries",
         "eks:ListAccessPolicies",
         "eks:ListAssociatedAccessPolicies",
+        "eks:DescribeAccessEntry",
 
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
@@ -176,7 +177,11 @@ The IAM policy includes the following directives:
         "iam:GetPolicyVersion",
         "iam:ListRolePolicies",
         "iam:ListAttachedRolePolicies",
-        "iam:GetRolePolicy"
+        "iam:GetRolePolicy",
+        "iam:ListSAMLProviders",
+        "iam:GetSAMLProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:GetOpenIDConnectProvider"
       ],
       "Resource": "*"
     }

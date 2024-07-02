@@ -139,7 +139,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer func() {
 		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to teardown auto user.")
+			e.Log.WithError(err).WithField("user", sessionCtx.DatabaseUser).Error("Failed to teardown auto user.")
 		}
 	}()
 	// This is where we connect to the actual Postgres database.
@@ -409,6 +409,23 @@ func (e *Engine) auditUserPermissions(session *common.Session, entries []events.
 	e.Audit.OnPermissionsUpdate(e.Context, session, entries)
 }
 
+// auditResult process backend wire messages and emit result event on
+// appropriate messages.
+func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMessage) {
+	var res common.Result
+
+	switch m := pgMsg.(type) {
+	case *pgproto3.CommandComplete:
+		res.AffectedRecords = uint64(pgconn.CommandTag(m.CommandTag).RowsAffected())
+	case *pgproto3.ErrorResponse:
+		res.Error = common.ConvertError(pgconn.ErrorResponseToPgError(m))
+	default:
+		return
+	}
+
+	e.Audit.OnResult(e.Context, session, res)
+}
+
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
@@ -448,6 +465,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 			count += 1
 			ctr.Inc()
 			log.Tracef("Received server message: %#v.", message)
+			e.auditResult(sessionCtx, message)
 		}
 	}()
 
@@ -483,7 +501,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// TLS config will use client certificate for an onprem database or
 	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx)
+	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,22 +517,22 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
-		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshift:
-		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx)
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshiftServerless:
-		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
+		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeCloudSQL:
-		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx.DatabaseUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -538,7 +556,7 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 			}
 		}
 	case types.DatabaseTypeAzure:
-		config.Password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		config.Password, err = e.Auth.GetAzureAccessToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -553,7 +571,7 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

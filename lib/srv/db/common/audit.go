@@ -39,8 +39,12 @@ type Audit interface {
 	OnSessionEnd(ctx context.Context, session *Session)
 	// OnQuery is called when a database query or command is executed.
 	OnQuery(ctx context.Context, session *Session, query Query)
-	// EmitEvent emits the provided audit event.
+	// OnResult is called when a database query or command returns.
+	OnResult(ctx context.Context, session *Session, result Result)
+	// EmitEvent emits the provided audit event to audit log and session recording.
 	EmitEvent(ctx context.Context, event events.AuditEvent)
+	// RecordEvent emits event to the session recording.
+	RecordEvent(ctx context.Context, event events.AuditEvent)
 	// OnPermissionsUpdate is called when granular database-level user permissions are updated.
 	OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry)
 	// OnDatabaseUserCreate is called when a database user is provisioned.
@@ -60,6 +64,18 @@ type Query struct {
 	Database string
 	// Error contains error, if any, signaling query failure.
 	Error error
+}
+
+// Result represents a query or command result.
+type Result struct {
+	// Error is the error message. If error is nil, then the result represents a
+	// success.
+	Error error
+	// AffectedRecords is the number of records affected by the query/command.
+	AffectedRecords uint64
+	// UserMessage is a user-friendly message for successful or unsuccessful
+	// results.
+	UserMessage string
 }
 
 // AuditConfig is the audit events emitter configuration.
@@ -180,6 +196,29 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 	a.EmitEvent(ctx, event)
 }
 
+// OnResult is called when a database query or command returns.
+func (a *audit) OnResult(ctx context.Context, session *Session, result Result) {
+	event := &events.DatabaseSessionCommandResult{
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionCommandResultEvent,
+			libevents.DatabaseSessionCommandResultCode),
+		UserMetadata:     MakeUserMetadata(session),
+		SessionMetadata:  MakeSessionMetadata(session),
+		DatabaseMetadata: MakeDatabaseMetadata(session),
+		Status: events.Status{
+			Success:     true,
+			UserMessage: result.UserMessage,
+		},
+		AffectedRecords: result.AffectedRecords,
+	}
+	if result.Error != nil {
+		event.Status.Success = false
+		event.Status.Error = trace.Unwrap(result.Error).Error()
+	}
+
+	a.RecordEvent(ctx, event)
+}
+
 func (a *audit) OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry) {
 	event := &events.DatabasePermissionUpdate{
 		Metadata: MakeEventMetadata(session,
@@ -244,7 +283,8 @@ func (a *audit) OnDatabaseUserDeactivate(ctx context.Context, session *Session, 
 	a.EmitEvent(ctx, event)
 }
 
-// EmitEvent emits the provided audit event using configured emitter.
+// EmitEvent emits the provided audit event using configured emitter and
+// recorder.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
@@ -257,6 +297,19 @@ func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	}
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
+	}
+}
+
+// RecordEvent emits event to the session recording.
+func (a *audit) RecordEvent(ctx context.Context, event events.AuditEvent) {
+	defer methodCallMetrics("RecordEvent", a.cfg.Component, a.cfg.Database)()
+	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
+	if err != nil {
+		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		return
+	}
+	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
+		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
 	}
 }
 

@@ -161,6 +161,8 @@ const (
 	DatabaseSessionUserDeactivateCode = "TDB09I"
 	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
 	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
+	// DatabaseSessionCommandResultCode is the db.session.result event code.
+	DatabaseSessionCommandResultCode = "TDB10I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
