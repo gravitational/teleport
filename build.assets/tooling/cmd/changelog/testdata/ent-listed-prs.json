@@ -1,0 +1,44 @@
+[
+    {
+        "body": "snapshot updates as a result of https://github.com/gravitational/teleport/pull/43511",
+        "number": 4496,
+        "title": "[v16] Update snapshots",
+        "url": "https://github.com/gravitational/teleport.e/pull/4496"
+    },
+    {
+        "body": "Backport #4350 to branch/v16\r\n\r\nchangelog: Prevented SCIM group handling from overwriting roles\r\n",
+        "number": 4481,
+        "title": "[v16] Stop SCIM overwriting roles when creating Access Lists",
+        "url": "https://github.com/gravitational/teleport.e/pull/4481"
+    },
+    {
+        "body": "Backport #4466 to branch/v16\r\n\r\nchangelog: The teleport updater will no longer default to using the global version channel, avoiding incompatible updates\r\n",
+        "number": 4477,
+        "title": "[v16] Remove global version fallback",
+        "url": "https://github.com/gravitational/teleport.e/pull/4477"
+    },
+    {
+        "body": "backports #4299 to branch/v16",
+        "number": 4472,
+        "title": "[v16] removes rdp client for fips builds on arm64",
+        "url": "https://github.com/gravitational/teleport.e/pull/4472"
+    },
+    {
+        "body": "Backports https://github.com/gravitational/teleport.e/pull/4375 and https://github.com/gravitational/teleport.e/pull/4423 to Branch/v16",
+        "number": 4449,
+        "title": "[v16] Web UI: Validate GCP resource name, update label copy",
+        "url": "https://github.com/gravitational/teleport.e/pull/4449"
+    },
+    {
+        "body": "Backport #4414 to branch/v16\r\n\r\nchangelog: Fixed sync error in Okta SCIM integration.\r\n",
+        "number": 4426,
+        "title": "[v16] Fix read from deprecated field in the Okta SCIM IdP shim",
+        "url": "https://github.com/gravitational/teleport.e/pull/4426"
+    },
+    {
+        "body": "Forward ports https://github.com/gravitational/teleport.e/pull/4378",
+        "number": 4392,
+        "title": "[branch/v16] Add support for building `fdpass-teleport` (#4378)",
+        "url": "https://github.com/gravitational/teleport.e/pull/4392"
+    }
+]
