@@ -60,7 +60,7 @@ func (m *mockAgent) GetProxyID() (string, bool) {
 
 type mockClient struct {
 	authclient.ClientI
-	ssh.Signer
+	ssh.AuthMethod
 	mockGetClusterNetworkingConfig func(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
@@ -77,7 +77,7 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	pool, err := NewAgentPool(context.Background(), AgentPoolConfig{
 		Client:       client,
 		AccessPoint:  client,
-		HostSigner:   client,
+		AuthMethods:  []ssh.AuthMethod{client},
 		HostUUID:     "test-uuid",
 		LocalCluster: "test-cluster",
 		Cluster:      "test-cluster",
