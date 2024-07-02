@@ -18,6 +18,7 @@
   "dependencies": {
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
+    "create-react-class": "^15.6.3",
     "xterm": "^5.3.0",
     "xterm-addon-canvas": "^0.5.0",
     "xterm-addon-fit": "^0.8.0",
