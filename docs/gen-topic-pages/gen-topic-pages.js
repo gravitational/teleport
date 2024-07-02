@@ -65,7 +65,8 @@ class TopicContentsFragment {
   // @param filepath {string} - the path from which to generate a link path.
   relativePathToFile(filepath) {
     // Return the filepath without the first segment, removing the first
-    // slash.
+    // slash. This is because the TOC file we are generating is located at
+    // this.root.
     return filepath.slice(this.root.length).replace(/^\//, '');
   }
 

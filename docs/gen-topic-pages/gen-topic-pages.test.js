@@ -58,8 +58,8 @@ Guides related to Database Access.
 
 {/*TOPICS*/}
 
-- [Database Access Page 1](database-access/page1.mdx): Protecting DB 1 with Teleport
-- [Database Access Page 2](database-access/page2.mdx): Protecting DB 2 with Teleport
+- [Database Access Page 1](page1.mdx): Protecting DB 1 with Teleport
+- [Database Access Page 2](page2.mdx): Protecting DB 2 with Teleport
 `;
 
     const vol = Volume.fromJSON(testFilesTwoSections);
@@ -69,7 +69,7 @@ Guides related to Database Access.
     expect(actual).toBe(expected);
   });
 
-  test.only('one link to a directory', () => {
+  test('one link to a directory', () => {
     const expected = `---
 title: Documentation Home
 description: Guides for setting up the product.
@@ -279,8 +279,8 @@ Guides related to Database Access.
 
 {/*TOPICS*/}
 
-- [Database Access Page 1](database-access/page1.mdx): Protecting DB 1 with Teleport
-- [Database Access Page 2](database-access/page2.mdx): Protecting DB 2 with Teleport
+- [Database Access Page 1](page1.mdx): Protecting DB 1 with Teleport
+- [Database Access Page 2](page2.mdx): Protecting DB 2 with Teleport
 `;
 
     const vol = Volume.fromJSON(testFilesTwoSections);
@@ -301,9 +301,9 @@ Guides to setting up the product.
 
 {/*TOPICS*/}
 
-- [API Usage](docs/api.mdx): Using the API.
-- [Initial Setup](docs/initial-setup.mdx): How to set up the product for the first time.
-- [Kubernetes](docs/kubernetes.mdx): A guide related to Kubernetes.
+- [API Usage](api.mdx): Using the API.
+- [Initial Setup](initial-setup.mdx): How to set up the product for the first time.
+- [Kubernetes](kubernetes.mdx): A guide related to Kubernetes.
 
 ## Application Access
 
