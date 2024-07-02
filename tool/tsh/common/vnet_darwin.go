@@ -20,6 +20,7 @@
 package common
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
@@ -103,4 +105,28 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 	}
 
 	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
+}
+
+type vnetDaemonCommand struct {
+	*kingpin.CmdClause
+	// Launch daemons added through SMAppService are launched from a static .plist file, hence
+	// why this command does not accept any arguments.
+	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
+}
+
+func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
+	return &vnetDaemonCommand{
+		// The command must match the command provided in the .plist file.
+		CmdClause: app.Command("vnet-daemon", "Start the VNet daemon").Hidden(),
+	}
+}
+
+func (c *vnetDaemonCommand) run(cf *CLIConf) error {
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
+	} else {
+		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	}
+
+	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
 }

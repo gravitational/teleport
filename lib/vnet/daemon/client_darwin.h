@@ -3,6 +3,7 @@
 
 #import <Foundation/Foundation.h>
 #import "protocol_darwin.h"
+#import "common_darwin.h"
 
 typedef struct BundlePathResult {
     const char * bundlePath;
@@ -14,15 +15,6 @@ typedef struct BundlePathResult {
 // It might return a path even for executables that are not in a bundle.
 // In that case, calling codesign --verify on that path will simply return with 1.
 void BundlePath(struct BundlePathResult *result);
-
-// Returns the label for the daemon by getting the identifier of the bundle
-// this executable is shipped in and appending ".vnetd" to it.
-//
-// The returned string might be empty if the executable is not in a bundle.
-//
-// The filename and the value of the Label key in the plist file and the Mach
-// service of of the daemon must match the string returned from this function.
-NSString * DaemonLabel(void);
 
 // DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
 // if not empty.
@@ -79,9 +71,5 @@ void InvalidateDaemonClient(void);
 // and invalidation blocks and forbids from sending or receiving new messages.
 -(void)invalidate;
 @end
-
-// VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
-// The caller is expected to free the returned pointer.
-char *VNECopyNSString(NSString *val);
 
 #endif /* client_darwin_h */

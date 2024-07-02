@@ -32,20 +32,6 @@ void BundlePath(struct BundlePathResult *result) {
     result->bundlePath = VNECopyNSString([main bundlePath]);
 }
 
-NSString * DaemonLabel(void) {
-    NSBundle *main = [NSBundle mainBundle];
-    if (!main) {
-        return @"";
-    }
-    
-    NSString *bundleIdentifier = [main bundleIdentifier];
-    if ([bundleIdentifier length] == 0) {
-        return bundleIdentifier;
-    }
-    
-    return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
-}
-
 NSString * DaemonPlist(void) {
     NSString *label = DaemonLabel();
     if ([label length] == 0) {
@@ -169,9 +155,3 @@ void InvalidateDaemonClient(void) {
     }
 }
 
-char *VNECopyNSString(NSString *val) {
-    if (val) {
-        return strdup([val UTF8String]);
-    }
-    return strdup("");
-}

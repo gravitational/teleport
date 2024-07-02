@@ -34,6 +34,10 @@ func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
 	return vnetNotSupported{}
 }
 
+func newVnetDaemonCommand(app *kingpin.Application) vnetNotSupported {
+	return vnetNotSupported{}
+}
+
 type vnetNotSupported struct{}
 
 func (vnetNotSupported) FullCommand() string {
