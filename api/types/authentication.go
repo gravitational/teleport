@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -171,6 +172,9 @@ type AuthPreference interface {
 
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// Clone makes a deep copy of the AuthPreference.
+	Clone() AuthPreference
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -757,6 +761,11 @@ func (c *AuthPreferenceV2) CheckSetPIVSlot() {
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
+}
+
+// Clone returns a copy of the AuthPreference resource.
+func (c *AuthPreferenceV2) Clone() AuthPreference {
+	return utils.CloneProtoMsg(c)
 }
 
 func (u *U2F) Check() error {

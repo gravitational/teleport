@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -73,7 +74,7 @@ func (c *Session) String() string {
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
-func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (c *Session) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
 	state.MFAVerified = c.Identity.IsMFAVerified()
 	state.EnableDeviceVerification = true
