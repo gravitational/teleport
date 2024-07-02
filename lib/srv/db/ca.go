@@ -101,6 +101,7 @@ func (s *Server) shouldInitCACertLocked(database types.Database) bool {
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
 	case types.DatabaseTypeRDS,
+		types.DatabaseTypeDocumentDB,
 		types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless,
 		types.DatabaseTypeElastiCache,
@@ -164,7 +165,8 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	switch database.GetType() {
 	// All RDS instances share the same root CA (per AWS region) which can be
 	// downloaded from a well-known URL.
-	case types.DatabaseTypeRDS:
+	// DocumentDB uses same certs as RDS.
+	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database)))}, nil
 
 	// All Redshift instances share the same root CA which can be downloaded
@@ -307,7 +309,7 @@ func NewRealDownloader() CADownloader {
 // Download downloads CA certificate for the provided cloud database instance.
 func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, []byte, error) {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless:
@@ -336,7 +338,7 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 // GetVersion returns the CA version for the provided database.
 func (d *realDownloader) GetVersion(ctx context.Context, database types.Database, hint string) ([]byte, error) {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
 		return d.getVersionFromURL(database, rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless:
