@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -956,117 +955,6 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.True(t, ok)
 	supervisor.signalExit()
 	wg.Wait()
-}
-
-func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
-	t.Parallel()
-
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	token := "join-token"
-
-	// Create Auth Service process.
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Roles: []types.SystemRole{
-					types.RoleNode,
-				},
-				Token: token,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.SetAuthServerAddress(listenAddr)
-	authCfg.DataDir = t.TempDir()
-	authCfg.Auth.Enabled = true
-	authCfg.Auth.StaticTokens = staticTokens
-	authCfg.Auth.StorageConfig.Type = lite.GetName()
-	authCfg.Auth.StorageConfig.Params = backend.Params{
-		defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir),
-	}
-	authCfg.Auth.ListenAddr = listenAddr
-	authCfg.Proxy.Enabled = false
-	authCfg.SSH.Enabled = false
-
-	authProc, err := NewTeleport(authCfg)
-	require.NoError(t, err)
-
-	err = authProc.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		authProc.Close()
-	})
-
-	// Create Node process, pointing at the auth server's local port
-	authListenAddr := authProc.Config.AuthServerAddresses()[0]
-	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(authListenAddr)
-	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	tests := []struct {
-		name            string
-		initialVersion  string
-		expectedVersion string
-		expectError     bool
-	}{
-		{
-			name:            "first-launch",
-			initialVersion:  "",
-			expectedVersion: teleport.Version,
-			expectError:     false,
-		},
-		{
-			name:            "old-version-upgrade",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
-			expectedVersion: teleport.Version,
-			expectError:     false,
-		},
-		{
-			name:            "major-upgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectError:     true,
-		},
-		{
-			name:            "major-downgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectError:     true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(authCfg.DataDir, teleport.ComponentProcess))
-			require.NoError(t, err)
-			if test.initialVersion != "" {
-				err := processStorage.WriteTeleportVersion(ctx, test.initialVersion)
-				require.NoError(t, err)
-			}
-
-			err = authProc.initAuthService()
-			if test.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			lastKnownVersion, err := processStorage.GetTeleportVersion(ctx)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedVersion, lastKnownVersion)
-		})
-	}
 }
 
 func TestTeleportProcessAuthVersionCheck(t *testing.T) {

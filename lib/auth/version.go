@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package service
+package auth
 
 import (
+	"context"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -34,8 +37,13 @@ const (
 
 // validateAndUpdateTeleportVersion validates that the major version persistent in the backend
 // meets our upgrade compatibility guide.
-func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion *semver.Version, firstTimeStart bool) error {
-	lastKnownVersion, err := process.storage.GetTeleportVersion(process.GracefulExitContext())
+func validateAndUpdateTeleportVersion(
+	ctx context.Context,
+	storage *storage.ProcessStorage,
+	currentVersion *semver.Version,
+	firstTimeStart bool,
+) error {
+	lastKnownVersion, err := storage.GetTeleportVersion(ctx)
 	if trace.IsNotFound(err) {
 		// When this is not the first start, we have to ensure that previous versions,
 		// introduced before this check, were also verified. Therefore, not having a version
@@ -48,7 +56,7 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				currentVersion.String())
 		}
-		if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion.String()); err != nil {
+		if err := storage.WriteTeleportVersion(ctx, currentVersion.String()); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -74,7 +82,7 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 			lastKnownVersion, currentVersion.String(), lastKnownMajor-1)
 	}
-	if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion.String()); err != nil {
+	if err := storage.WriteTeleportVersion(ctx, currentVersion.String()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

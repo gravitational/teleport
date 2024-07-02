@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
@@ -75,6 +76,9 @@ var log = logrus.WithFields(logrus.Fields{
 type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
+
+	// ProcessStorage is a backend for local process
+	ProcessStorage *storage.ProcessStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
@@ -337,6 +341,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.ProcessStorage, teleport.SemVersion, firstStart); err != nil {
 		return trace.Wrap(err)
 	}
 

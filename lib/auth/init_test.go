@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -42,7 +43,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1008,6 +1011,9 @@ func setupConfig(t *testing.T) InitConfig {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
+	processStorage, err := storage.NewProcessStorage(context.Background(), filepath.Join(tempDir, teleport.ComponentProcess))
+	require.NoError(t, err)
+
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
@@ -1017,6 +1023,7 @@ func setupConfig(t *testing.T) InitConfig {
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
+		ProcessStorage:          processStorage,
 		Backend:                 bk,
 		Authority:               testauthority.New(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
@@ -1770,5 +1777,68 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
+	}
+}
+
+func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
+	t.Parallel()
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	tests := []struct {
+		name            string
+		initialVersion  string
+		expectedVersion string
+		expectError     bool
+	}{
+		{
+			name:            "first-launch",
+			initialVersion:  "",
+			expectedVersion: teleport.Version,
+			expectError:     false,
+		},
+		{
+			name:            "old-version-upgrade",
+			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
+			expectedVersion: teleport.Version,
+			expectError:     false,
+		},
+		{
+			name:            "major-upgrade-fail",
+			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectError:     true,
+		},
+		{
+			name:            "major-downgrade-fail",
+			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectError:     true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			authCfg := setupConfig(t)
+
+			if test.initialVersion != "" {
+				err := authCfg.ProcessStorage.WriteTeleportVersion(ctx, test.initialVersion)
+				require.NoError(t, err)
+			}
+
+			_, err := Init(ctx, authCfg)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			lastKnownVersion, err := authCfg.ProcessStorage.GetTeleportVersion(ctx)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedVersion, lastKnownVersion)
+		})
 	}
 }
