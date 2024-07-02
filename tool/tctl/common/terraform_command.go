@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/types/common"
 	"io"
 	"log/slog"
 	"os"
@@ -86,6 +87,10 @@ var terraformRoleSpec = types.RoleSpecV6{
 			},
 		},
 	},
+}
+
+var terraformEnvCommandLabels = map[string]string{
+	common.TeleportNamespace + "/" + "created-by": "tctl-terraform-env",
 }
 
 // TerraformCommand is a tctl command providing helpers for users to run the Terraform provider.
@@ -250,6 +255,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	token.SetLabels(terraformEnvCommandLabels)
 	if err := client.UpsertToken(ctx, token); err != nil {
 		return "", trace.Wrap(err, "upserting token")
 	}
@@ -259,6 +265,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
+			Labels:  terraformEnvCommandLabels,
 		},
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
@@ -288,7 +295,6 @@ func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleCl
 
 	// If roleName is specified, we don't attempt to create the role but we still check that it exists.
 	if roleName != "" {
-		// Else we check if the provided role exists
 		_, err := client.GetRole(ctx, roleName)
 		if trace.IsNotFound(err) {
 			log.ErrorContext(ctx, "Role not found", "role", roleName)
@@ -309,6 +315,7 @@ func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleCl
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	role.SetStaticLabels(terraformEnvCommandLabels)
 
 	_, err = client.UpsertRole(ctx, role)
 	if err != nil {
