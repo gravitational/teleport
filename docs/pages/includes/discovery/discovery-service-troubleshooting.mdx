@@ -1,0 +1,18 @@
+### Discovery Service
+
+To check if the Discovery Service is working correctly, you can check if any
+{{ resourceKind }}s have been discovered.
+To do this, you can use the `tctl get {{ tctlResource }}` command and check if the
+expected {{ resourceKind }}s have already been registered with your Teleport
+cluster.
+
+If some {{ resourceKind }}s do not appear in the list, check if the Discovery
+Service selector labels match the missing {{ resourceKind }} tags or look into
+the Discovery Service logs for permission errors.
+
+If you are running multiple Discovery Services, you must ensure that each
+service is configured with the same `discovery_group` value if they are watching
+the same cloud {{ resourceKind }}s or a different value if they are watching different
+cloud {{ resourceKind }}s.
+If this is not configured correctly, a typical symptom is `{{ tctlResource }}`
+resources being intermittently deleted from your Teleport cluster's registry.
