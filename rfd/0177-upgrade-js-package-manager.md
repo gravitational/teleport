@@ -13,7 +13,7 @@ state: draft
 Currently (June 2024), we use Yarn 1.x to manage JS dependencies. We should 
 upgrade it to Yarn >= 2.x or switch to a different manager.
 
-## Way
+## Why
 Yarn 1.x entered maintenance mode in January 2020 and will eventually reach 
 end-of-life in terms of support. 
 It also has many unfixed issues, with a one that affects us the most: 
@@ -78,7 +78,7 @@ Let's go through installation options of the most popular package managers:
   much when it comes to workspaces, the dependencies are still hoisted.
     * linked: (experimental) install in node_modules/.store, link in place, 
   unhoisted.
-  Note: workes like pnpm. See an [RFD](https://github.com/npm/rfcs/blob/main/accepted/0042-isolated-mode.md).
+  Note: works like pnpm. See an [RFD](https://github.com/npm/rfcs/blob/main/accepted/0042-isolated-mode.md).
 * Yarn has `nodeLinker`: 
     * pnp: no node_modules, unhoisted. Note: does not work with Electron.
     * pnpm: install in `node_modules/.store`, link in place, unhoisted. 
