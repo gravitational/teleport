@@ -296,10 +296,9 @@ const (
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
-	// ClientIdentity is the identity to be used in internal cluster
+	// clientIdentity is the identity to be used in internal cluster
 	// clients to the auth service.
-	// TODO(espadolini): unexport after changes to e
-	ClientIdentity *state.Identity
+	clientIdentity *state.Identity
 
 	// serverIdentity is the identity to be used in servers - serving SSH
 	// and x509 certificates to clients.
@@ -314,31 +313,31 @@ type Connector struct {
 }
 
 func (c *Connector) ClusterName() string {
-	return c.ClientIdentity.ClusterName
+	return c.clientIdentity.ClusterName
 }
 
 func (c *Connector) HostID() string {
-	return c.ClientIdentity.ID.HostUUID
+	return c.clientIdentity.ID.HostUUID
 }
 
 func (c *Connector) Role() types.SystemRole {
-	return c.ClientIdentity.ID.Role
+	return c.clientIdentity.ID.Role
 }
 
 func (c *Connector) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	return c.ClientIdentity.TLSConfig(cipherSuites)
+	return c.clientIdentity.TLSConfig(cipherSuites)
 }
 
 func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
-	return []ssh.AuthMethod{ssh.PublicKeys(c.ClientIdentity.KeySigner)}
+	return []ssh.AuthMethod{ssh.PublicKeys(c.clientIdentity.KeySigner)}
 }
 
 func (c *Connector) ClientIdentityString() string {
-	return c.ClientIdentity.String()
+	return c.clientIdentity.String()
 }
 
 func (c *Connector) ClientInstanceSystemRoles() []string {
-	return slices.Clone(c.ClientIdentity.SystemRoles)
+	return slices.Clone(c.clientIdentity.SystemRoles)
 }
 
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
@@ -707,11 +706,6 @@ func (process *TeleportProcess) getAuthSubjectiveAddr() string {
 	process.Lock()
 	defer process.Unlock()
 	return process.authSubjectiveAddr
-}
-
-// TODO: delete after e changes
-func (process *TeleportProcess) GetIdentity(role types.SystemRole) (i *state.Identity, err error) {
-	return process.getIdentity(role)
 }
 
 func (process *TeleportProcess) GetIdentityForTesting(t *testing.T, role types.SystemRole) (i *state.Identity, err error) {

@@ -890,7 +890,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
-				ClientIdentity: &state.Identity{},
+				clientIdentity: &state.Identity{},
 				serverIdentity: &state.Identity{
 					Cert: &ssh.Certificate{
 						Permissions: ssh.Permissions{
@@ -1240,7 +1240,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	require.NoError(t, err)
 
 	testConnector := &Connector{
-		ClientIdentity: serverIdentity,
+		clientIdentity: serverIdentity,
 		serverIdentity: serverIdentity,
 		Client:         client,
 	}
