@@ -1496,6 +1496,16 @@ crds-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
+.PHONY: terraform-resources-up-to-date
+terraform-resources-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform docs
+	@if ! git diff --quiet; then \
+		echo 'Please run make -C integrations/terraform docs.'; \
+		git diff; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 
