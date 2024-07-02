@@ -58,6 +58,10 @@ linters-settings:
             desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: go.uber.org/atomic
             desc: 'use "sync/atomic" instead'
+          - pkg: golang.design
+            desc: 'experimental project, not to be confused with official Go packages'
+          - pkg: github.com/hashicorp/go-version
+            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.

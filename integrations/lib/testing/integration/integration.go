@@ -32,8 +32,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/hashicorp/go-version"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client"
@@ -47,7 +47,7 @@ import (
 const IntegrationAdminRole = "integration-admin"
 const DefaultLicensePath = "/var/lib/teleport/license.pem"
 
-var regexpVersion = regexp.MustCompile(`^Teleport( Enterprise)? ([^ ]+)`)
+var regexpVersion = regexp.MustCompile(`^Teleport( Enterprise)? v([^ ]+)`)
 
 type Integration struct {
 	mu    sync.Mutex
@@ -85,7 +85,7 @@ type Service interface {
 }
 
 type Version struct {
-	*version.Version
+	*semver.Version
 	IsEnterprise bool
 }
 
@@ -97,12 +97,12 @@ type SignTLSPaths struct {
 
 const serviceShutdownTimeout = 10 * time.Second
 
-func requireBinaryVersion(ctx context.Context, path string, targetVersion *version.Version) error {
+func requireBinaryVersion(ctx context.Context, path string, targetVersion *semver.Version) error {
 	v, err := getBinaryVersion(ctx, path)
 	if err != nil {
 		return trace.Wrap(err, "failed to get %s version", filepath.Base(path))
 	}
-	if !targetVersion.Equal(v.Version) {
+	if !targetVersion.Equal(*v.Version) {
 		return trace.Errorf("%s version %s does not match target version %s", filepath.Base(path), v.Version, targetVersion)
 	}
 
@@ -522,7 +522,7 @@ func getBinaryVersion(ctx context.Context, binaryPath string) (Version, error) {
 		return Version{}, trace.Wrap(err)
 	}
 
-	version, err := version.NewVersion(submatch[2])
+	version, err := semver.NewVersion(submatch[2])
 	if err != nil {
 		return Version{}, trace.Wrap(err)
 	}
