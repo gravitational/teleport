@@ -20,7 +20,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
-import { Text, Alert, Card } from 'design';
+import { Text, Alert, Card, H1 } from 'design';
 
 export default function CardError(props) {
   return (
@@ -37,7 +37,7 @@ export default function CardError(props) {
 }
 
 const Header = props => (
-  <Text typography="h2" mb={4} textAlign="center" children={props.children} />
+  <H1 mb={4} textAlign="center" children={props.children} />
 );
 
 const Content = ({ message = '', desc = null }) => {

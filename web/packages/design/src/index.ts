@@ -40,7 +40,7 @@ import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
 import Image from './Image';
-import Text from './Text';
+import Text, { H1, H2 } from './Text';
 import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
 import TopNav from './TopNav';
@@ -70,6 +70,8 @@ export {
   CardSuccessLogin,
   DocumentTitle,
   Flex,
+  H1,
+  H2,
   Indicator,
   Input,
   Label,

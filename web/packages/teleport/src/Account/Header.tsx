@@ -21,6 +21,7 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Indicator,
   Text,
 } from 'design';
@@ -56,7 +57,7 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <Text typography="h4">{title}</Text>
+        <H2>{title}</H2>
         <Text typography="body1" color={theme.colors.text.slightlyMuted}>
           {description}
         </Text>
