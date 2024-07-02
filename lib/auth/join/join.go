@@ -238,7 +238,7 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 	}
 
 	// If an explicit AuthClient has been provided, we want to go straight to
-	// using that rather than trying both proxy and auth dialling.
+	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
 		log.Info("Attempting registration with existing auth client.")
 		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
