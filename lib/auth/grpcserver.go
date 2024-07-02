@@ -5342,6 +5342,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Address:  cfg.APIConfig.AccessGraph.Address,
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
