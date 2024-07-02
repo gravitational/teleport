@@ -291,6 +291,24 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 
+	// [domain] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	domain := C.CString(c.cfg.Domain)
+	defer C.free(unsafe.Pointer(domain))
+
+	// [kdcAddr] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	kdcAddr := C.CString(c.cfg.KDCAddr)
+	defer C.free(unsafe.Pointer(kdcAddr))
+
+	// [computerName] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	computerName := C.CString(c.cfg.ComputerName)
+	defer C.free(unsafe.Pointer(computerName))
+
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
 		return trace.Wrap(err)
@@ -308,7 +326,10 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr: addr,
+			go_addr:          addr,
+			go_domain:        domain,
+			go_computer_name: computerName,
+			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(cert_der),

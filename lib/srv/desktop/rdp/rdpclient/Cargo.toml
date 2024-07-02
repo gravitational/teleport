@@ -32,7 +32,7 @@ parking_lot = "0.12.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
-sspi = { path = "/Users/hesperus/work/sspi-rs", features = ["network_client"] }
+sspi = { git = "https://github.com/probakowski/sspi-rs", rev = "13f30b3ed9535fa77bb6a7da73f79efdc0cbff51", features = ["network_client"]}
 static_init = "1.0.3"
 tokio = { version = "1.38", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
@@ -41,6 +41,7 @@ uuid = { version = "1.8.0", features = ["v4"] }
 url = "2.5.0"
 picky = "7.0.0-rc.8"
 picky-asn1-der = "0.4.1"
+picky-asn1-x509 = "0.12.0"
 reqwest = { version = "0.12", features = ["rustls-tls", "rustls-tls-native-roots"], default-features = false }
 
 [build-dependencies]

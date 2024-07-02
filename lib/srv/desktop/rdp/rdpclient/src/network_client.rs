@@ -38,9 +38,14 @@ impl AsyncNetworkClient for ReqwestNetworkClient {
     ) -> Pin<Box<dyn Future<Output = ConnectorResult<Vec<u8>>> + 'a>> {
         Box::pin(async move {
             match &request.protocol {
-                sspi::network_client::NetworkProtocol::Tcp => self.send_tcp(&request.url, &request.data).await,
-                sspi::network_client::NetworkProtocol::Udp => self.send_udp(&request.url, &request.data).await,
-                sspi::network_client::NetworkProtocol::Http | sspi::network_client::NetworkProtocol::Https => {
+                sspi::network_client::NetworkProtocol::Tcp => {
+                    self.send_tcp(&request.url, &request.data).await
+                }
+                sspi::network_client::NetworkProtocol::Udp => {
+                    self.send_udp(&request.url, &request.data).await
+                }
+                sspi::network_client::NetworkProtocol::Http
+                | sspi::network_client::NetworkProtocol::Https => {
                     self.send_http(&request.url, &request.data).await
                 }
             }
@@ -56,7 +61,11 @@ impl ReqwestNetworkClient {
 
 impl ReqwestNetworkClient {
     async fn send_tcp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
-        let addr = format!("{}:{}", url.host_str().unwrap_or_default(), url.port().unwrap_or(88));
+        let addr = format!(
+            "{}:{}",
+            url.host_str().unwrap_or_default(),
+            url.port().unwrap_or(88)
+        );
 
         let mut stream = TcpStream::connect(addr)
             .await
@@ -92,7 +101,11 @@ impl ReqwestNetworkClient {
             .await
             .map_err(|e| custom_err!("cannot bind UDP socket", e))?;
 
-        let addr = format!("{}:{}", url.host_str().unwrap_or_default(), url.port().unwrap_or(88));
+        let addr = format!(
+            "{}:{}",
+            url.host_str().unwrap_or_default(),
+            url.port().unwrap_or(88)
+        );
 
         udp_socket
             .send_to(data, addr)
@@ -137,4 +150,3 @@ impl ReqwestNetworkClient {
         Ok(body)
     }
 }
-

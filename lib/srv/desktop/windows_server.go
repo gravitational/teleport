@@ -185,6 +185,9 @@ type WindowsServiceConfig struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string
+	// KCDAddr configures address of Key Distribution Center used during Kerberos NLA negotiation.
+	// If empty
+	KDCAddr string
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -858,6 +861,22 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
 	width, height := desktop.GetScreenSize()
+
+	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
+	if !ok {
+		computerName = strings.Split(desktop.GetAddr(), ":")[0]
+	}
+
+	domain := s.cfg.PKIDomain
+	if domain == "" {
+		domain = s.cfg.LDAPConfig.Domain
+	}
+
+	kdcAddr := s.cfg.KDCAddr
+	if kdcAddr == "" {
+		kdcAddr = strings.Split(s.cfg.LDAPConfig.Addr, ":")[0]
+	}
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Logger: log,
@@ -866,6 +885,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  addr.String(),
+		Domain:                domain,
+		ComputerName:          computerName,
+		KDCAddr:               kdcAddr,
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
