@@ -131,7 +131,7 @@ class TopicContentsFragment {
 
     // Add a blank line between the list of first-level guides and first-level
     // menu pages.
-    if (mdxFiles.length > 0 && dirs.length > 0) {
+    if (mdxFiles.size > 0 && dirs.size > 0) {
       newText += `
 `;
     }
