@@ -90,6 +90,10 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	return &types.KeepAlive{}, a.err
 }
 
+func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	return nil
+}
+
 func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
