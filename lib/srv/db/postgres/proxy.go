@@ -21,11 +21,11 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -46,7 +46,7 @@ type Proxy struct {
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Limiter limits the number of active connections per client IP.
 	Limiter *limiter.Limiter
 	// IngressReporter reports new and active connections.
@@ -67,7 +67,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	}
 	if err := p.handleConnection(ctx, tlsConn, startupMessage); err != nil {
 		if serr := backend.Send(toErrorResponse(err)); serr != nil {
-			p.Log.WithError(serr).Warn("Failed to send error to backend.")
+			p.Log.WarnContext(ctx, "Failed to send error to backend.", "error", serr)
 		}
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto
 		// We don't want to log the cancel request secret key, so we handle
 		// this case separately.
 		if m, ok := startupMessage.(*pgproto3.CancelRequest); ok {
-			p.Log.Debugf("Received cancel request for pid: %v.", m.ProcessID)
+			p.Log.DebugContext(ctx, "Received cancel request for pid.", "pid", m.ProcessID)
 			tlsConn, ok := clientConn.(utils.TLSConn)
 			if !ok {
 				return nil, nil, nil, trace.BadParameter(
@@ -156,7 +156,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto
 		// user name, database name, etc.
 		//
 		// https://www.postgresql.org/docs/13/protocol-flow.html#id-1.10.5.7.11
-		p.Log.Debugf("Received startup message: %#v.", startupMessage)
+		p.Log.DebugContext(ctx, "Received startup message.", "message", startupMessage)
 		switch m := startupMessage.(type) {
 		case *pgproto3.SSLRequest:
 			if receivedSSLRequest {
