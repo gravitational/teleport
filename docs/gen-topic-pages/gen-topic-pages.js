@@ -27,6 +27,9 @@ class TopicContentsFragment {
   makeTopicPage() {
     const parts = path.parse(this.root);
     const rootTOC = path.join(parts.dir, parts.name, parts.name + '.mdx');
+    if (!this.fs.existsSync(rootTOC)){
+    	throw (`There must be a page called ${rootTOC} that includes a line consisting of "${generationLine}".`);
+    }
     const text = this.fs.readFileSync(rootTOC, 'utf-8');
     const lines = text.split('\n');
     if (!lines.includes(generationLine)) {

@@ -31,5 +31,10 @@ const addTopicsForDir = (dirPath, command) => {
 };
 
 args.in.split(',').forEach(p => {
-  addTopicsForDir(p);
+  try {
+    addTopicsForDir(p);
+  } catch (err) {
+    console.error(`Problem creating table of contents pages: ${err}.`);
+    process.exit(1);
+  }
 });
