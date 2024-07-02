@@ -837,27 +837,6 @@ $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 
 See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
 
-## tsh recordings export
-
-Export recorded desktop sessions to video.
-
-```code
-$ tsh recordings export <session_id> [<flags>]
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
-
-### Examples
-
-```code
-$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
-wrote recording to recording.avi
-```
-
 ## tsh recordings ls
 
 List recorded sessions.
