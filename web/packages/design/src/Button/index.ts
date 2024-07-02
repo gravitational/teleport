@@ -16,18 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Button, {
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
-  ButtonBorder,
-  ButtonText,
-} from './Button';
-export default Button;
 export {
+  Button,
   ButtonPrimary,
   ButtonWarning,
   ButtonSecondary,
   ButtonBorder,
   ButtonText,
-};
+  type ButtonProps,
+  type ButtonFill,
+  type ButtonIntent,
+  type ButtonSize,
+} from './Button';

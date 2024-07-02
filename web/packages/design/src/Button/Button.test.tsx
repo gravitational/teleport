@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render, theme } from 'design/utils/testing';
 
-import Button, { ButtonPrimary, ButtonSecondary, ButtonWarning } from './index';
+import { Button, ButtonPrimary, ButtonSecondary, ButtonWarning } from './index';
 
 describe('design/Button', () => {
   it('renders a <button> and respects default "kind" prop == primary', () => {
