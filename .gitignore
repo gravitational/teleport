@@ -103,3 +103,8 @@ web/certs/
 
 # Files produced by tests
 *.avi
+
+# Files produced by examples/self-hosted-databases scripts
+examples/self-hosted-databases/**/*.cas
+examples/self-hosted-databases/**/*.key
+examples/self-hosted-databases/**/*.crt
