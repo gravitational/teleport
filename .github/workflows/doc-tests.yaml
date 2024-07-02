@@ -86,6 +86,9 @@ jobs:
           yarn install
           yarn build-node
 
+      - name: Check for non-redirected Web UI links
+        run: cd $GITHUB_WORKSPACE/docs/content/teleport && node docs/check-redirects/index.js --in web --docs . --name "Web UI source" --config docs/config.json
+
       - name: Check spelling
         run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
 
