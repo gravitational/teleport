@@ -117,7 +117,7 @@ class TopicContentsFragment {
       // Skip TOC pages (with the same name as the parent directory) since we
       // process these elswhere.
       if (path.dirname(f).endsWith(path.parse(f).name)) {
-      	mdxFiles.delete(f);
+        mdxFiles.delete(f);
         return;
       }
 
@@ -165,41 +165,34 @@ ${fm.description} ([more info](${relPath}))
 `;
 
       const childFiles = this.fs.readdirSync(f, 'utf8');
-      let childDirs = new Set();
+      let childEntries = [];
       childFiles.forEach(fp => {
-        const stats = this.fs.statSync(path.join(f, fp));
-        if (stats.isDirectory()) {
-          childDirs.add(path.join(f, fp));
-        }
-      });
-      let childEntries = new Set();
-      childFiles.forEach(fp => {
-        const absChildPath = path.join(f, fp);
-
+        let absChildPath = path.join(f, fp);
+        const childName = path.parse(absChildPath).name;
         // Skip TOC pages (with the same name as the parent directory) since we
         // process these elswhere.
-        if (
-          path.dirname(absChildPath).endsWith(path.parse(absChildPath).name)
-        ) {
+        if (path.dirname(absChildPath).endsWith(childName)) {
           return;
         }
 
         const stats = this.fs.statSync(path.join(f, fp));
         if (stats.isDirectory()) {
-          return;
+          // The file is a directory, so add a link to its TOC page
+          absChildPath = path.join(absChildPath, childName + '.mdx');
+          if (!this.fs.existsSync(absChildPath)) {
+            throw `expected a table of contents page called ${absChildPath} that includes a line consisting of "${generationLine}"`;
+          }
         }
 
         const relChildPath = this.relativePathToFile(absChildPath);
         const childText = this.fs.readFileSync(absChildPath, 'utf8');
         const childFM = this.getFrontmatter(childText);
-        if (
-          childDirs.has(path.join(f, fp.slice(0, fp.length - '.mdx'.length)))
-        ) {
-          childEntries.add(`- [${childFM.title} (section)](${relChildPath}): ${childFM.description}
+        if (stats.isDirectory()) {
+          childEntries.push(`- [${childFM.title} (section)](${relChildPath}): ${childFM.description}
 `);
           return;
         }
-        childEntries.add(`- [${childFM.title}](${relChildPath}): ${childFM.description}
+        childEntries.push(`- [${childFM.title}](${relChildPath}): ${childFM.description}
 `);
       });
       const sortedEntries = [...childEntries].sort();
