@@ -1,0 +1,109 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+//go:build vnetdaemon
+// +build vnetdaemon
+
+package daemon
+
+// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
+// #cgo LDFLAGS: -framework Foundation
+// #include "service_darwin.h"
+import "C"
+
+import (
+	"context"
+	"fmt"
+	"time"
+	"unsafe"
+
+	"github.com/gravitational/trace"
+)
+
+func Start(ctx context.Context, workFn func(context.Context, Config) error) error {
+	bundlePath, err := bundlePath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "Starting daemon", "bundle_path", bundlePath)
+
+	cBundlePath := C.CString(bundlePath)
+	defer C.free(unsafe.Pointer(cBundlePath))
+
+	C.DaemonStart(cBundlePath)
+	defer func() {
+		log.InfoContext(ctx, "Stopping daemon")
+		C.DaemonStop()
+	}()
+
+	config, err := waitForVnetConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "Received VNet config",
+		"socket_path", config.SocketPath,
+		"ipv6_prefix", config.IPv6Prefix,
+		"dns_addr", config.DNSAddr,
+		"home_path", config.HomePath,
+	)
+
+	return trace.Wrap(workFn(ctx, config))
+}
+
+func waitForVnetConfig(ctx context.Context) (Config, error) {
+	const waitForVnetConfigTimeout = 20 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, waitForVnetConfigTimeout,
+		fmt.Errorf("did not receive the VNet config within the timeout"))
+	defer cancel()
+
+	var config Config
+	errC := make(chan error, 1)
+
+	go func() {
+		var result C.VnetConfigResult
+		defer func() {
+			C.free(unsafe.Pointer(result.error_description))
+			C.free(unsafe.Pointer(result.socket_path))
+			C.free(unsafe.Pointer(result.ipv6_prefix))
+			C.free(unsafe.Pointer(result.dns_addr))
+			C.free(unsafe.Pointer(result.home_path))
+		}()
+
+		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
+		C.WaitForVnetConfig(&result)
+		if !result.ok {
+			errC <- trace.Errorf(C.GoString(result.error_description))
+			return
+		}
+
+		config = Config{
+			SocketPath: C.GoString(result.socket_path),
+			IPv6Prefix: C.GoString(result.ipv6_prefix),
+			DNSAddr:    C.GoString(result.dns_addr),
+			HomePath:   C.GoString(result.home_path),
+		}
+		errC <- trace.Wrap(config.CheckAndSetDefaults())
+	}()
+
+	select {
+	case <-ctx.Done():
+		return config, trace.Wrap(context.Cause(ctx))
+	case err := <-errC:
+		return config, trace.Wrap(err)
+	}
+}

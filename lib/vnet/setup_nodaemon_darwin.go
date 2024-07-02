@@ -30,3 +30,7 @@ import (
 func execAdminProcess(ctx context.Context, config daemon.Config) error {
 	return trace.Wrap(execAdminSubcommand(ctx, config))
 }
+
+func DaemonSubcommand(ctx context.Context) error {
+	return trace.NotImplemented("tsh was built without support for VNet daemon")
+}

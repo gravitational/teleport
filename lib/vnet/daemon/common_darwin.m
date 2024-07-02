@@ -1,3 +1,6 @@
+//go:build vnetdaemon
+// +build vnetdaemon
+
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -14,29 +17,27 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build vnetdaemon
-// +build vnetdaemon
+#import <Foundation/Foundation.h>
 
-package vnet
+#include <string.h>
 
-import (
-	"context"
-	"os"
+NSString *DaemonLabel(NSString *bundlePath) {
+  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
+  if (!main) {
+    return @"";
+  }
 
-	"github.com/gravitational/trace"
+  NSString *bundleIdentifier = [main bundleIdentifier];
+  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
+    return @"";
+  }
 
-	"github.com/gravitational/teleport/lib/vnet/daemon"
-)
-
-func execAdminProcess(ctx context.Context, config daemon.Config) error {
-	// TODO(ravicious): Remove the feature env var after the daemon gets implemented.
-	if os.Getenv("VNETDAEMON") == "yes" {
-		return trace.Wrap(daemon.RegisterAndCall(ctx, config))
-	}
-
-	return trace.Wrap(execAdminSubcommand(ctx, config))
+  return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
 }
 
-func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, AdminSetup))
+const char *VNECopyNSString(NSString *val) {
+  if (val) {
+    return strdup([val UTF8String]);
+  }
+  return strdup("");
 }
