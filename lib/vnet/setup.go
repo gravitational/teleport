@@ -72,7 +72,7 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 	})
 
 	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
-		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+		return trace.Wrap(execAdminProcess(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
 	})
 
 	recvTUNErr := make(chan error, 1)
