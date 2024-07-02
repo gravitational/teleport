@@ -108,6 +108,9 @@ type WebConfig struct {
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 	// Edition is the edition of Teleport
 	Edition string `json:"edition"`
+	// PlayableDatabaseRecordings is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 }
 
 // featureLimits define limits for features.

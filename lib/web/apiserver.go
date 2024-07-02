@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -1682,7 +1683,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		MobileDeviceManagement: clusterFeatures.GetMobileDeviceManagement(),
 		JoinActiveSessions:     clusterFeatures.GetJoinActiveSessions(),
 		// TODO(mcbattirola): remove isTeam when it is no longer used
-		IsTeam: isTeam,
+		IsTeam:                    isTeam,
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

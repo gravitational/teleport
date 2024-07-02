@@ -371,6 +371,12 @@ const cfg = {
     },
   },
 
+  playable_db_protocols: [],
+
+  getPlayableDatabaseProtocols() {
+    return cfg.playable_db_protocols;
+  },
+
   getUserClusterPreferencesUrl(clusterId: string) {
     return generatePath(cfg.api.userClusterPreferencesPath, {
       clusterId,

@@ -63,6 +63,8 @@ type Session struct {
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// StartTime is the time the session started.
+	StartTime time.Time
 }
 
 // String returns string representation of the session parameters.
