@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -91,5 +92,15 @@ func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("%s must be set", types.HomeEnvVar)
 	}
 
-	return trace.Wrap(vnet.AdminSetup(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr, homePath))
+	config := daemon.Config{
+		SocketPath: c.socketPath,
+		IPv6Prefix: c.ipv6Prefix,
+		DNSAddr:    c.dnsAddr,
+		HomePath:   homePath,
+	}
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
 }
