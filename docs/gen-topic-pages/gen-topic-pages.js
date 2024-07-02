@@ -64,8 +64,9 @@ class TopicContentsFragment {
   // to the directory where we are placing the table of contents page.
   // @param filepath {string} - the path from which to generate a link path.
   relativePathToFile(filepath) {
-    const rootName = path.parse(this.root).name;
-    return path.join(rootName, filepath.slice(this.root.length));
+    // Return the filepath without the first segment, removing the first
+    // slash.
+    return filepath.slice(this.root.length).replace(/^\//, '');
   }
 
   // addTopicsFromDir takes the path at dirPath and adds any topic listings to
@@ -110,6 +111,12 @@ class TopicContentsFragment {
         throw new Error(
           'Found a menu page that no longer corresponds to a subdirectory: ' + f
         );
+      }
+
+      // Skip TOC pages (with the same name as the parent directory) since we
+      // process these elswhere.
+      if (path.dirname(f).endsWith(path.parse(f).name)) {
+        return;
       }
 
       let relPath = this.relativePathToFile(f);
@@ -179,6 +186,7 @@ ${fm.description} ([more info](${relPath}))
         if (stats.isDirectory()) {
           return;
         }
+
         const relChildPath = this.relativePathToFile(absChildPath);
         const childText = this.fs.readFileSync(absChildPath, 'utf8');
         const childFM = this.getFrontmatter(childText);

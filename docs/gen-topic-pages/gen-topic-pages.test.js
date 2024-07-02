@@ -81,7 +81,7 @@ Guides for setting up the product.
 
 ## Application Access
 
-Guides related to Application Access ([more info](applicaton-access/application-access.mdx))
+Guides related to Application Access ([more info](application-access/application-access.mdx))
 
 - [Application Access Page 1](application-access/page1.mdx): Protecting App 1 with Teleport
 - [Application Access Page 2](application-access/page2.mdx): Protecting App 2 with Teleport
