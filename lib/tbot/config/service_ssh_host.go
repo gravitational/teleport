@@ -20,16 +20,31 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 const SSHHostOutputType = "ssh_host"
+
+const (
+	// SSHHostCertPath is the default filename prefix for the SSH host
+	// certificate
+	SSHHostCertPath = "ssh_host"
+
+	// SSHHostCertSuffix is the suffix appended to the generated host certificate.
+	SSHHostCertSuffix = "-cert.pub"
+
+	// SSHHostUserCASuffix is the suffix appended to the user CA file.
+	SSHHostUserCASuffix = "-user-ca.pub"
+)
+
+var (
+	_ ServiceConfig = &SSHHostOutput{}
+	_ Initable      = &SSHHostOutput{}
+)
 
 // SSHHostOutput generates a host certificate signed by the Teleport CA. This
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
@@ -44,45 +59,12 @@ type SSHHostOutput struct {
 	Principals []string `yaml:"principals"`
 }
 
-func (o *SSHHostOutput) templates() []template {
-	return []template{
-		&templateSSHHostCert{
-			principals: o.Principals,
-		},
-	}
-}
-
-func (o *SSHHostOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"SSHHostOutput/Render",
-	)
-	defer span.End()
-
-	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Destination); err != nil {
-			return trace.Wrap(err, "rendering template %s", t.name())
-		}
-	}
-
-	return nil
-}
-
 func (o *SSHHostOutput) Init(ctx context.Context) error {
-	subDirs, err := listSubdirectories(o.templates())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(o.Destination.Init(ctx, subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 func (o *SSHHostOutput) GetDestination() bot.Destination {
 	return o.Destination
-}
-
-func (o *SSHHostOutput) GetRoles() []string {
-	return o.Roles
 }
 
 func (o *SSHHostOutput) CheckAndSetDefaults() error {
@@ -97,12 +79,17 @@ func (o *SSHHostOutput) CheckAndSetDefaults() error {
 }
 
 func (o *SSHHostOutput) Describe() []FileDescription {
-	var fds []FileDescription
-	for _, t := range o.templates() {
-		fds = append(fds, t.describe()...)
+	return []FileDescription{
+		{
+			Name: SSHHostCertPath,
+		},
+		{
+			Name: SSHHostCertPath + SSHHostCertSuffix,
+		},
+		{
+			Name: SSHHostCertPath + SSHHostUserCASuffix,
+		},
 	}
-
-	return fds
 }
 
 func (o *SSHHostOutput) MarshalYAML() (interface{}, error) {
@@ -124,6 +111,6 @@ func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *SSHHostOutput) String() string {
-	return fmt.Sprintf("%s (%s)", SSHHostOutputType, o.GetDestination())
+func (o *SSHHostOutput) Type() string {
+	return SSHHostOutputType
 }

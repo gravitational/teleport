@@ -20,15 +20,12 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 const DatabaseOutputType = "database"
@@ -56,12 +53,25 @@ const (
 	CockroachDatabaseFormat DatabaseFormat = "cockroach"
 )
 
+const (
+	// DefaultMongoPrefix is the default prefix in generated MongoDB certs.
+	DefaultMongoPrefix = "mongo"
+	// DefaultTLSPrefix is the default prefix in generated TLS certs.
+	DefaultTLSPrefix        = "tls"
+	DefaultCockroachDirName = "cockroach"
+)
+
 var databaseFormats = []DatabaseFormat{
 	UnspecifiedDatabaseFormat,
 	TLSDatabaseFormat,
 	MongoDatabaseFormat,
 	CockroachDatabaseFormat,
 }
+
+var (
+	_ ServiceConfig = &DatabaseOutput{}
+	_ Initable      = &DatabaseOutput{}
+)
 
 // DatabaseOutput produces credentials which can be used to connect to a
 // database through teleport.
@@ -87,51 +97,11 @@ type DatabaseOutput struct {
 	Username string `yaml:"username,omitempty"`
 }
 
-func (o *DatabaseOutput) templates() []template {
-	templates := []template{
-		&templateTLSCAs{},
-		&templateIdentity{},
-	}
-	if o.Format == MongoDatabaseFormat {
-		templates = append(templates, &templateMongo{})
-	}
-	if o.Format == CockroachDatabaseFormat {
-		templates = append(templates, &templateCockroach{})
-	}
-	if o.Format == TLSDatabaseFormat {
-		templates = append(templates, &templateTLS{
-			caCertType: types.HostCA,
-		})
-	}
-	return templates
-}
-
-func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"DatabaseOutput/Render",
-	)
-	defer span.End()
-
-	if err := identity.SaveIdentity(ctx, ident, o.Destination, identity.DestinationKinds()...); err != nil {
-		return trace.Wrap(err, "persisting identity")
-	}
-
-	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Destination); err != nil {
-			return trace.Wrap(err, "rendering template %s", t.name())
-		}
-	}
-
-	return nil
-}
-
 func (o *DatabaseOutput) Init(ctx context.Context) error {
-	subDirs, err := listSubdirectories(o.templates())
-	if err != nil {
-		return trace.Wrap(err)
+	subDirs := []string{}
+	if o.Format == CockroachDatabaseFormat {
+		subDirs = append(subDirs, DefaultCockroachDirName)
 	}
-
 	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
@@ -155,14 +125,50 @@ func (o *DatabaseOutput) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *DatabaseOutput) GetRoles() []string {
-	return o.Roles
-}
-
 func (o *DatabaseOutput) Describe() []FileDescription {
-	var fds []FileDescription
-	for _, t := range o.templates() {
-		fds = append(fds, t.describe()...)
+	fds := []FileDescription{
+		{
+			Name: IdentityFilePath,
+		},
+		{
+			Name: HostCAPath,
+		},
+		{
+			Name: UserCAPath,
+		},
+		{
+			Name: DatabaseCAPath,
+		},
+	}
+	switch o.Format {
+	case MongoDatabaseFormat:
+		fds = append(fds, []FileDescription{
+			{
+				Name: DefaultMongoPrefix + ".crt",
+			},
+			{
+				Name: DefaultMongoPrefix + ".cas",
+			},
+		}...)
+	case CockroachDatabaseFormat:
+		fds = append(fds, []FileDescription{
+			{
+				Name:  DefaultCockroachDirName,
+				IsDir: true,
+			},
+		}...)
+	case TLSDatabaseFormat:
+		fds = append(fds, []FileDescription{
+			{
+				Name: DefaultTLSPrefix + ".crt",
+			},
+			{
+				Name: DefaultTLSPrefix + ".key",
+			},
+			{
+				Name: DefaultTLSPrefix + ".cas",
+			},
+		}...)
 	}
 
 	return fds
@@ -187,6 +193,6 @@ func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *DatabaseOutput) String() string {
-	return fmt.Sprintf("%s (%s)", DatabaseOutputType, o.GetDestination())
+func (o *DatabaseOutput) Type() string {
+	return DatabaseOutputType
 }

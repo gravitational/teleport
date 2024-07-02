@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package config
+package tbot
 
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,8 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -87,13 +93,22 @@ nRDcZHBqZYNRDt5zNvRTjgwJi4iHGwSB+D4SIYGb0ioTI2MOS2F7zBDyl8FXp7dT
 -----END RSA PRIVATE KEY-----`)
 )
 
-// TestTemplateKubernetesRender renders a Kubernetes template and compares it
-// to the saved golden result.
-func TestTemplateKubernetesRender(t *testing.T) {
-	cfg, err := newTestConfig("example.com")
-	require.NoError(t, err)
+const (
+	mockClusterName = "tele.blackmesa.gov"
+)
+
+// fakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func fakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
+}
+
+// TestKubernetesOutputService_render renders the Kubernetes template and
+// compares it to the saved golden result.
+// TODO(noah): Evaluate if test should run at higher level to capture some
+// fetching.
+func TestKubernetesOutputService_render(t *testing.T) {
 	k8sCluster := "example"
-	mockBot := newMockProvider(cfg)
 
 	// We need a fixed cert/key pair here for the golden files testing
 	// to behave properly.
@@ -124,12 +139,7 @@ func TestTemplateKubernetesRender(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 
-			tmpl := templateKubernetes{
-				clusterName:          k8sCluster,
-				executablePathGetter: fakeGetExecutablePath,
-				disableExecPlugin:    tt.disableExecPlugin,
-			}
-			dest := &DestinationDirectory{
+			dest := &config.DestinationDirectory{
 				Path:     dir,
 				Symlinks: botfs.SymlinksInsecure,
 				ACLs:     botfs.ACLOff,
@@ -142,7 +152,37 @@ func TestTemplateKubernetesRender(t *testing.T) {
 				dest.Path = relativePath
 			}
 
-			err = tmpl.render(context.Background(), mockBot, id, dest)
+			svc := KubernetesOutputService{
+				cfg: &config.KubernetesOutput{
+					KubernetesCluster: k8sCluster,
+					DisableExecPlugin: tt.disableExecPlugin,
+					Destination:       dest,
+				},
+				executablePath: fakeGetExecutablePath,
+				log:            utils.NewSlogLoggerForTests(),
+			}
+
+			key, err := NewClientKey(
+				id,
+				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+			)
+			require.NoError(t, err)
+			status := &kubernetesStatus{
+				kubernetesClusterName: k8sCluster,
+				teleportClusterName:   mockClusterName,
+				tlsServerName:         client.GetKubeTLSServerName(mockClusterName),
+				credentials:           key,
+				clusterAddr:           fmt.Sprintf("https://%s:443", mockClusterName),
+			}
+
+			err = svc.render(
+				context.Background(),
+				status,
+				id,
+				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
+				[]types.CertAuthority{},
+				[]types.CertAuthority{},
+			)
 			require.NoError(t, err)
 
 			kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, defaultKubeconfigPath))
@@ -245,4 +285,33 @@ func Test_selectKubeConnectionMethod(t *testing.T) {
 			require.Equal(t, tt.wantSNI, sni)
 		})
 	}
+}
+
+func fakeCA(t *testing.T, caType types.CertAuthType, clusterName string) types.CertAuthority {
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		// Pretend to be the correct type.
+		Type:        caType,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: []byte(fixtures.TLSCACertPEM),
+					Key:  []byte(fixtures.TLSCAKeyPEM),
+				},
+			},
+			SSH: []*types.SSHKeyPair{
+				// Two of these to ensure that both are written to known hosts
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return ca
 }

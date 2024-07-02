@@ -20,18 +20,29 @@ package config
 
 import (
 	"context"
-	"fmt"
-	"os"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 )
 
 const IdentityOutputType = "identity"
+
+const (
+	// HostCAPath is the default filename for the host CA certificate
+	HostCAPath = "teleport-host-ca.crt"
+
+	// UserCAPath is the default filename for the user CA certificate
+	UserCAPath = "teleport-user-ca.crt"
+
+	// DatabaseCAPath is the default filename for the database CA
+	// certificate
+	DatabaseCAPath = "teleport-database-ca.crt"
+
+	IdentityFilePath = "identity"
+)
 
 // SSHConfigMode controls whether to write an ssh_config file to the
 // destination directory.
@@ -50,6 +61,11 @@ const (
 	// - ssh_config
 	// - known_hosts
 	SSHConfigModeOn SSHConfigMode = "on"
+)
+
+var (
+	_ ServiceConfig = &IdentityOutput{}
+	_ Initable      = &IdentityOutput{}
 )
 
 // IdentityOutput produces credentials which can be used with `tsh`, `tctl`,
@@ -76,72 +92,22 @@ type IdentityOutput struct {
 	// SSHConfigMode controls whether to write an ssh_config file to the
 	// destination directory. Defaults to SSHConfigModeOn.
 	SSHConfigMode SSHConfigMode `yaml:"ssh_config,omitempty"`
-
-	destPath string
-}
-
-func (o *IdentityOutput) templates() []template {
-	templates := []template{
-		&templateTLSCAs{},
-		&templateIdentity{},
-	}
-	if o.SSHConfigMode == SSHConfigModeOn {
-		templates = append(templates, &templateSSHClient{
-			getSSHVersion:        openssh.GetSystemSSHVersion,
-			executablePathGetter: os.Executable,
-			getEnv:               os.Getenv,
-			destPath:             o.destPath,
-		})
-	}
-	return templates
-}
-
-func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"IdentityOutput/Render",
-	)
-	defer span.End()
-
-	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
-		return trace.Wrap(err, "persisting identity")
-	}
-
-	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, dest); err != nil {
-			return trace.Wrap(err, "rendering template %s", t.name())
-		}
-	}
-
-	return nil
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
-	subDirs, err := listSubdirectories(o.templates())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(o.Destination.Init(ctx, subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
 
 func (o *IdentityOutput) GetDestination() bot.Destination {
 	return o.Destination
 }
 
-func (o *IdentityOutput) GetRoles() []string {
-	return o.Roles
-}
-
 func (o *IdentityOutput) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
-	dest, ok := o.Destination.(*DestinationDirectory)
-	if ok {
-		o.destPath = dest.Path
-	} else {
+
+	if _, ok := o.Destination.(*DestinationDirectory); !ok {
 		// If destDir is unset, we're not using a filesystem destination and
 		// ssh_config will not be sensible. Log a note and bail early without
 		// writing ssh_config. (Future users of k8s secrets will need to bring
@@ -166,9 +132,29 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 }
 
 func (o *IdentityOutput) Describe() []FileDescription {
-	var fds []FileDescription
-	for _, t := range o.templates() {
-		fds = append(fds, t.describe()...)
+	var fds = []FileDescription{
+		{
+			Name: IdentityFilePath,
+		},
+		{
+			Name: HostCAPath,
+		},
+		{
+			Name: UserCAPath,
+		},
+		{
+			Name: DatabaseCAPath,
+		},
+	}
+	if o.SSHConfigMode == SSHConfigModeOn {
+		fds = append(fds, FileDescription{
+			Name: ssh.KnownHostsName,
+		})
+		if _, ok := o.Destination.(*DestinationDirectory); ok {
+			fds = append(fds, FileDescription{
+				Name: ssh.ConfigName,
+			})
+		}
 	}
 
 	return fds
@@ -193,6 +179,6 @@ func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (o *IdentityOutput) String() string {
-	return fmt.Sprintf("%s (%s)", IdentityOutputType, o.GetDestination())
+func (o *IdentityOutput) Type() string {
+	return IdentityOutputType
 }

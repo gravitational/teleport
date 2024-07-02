@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -125,22 +126,32 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 	return trace.Wrap(child.Run(), "unable to execute tsh")
 }
 
+type destinationHolder interface {
+	GetDestination() bot.Destination
+}
+
 // GetDestinationDirectory attempts to select an unambiguous destination, either from
 // CLI or YAML config. It returns an error if the selected destination is
 // invalid.
 func GetDestinationDirectory(botConfig *config.BotConfig) (*config.DestinationDirectory, error) {
+	var destinationHolders []destinationHolder
+	for _, svc := range botConfig.Services {
+		if v, ok := svc.(destinationHolder); ok {
+			destinationHolders = append(destinationHolders, v)
+		}
+	}
 	// WARNING:
 	// This code is dependent on some unexpected "behavior" in
 	// config.FromCLIConf() - when users provide --destination-dir then all
 	// outputs configured in the YAML file are overwritten by an identity
 	// output with a directory destination with a path of --destination-dir.
 	// See: https://github.com/gravitational/teleport/issues/27206
-	if len(botConfig.Outputs) == 0 {
-		return nil, trace.BadParameter("either --destination-dir or a config file containing an output must be specified")
-	} else if len(botConfig.Outputs) > 1 {
-		return nil, trace.BadParameter("the config file contains multiple outputs; a --destination-dir must be specified")
+	if len(destinationHolders) == 0 {
+		return nil, trace.BadParameter("either --destination-dir or a config file containing an output or service must be specified")
+	} else if len(destinationHolders) > 1 {
+		return nil, trace.BadParameter("the config file contains multiple outputs and services; a --destination-dir must be specified")
 	}
-	destination := botConfig.Outputs[0].GetDestination()
+	destination := destinationHolders[0].GetDestination()
 	destinationDir, ok := destination.(*config.DestinationDirectory)
 	if !ok {
 		return nil, trace.BadParameter("destination %s must be a directory", destination)
