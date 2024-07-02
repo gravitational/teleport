@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	version   = kingpin.Arg("version", "Version to be released").Required().String()
 	changelog = kingpin.Arg("changelog", "Path to CHANGELOG.md").Required().String()
 )
 
@@ -20,6 +21,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	gen := &releaseNotesGenerator{}
-	fmt.Println(gen.generateReleaseNotes(clFile))
+	gen := &releaseNotesGenerator{
+		releaseVersion: *version,
+	}
+
+	notes, err := gen.generateReleaseNotes(clFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(notes)
 }

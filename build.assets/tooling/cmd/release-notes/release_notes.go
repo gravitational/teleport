@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
-	"fmt"
 	"html/template"
 	"os"
 	"regexp"
@@ -21,7 +20,7 @@ var (
 //go:embed template/release-notes.md.tmpl
 var tmpl string
 
-type parsedMD struct {
+type tmplInfo struct {
 	Version     string
 	Description string
 }
@@ -31,15 +30,23 @@ var (
 )
 
 type releaseNotesGenerator struct {
+	// releaseVersion is the version for the release.
+	// This will be compared against the version present in the changelog.
+	releaseVersion string
 }
 
 func (r *releaseNotesGenerator) generateReleaseNotes(md *os.File) (string, error) {
-	p, err := r.parseMD(md)
+	desc, err := r.parseMD(md)
 	if err != nil {
 		return "", err
 	}
+
+	info := tmplInfo{
+		Version:     r.releaseVersion,
+		Description: desc,
+	}
 	var buff bytes.Buffer
-	if err := releaseNotesTemplate.Execute(&buff, p); err != nil {
+	if err := releaseNotesTemplate.Execute(&buff, info); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return buff.String(), nil
@@ -48,7 +55,7 @@ func (r *releaseNotesGenerator) generateReleaseNotes(md *os.File) (string, error
 // parseMD is a simple implementation of a parser to extract the description from a changelog.
 // Will scan for the first double header and pull the version from that.
 // Will pull all information between the first and second double header for the description.
-func (r *releaseNotesGenerator) parseMD(md *os.File) (parsedMD, error) {
+func (r *releaseNotesGenerator) parseMD(md *os.File) (string, error) {
 	sc := bufio.NewScanner(md)
 	var buff bytes.Buffer
 
@@ -59,9 +66,8 @@ func (r *releaseNotesGenerator) parseMD(md *os.File) (parsedMD, error) {
 		}
 	}
 
-	v := versionMatcher.FindString(sc.Text())
-	if v == "" {
-		return parsedMD{}, fmt.Errorf("a valid version was not found in first double header")
+	if err := r.checkVersion(sc.Text()); err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	// Write everything until next header to buffer
@@ -70,14 +76,24 @@ func (r *releaseNotesGenerator) parseMD(md *os.File) (parsedMD, error) {
 			continue
 		}
 		if _, err := buff.Write(append([]byte(sc.Text()), '\n')); err != nil {
-			return parsedMD{}, err
+			return "", trace.Wrap(err)
 		}
 	}
+	return buff.String(), nil
+}
 
-	return parsedMD{
-		Version:     v,
-		Description: buff.String(),
-	}, nil
+// checkVersion will parse a version line from the changelog and ensure that it is correct.
+func (r *releaseNotesGenerator) checkVersion(text string) error {
+	v := versionMatcher.FindString(text)
+	if v == "" {
+		return trace.BadParameter("a correct version was not found in changelog")
+	}
+
+	if v != r.releaseVersion {
+		return trace.BadParameter("version in changelog does not match configured version")
+	}
+
+	return nil
 }
 
 func isDoubleHeader(line string) bool {
