@@ -3252,6 +3252,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Note that this
+		// method is only used for bot identity renewals and is not responsible
+		// for issuing new instance IDs; see `generateInitialBotCerts()`
+		// TODO: need to update bot instance with new authentication + generation counter
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -3302,6 +3308,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
 		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.updateBotInstance(ctx, &certReq); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
