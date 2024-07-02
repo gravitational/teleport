@@ -8,7 +8,8 @@ TFDIR ?= example
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
-CGOFLAG ?= CGO_ENABLED=1
+# CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
+CGOFLAG ?= CGO_ENABLED=0
 
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
 

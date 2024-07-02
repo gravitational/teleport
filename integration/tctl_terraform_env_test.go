@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,13 +13,13 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/segmentio/asm/base64"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -93,11 +94,11 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	vars := parseExportedEnvVars(t, stdout)
-	require.Contains(t, vars, common.EnvVarTerraformAddress)
-	require.Contains(t, vars, "TF_TELEPORT_IDENTITY_FILE_BASE64")
+	require.Contains(t, vars, constants.EnvVarTerraformAddress)
+	require.Contains(t, vars, constants.EnvVarTerraformIdentityFileBase64)
 
 	// Test validation: connect with the credentials in env vars and do a ping
-	require.Equal(t, addr.String(), vars[common.EnvVarTerraformAddress])
+	require.Equal(t, addr.String(), vars[constants.EnvVarTerraformAddress])
 
 	connectWithCredentialsFromVars(t, vars, clt)
 }
@@ -166,11 +167,11 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	vars := parseExportedEnvVars(t, stdout)
-	require.Contains(t, vars, common.EnvVarTerraformAddress)
-	require.Contains(t, vars, "TF_TELEPORT_IDENTITY_FILE_BASE64")
+	require.Contains(t, vars, constants.EnvVarTerraformAddress)
+	require.Contains(t, vars, constants.EnvVarTerraformIdentityFileBase64)
 
 	// Test validation: connect with the credentials in env vars and do a ping
-	require.Equal(t, addr.String(), vars[common.EnvVarTerraformAddress])
+	require.Equal(t, addr.String(), vars[constants.EnvVarTerraformAddress])
 
 	connectWithCredentialsFromVars(t, vars, clt)
 }
@@ -314,12 +315,12 @@ func connectWithCredentialsFromVars(t *testing.T, vars map[string]string, clt *a
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	identity, err := base64.StdEncoding.DecodeString(vars[common.EnvVarTerraformIdentity])
+	identity, err := base64.StdEncoding.DecodeString(vars[constants.EnvVarTerraformIdentityFileBase64])
 	require.NoError(t, err)
 	creds := client.LoadIdentityFileFromString(string(identity))
 	require.NotNil(t, creds)
 	botClt, err := client.New(ctx, client.Config{
-		Addrs:                    []string{vars[common.EnvVarTerraformAddress]},
+		Addrs:                    []string{vars[constants.EnvVarTerraformAddress]},
 		Credentials:              []client.Credentials{creds},
 		InsecureAddressDiscovery: clt.Config().InsecureSkipVerify,
 		Context:                  ctx,

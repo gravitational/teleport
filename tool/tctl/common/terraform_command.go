@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -32,13 +33,6 @@ import (
 )
 
 const (
-	// EnvVarTerraformAddress is the environment variable configuring the Teleport address the Terraform provider connects to.
-	EnvVarTerraformAddress = "TF_TELEPORT_ADDR"
-	// EnvVarTerraformIdentity is the environment variable configuring the Teleport identity the Terraform provider uses.
-	EnvVarTerraformIdentity = "TF_TELEPORT_IDENTITY_FILE_BASE64"
-)
-
-const (
 	terraformHelperDefaultResourcePrefix = "terraform-env-"
 	terraformHelperDefaultTTL            = "1h"
 )
@@ -51,11 +45,24 @@ var terraformRoleSpec = types.RoleSpecV6{
 		Rules: []types.Rule{
 			{
 				Resources: []string{
-					types.KindUser, types.KindRole, types.KindToken, types.KindTrustedCluster, types.KindGithub,
-					types.KindOIDC, types.KindSAML, types.KindClusterAuthPreference, types.KindClusterNetworkingConfig,
-					types.KindClusterMaintenanceConfig, types.KindSessionRecordingConfig, types.KindApp,
-					types.KindDatabase, types.KindLoginRule, types.KindDevice, types.KindOktaImportRule,
-					types.KindAccessList, types.KindNode,
+					types.KindAccessList,
+					types.KindApp,
+					types.KindClusterAuthPreference,
+					types.KindClusterMaintenanceConfig,
+					types.KindClusterNetworkingConfig,
+					types.KindDatabase,
+					types.KindDevice,
+					types.KindGithub,
+					types.KindLoginRule,
+					types.KindNode,
+					types.KindOIDC,
+					types.KindOktaImportRule,
+					types.KindRole,
+					types.KindSAML,
+					types.KindSessionRecordingConfig,
+					types.KindToken,
+					types.KindTrustedCluster,
+					types.KindUser,
 				},
 				Verbs: []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
@@ -84,9 +91,18 @@ func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.
 	tfCmd := app.Command("terraform", "Helpers to run the Teleport Terraform Provider.")
 
 	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environments variables. This creates a temporary MachineID bot.")
-	c.envCmd.Flag("resource-prefix", "Resource prefix to use when creating the Terraform role and bots.").Default(terraformHelperDefaultResourcePrefix).StringVar(&c.resourcePrefix)
-	c.envCmd.Flag("bot-ttl", "Time-to-live of the Bot resource. The bot will be removed after this period.").Default(terraformHelperDefaultTTL).DurationVar(&c.botTTL)
-	c.envCmd.Flag("use-existing-role", "Existing Terraform role to use instead of creating a new one.").StringVar(&c.existingRole)
+	c.envCmd.Flag(
+		"resource-prefix",
+		fmt.Sprintf("Resource prefix to use when creating the Terraform role and bots. Defaults to [%s]", terraformHelperDefaultResourcePrefix),
+	).Default(terraformHelperDefaultResourcePrefix).StringVar(&c.resourcePrefix)
+	c.envCmd.Flag(
+		"bot-ttl",
+		fmt.Sprintf("Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to [%s]", terraformHelperDefaultTTL),
+	).Default(terraformHelperDefaultTTL).DurationVar(&c.botTTL)
+	c.envCmd.Flag(
+		"use-existing-role",
+		"Existing Terraform role to use instead of creating a new one.",
+	).StringVar(&c.existingRole)
 
 	// Save a pointer to the config to be able to recover the Debug config later
 	c.cfg = cfg
@@ -119,6 +135,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 	}
 	c.envOutput = envOutput
 	c.userOutput = userOutput
+	log := slog.Default()
 
 	// Validate that the bot expires
 	if c.botTTL == 0 {
@@ -141,22 +158,33 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 	}
 
 	// Upsert Terraform role
-	roleName, err := c.createRoleIfNeeded(ctx, client)
+	roleName, err := c.createRoleIfNeeded(ctx, client, log)
+	if trace.IsAccessDenied(err) {
+		return trace.Wrap(err, `Failed to create/update the Terraform role.
+You must have the rights to get/create/update roles to rely on automatic role creation.
+If you don't have those rights, you can set the flag --use-existing-role "your-existing-terraform-role".
+If you got a role granted recently, you might have to run "tsh logout" and login again.`)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Create temporary bot and token
 	tokenName, err := c.createTransientBotAndToken(ctx, client, roleName)
+	if trace.IsAccessDenied(err) {
+		return trace.Wrap(err, `Failed to create the temporary Terraform bot.
+To use the "tctl terraform env" command you must have rights to create Teleport bot resources.
+If you got a role granted recently, you might have to run "tsh logout" and login again.`)
+	}
 	if err != nil {
 		return trace.Wrap(err, "bootstrapping bot")
 	}
 
 	// Now run tbot
 	c.showProgress("Using the temporary bot to obtain certificates 🤖")
-	id, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client)
+	id, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client, log)
 	if err != nil {
-		return trace.Wrap(err, "obtaining identity")
+		return trace.Wrap(err, "The temporary bot failed to connect to Teleport.")
 	}
 
 	envVars, err := identityToTerraformEnvVars(addr.String(), id)
@@ -169,7 +197,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 	for env, value := range envVars {
 		_, _ = fmt.Fprintf(c.envOutput, "export %s=%q\n", env, value)
 	}
-	fmt.Println("# You must invoke this command in an eval: eval $(tctl terraform-helper)")
+	fmt.Fprintln(c.envOutput, "# You must invoke this command in an eval: eval $(tctl terraform env)")
 	return nil
 }
 
@@ -186,7 +214,6 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	botName := c.resourcePrefix + suffix
 	c.showProgress(fmt.Sprintf("Creating temporary bot %q and its token", botName))
 
-	roles := []string{roleName}
 	var token types.ProvisionToken
 
 	// Generate a token
@@ -216,7 +243,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
 		},
 		Spec: &machineidv1pb.BotSpec{
-			Roles: roles,
+			Roles: []string{roleName},
 		},
 	}
 
@@ -238,24 +265,11 @@ type roleClient interface {
 
 // createRoleIfNeeded upserts the Terraform role, or checks if the role exists.
 // Returns the Terraform role name.
-func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleClient) (string, error) {
-	log := slog.Default()
+func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleClient, log *slog.Logger) (string, error) {
 	roleName := c.existingRole
 
-	// Create role if --use-existing-role is not set
-	if roleName == "" {
-		roleName = c.resourcePrefix + "provider"
-		log.InfoContext(ctx, "Creating/Updating the Terraform Provider role", "role", roleName)
-		role, err := types.NewRole(roleName, terraformRoleSpec)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		_, err = client.UpsertRole(ctx, role)
-		if err != nil {
-			return "", trace.Wrap(err, "upserting role")
-		}
-		c.showProgress(fmt.Sprintf("Created Terraform Provider role: %q", roleName))
-	} else {
+	// If roleName is specified, we don't attempt to create the role but we still check that it exists.
+	if roleName != "" {
 		// Else we check if the provided role exists
 		_, err := client.GetRole(ctx, roleName)
 		if trace.IsNotFound(err) {
@@ -267,7 +281,23 @@ func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleCl
 
 		log.InfoContext(ctx, "Using existing Terraform role", "role", roleName)
 		c.showProgress(fmt.Sprintf("Using existing Terraform Provider role: %q", roleName))
+		return roleName, nil
 	}
+
+	roleName = c.resourcePrefix + "provider"
+	log.InfoContext(ctx, "Creating/Updating the Terraform Provider role", "role", roleName)
+
+	role, err := types.NewRole(roleName, terraformRoleSpec)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	_, err = client.UpsertRole(ctx, role)
+	if err != nil {
+		return "", trace.Wrap(err, "upserting role")
+	}
+	c.showProgress(fmt.Sprintf("Created Terraform Provider role: %q", roleName))
+
 	return roleName, nil
 }
 
@@ -275,7 +305,7 @@ func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleCl
 // against valid certificates. Those certs are then serialized into an identity file.
 // The output is a set of environment variables, one of them including the base64-encoded identity file.
 // Later, the Terraform provider will read those environment variables to build its Teleport client.
-func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, error) {
+func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client, log *slog.Logger) (*identity.Identity, error) {
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",
@@ -318,7 +348,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	}
 
 	// Run the bot
-	bot := tbot.New(cfg, slog.Default())
+	bot := tbot.New(cfg, log)
 	err = bot.Run(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "running the bot")
@@ -374,7 +404,7 @@ func identityToTerraformEnvVars(addr string, id *identity.Identity) (map[string]
 	}
 	idBase64 := base64.StdEncoding.EncodeToString(idBytes)
 	return map[string]string{
-		EnvVarTerraformAddress:  addr,
-		EnvVarTerraformIdentity: idBase64,
+		constants.EnvVarTerraformAddress:            addr,
+		constants.EnvVarTerraformIdentityFileBase64: idBase64,
 	}, nil
 }
