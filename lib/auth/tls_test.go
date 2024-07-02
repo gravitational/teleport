@@ -1403,8 +1403,8 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-		Clock:     clockwork.NewFakeClock(),
+		TrustS: clt,
+		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
 }
@@ -4102,7 +4102,7 @@ func TestEvents(t *testing.T) {
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     testSrv.Auth(),
-		CAS:           testSrv.Auth(),
+		TrustS:        testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
 		UsersS:        clt,
