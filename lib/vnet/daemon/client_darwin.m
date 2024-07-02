@@ -1,3 +1,6 @@
+//go:build vnetdaemon
+// +build vnetdaemon
+
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -15,41 +18,13 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "client_darwin.h"
+#include "common_darwin.h"
+#include "protocol_darwin.h"
 
 #import <Foundation/Foundation.h>
 #import <ServiceManagement/ServiceManagement.h>
 
 #include <string.h>
-
-// VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
-// The caller is expected to free the returned pointer.
-const char *VNECopyNSString(NSString *val) {
-  if (val) {
-    return strdup([val UTF8String]);
-  }
-  return strdup("");
-}
-
-// Returns the label for the daemon by getting the identifier of the bundle
-// this executable is shipped in and appending ".vnetd" to it.
-//
-// The returned string might be empty if the executable is not in a bundle.
-//
-// The filename and the value of the Label key in the plist file and the Mach
-// service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(NSString *bundlePath) {
-  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
-  if (!main) {
-    return @"";
-  }
-
-  NSString *bundleIdentifier = [main bundleIdentifier];
-  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
-    return @"";
-  }
-
-  return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
-}
 
 // DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
 // if not empty.
