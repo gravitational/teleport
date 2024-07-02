@@ -112,14 +112,6 @@ class TopicContentsFragment {
         );
       }
 
-      // Skip TOC pages (with the same name as the parent directory) since we
-      // process these elswhere.
-      if (
-        path.dirname(f).endsWith(path.parse(f).name)
-      ) {
-        return;
-      }
-
       let relPath = this.relativePathToFile(f);
       const fm = this.getFrontmatter(text);
 
@@ -138,7 +130,6 @@ class TopicContentsFragment {
 
     // Add rows to the menu page for first-level child menu pages
     let menuEntries = [];
-    console.log('dirs:', dirs);
     dirs.forEach((f, idx) => {
       const menuPath = path.join(f, path.parse(f).base + '.mdx');
       if (!this.fs.existsSync(menuPath)) {
@@ -174,11 +165,20 @@ ${fm.description} ([more info](${relPath}))
       });
       let childEntries = new Set();
       childFiles.forEach(fp => {
+        const absChildPath = path.join(f, fp);
+
+        // Skip TOC pages (with the same name as the parent directory) since we
+        // process these elswhere.
+        if (
+          path.dirname(absChildPath).endsWith(path.parse(absChildPath).name)
+        ) {
+          return;
+        }
+
         const stats = this.fs.statSync(path.join(f, fp));
         if (stats.isDirectory()) {
           return;
         }
-        const absChildPath = path.join(f, fp);
         const relChildPath = this.relativePathToFile(absChildPath);
         const childText = this.fs.readFileSync(absChildPath, 'utf8');
         const childFM = this.getFrontmatter(childText);

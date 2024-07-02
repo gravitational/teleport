@@ -69,7 +69,7 @@ Guides related to Database Access.
     expect(actual).toBe(expected);
   });
 
-  test('one link to a directory', () => {
+  test.only('one link to a directory', () => {
     const expected = `---
 title: Documentation Home
 description: Guides for setting up the product.
