@@ -147,7 +147,6 @@ impl Client {
         let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
 
         let connector_config = create_config(&params, pin.clone());
-        info!("config {:?}", connector_config);
 
         // Create a channel for sending/receiving function calls to/from the Client.
         let (client_handle, function_receiver) = ClientHandle::new(100);
@@ -1401,7 +1400,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             height: params.screen_height,
         },
         enable_tls: true,
-        enable_credssp: true,
+        enable_credssp: params.domain.is_some(),
         credentials: Credentials::SmartCard {
             config: params.domain.clone().map(|domain| {
                 let certificate: Certificate =

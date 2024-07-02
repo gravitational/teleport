@@ -867,9 +867,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		computerName = strings.Split(desktop.GetAddr(), ":")[0]
 	}
 
-	domain := s.cfg.PKIDomain
-	if domain == "" {
-		domain = s.cfg.LDAPConfig.Domain
+	domain := ""
+	if !desktop.NonAD() {
+		domain = s.cfg.PKIDomain
+		if domain == "" {
+			domain = s.cfg.LDAPConfig.Domain
+		}
 	}
 
 	kdcAddr := s.cfg.KDCAddr
