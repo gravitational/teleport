@@ -138,7 +138,7 @@ type RegisterParams struct {
 	// server to be used for the registration process. If specified, then the
 	// Register method will not attempt to dial, and many other parameters
 	// may be ignored.
-	AuthClient *authclient.Client
+	AuthClient AuthJoinClient
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -404,11 +404,18 @@ func registerThroughAuth(
 	return certs, nil
 }
 
+// AuthJoinClient is a client that allows access to the Auth Servers join
+// service and RegisterUsingToken method for the purposes of joining.
+type AuthJoinClient interface {
+	joinServiceClient
+	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+}
+
 func registerThroughAuthClient(
 	ctx context.Context,
 	token string,
 	params RegisterParams,
-	client *authclient.Client,
+	client AuthJoinClient,
 ) (certs *proto.Certs, err error) {
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
