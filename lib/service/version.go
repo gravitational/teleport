@@ -19,9 +19,9 @@
 package service
 
 import (
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -34,29 +34,21 @@ const (
 
 // validateAndUpdateTeleportVersion validates that the major version persistent in the backend
 // meets our upgrade compatibility guide.
-func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion string) error {
-	currentMajor, err := utils.MajorVersion(currentVersion)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	localVersion, err := process.storage.GetTeleportVersion(process.GracefulExitContext())
+func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion *semver.Version, firstTimeStart bool) error {
+	lastKnownVersion, err := process.storage.GetTeleportVersion(process.GracefulExitContext())
 	if trace.IsNotFound(err) {
-		// We have to ensure that the process database is newly created before
-		//applying the majorVersionConstraint check.
-		_, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
-		if !trace.IsNotFound(err) && err != nil {
-			return trace.Wrap(err)
-		}
-		if currentMajor >= majorVersionConstraint && !trace.IsNotFound(err) {
+		// When this is not the first start, we have to ensure that previous versions,
+		// introduced before this check, were also verified. Therefore, not having a version
+		// in the database means the last known version is <v17.
+		if currentVersion.Major >= majorVersionConstraint && !firstTimeStart {
 			return trace.BadParameter("Unsupported upgrade path detected: to %v. "+
 				"Teleport supports direct upgrades to the next major version only.\n "+
 				"For instance, if you have version 15.x.x, you must upgrade to version 16.x.x first. "+
 				"See compatibility guarantees for details: "+
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				currentVersion)
+				currentVersion.String())
 		}
-		if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion); err != nil {
+		if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion.String()); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -64,18 +56,25 @@ func (process *TeleportProcess) validateAndUpdateTeleportVersion(currentVersion 
 		return trace.Wrap(err)
 	}
 
-	localMajor, err := utils.MajorVersion(localVersion)
+	lastKnownMajor, err := utils.MajorVersion(lastKnownVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if currentMajor-localMajor > 1 {
+	if currentVersion.Major-lastKnownMajor > 1 {
 		return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
 			"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
 			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-			localVersion, currentVersion, localMajor+1)
+			lastKnownVersion, currentVersion.String(), lastKnownMajor+1)
 	}
-	if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion); err != nil {
+	if lastKnownMajor-currentVersion.Major > 1 {
+		return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
+			"Teleport doesn't support major version downgrade.\n Please downgrade "+
+			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+			lastKnownVersion, currentVersion.String(), lastKnownMajor-1)
+	}
+	if err := process.storage.WriteTeleportVersion(process.GracefulExitContext(), currentVersion.String()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

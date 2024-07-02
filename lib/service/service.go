@@ -1770,7 +1770,15 @@ func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
 
-	if err := process.validateAndUpdateTeleportVersion(teleport.Version); err != nil {
+	// We have to ensure that the process database is newly created before
+	// version update check.
+	var firstTimeStart bool
+	if _, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin); trace.IsNotFound(err) {
+		firstTimeStart = true
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := process.validateAndUpdateTeleportVersion(teleport.SemVersion, firstTimeStart); err != nil {
 		return trace.Wrap(err)
 	}
 
