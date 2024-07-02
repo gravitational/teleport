@@ -220,6 +220,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 		KubernetesUsers:  []string{"foo"},
 		KubernetesGroups: []string{"bar"},
 		RouteToCluster:   mockClusterName,
+		Groups:           []string{"foo"},
 	}
 	for _, req := range reqs {
 		req(&id)
