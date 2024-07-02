@@ -38,6 +38,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
@@ -426,7 +427,7 @@ func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.Acc
 	return nil
 }
 
-func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (m *mockChecker) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	if authPref.GetRequireMFAType().IsSessionMFARequired() {
 		return services.AccessState{
 			MFARequired: services.MFARequiredAlways,
