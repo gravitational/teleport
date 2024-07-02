@@ -145,6 +145,13 @@ export interface AccessListOwner {
      * @generated from protobuf field: teleport.accesslist.v1.IneligibleStatus ineligible_status = 3;
      */
     ineligibleStatus: IneligibleStatus;
+    /**
+     * Kind is the type of owner, either a user or from a dynamic list,
+     * options `user` and `list`
+     *
+     * @generated from protobuf field: string kind = 4;
+     */
+    kind: string;
 }
 /**
  * AccessListAudit describes the audit configuration for an access list.
@@ -319,6 +326,12 @@ export interface MemberSpec {
      * @generated from protobuf field: teleport.accesslist.v1.IneligibleStatus ineligible_status = 7;
      */
     ineligibleStatus: IneligibleStatus;
+    /**
+     * kind of the member, either "user", or "list"
+     *
+     * @generated from protobuf field: string kind = 9;
+     */
+    kind: string;
 }
 /**
  * Review is a review of an access list.
@@ -679,7 +692,8 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         super("teleport.accesslist.v1.AccessListOwner", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] }
+            { no: 3, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
+            { no: 4, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListOwner>): AccessListOwner {
@@ -687,6 +701,7 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         message.name = "";
         message.description = "";
         message.ineligibleStatus = 0;
+        message.kind = "";
         if (value !== undefined)
             reflectionMergePartial<AccessListOwner>(this, message, value);
         return message;
@@ -704,6 +719,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
                     break;
                 case /* teleport.accesslist.v1.IneligibleStatus ineligible_status */ 3:
                     message.ineligibleStatus = reader.int32();
+                    break;
+                case /* string kind */ 4:
+                    message.kind = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -726,6 +744,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         /* teleport.accesslist.v1.IneligibleStatus ineligible_status = 3; */
         if (message.ineligibleStatus !== 0)
             writer.tag(3, WireType.Varint).int32(message.ineligibleStatus);
+        /* string kind = 4; */
+        if (message.kind !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.kind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1070,7 +1091,8 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
             { no: 4, name: "expires", kind: "message", T: () => Timestamp },
             { no: 5, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "added_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] }
+            { no: 7, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
+            { no: 9, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<MemberSpec>): MemberSpec {
@@ -1080,6 +1102,7 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
         message.reason = "";
         message.addedBy = "";
         message.ineligibleStatus = 0;
+        message.kind = "";
         if (value !== undefined)
             reflectionMergePartial<MemberSpec>(this, message, value);
         return message;
@@ -1109,6 +1132,9 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
                     break;
                 case /* teleport.accesslist.v1.IneligibleStatus ineligible_status */ 7:
                     message.ineligibleStatus = reader.int32();
+                    break;
+                case /* string kind */ 9:
+                    message.kind = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1143,6 +1169,9 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
         /* teleport.accesslist.v1.IneligibleStatus ineligible_status = 7; */
         if (message.ineligibleStatus !== 0)
             writer.tag(7, WireType.Varint).int32(message.ineligibleStatus);
+        /* string kind = 9; */
+        if (message.kind !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.kind);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
