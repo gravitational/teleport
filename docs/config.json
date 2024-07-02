@@ -1361,6 +1361,14 @@
               ]
             },
             {
+              "title": "Setting up a SCIM-only integration",
+              "slug": "/application-access/okta/scim-only/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Synchronization and SCIM",
               "slug": "/application-access/okta/sync-scim/",
               "forScopes": [
