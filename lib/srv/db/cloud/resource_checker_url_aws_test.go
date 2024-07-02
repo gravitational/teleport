@@ -111,11 +111,20 @@ func TestURLChecker_AWS(t *testing.T) {
 	require.Len(t, openSearchVPCDomainDBs, 1)
 	testCases = append(testCases, append(openSearchDBs, openSearchVPCDomainDBs...)...)
 
+	// DocumentDB
+	docdbCluster := mocks.DocumentDBCluster("docdb-cluster", region, nil,
+		mocks.WithDocumentDBClusterReader,
+	)
+	docdbClusterDBs, err := common.NewDatabasesFromDocumentDBCluster(docdbCluster)
+	require.NoError(t, err)
+	require.Len(t, docdbClusterDBs, 2) // Primary, reader.
+	testCases = append(testCases, docdbClusterDBs...)
+
 	// Mock cloud clients.
 	mockClients := &cloud.TestCloudClients{
 		RDS: &mocks.RDSMock{
 			DBInstances:      []*rds.DBInstance{rdsInstance},
-			DBClusters:       []*rds.DBCluster{rdsCluster},
+			DBClusters:       []*rds.DBCluster{rdsCluster, docdbCluster},
 			DBProxies:        []*rds.DBProxy{rdsProxy},
 			DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyCustomEndpoint},
 		},

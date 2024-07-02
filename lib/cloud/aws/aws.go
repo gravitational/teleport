@@ -145,6 +145,21 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
+// IsDocumentDBClusterSupported checks whether IAM authentication is supported
+// for this DocumentDB cluster.
+//
+// https://docs.aws.amazon.com/documentdb/latest/developerguide/iam-identity-auth.html
+func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
+	ver, err := semver.NewVersion(aws.StringValue(cluster.EngineVersion))
+	if err != nil {
+		log.Errorf("Failed to parse DocumentDB engine version: %s", aws.StringValue(cluster.EngineVersion))
+		return false
+	}
+
+	minIAMSupportedVer := semver.New("5.0.0")
+	return !ver.LessThan(*minIAMSupportedVer)
+}
+
 // IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
 // supported.
 func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
@@ -201,7 +216,7 @@ func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
 	switch aws.StringValue(clusterStatus) {
 	// Statuses marked as "Billed" in the above guide.
-	case "available", "backing-up", "backtracking", "failing-over",
+	case "active", "available", "backing-up", "backtracking", "failing-over",
 		"maintenance", "migrating", "modifying", "promoting", "renaming",
 		"resetting-master-credentials", "update-iam-db-auth", "upgrading":
 		return true
@@ -222,6 +237,13 @@ func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 		)
 		return true
 	}
+}
+
+// IsDocumentDBClusterAvailable checks if the DocumentDB cluster is available.
+func IsDocumentDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
+	// List of status values for DocumentDB is a subset of RDS's list:
+	// https://docs.aws.amazon.com/documentdb/latest/developerguide/monitoring_docdb-cluster_status.html
+	return IsRDSClusterAvailable(clusterStatus, clusterIndetifier)
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
