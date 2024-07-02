@@ -63,9 +63,19 @@ const failOnConsoleIgnoreList = new Set([
   'web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/AutoDeploy.test.tsx',
   ...entFailOnConsoleIgnoreList,
 ]);
+// A list of allowed messages, for expected messages that shouldn't fail the build (e.g., warnings
+// about deprecated functions from 3rd-party libraries).
+const failOnConsoleAllowedMessages = [
+  'defaultProps will be removed',
+  'findDOMNode is deprecated',
+];
 failOnConsole({
   skipTest: ({ testPath }) => {
     const relativeTestPath = path.relative(rootDir, testPath);
     return failOnConsoleIgnoreList.has(relativeTestPath);
   },
+  allowMessage: (message: string) =>
+    failOnConsoleAllowedMessages.some(allowedMessageFragment =>
+      message.includes(allowedMessageFragment)
+    ),
 });
