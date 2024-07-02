@@ -22,9 +22,15 @@ import { bool, string } from 'prop-types';
 
 import { space, width, height, alignSelf, gap } from 'design/system';
 
-const Button = ({ children, setRef = undefined, ...props }) => {
+const Button = ({
+  children,
+  setRef = undefined,
+  size = 'medium',
+  kind = 'primary',
+  ...props
+}) => {
   return (
-    <StyledButton {...props} ref={setRef}>
+    <StyledButton size={size} kind={kind} {...props} ref={setRef}>
       {children}
     </StyledButton>
   );
@@ -239,11 +245,6 @@ Button.propTypes = {
   ...space.propTypes,
   ...height.propTypes,
   ...alignSelf.propTypes,
-};
-
-Button.defaultProps = {
-  size: 'medium',
-  kind: 'primary',
 };
 
 Button.displayName = 'Button';
