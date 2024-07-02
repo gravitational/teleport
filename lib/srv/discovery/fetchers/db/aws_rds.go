@@ -148,7 +148,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
-	databases := make(types.Databases, 0, len(clusters))
+	databases := make(types.Databases, 0)
 	for _, cluster := range clusters {
 		if !libcloudaws.IsRDSClusterSupported(cluster) {
 			cfg.Log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
