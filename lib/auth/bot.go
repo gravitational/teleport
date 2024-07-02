@@ -174,8 +174,20 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	return nil
 }
 
-func (a *ServerWithRoles) updateBotAuthentications(ctx context.Context, req *certRequest) error {
+// updateBotInstance updates the bot instance associated with the context
+// identity, if any.
+func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certRequest) error {
 	ident := a.context.Identity.GetIdentity()
+
+	if !experiment.Enabled() {
+		// Only attempt to update bot instances if the experiment is enabled.
+		return nil
+	}
+
+	if ident.BotName == "" {
+		// Only applies to bot identities
+		return nil
+	}
 
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.authServer.GetClock().Now()),
@@ -193,10 +205,43 @@ func (a *ServerWithRoles) updateBotAuthentications(ctx context.Context, req *cer
 		JoinMethod: string(types.JoinMethodToken),
 	}
 
+	// An empty bot instance most likely means a bot is rejoining after an
+	// upgrade, so a new bot instance should be generated.
+	if ident.BotInstanceID == "" {
+		log.WithFields(logrus.Fields{
+			"bot_name": ident.BotName,
+		}).Info("bot has no instance ID, a new instance will be generated")
+
+		instanceID, err := uuid.NewRandom()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		expires := a.authServer.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin)
+
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
+			BotName:    ident.BotName,
+			InstanceId: instanceID.String(),
+		}, authRecord, expires)
+
+		if _, err := a.authServer.BotInstance.CreateBotInstance(ctx, bi); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Add the new ID to the cert request
+		req.botInstanceID = instanceID.String()
+
+		return nil
+	}
+
 	_, err := a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
+
+		// Update the record's expiration timestamp based on the request TTL
+		// plus an expiry margin.
+		bi.Metadata.Expires = timestamppb.New(a.authServer.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin))
 
 		// If we're at or above the limit, remove enough of the front elements
 		// to make room for the new one at the end.
@@ -313,6 +358,8 @@ func (a *Server) generateInitialBotCerts(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		botInstanceID = uuid.String()
 	}
 
 	// Generate certificate

@@ -3310,7 +3310,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.Wrap(err)
 		}
 
-		if err := a.updateBotAuthentications(ctx, &certReq); err != nil {
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.updateBotInstance(ctx, &certReq); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
