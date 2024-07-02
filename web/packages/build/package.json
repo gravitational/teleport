@@ -34,7 +34,7 @@
     "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
-    "@storybook/react": "^6.5.16",
+    "@storybook/react": "^8.1.11",
     "@swc/plugin-styled-components": "^1.5.122",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^15.0.7",
