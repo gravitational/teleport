@@ -140,7 +140,7 @@ func (a *Server) newWebSession(
 		return nil, trace.Wrap(err)
 	}
 
-	netCfg, err := a.GetClusterNetworkingConfig(ctx)
+	idleTimeout, err := a.getWebIdleTimeout(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,7 +213,7 @@ func (a *Server) newWebSession(
 		BearerToken:         bearerToken,
 		BearerTokenExpires:  startTime.UTC().Add(bearerTokenTTL),
 		LoginTime:           req.LoginTime,
-		IdleTimeout:         types.Duration(netCfg.GetWebIdleTimeout()),
+		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
 	}
 	UserLoginCount.Inc()
@@ -223,6 +223,14 @@ func (a *Server) newWebSession(
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (a *Server) getWebIdleTimeout(ctx context.Context) (time.Duration, error) {
+	netCfg, err := a.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return netCfg.GetWebIdleTimeout(), nil
 }
 
 func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession) error {
