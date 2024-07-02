@@ -40,7 +40,6 @@ env:
   RDS_MARIADB_INSTANCE_NAME: ci-database-e2e-tests-rds-mariadb-instance-us-west-2-307493967395
   REDSHIFT_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-access
   REDSHIFT_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-discovery
-  REDSHIFT_IAM_DB_USER: ci-database-e2e-tests-redshift-user
   REDSHIFT_CLUSTER_NAME: ci-database-e2e-tests-redshift-cluster-us-west-2-307493967395
   REDSHIFT_SERVERLESS_ACCESS_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-access
   REDSHIFT_SERVERLESS_DISCOVERY_ROLE: arn:aws:iam::307493967395:role/ci-database-e2e-tests-redshift-serverless-discovery

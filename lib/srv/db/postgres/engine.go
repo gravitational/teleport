@@ -136,7 +136,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer func() {
 		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.WithError(err).Error("Failed to teardown auto user.")
+			e.Log.WithError(err).WithField("user", sessionCtx.DatabaseUser).Error("Failed to teardown auto user.")
 		}
 	}()
 	// This is where we connect to the actual Postgres database.

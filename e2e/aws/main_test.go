@@ -86,9 +86,6 @@ const (
 	// name of the Redshift cluster db that will be created by the
 	// Teleport Discovery Service.
 	redshiftNameEnv = "REDSHIFT_CLUSTER_NAME"
-	// redshiftIAMDBUserEnv is the name of the IAM role that tests will use as a
-	// database user to connect to Redshift Serverless.
-	redshiftIAMDBUserEnv = "REDSHIFT_IAM_DB_USER"
 	// kubeSvcRoleARNEnv is the environment variable that specifies
 	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
 	// This role needs to have the following permissions:

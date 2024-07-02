@@ -75,6 +75,7 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
 
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Activating database user")
 	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,6 +118,7 @@ func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) err
 func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) error {
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Deactivating database user")
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
@@ -145,6 +147,7 @@ func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) e
 func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error {
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Deleting database user")
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
