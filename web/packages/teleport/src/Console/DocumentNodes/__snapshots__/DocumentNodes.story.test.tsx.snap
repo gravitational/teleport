@@ -605,6 +605,7 @@ exports[`render DocumentNodes 1`] = `
             class="c8 c9"
             kind="secondary"
           >
+            Cluster: 
             cluster-1
             <span
               class="c10 icon icon-chevrondown"

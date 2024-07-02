@@ -210,6 +210,59 @@ func TestMakeApps(t *testing.T) {
 	}
 }
 
+func TestMakeSAMLApp(t *testing.T) {
+	tests := []struct {
+		name             string
+		sp               types.SAMLIdPServiceProviderV1
+		appsToUserGroups map[string]types.UserGroups
+		expected         App
+	}{
+		{
+			name: "empty",
+			expected: App{
+				Kind:          types.KindApp,
+				Name:          "",
+				Description:   "SAML Application",
+				PublicAddr:    "",
+				Labels:        []Label{},
+				SAMLApp:       true,
+				SAMLAppPreset: "",
+			},
+		},
+		{
+			name: "saml idp service provider",
+			sp: types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test_app",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					Preset: "test_preset",
+				},
+			},
+			expected: App{
+				Kind:          types.KindApp,
+				Name:          "test_app",
+				Description:   "SAML Application",
+				PublicAddr:    "",
+				Labels:        []Label{},
+				SAMLApp:       true,
+				SAMLAppPreset: "test_preset",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			apps := MakeSAMLApp(&test.sp, MakeAppsConfig{})
+			require.Empty(t, cmp.Diff(test.expected, apps))
+		})
+	}
+}
+
 func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        name,
