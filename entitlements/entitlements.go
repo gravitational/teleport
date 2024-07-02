@@ -46,3 +46,9 @@ const (
 	UpsellAlert            EntitlementKind = "UpsellAlert"
 	UsageReporting         EntitlementKind = "UsageReporting"
 )
+
+var AllEntitlements = []EntitlementKind{
+	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
+	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
+	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting,
+}
