@@ -68,7 +68,10 @@ func validateRequest(req any) error {
 		if t.Name == "" {
 			return trace.BadParameter("missing name")
 		}
-
+	case *pb.DeleteAuditQueryRequest:
+		if t.Name == "" {
+			return trace.BadParameter("missing name")
+		}
 	default:
 		return trace.BadParameter("unknown request type: %T", req)
 	}
