@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -263,8 +264,8 @@ type testAuth struct {
 	// Auth is the wrapped "real" auth that handles everything except for
 	// cloud auth tokens generation.
 	realAuth common.Auth
-	// FieldLogger is used for logging.
-	logger logrus.FieldLogger
+	// Logger is used for logging.
+	*slog.Logger
 }
 
 func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
@@ -274,7 +275,7 @@ func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
 	}
 	return &testAuth{
 		realAuth: auth,
-		logger:   logrus.WithField(teleport.ComponentKey, "auth:test"),
+		Logger:   slog.With(teleport.ComponentKey, "auth:test"),
 	}, nil
 }
 
@@ -310,14 +311,14 @@ const (
 )
 
 type fakeTokenSource struct {
-	logrus.FieldLogger
+	*slog.Logger
 
 	token string
 	exp   time.Time
 }
 
 func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
-	f.Info("Generating Cloud Spanner auth token source")
+	f.InfoContext(context.Background(), "Generating Cloud Spanner auth token source")
 	return &oauth2.Token{
 		Expiry:      f.exp,
 		AccessToken: f.token,
@@ -325,19 +326,19 @@ func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func (a *testAuth) GetRDSAuthToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	a.logger.
-		WithField("database", database).
-		WithField("databaseUser", databaseUser).
-		Info("Generating RDS auth token")
+	a.InfoContext(ctx, "Generating RDS auth token.",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return rdsAuthToken, nil
 }
 
 func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
-	a.logger.
-		WithField("database", database).
-		WithField("databaseUser", databaseUser).
-		WithField("databaseName", databaseName).
-		Info("Generating Redshift auth token")
+	a.InfoContext(ctx, "Generating Redshift auth token",
+		"database", database,
+		"database_user", databaseUser,
+		"database_name", databaseName,
+	)
 	return redshiftAuthUser, redshiftAuthToken, nil
 }
 
@@ -354,34 +355,32 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database
 }
 
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error) {
-	a.logger.WithField("database_user", databaseUser).Info("Generating Cloud SQL auth token")
+	a.InfoContext(ctx, "Generating Cloud SQL auth token", "database_user", databaseUser)
 	return cloudSQLAuthToken, nil
 }
 
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	return &fakeTokenSource{
-		token:       cloudSpannerAuthToken,
-		FieldLogger: a.logger.WithField("database_user", databaseUser),
+		token:  cloudSpannerAuthToken,
+		Logger: a.Logger.With("database_user", databaseUser),
 	}, nil
 }
 
 func (a *testAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	a.logger.
-		WithField("database", database).
-		WithField("database_user", databaseUser).
-		Info("Generating Cloud SQL password")
+	a.InfoContext(ctx, "Generating Cloud SQL password",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return cloudSQLPassword, nil
 }
 
 func (a *testAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
-	a.logger.Info("Generating Azure access token")
+	a.InfoContext(ctx, "Generating Azure access token")
 	return azureAccessToken, nil
 }
 
 func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.Database) (string, error) {
-	a.logger.
-		WithField("database", database).
-		Info("Generating Azure Redis token")
+	a.InfoContext(ctx, "Generating Azure Redis token", "database", database)
 	return azureRedisToken, nil
 }
 
@@ -398,17 +397,18 @@ func (a *testAuth) GetAzureIdentityResourceID(ctx context.Context, identityName 
 }
 
 func (a *testAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, databaseUser string) (string, string, string, error) {
-	a.logger.
-		WithField("database", database).
-		WithField("database_user", databaseUser).
-		Info("Generating AWS IAM credentials")
+	a.InfoContext(ctx, "Generating AWS IAM credentials",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
 func (a *testAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
+	// TODO(greedy52) update WithLogger to use slog.
 	return &testAuth{
 		realAuth: a.realAuth,
-		logger:   getUpdatedLogger(a.logger),
+		Logger:   a.Logger,
 	}
 }
 
