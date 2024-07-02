@@ -11,7 +11,7 @@ module.exports = {
   plugins: [
     ...defaultDevConfig.plugins,
     configFactory.plugins.indexHtml({
-      favicon: path.join(__dirname, '/src/favicon.ico'),
+      favicon: path.join(__dirname, '/src/favicon-light.png'),
     }),
   ],
 };
