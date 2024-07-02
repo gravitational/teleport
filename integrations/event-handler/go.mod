@@ -2,7 +2,7 @@ module github.com/gravitational/teleport/integrations/event-handler
 
 go 1.22.0
 
-toolchain go1.22.4
+toolchain go1.22.5
 
 require (
 	github.com/alecthomas/kong v0.9.0
