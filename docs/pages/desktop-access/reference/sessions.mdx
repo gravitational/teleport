@@ -64,8 +64,18 @@ desktop icon in the first column to distinguish them from SSH recordings.
 
 ![Desktop Session Recording](../../../img/desktop-access/session-recording@2x.png)
 
-Click the play button to open the player in a new tab. To export desktop session
-recordings to video for playback outside of Teleport, use the
+Click the play button to open the player in a new tab.
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  Exported desktop session recordings are only currently available
+  for v14 Desktop Service agents. Desktop session recordings from v15+
+  are only available via the Web UI for playback.
+</Admonition>
+
+ To export desktop session recordings to video for playback outside of Teleport, use the
 `tsh recordings export` command:
 
 ```code
