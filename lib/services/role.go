@@ -46,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -1197,7 +1198,7 @@ func (set RoleSet) PinSourceIP() bool {
 
 // GetAccessState returns the AccessState, setting [AccessState.MFARequired]
 // according to the user's roles and cluster auth preference.
-func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+func (set RoleSet) GetAccessState(authPref readonly.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
 		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
@@ -1524,7 +1525,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
