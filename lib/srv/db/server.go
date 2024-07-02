@@ -463,7 +463,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Setup managed users for database.
 	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
-		s.log.WarnContext(ctx, "Failed to setup users for.", database.GetName(), "error", err)
+		s.log.WarnContext(ctx, "Failed to setup users.", "database", database.GetName(), "error", err)
 	}
 
 	s.log.DebugContext(ctx, "Started database.", "db", database)

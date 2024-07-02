@@ -67,7 +67,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	}
 	if err := p.handleConnection(ctx, tlsConn, startupMessage); err != nil {
 		if serr := backend.Send(toErrorResponse(err)); serr != nil {
-			p.Log.Warn("Failed to send error to backend.", "error", serr)
+			p.Log.WarnContext(ctx, "Failed to send error to backend.", "error", serr)
 		}
 		return trace.Wrap(err)
 	}

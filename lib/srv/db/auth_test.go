@@ -328,7 +328,7 @@ func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
 func (a *testAuth) GetRDSAuthToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	a.InfoContext(ctx, "Generating RDS auth token.",
 		"database", database,
-		"databaseUser", databaseUser,
+		"database_user", databaseUser,
 	)
 	return rdsAuthToken, nil
 }
@@ -336,8 +336,8 @@ func (a *testAuth) GetRDSAuthToken(ctx context.Context, database types.Database,
 func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
 	a.InfoContext(ctx, "Generating Redshift auth token",
 		"database", database,
-		"databaseUser", databaseUser,
-		"databaseName", databaseName,
+		"database_user", databaseUser,
+		"database_name", databaseName,
 	)
 	return redshiftAuthUser, redshiftAuthToken, nil
 }
