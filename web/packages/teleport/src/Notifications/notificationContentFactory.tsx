@@ -39,7 +39,8 @@ export function notificationContentFactory({
   switch (subKind) {
     case NotificationSubKind.DefaultInformational:
     case NotificationSubKind.UserCreatedInformational: {
-      const textContent = getLabelValue(labels, 'content');
+      const textContent = getLabelValue(labels, 'teleport.internal/content');
+      console.log(textContent);
       notificationContent = {
         kind: 'text',
         title: notification.title,
@@ -52,7 +53,7 @@ export function notificationContentFactory({
 
     case NotificationSubKind.DefaultWarning:
     case NotificationSubKind.UserCreatedWarning: {
-      const textContent = getLabelValue(labels, 'content');
+      const textContent = getLabelValue(labels, 'teleport.internal/content');
       notificationContent = {
         kind: 'text',
         title: notification.title,

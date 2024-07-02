@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -476,4 +477,191 @@ func (s *Service) UpsertUserLastSeenNotification(ctx context.Context, req *notif
 	}
 
 	return out, nil
+}
+
+// CreateGlobalNotification creates a global notification.
+func (s *Service) CreateGlobalNotification(ctx context.Context, req *notificationsv1.CreateGlobalNotificationRequest) (*notificationsv1.GlobalNotification, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := s.backend.CreateGlobalNotification(ctx, req.GlobalNotification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// CreateUserNotification creates a user-specific notification.
+func (s *Service) CreateUserNotification(ctx context.Context, req *notificationsv1.CreateUserNotificationRequest) (*notificationsv1.Notification, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := s.backend.CreateUserNotification(ctx, req.Notification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// DeleteGlobalNotification deletes a global notification.
+func (s *Service) DeleteGlobalNotification(ctx context.Context, req *notificationsv1.DeleteGlobalNotificationRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.backend.DeleteGlobalNotification(ctx, req.NotificationId)
+	return nil, trace.Wrap(err)
+}
+
+// DeleteUserNotification deletes a user-specific notification.
+func (s *Service) DeleteUserNotification(ctx context.Context, req *notificationsv1.DeleteUserNotificationRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = s.backend.DeleteUserNotification(ctx, req.Username, req.NotificationId)
+	return nil, trace.Wrap(err)
+}
+
+// ListUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This should only be used by admins.
+func (s *Service) ListUserSpecificNotificationsForUser(ctx context.Context, req *notificationsv1.ListUserSpecificNotificationsForUserRequest) (*notificationsv1.ListNotificationsResponse, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("only RoleAdmin can list notifications for a specific user")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stream := stream.FilterMap(
+		s.userNotificationCache.StreamUserNotifications(ctx, req.Username, req.PageToken),
+		func(n *notificationsv1.Notification) (*notificationsv1.Notification, bool) {
+			// If only user-created notifications are requested, filter by the user-creatd subkinds.
+			if (req.UserCreatedOnly) &&
+				(n.GetSubKind() != types.NotificationUserCreatedInformationalSubKind) &&
+				(n.GetSubKind() != types.NotificationUserCreatedWarningSubKind) {
+				return nil, false
+			}
+
+			return n, true
+		})
+
+	var notifications []*notificationsv1.Notification
+	var nextKey string
+
+	for stream.Next() {
+		item := stream.Item()
+		if item != nil {
+			notifications = append(notifications, item)
+		}
+		if len(notifications) == int(req.PageSize) {
+			nextKey = item.GetMetadata().GetName()
+			break
+		}
+	}
+
+	return &notificationsv1.ListNotificationsResponse{
+		Notifications: notifications,
+		NextPageToken: nextKey,
+	}, nil
+}
+
+// ListGlobalNotifications returns a paginated list of all global notifications. This should only be used by admins.
+func (s *Service) ListGlobalNotifications(ctx context.Context, req *notificationsv1.ListGlobalNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("only RoleAdmin can list all global notifications")
+	}
+
+	stream := stream.FilterMap(
+		s.globalNotificationCache.StreamGlobalNotifications(ctx, req.PageToken),
+		func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
+			// If only user-created notifications are requested, filter by the user-creatd subkinds.
+			if (req.UserCreatedOnly) &&
+				(gn.GetSpec().GetNotification().GetSubKind() != types.NotificationUserCreatedInformationalSubKind) &&
+				(gn.GetSpec().GetNotification().GetSubKind() != types.NotificationUserCreatedWarningSubKind) {
+				return nil, false
+			}
+
+			return gn, true
+		})
+
+	var notifications []*notificationsv1.Notification
+	var nextKey string
+
+	for stream.Next() {
+		item := stream.Item()
+		if item != nil {
+			notification := item.GetSpec().GetNotification()
+			notification.Metadata.Name = item.GetMetadata().GetName()
+
+			notifications = append(notifications, notification)
+		}
+		if len(notifications) == int(req.PageSize) {
+			nextKey = item.GetMetadata().GetName()
+			break
+		}
+	}
+
+	return &notificationsv1.ListNotificationsResponse{
+		Notifications: notifications,
+		NextPageToken: nextKey,
+	}, nil
 }

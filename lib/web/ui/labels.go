@@ -51,6 +51,30 @@ func makeLabels(labelMaps ...map[string]string) []Label {
 	return labels
 }
 
+// makeLabelsIncludingInternalis transforms map[string]string arguments passed to it to sorted slice of Labels, including Teleport internal labels.
+func makeLabelsIncludingInternal(labelMaps ...map[string]string) []Label {
+	length := 0
+	for _, labelMap := range labelMaps {
+		length += len(labelMap)
+	}
+
+	labels := make([]Label, 0, length)
+
+	for _, labelMap := range labelMaps {
+		for name, value := range labelMap {
+			if strings.HasPrefix(name, types.TeleportHiddenLabelPrefix) {
+				continue
+			}
+
+			labels = append(labels, Label{Name: name, Value: value})
+		}
+	}
+
+	sort.Sort(sortedLabels(labels))
+
+	return labels
+}
+
 func transformCommandLabels(commandLabels map[string]types.CommandLabel) map[string]string {
 	labels := make(map[string]string, len(commandLabels))
 

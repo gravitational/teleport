@@ -41,6 +41,11 @@ service NotificationService {
   // ListNotifications returns a paginated list of a user's notifications.
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
 
+  // ListUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This should only be used by admins.
+  rpc ListUserSpecificNotificationsForUser(ListUserSpecificNotificationsForUserRequest) returns (ListNotificationsResponse);
+  // ListGlobalNotifications returns a paginated list of all global notifications. This should only be used by admins.
+  rpc ListGlobalNotifications(ListGlobalNotificationsRequest) returns (ListNotificationsResponse);
+
   // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
   rpc UpsertUserNotificationState(UpsertUserNotificationStateRequest) returns (UserNotificationState);
 
@@ -108,4 +113,26 @@ message UpsertUserLastSeenNotificationRequest {
   string username = 1;
   // user_notification_state is the updated user last seen notification item.
   UserLastSeenNotification user_last_seen_notification = 2;
+}
+
+// ListUserSpecificNotificationsForUserRequest is the request for listing user-specific notifications for a specific user.
+message ListUserSpecificNotificationsForUserRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListUserSpecificNotificationsForUserRequest request, if any.
+  string page_token = 2;
+  // username is the username of the user the notifications being listed are for.
+  string username = 3;
+  // user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface);
+  bool user_created_only = 4;
+}
+
+// ListGlobalNotificationsRequest is the request for listing all global notifications..
+message ListGlobalNotificationsRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListGlobalNotificationsRequest request, if any.
+  string page_token = 2;
+  // user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface);
+  bool user_created_only = 3;
 }
