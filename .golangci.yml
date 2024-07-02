@@ -66,6 +66,8 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+          - pkg: github.com/hashicorp/go-version
+            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
       # Prevent importing internal packages in client tools or packages containing
       # common interfaces consumed by them that are known to bloat binaries or break builds
       # because they only support a single platform.

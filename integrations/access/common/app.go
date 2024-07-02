@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -96,7 +97,7 @@ func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse,
 		}
 		return pong, trace.Wrap(err, "Unable to get Teleport server version")
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
