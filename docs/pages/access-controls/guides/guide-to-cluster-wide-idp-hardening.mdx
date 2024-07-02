@@ -42,7 +42,7 @@ To enhance your defense against IdP compromises, we recommend implementing the f
 ## Set up cluster-wide WebAuthn
 Implement strong, phishing-resistant authentication across 
 your entire infrastructure using WebAuthn standards. WebAuthn, a W3C standard and part of FIDO2, 
-enables public-key cryptography for web authentication. Teleport supports WebAuthn as a second factor 
+enables public-key cryptography for web authentication. Teleport supports WebAuthn as a multi-factor 
 for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
 It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
 
@@ -367,7 +367,7 @@ spec:
     ...
 ```
 
-## Implement cluster-wide device trust
+## Implement cluster-wide Device Trust
 Develop a system to verify and manage trusted devices across your organization, reducing the risk 
 of unauthorized access from unknown or compromised devices. Device trust adds an extra layer of security by requiring the use of trusted devices 
 for accessing protected resources, complementing user identity and role enforcement. This can be 
@@ -500,7 +500,7 @@ integration, like the [Jamf Pro integration](../device-trust/jamf-integration.md
 Enable auto-enrollment in your cluster settings:
 
 <Tabs dropDownCaption="Teleport Deployment">
-<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise" >
 Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
 
 ```diff
@@ -574,9 +574,8 @@ In the following sections, we'll dive deeper into each of these recommendations,
   issue certificates for automated workflows, which uses role impersonation
   that is not subject to MFA checks.
 
-  Certificates produced with `tctl auth sign` directly on an Auth Service
-  instance using the super-admin role are not subject to MFA checks to support
-  legacy self-hosted setups.
+  Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin 
+  role are not subject to MFA checks to support legacy self-hosted setups.
 </Notice>
 
 ### Prerequisites
@@ -587,7 +586,7 @@ In the following sections, we'll dive deeper into each of these recommendations,
 - A Web browser with [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
 
-MFA for administrative actions is automatically enforced for clusters where WebAuthn is the only form of second factor allowed.
+MFA for administrative actions is automatically enforced for clusters where WebAuthn is the only form of multi-factor allowed.
 
 <Notice type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
@@ -628,7 +627,7 @@ their on-disk Teleport certificates.
     name: cluster-auth-preference
   spec:
     type: local
-    # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
+    # To make webauthn the only form of multi-factor allowed, set this field to 'webauthn'.
     second_factor: "webauthn"
     webauthn:
       rp_id: example.com
@@ -642,14 +641,14 @@ their on-disk Teleport certificates.
 
   </TabItem>
   <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Service's `teleport.yaml` file and restart all Auth Service instances:
+  Edit the Auth Service instance's `teleport.yaml` file and restart the instances:
 
   ```yaml
   # snippet from /etc/teleport.yaml:
   auth_service:
     authentication:
       type: local
-      # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
+      # To make webauthn the only form of multi-factor allowed, set this field to 'webauthn'.
       second_factor: "webauthn"
       webauthn:
         rp_id: example.com
