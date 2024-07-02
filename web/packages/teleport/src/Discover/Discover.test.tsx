@@ -25,7 +25,8 @@ import { render, screen } from 'design/utils/testing';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { Discover } from 'teleport/Discover/Discover';
+import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
@@ -47,6 +48,9 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { ResourceKind } from './Shared';
+import { useDiscover } from './useDiscover';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -203,4 +207,102 @@ describe('location state', () => {
       screen.queryByTestId(ResourceKind.Application)
     ).not.toBeInTheDocument();
   });
+});
+
+type updateProps = {
+  resourceName?: string;
+  resourceSpecForUpdate?: ResourceSpec;
+};
+
+const renderUpdate = (props: updateProps) => {
+  const defaultPref = makeDefaultUserPreferences();
+  defaultPref.onboard.preferredResources = [Resource.WEB_APPLICATIONS];
+
+  mockUserContextProviderWith(
+    makeTestUserContext({ preferences: defaultPref })
+  );
+
+  const userAcl = getAcl();
+  const ctx = createTeleportContext({ customAcl: userAcl });
+
+  const MockComponent1 = () => {
+    const { agentMeta } = useDiscover();
+    return (
+      <>
+        {agentMeta.resourceName === 'saml2' ? agentMeta.resourceName : 'saml1'}
+      </>
+    );
+  };
+
+  const testViews: ResourceViewConfig[] = [
+    {
+      kind: ResourceKind.SamlApplication,
+      views() {
+        return [
+          {
+            title: 'MockComponent1',
+            component: MockComponent1,
+          },
+        ];
+      },
+    },
+  ];
+
+  return render(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: '' } },
+      ]}
+    >
+      <TeleportContextProvider ctx={ctx}>
+        <DiscoverComponent
+          eViewConfigs={testViews}
+          isUpdateFlow={true}
+          resourceSpecForUpdate={props.resourceSpecForUpdate}
+          agentMetaForUpdate={{ resourceName: props.resourceName }}
+        />
+      </TeleportContextProvider>
+    </MemoryRouter>
+  );
+};
+
+test('update flow: renders single component based on resourceSpecForUpdatvalue', () => {
+  const resourceSpecForUpdate: ResourceSpec = {
+    name: 'Connect My Computer',
+    kind: ResourceKind.ConnectMyComputer,
+    event: null,
+    icon: 'Laptop',
+    keywords: '',
+    hasAccess: true,
+  };
+
+  renderUpdate({ resourceSpecForUpdate: resourceSpecForUpdate });
+
+  expect(screen.queryAllByTestId(ResourceKind.Server).length).toBeFalsy();
+
+  expect(screen.queryAllByTestId(ResourceKind.Database).length).toBeFalsy();
+
+  expect(screen.queryAllByTestId(ResourceKind.Application).length).toBeFalsy();
+
+  expect(screen.queryAllByTestId(ResourceKind.Kubernetes).length).toBeFalsy();
+
+  expect(screen.getByText('Sign In & Connect My Computer')).toBeInTheDocument();
+});
+
+test('update flow: agentMeta is prepopulated based on agentMetaForUpdate', () => {
+  const resourceSpecForUpdate: ResourceSpec = {
+    name: 'MockComponent1',
+    kind: ResourceKind.SamlApplication,
+    event: null,
+    icon: 'Application',
+    keywords: '',
+    hasAccess: true,
+  };
+
+  renderUpdate({
+    resourceName: 'saml2',
+    resourceSpecForUpdate: resourceSpecForUpdate,
+  });
+
+  expect(screen.getByText('saml2')).toBeInTheDocument();
 });

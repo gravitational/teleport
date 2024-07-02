@@ -70,6 +70,7 @@ export interface DiscoverContextState<T = any> {
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
+  isUpdateFlow?: boolean;
 }
 
 type EventState = {
@@ -93,6 +94,14 @@ type DiscoverProviderProps = {
   mockCtx?: DiscoverContextState;
   // Extra view configs that are passed in. This is used to add view configs from Enterprise.
   eViewConfigs?: EViewConfigs;
+  // isUpdateFlow indicates if the Discover flow is an update resource flow.
+  isUpdateFlow?: boolean;
+  // resourceSpecForUpdate specifies ResourceSpec which should be used to
+  // start a Discover flow.
+  resourceSpecForUpdate?: ResourceSpec;
+  // agentMetaForUpdate includes data that will be used to prepopulate input fields
+  // in the respective Discover compnents.
+  agentMetaForUpdate?: AgentMeta;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -117,6 +126,9 @@ export function DiscoverProvider({
   mockCtx,
   children,
   eViewConfigs = [],
+  isUpdateFlow,
+  resourceSpecForUpdate,
+  agentMetaForUpdate,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
@@ -228,6 +240,14 @@ export function DiscoverProvider({
       },
     });
   }
+
+  // trigger update Discover flow.
+  useEffect(() => {
+    if (isUpdateFlow) {
+      onSelectResource(resourceSpecForUpdate);
+      updateAgentMeta(agentMetaForUpdate);
+    }
+  }, [agentMetaForUpdate]);
 
   // If a location.state.discover was provided, that means the user is
   // coming back from another location to resume the flow.
@@ -453,6 +473,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
+    isUpdateFlow,
   };
 
   return (

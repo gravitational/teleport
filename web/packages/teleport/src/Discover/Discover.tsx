@@ -29,8 +29,10 @@ import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 
 import { EViewConfigs } from './types';
 
-import { DiscoverProvider, useDiscover } from './useDiscover';
+import { DiscoverProvider, useDiscover, AgentMeta } from './useDiscover';
 import { DiscoverIcon } from './SelectResource/icons';
+
+import type { ResourceSpec } from './SelectResource';
 
 function DiscoverContent() {
   const {
@@ -94,10 +96,21 @@ function DiscoverContent() {
   );
 }
 
-export function DiscoverComponent({ eViewConfigs = [] }: Props) {
+export function DiscoverComponent({
+  eViewConfigs = [],
+  isUpdateFlow,
+  resourceSpecForUpdate,
+  agentMetaForUpdate,
+}: DiscoverComponentProps) {
   const location = useLocation();
   return (
-    <DiscoverProvider eViewConfigs={eViewConfigs} key={location.key}>
+    <DiscoverProvider
+      eViewConfigs={eViewConfigs}
+      key={location.key}
+      isUpdateFlow={isUpdateFlow}
+      resourceSpecForUpdate={resourceSpecForUpdate}
+      agentMetaForUpdate={agentMetaForUpdate}
+    >
       <DiscoverContent />
     </DiscoverProvider>
   );
@@ -107,6 +120,9 @@ export function Discover() {
   return <DiscoverComponent />;
 }
 
-type Props = {
+export type DiscoverComponentProps = {
   eViewConfigs?: EViewConfigs;
+  isUpdateFlow?: boolean;
+  resourceSpecForUpdate?: ResourceSpec;
+  agentMetaForUpdate?: AgentMeta;
 };
