@@ -188,13 +188,13 @@ func (pm *ProcessManager) Close() {
 	pm.cancel()
 }
 
-// AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and
-// pass the file descriptor for that device over the unix socket found at socketPath.
+// AdminSetup is supposed to be ran as root. It creates and setups a TUN device and passses the file
+// descriptor for that device over the unix socket found at socketPath.
 //
 // It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
-// up to date. It will stay running until the socket at [socketPath] is deleting or encountering an
+// up to date. It will stay running until the socket at [socketPath] is deleted or until encountering an
 // unrecoverable error.
-func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func AdminSetup(ctx context.Context, socketPath, ipv6Prefix, dnsAddr, homePath string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -205,7 +205,7 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, ipv6Prefix, dnsAddr))
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, ipv6Prefix, dnsAddr, homePath))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
@@ -250,8 +250,8 @@ func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, err
 
 // osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
 // order to keep the host OS configuration up to date.
-func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr string) error {
-	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
+func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string) error {
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath)
 	if err != nil {
 		return trace.Wrap(err, "creating OS configurator")
 	}
