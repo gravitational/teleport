@@ -142,10 +142,13 @@ Teleport Connect supports launching applications in the browser, as well as crea
 authenticated tunnels for web and TCP applications.
 
 When it comes to [cloud APIs secured with Application Access](../application-access/cloud-apis.mdx),
-Teleport Connect supports launching the AWS console in the browser, but all other CLI applications
-can be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
+Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
+be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
 ### Launching an application in the browser
+
+Teleport Connect can open a web app in the browser. As browsers and Teleport Connect do not share
+authentication data, you will have to log in to the Web UI before accessing an app.
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
@@ -155,17 +158,41 @@ can be used only through tsh in [a local terminal tab](#opening-a-local-terminal
 Alternatively, you can look for the application in the search bar and press `Enter` to launch it in
 the browser.
 
+### Connecting to TCP apps with VNet on macOS
+
+VNet is a virtual network emulation tool available in Teleport Connect. It enables any program on
+your computer to connect to TCP applications protected by Teleport, with no extra changes required
+to the program itself. It removes the need to manually create tunnels for TCP applications.
+
+This is the recommended way of connecting to TCP apps.
+
+1. Log in to your Teleport cluster.
+1. To start VNet, open the connection list in the top left and click the connect icon to the right of
+   VNet.
+1. Now access any of your TCP apps over its regular public address.
+
+VNet automatically authenticates the connection with your user certificate. See [Using
+VNet](vnet.mdx) for more details.
+
 ### Creating an authenticated tunnel
+
+Teleport Connect can set up an authenticated tunnel on a random port on your device. All connections
+made to that tunnel will be authenticated with your credentials.
+
+Use this method if you want to access an HTTP API that was added to Teleport as a web app (its
+address starts with `https://`), if you don't have administrator rights to your device, or if VNet
+is not yet available on your system.
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
 1. Look for the application you wish to connect to.
   - For TCP applications, click the Connect button.
-  - For web applications, click the three dots next to the Launch button and select Set up
-    connection.
+    - On macOS, click the three dots instead and select "Connect to local port".
+  - For web applications, click the three dots next to the Launch button and select "Set up
+    connection".
 
-Alternatively, you can look for a TCP application in the search bar and press `Enter` to set up a
-connection to it.
+Alternatively, on Windows and Linux you can look for a TCP application in the search bar and press
+`Enter` to set up a connection to it.
 
 A new tab will open with a new connection established between your device and the application.
 

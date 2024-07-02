@@ -25,7 +25,7 @@ export function PasskeyBlurb() {
   return (
     <Box
       border={1}
-      borderColor="interactive.tonal.neutral.2"
+      borderColor="interactive.tonal.neutral.2.background"
       borderRadius={3}
       p={3}
     >

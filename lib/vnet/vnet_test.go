@@ -291,9 +291,9 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 	}
 	if leafClusterName == "" {
 		return &fakeClusterClient{
-			clusterName: profileName,
 			authClient: &fakeAuthClient{
-				apps: rootCluster.apps,
+				clusterSpec: rootCluster,
+				clusterName: profileName,
 			},
 		}, nil
 	}
@@ -302,9 +302,9 @@ func (p *echoAppProvider) GetCachedClient(ctx context.Context, profileName, leaf
 		return nil, trace.NotFound("no cluster for %s.%s", profileName, leafClusterName)
 	}
 	return &fakeClusterClient{
-		clusterName: leafClusterName,
 		authClient: &fakeAuthClient{
-			apps: leafCluster.apps,
+			clusterSpec: leafCluster,
+			clusterName: leafClusterName,
 		},
 	}, nil
 }
@@ -374,8 +374,7 @@ func (p *echoAppProvider) OnNewConnection(ctx context.Context, profileName, leaf
 }
 
 type fakeClusterClient struct {
-	authClient  *fakeAuthClient
-	clusterName string
+	authClient *fakeAuthClient
 }
 
 func (c *fakeClusterClient) CurrentCluster() authclient.ClientI {
@@ -383,19 +382,20 @@ func (c *fakeClusterClient) CurrentCluster() authclient.ClientI {
 }
 
 func (c *fakeClusterClient) ClusterName() string {
-	return c.clusterName
+	return c.authClient.clusterName
 }
 
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
 // basic/faked predicate filtering.
 type fakeAuthClient struct {
 	authclient.ClientI
-	apps []string
+	clusterSpec testClusterSpec
+	clusterName string
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resp := &proto.ListResourcesResponse{}
-	for _, app := range c.apps {
+	for _, app := range c.clusterSpec.apps {
 		// Poor-man's predicate expression filter.
 		if !strings.Contains(req.PredicateExpression, app) {
 			continue
@@ -423,6 +423,39 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 	}
 	resp.TotalCount = int32(len(resp.Resources))
 	return resp, nil
+}
+
+func (c *fakeAuthClient) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
+	remoteClusters := make([]types.RemoteCluster, 0, len(c.clusterSpec.leafClusters))
+	for leafClusterName := range c.clusterSpec.leafClusters {
+		rc, err := types.NewRemoteCluster(leafClusterName)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		remoteClusters = append(remoteClusters, rc)
+	}
+	return remoteClusters, "", nil
+}
+
+func (c *fakeAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return proto.PingResponse{
+		ClusterName:     c.clusterName,
+		ProxyPublicAddr: c.clusterName,
+	}, nil
+}
+
+func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
+	vnetConfig := &vnet.VnetConfig{
+		Spec: &vnet.VnetConfigSpec{
+			Ipv4CidrRange: c.clusterSpec.cidrRange,
+		},
+	}
+	for _, zone := range c.clusterSpec.customDNSZones {
+		vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{
+			Suffix: zone,
+		})
+	}
+	return vnetConfig, nil
 }
 
 func TestDialFakeApp(t *testing.T) {
@@ -460,13 +493,16 @@ func TestDialFakeApp(t *testing.T) {
 				"leaf1.example.com": {
 					apps: []string{"echo1.leaf1.example.com"},
 				},
+				"leaf2.example.com": {
+					apps: []string{"echo1.leaf2.example.com"},
+				},
 			},
 		},
 		"root2.example.com": {
 			apps: []string{"echo1.root2.example.com", "echo2.root2.example.com"},
 			leafClusters: map[string]testClusterSpec{
-				"leaf2.example.com": {
-					apps: []string{"echo1.leaf2.example.com"},
+				"leaf3.example.com": {
+					apps: []string{"echo1.leaf3.example.com"},
 				},
 			},
 		},
@@ -501,11 +537,23 @@ func TestDialFakeApp(t *testing.T) {
 			expectCIDR: "192.168.2.0/24",
 		},
 		{
+			app:        "echo1.leaf1.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
+			app:        "echo1.leaf2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
 			app:        "echo1.root2.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
 		{
 			app:        "echo2.root2.example.com",
+			expectCIDR: defaultIPv4CIDRRange,
+		},
+		{
+			app:        "echo1.leaf3.example.com",
 			expectCIDR: defaultIPv4CIDRRange,
 		},
 	}
@@ -555,9 +603,6 @@ func TestDialFakeApp(t *testing.T) {
 			"not.an.app.example.com.",
 			"not.in.a.custom.zone",
 			"in.an.invalid.zone",
-			// Leaf clusters not supported yet.
-			"echo1.leaf1.example.com.",
-			"echo2.leaf1.example.com.",
 		}
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {

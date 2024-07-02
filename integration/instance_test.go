@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -141,7 +141,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	authRunErrCh := make(chan error, 1)
-	authIdentitiesCh := make(chan *auth.Identity, 2)
+	authIdentitiesCh := make(chan *state.Identity, 2)
 	go func() {
 		authRunErrCh <- service.Run(ctx, *authCfg, func(cfg *servicecfg.Config) (service.Process, error) {
 			proc, err := service.NewTeleport(cfg)
@@ -198,7 +198,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	agentRunErrCh := make(chan error, 1)
-	agentIdentitiesCh := make(chan *auth.Identity, 2)
+	agentIdentitiesCh := make(chan *state.Identity, 2)
 	go func() {
 		agentRunErrCh <- service.Run(ctx, *agentCfg, func(cfg *servicecfg.Config) (service.Process, error) {
 			proc, err := service.NewTeleport(cfg)

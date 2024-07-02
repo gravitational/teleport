@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"os"
 
 	"github.com/gravitational/trace"
 
@@ -55,4 +56,10 @@ func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
 	}
 
 	return trace.Wrap(tbot.ProxySSH(ctx, proxySSHConfig))
+}
+
+// onSSHMultiplexProxyCommand connects to an existing long-lived SSH multiplexer
+// service as opposed to onSSHProxyCommand which completes this on-the-fly.
+func onSSHMultiplexProxyCommand(ctx context.Context, socketPath string, target string) error {
+	return trace.Wrap(tbot.ConnectToSSHMultiplex(ctx, socketPath, target, os.Stdout))
 }

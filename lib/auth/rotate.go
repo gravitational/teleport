@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
 	"time"
@@ -32,11 +31,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RotateRequest is a request to start rotation of the certificate authority.
@@ -373,17 +372,17 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 	if len(req.privateKey) != 0 {
 		log.Infof("Generating CA, using pregenerated test private key.")
 
-		rsaKey, err := ssh.ParseRawPrivateKey(req.privateKey)
+		signer, err := keys.ParsePrivateKey(req.privateKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if len(activeKeys.SSH) > 0 {
-			signer, err := ssh.NewSignerFromKey(rsaKey)
+			sshSigner, err := ssh.NewSignerFromKey(signer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			sshPublicKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
+			sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
 			newKeys.SSH = append(newKeys.SSH, &types.SSHKeyPair{
 				PublicKey:      sshPublicKey,
 				PrivateKey:     req.privateKey,
@@ -393,7 +392,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 
 		if len(activeKeys.TLS) > 0 {
 			tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-				Signer: rsaKey.(*rsa.PrivateKey),
+				Signer: signer,
 				Entity: pkix.Name{
 					CommonName:   ca.GetClusterName(),
 					Organization: []string{ca.GetClusterName()},
@@ -412,7 +411,11 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 		}
 
 		if len(activeKeys.JWT) > 0 {
-			jwtPublicKey, jwtPrivateKey, err := utils.MarshalPrivateKey(rsaKey.(*rsa.PrivateKey))
+			jwtPublicKey, err := keys.MarshalPublicKey(signer.Public())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			jwtPrivateKey, err := keys.MarshalPrivateKey(signer)
 			if err != nil {
 				return trace.Wrap(err)
 			}

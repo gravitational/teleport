@@ -1626,7 +1626,7 @@ exports[`render with all access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/active-directory-manual/"
+      href="https://goteleport.com/docs/desktop-access/active-directory/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"
@@ -5556,7 +5556,7 @@ exports[`render with partial access 1`] = `
     <a
       class="c17 c7"
       data-testid="2"
-      href="https://goteleport.com/docs/desktop-access/active-directory-manual/"
+      href="https://goteleport.com/docs/desktop-access/active-directory/"
       rel="noreferrer"
       style="text-decoration: none;"
       target="_blank"

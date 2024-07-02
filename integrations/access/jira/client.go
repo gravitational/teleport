@@ -163,6 +163,17 @@ func statusFromStatusCode(httpCode int) types.PluginStatus {
 	return &types.PluginStatusV1{Code: code}
 }
 
+// buildSummary creates the Issue's summary by using the user name and roles.
+// No official docs seem to exist, but it's _known_ that summary field must be less than 255 chars:
+// Eg https://community.atlassian.com/t5/Jira-questions/Summary-must-be-less-than-255-characters/qaq-p/989632
+func buildSummary(reqData RequestData) string {
+	summary := fmt.Sprintf("%s requested %s", reqData.User, strings.Join(reqData.Roles, ", "))
+	if len(summary) <= 254 {
+		return summary
+	}
+	return fmt.Sprintf("%s requested access to %d roles", reqData.User, len(reqData.Roles))
+}
+
 // HealthCheck checks Jira endpoint for validity and also checks the project permissions.
 func (j *Jira) HealthCheck(ctx context.Context) error {
 	log := logger.Get(ctx)
@@ -244,7 +255,7 @@ func (j *Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestDat
 		Fields: IssueFieldsInput{
 			Type:        &IssueType{Name: j.issueType},
 			Project:     &Project{Key: j.project},
-			Summary:     fmt.Sprintf("%s requested %s", reqData.User, strings.Join(reqData.Roles, ", ")),
+			Summary:     buildSummary(reqData),
 			Description: description,
 		},
 	}

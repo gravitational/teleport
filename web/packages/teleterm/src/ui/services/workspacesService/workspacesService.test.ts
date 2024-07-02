@@ -16,6 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  DefaultTab,
+  ViewMode,
+  LabelsViewMode,
+  AvailableResourceMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
@@ -85,7 +92,12 @@ describe('restoring workspace', () => {
           location: testWorkspace.location,
         },
         connectMyComputer: undefined,
-        unifiedResourcePreferences: undefined,
+        unifiedResourcePreferences: {
+          defaultTab: DefaultTab.ALL,
+          viewMode: ViewMode.CARD,
+          labelsViewMode: LabelsViewMode.COLLAPSED,
+          availableResourceMode: AvailableResourceMode.NONE,
+        },
       },
     });
   });
@@ -116,7 +128,12 @@ describe('restoring workspace', () => {
         location: clusterDocument.uri,
         previous: undefined,
         connectMyComputer: undefined,
-        unifiedResourcePreferences: undefined,
+        unifiedResourcePreferences: {
+          defaultTab: DefaultTab.ALL,
+          viewMode: ViewMode.CARD,
+          labelsViewMode: LabelsViewMode.COLLAPSED,
+          availableResourceMode: AvailableResourceMode.NONE,
+        },
       },
     });
   });

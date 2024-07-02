@@ -32,6 +32,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -208,6 +209,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGlobalNotificationParser()
 		case types.KindAccessMonitoringRule:
 			parser = newAccessMonitoringRuleParser()
+		case types.KindBotInstance:
+			parser = newBotInstanceParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2102,6 +2105,57 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(globalNotification), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newBotInstanceParser() *botInstanceParser {
+	return &botInstanceParser{
+		baseParser: newBaseParser(backend.Key(botInstancePrefix)),
+	}
+}
+
+type botInstanceParser struct {
+	baseParser
+}
+
+func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+
+		// bot_instance/<1: bot name>/<2: uuid>
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 3 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
+		}
+
+		botInstance := &machineidv1.BotInstance{
+			Kind:    types.KindBotInstance,
+			Version: types.V1,
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    parts[1],
+				InstanceId: parts[2],
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[2],
+			},
+		}
+
+		return types.Resource153ToLegacy(botInstance), nil
+	case types.OpPut:
+		botInstance, err := services.UnmarshalBotInstance(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(botInstance), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

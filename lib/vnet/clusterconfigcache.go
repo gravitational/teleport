@@ -17,97 +17,130 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/singleflight"
-
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 )
 
-type getClusterConfigFunc = func(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
-
-type cacheEntry struct {
-	vnetConfig *vnet.VnetConfig
-	expires    time.Time
+type ClusterConfig struct {
+	// ClusterName is the name of the cluster as reported by Ping.
+	ClusterName string
+	// ProxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
+	// just the hostname. This is often but not always identical to the ClusterName. For root clusters this
+	// will be the same as the profile name (the profile is named after the proxy public addr).
+	ProxyPublicAddr string
+	// DNSZones is the list of DNS zones that are valid for this cluster, this includes ProxyPublicAddr *and*
+	// any configured custom DNS zones for the cluster.
+	DNSZones []string
+	// IPv4CIDRRange is the CIDR range that IPv4 addresses should be assigned from for apps in this cluster.
+	IPv4CIDRRange string
+	// Expires is the time at which this information should be considered stale and refetched. Stale data may
+	// be used if a subsequent fetch fails.
+	Expires time.Time
 }
 
-func (e *cacheEntry) stale(clock clockwork.Clock) bool {
-	return clock.Now().After(e.expires)
+func (e *ClusterConfig) stale(clock clockwork.Clock) bool {
+	return clock.Now().After(e.Expires)
 }
 
-// clusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
+// ClusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
 // minutes, after which they will be re-fetched on the next read.
 //
 // If a read from the cluster fails but there is a stale cache entry present, this prefers to return the stale
 // cached entry. This is desirable in cases where the profile for a cluster expires during VNet operation,
 // it's better to use the stale custom DNS zones than to remove all DNS configuration for that cluster.
-type clusterConfigCache struct {
+type ClusterConfigCache struct {
 	flightGroup singleflight.Group
 	clock       clockwork.Clock
-	get         getClusterConfigFunc
-	cache       map[string]cacheEntry
+	cache       map[string]*ClusterConfig
 	mu          sync.RWMutex
 }
 
-func newClusterConfigCache(get getClusterConfigFunc, clock clockwork.Clock) *clusterConfigCache {
-	return &clusterConfigCache{
+func NewClusterConfigCache(clock clockwork.Clock) *ClusterConfigCache {
+	return &ClusterConfigCache{
 		clock: clock,
-		get:   get,
-		cache: make(map[string]cacheEntry),
+		cache: make(map[string]*ClusterConfig),
 	}
 }
 
-func (c *clusterConfigCache) getVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error) {
-	k := clusterCacheKey(profileName, leafClusterName)
+func (c *ClusterConfigCache) GetClusterConfig(ctx context.Context, clusterClient ClusterClient) (*ClusterConfig, error) {
+	k := clusterClient.ClusterName()
 
 	// Use a singleflight.Group to avoid concurrent requests for the same cluster VnetConfig.
-	vnetConfig, err, _ := c.flightGroup.Do(k, func() (any, error) {
+	result, err, _ := c.flightGroup.Do(k, func() (any, error) {
 		// Check the cache inside flightGroup.Do to avoid the chance of immediate repeat calls to the cluster.
 		c.mu.RLock()
 		existingCacheEntry, existingCacheEntryFound := c.cache[k]
 		c.mu.RUnlock()
 		if existingCacheEntryFound && !existingCacheEntry.stale(c.clock) {
-			return existingCacheEntry.vnetConfig, nil
+			return existingCacheEntry, nil
 		}
 
-		vnetConfig, err := c.get(ctx, profileName, leafClusterName)
-		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
-			// Default to the empty config on NotFound or NotImplemented.
-			vnetConfig = &vnet.VnetConfig{}
-			err = nil
-		}
+		clusterConfig, err := c.getClusterConfigUncached(ctx, clusterClient)
 		if err != nil {
 			// It's better to return a stale cached VnetConfig than an error. The profile probably expired and
 			// we want to keep functioning until a relogin. We don't expect the VnetConfig to change very
 			// often.
 			if existingCacheEntryFound {
-				return existingCacheEntry.vnetConfig, nil
+				return existingCacheEntry, nil
 			}
 			return nil, trace.Wrap(err)
 		}
 
 		c.mu.Lock()
-		c.cache[k] = cacheEntry{
-			vnetConfig: vnetConfig,
-			expires:    c.clock.Now().Add(5 * time.Minute),
-		}
+		c.cache[k] = clusterConfig
 		c.mu.Unlock()
 
-		return vnetConfig, nil
+		return clusterConfig, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return vnetConfig.(*vnet.VnetConfig), nil
+	return result.(*ClusterConfig), nil
 }
 
-func clusterCacheKey(profileName, leafClusterName string) string {
-	if leafClusterName != "" {
-		return profileName + "/" + leafClusterName
+func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clusterClient ClusterClient) (*ClusterConfig, error) {
+	pingResp, err := clusterClient.CurrentCluster().Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return profileName
+
+	clusterName := pingResp.ClusterName
+	proxyPublicAddr := pingResp.ProxyPublicAddr
+	if strings.Contains(proxyPublicAddr, ":") {
+		proxyPublicAddr, _, err = net.SplitHostPort(pingResp.ProxyPublicAddr)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing proxy public addr")
+		}
+	}
+
+	dnsZones := []string{proxyPublicAddr}
+	ipv4CIDRRange := defaultIPv4CIDRRange
+
+	vnetConfig, err := clusterClient.CurrentCluster().GetVnetConfig(ctx)
+	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
+		// Use the defaults set above, nothing to do here.
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
+			dnsZones = append(dnsZones, zone.GetSuffix())
+		}
+		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
+	}
+
+	return &ClusterConfig{
+		ClusterName:     clusterName,
+		ProxyPublicAddr: proxyPublicAddr,
+		DNSZones:        dnsZones,
+		IPv4CIDRRange:   ipv4CIDRRange,
+		Expires:         c.clock.Now().Add(5 * time.Minute),
+	}, nil
 }

@@ -34,3 +34,7 @@ func newHostUsersBackend() (HostUsersBackend, error) {
 func newHostSudoersBackend(_ string) (HostSudoersBackend, error) {
 	return nil, trace.NotImplemented("Host user creation management is only supported on linux")
 }
+
+func readDefaultHome(user string) (string, error) {
+	return "", trace.NotImplemented("readDefaultHome is only supported on linux")
+}

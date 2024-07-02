@@ -118,7 +118,7 @@ jobs:
           args: --out-format=colored-line-number
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@dde0b9351db90fbf78e345f41a57de8514bf1091 # v1.32.2
+      - uses: bufbuild/buf-setup-action@35c243d7f2a909b1d4e40399b348a7fdab27d78d # v1.34.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}

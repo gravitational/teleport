@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
@@ -201,6 +202,22 @@ func (t *templateKubernetes) render(
 		kubernetesClusterName: t.clusterName,
 	}
 
+	// In exec plugin mode, we write the credentials to disk and write a
+	// kubeconfig that execs `tbot` to load those credentials.
+
+	// We only support directory mode for this since the exec plugin needs
+	// to know the path to read the credentials from, and this is
+	// unpredictable with other types of destination.
+	destinationDir, isDirectoryDest := destination.(*DestinationDirectory)
+	if !t.disableExecPlugin {
+		if !isDirectoryDest {
+			log.InfoContext(
+				ctx,
+				"Kubernetes template will be rendered without exec plugin because destination is not a directory. Explicitly set `disable_exec_plugin: true` in the output to suppress this message",
+				"destination", logutils.StringerAttr(destination))
+			t.disableExecPlugin = true
+		}
+	}
 	var cfg *clientcmdapi.Config
 	if t.disableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
@@ -210,20 +227,6 @@ func (t *templateKubernetes) render(
 			return trace.Wrap(err)
 		}
 	} else {
-		// In exec plugin mode, we write the credentials to disk and write a
-		// kubeconfig that execs `tbot` to load those credentials.
-
-		// We only support directory mode for this since the exec plugin needs
-		// to know the path to read the credentials from, and this is
-		// unpredictable with other types of destination.
-		destinationDir, ok := destination.(*DestinationDirectory)
-		if !ok {
-			return trace.BadParameter(
-				"Destination %s must be a directory in exec plugin mode",
-				destination,
-			)
-		}
-
 		executablePath, err := t.executablePathGetter()
 		if err != nil {
 			return trace.Wrap(err)

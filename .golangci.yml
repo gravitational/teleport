@@ -104,6 +104,8 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+          - pkg: github.com/hashicorp/go-version
+            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
       # Prevent logrus from being imported by api. Once everything in teleport has been converted
       # to use log/slog this should be moved into the main block above.
       logrus:
@@ -128,6 +130,7 @@ linters-settings:
           - '**/lib/service/servicecfg/**'
           - '**/lib/reversetunnelclient/**'
           - '**/lib/auth/authclient/**'
+          - '**/lib/cloud/imds/**'
         allow:
           - github.com/gravitational/teleport/lib/cloud/imds
         deny:
@@ -166,6 +169,11 @@ linters-settings:
     context: all
     key-naming-case: snake
     static-msg: true
+    forbidden-keys:
+      - level
+      - msg
+      - source
+      - time
   testifylint:
     disable-all: true
     enable:

@@ -896,7 +896,7 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 			}
 
 			if tt.wantUserMessage != "" {
-				require.NotNil(t, traceErr)
+				require.Error(t, traceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})

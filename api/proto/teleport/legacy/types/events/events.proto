@@ -3074,6 +3074,45 @@ message DatabaseSessionQuery {
   ];
 }
 
+// DatabaseSessionCommandResult represents the result of a user command. It is
+// expected that for each user command/query there will be a corresponding
+// result.
+message DatabaseSessionCommandResult {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates if the command was successful or not.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // AfftectedRecords represents the number of records that were affected by the
+  // command.
+  uint64 AffectedRecords = 6 [(gogoproto.jsontag) = "affected_records,omitempty"];
+}
+
 // DatabasePermissionUpdate is emitted when a user database permissions are updated.
 message DatabasePermissionUpdate {
   // Metadata is a common event metadata.
@@ -3889,6 +3928,9 @@ enum DeviceOrigin {
 
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
+  reserved 7; // string web_session_id
+  reserved "web_session_id";
+
   // ID of the device.
   string device_id = 1 [(gogoproto.jsontag) = "device_id"];
   // OS of the device.
@@ -3903,9 +3945,9 @@ message DeviceMetadata {
   // performed.
   // Only present in "device.authenticate" type events.
   bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
-  // Web Session ID associated with the device.
+  // Device web authentication attempt ID.
   // Present in events related to device web authentication.
-  string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
+  string web_authentication_id = 8 [(gogoproto.jsontag) = "web_authentication_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -4122,6 +4164,7 @@ message OneOf {
     events.DatabaseUserDeactivate DatabaseUserDeactivate = 156;
     events.AccessPathChanged AccessPathChanged = 157;
     events.SpannerRPC SpannerRPC = 158;
+    events.DatabaseSessionCommandResult DatabaseSessionCommandResult = 159;
   }
 }
 
@@ -6159,6 +6202,17 @@ message AuthPreferenceUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AdminActionsMFA indicates whether MFA for admin actions was altered
+  // while updating the authentication preference.
+  AdminActionsMFAStatus AdminActionsMFA = 5 [(gogoproto.jsontag) = "admin_actions_mfa_changed"];
+}
+
+enum AdminActionsMFAStatus {
+  ADMIN_ACTIONS_MFA_STATUS_UNSPECIFIED = 0;
+  ADMIN_ACTIONS_MFA_STATUS_UNCHANGED = 1;
+  ADMIN_ACTIONS_MFA_STATUS_ENABLED = 2;
+  ADMIN_ACTIONS_MFA_STATUS_DISABLED = 3;
 }
 
 // ClusterNetworkingConfigUpdate is emitted when the cluster networking config is updated.

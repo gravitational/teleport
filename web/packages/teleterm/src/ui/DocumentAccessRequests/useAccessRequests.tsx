@@ -74,9 +74,10 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 
   const getRequests = async () => {
     try {
-      const response = await retryWithRelogin(ctx, clusterUri, () =>
-        ctx.clustersService.getAccessRequests(rootClusterUri)
-      );
+      const response = await retryWithRelogin(ctx, clusterUri, async () => {
+        const { response } = await ctx.tshd.getAccessRequests({ clusterUri });
+        return response.requests;
+      });
       setAttempt({ status: 'success' });
       // transform tshd access request to the webui access request and add flags
       const requests = response.map(r => makeUiAccessRequest(r));

@@ -93,6 +93,7 @@ export enum NotificationSubKind {
   AccessRequestPending = 'access-request-pending',
   AccessRequestApproved = 'access-request-approved',
   AccessRequestDenied = 'access-request-denied',
+  AccessRequestPromoted = 'access-request-promoted',
 }
 
 /** LocalNotificationKind is the kind of local notifications which are generated on the frontend and not stored in the backend. These do not need to be kept in sync with the backend. */

@@ -178,6 +178,12 @@ func Run(args []string, stdout io.Writer) error {
 	sshProxyCmd.Flag("proxy-templates", "The path to a file containing proxy templates to be evaluated.").StringVar(&cf.TSHConfigPath)
 	sshProxyCmd.Flag("resume", "Enable SSH connection resumption").BoolVar(&cf.EnableResumption)
 
+	sshMultiplexProxyCmd := app.Command("ssh-multiplexer-proxy-command", "An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service").Hidden()
+	var sshMultiplexSocket string
+	var sshMultiplexData string
+	sshMultiplexProxyCmd.Arg("path", "Path to the listener socket.").Required().StringVar(&sshMultiplexSocket)
+	sshMultiplexProxyCmd.Arg("data", "Connection target.").Required().StringVar(&sshMultiplexData)
+
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
@@ -287,10 +293,28 @@ func Run(args []string, stdout io.Writer) error {
 		defer runtimetrace.Stop()
 	}
 
-	// If migration is specified, we want to run this before the config is
-	// loaded normally.
-	if migrateCmd.FullCommand() == command {
+	// Some commands do not need the full context of the config, so we'll
+	// run these first.
+	switch command {
+	case migrateCmd.FullCommand():
 		return onMigrate(ctx, cf, stdout)
+	case versionCmd.FullCommand():
+		return onVersion()
+	case spiffeInspectCmd.FullCommand():
+		return onSPIFFEInspect(ctx, spiffeInspectPath)
+	case tpmIdentifyCommand.FullCommand():
+		query, err := tpm.Query(ctx, log)
+		if err != nil {
+			return trace.Wrap(err, "querying TPM")
+		}
+		tpm.PrintQuery(query, cf.Debug, os.Stdout)
+		return nil
+	case configureCmd.FullCommand():
+		return onConfigure(ctx, cf, stdout)
+	case sshProxyCmd.FullCommand():
+		return onSSHProxyCommand(ctx, &cf)
+	case sshMultiplexProxyCmd.FullCommand():
+		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
@@ -298,31 +322,18 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err)
 	}
 
+	// The rest of the commands rely on the full config
 	switch command {
-	case versionCmd.FullCommand():
-		err = onVersion()
 	case startCmd.FullCommand():
 		err = onStart(ctx, botConfig)
-	case configureCmd.FullCommand():
-		err = onConfigure(ctx, cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(ctx, botConfig, &cf)
-	case sshProxyCmd.FullCommand():
-		err = onSSHProxyCommand(ctx, &cf)
 	case kubeCredentialsCmd.FullCommand():
 		err = onKubeCredentialsCommand(ctx, botConfig)
-	case spiffeInspectCmd.FullCommand():
-		err = onSPIFFEInspect(ctx, spiffeInspectPath)
-	case tpmIdentifyCommand.FullCommand():
-		query, err := tpm.Query(ctx, log)
-		if err != nil {
-			return trace.Wrap(err, "querying TPM")
-		}
-		tpm.PrintQuery(query, cf.Debug, os.Stdout)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)

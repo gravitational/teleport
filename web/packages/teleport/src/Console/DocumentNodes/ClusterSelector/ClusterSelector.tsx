@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, LabelInput } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 
@@ -29,8 +29,8 @@ export default function ClusterSelector({
   ...styles
 }) {
   const consoleCtx = useConsoleContext();
-  const [errorMessage, setError] = React.useState(null);
-  const [options, setOptions] = React.useState<Option[]>([]);
+  const [errorMessage, setError] = useState(null);
+  const [options, setOptions] = useState<Option[]>([]);
 
   const selectedOption = {
     value,
@@ -44,7 +44,7 @@ export default function ClusterSelector({
   function onLoadOptions(inputValue: string) {
     let promise = Promise.resolve(options);
     if (options.length === 0) {
-      promise = consoleCtx
+      promise = consoleCtx.clustersService
         .fetchClusters()
         .then(clusters =>
           clusters.map(o => ({

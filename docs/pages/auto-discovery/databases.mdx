@@ -26,15 +26,7 @@ discover AWS-hosted databases automatically.
 
 ## Step 1/4. Generate a join token
 
-The Discovery Service requires a valid join token to connect to the cluster.
-
-Generate a join token by running the following command against your Teleport
-Auth Service and save it in `/tmp/token` on the host that will run the
-Discovery Service.
-
-```code
-$ tctl tokens add --type=discovery
-```
+(!docs/pages/includes/tctl-token.mdx serviceName="Discovery" tokenType="discovery" tokenFile="/tmp/token" !)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 

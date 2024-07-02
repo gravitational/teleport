@@ -158,7 +158,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: 759fbcfcd1e9750bb5682ac3777c0e6146b5228d7ae9bba03136f7989eafd12d
+            checksum/config: 9e9cb2e4d76c492bccf0b1e2be4a5acffc8fe747484eb62e615c5ed8dc8c3fc6
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
@@ -422,7 +422,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
       template:
         metadata:
           annotations:
-            checksum/config: 98a7bc8bca7ccc7b9b16552b81cfec61134d375b7a6fb3dc897f3f07bd1164e2
+            checksum/config: 5784fa709686cf9d0818ad218ab23bb886fa3877e4a84eb1bdeb25acbe8e6b3c
           labels:
             app: RELEASE-NAME
         spec:
@@ -1097,6 +1097,162 @@ should mount extraVolumes and extraVolumeMounts:
     - name: my-mount
       secret:
         secretName: mySecret
+should mount jamfCredentialsSecret if it already exists and when role is jamf:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-jamf-api-credentials
+        name: jamf-api-credentials
+        readOnly: true
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: jamf-api-credentials
+      secret:
+        secretName: existing-teleport-jamf-secret
+should mount jamfCredentialsSecret.name when role is jamf:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-jamf-api-credentials
+        name: jamf-api-credentials
+        readOnly: true
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: jamf-api-credentials
+      secret:
+        secretName: teleport-jamf-api-credentials
 should mount tls.existingCASecretName and set environment when set in values:
   1: |
     containers:

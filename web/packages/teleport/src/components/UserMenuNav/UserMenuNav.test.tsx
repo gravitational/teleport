@@ -50,7 +50,6 @@ const server = setupServer(
     return res(
       ctx.json({
         theme: Theme.LIGHT,
-        assist: {},
       })
     );
   })

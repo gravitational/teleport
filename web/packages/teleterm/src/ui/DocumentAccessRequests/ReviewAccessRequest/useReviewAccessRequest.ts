@@ -70,9 +70,12 @@ export function useReviewAccessRequest({
     )
   );
   const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
-    retry(() =>
-      ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
-    )
+    retry(async () => {
+      await ctx.tshd.deleteAccessRequest({
+        rootClusterUri,
+        accessRequestId: requestId,
+      });
+    })
   );
   const [submitReviewAttempt, runSubmitReview] = useAsync(
     (review: SubmitReview) =>

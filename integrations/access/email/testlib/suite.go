@@ -102,8 +102,8 @@ func (s *EmailBaseSuite) SetupTest() {
 
 // startApp starts the email plugin, waits for it to become ready and returns.
 func (s *EmailBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := email.NewApp(s.appConfig)
 	require.NoError(t, err)

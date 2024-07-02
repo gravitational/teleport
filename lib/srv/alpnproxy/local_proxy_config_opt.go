@@ -76,7 +76,9 @@ func WithClusterCAs(ctx context.Context, getClusterCertPool GetClusterCACertPool
 }
 
 // WithClientCert is a LocalProxyConfigOpt that sets the client certs used to
-// connect to the remote Teleport Proxy.
+// connect to the remote Teleport Proxy. Note that when paired with middleware
+// that overwrites the cert, like the CertChecker middleware, this cert will
+// not have a chance to be used.
 func WithClientCert(cert tls.Certificate) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.Cert = cert

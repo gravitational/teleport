@@ -88,8 +88,10 @@ type Identity struct {
 
 	// Below fields are "computed" by ReadIdentityFromStore - this essentially
 	// validates the raw data and saves these being continually recomputed.
-	// KeySigner is an SSH host certificate signer
-	KeySigner ssh.Signer
+	// CertSigner is an ssh.Signer for the certificate and private key.
+	CertSigner ssh.Signer
+	// PrivateKey is a crypto.Signer for the private key.
+	PrivateKey *keys.PrivateKey
 	// SSHCert is a parsed SSH certificate
 	SSHCert *ssh.Certificate
 	// SSHHostCheckers holds the parsed SSH CAs
@@ -156,6 +158,11 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs) (*Ide
 		return nil, trace.BadParameter("identity requires TLS certificates but they are empty")
 	}
 
+	privateKey, err := keys.ParsePrivateKey(params.PrivateKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing private key")
+	}
+
 	sshHostCheckers, keySigner, sshCert, err := parseSSHIdentity(
 		params.PrivateKeyBytes, certs.SSH, certs.SSHCACerts,
 	)
@@ -181,7 +188,8 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs) (*Ide
 
 		// These fields are "computed"
 		ClusterName:     clusterName,
-		KeySigner:       keySigner,
+		CertSigner:      keySigner,
+		PrivateKey:      privateKey,
 		SSHCert:         sshCert,
 		SSHHostCheckers: sshHostCheckers,
 		X509Cert:        x509Cert,

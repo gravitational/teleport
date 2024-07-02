@@ -20,7 +20,8 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Text, Link, Flex, ButtonPrimary } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import FormLogin from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
@@ -124,24 +125,26 @@ function LicenseAcknowledgement({
           </Link>{' '}
           to evaluate and use Teleport.
         </InfoText>
-        <Flex as="label" mt={3} gap={2} alignItems="center">
-          <StyledCheckbox
-            checked={checked}
-            onChange={e => {
-              setChecked(e.target.checked);
-            }}
-          />
-          <Text>
-            By clicking continue, you agree to our{' '}
-            <Link
-              href="https://github.com/gravitational/teleport/blob/master/LICENSE-community"
-              target="_blank"
-            >
-              Terms and Conditions
-            </Link>
-            .
-          </Text>
-        </Flex>
+        <FieldCheckbox
+          mt={3}
+          mb={0}
+          checked={checked}
+          onChange={e => {
+            setChecked(e.target.checked);
+          }}
+          label={
+            <>
+              By clicking continue, you agree to our{' '}
+              <Link
+                href="https://github.com/gravitational/teleport/blob/master/LICENSE-community"
+                target="_blank"
+              >
+                Terms and Conditions
+              </Link>
+              .
+            </>
+          }
+        />
         <ButtonPrimary
           disabled={!checked}
           onClick={() => {

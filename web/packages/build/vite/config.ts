@@ -75,9 +75,7 @@ export function createViteConfig(
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
-            // assist is still lazy loaded and the telemetry bundle breaks any
-            // websocket connections if included in the bundle. We will leave these two
-            // files out of the bundle but without hashing so they are still discoverable.
+            // the telemetry bundle breaks any websocket connections if included in the bundle. We will leave this file out of the bundle but without hashing so it is still discoverable.
             // TODO (avatus): find out why this breaks websocket connectivity and unchunk
             chunkFileNames: 'app/[name].js',
             // this will remove hashing from asset (non-js) files.
@@ -138,6 +136,13 @@ export function createViteConfig(
             secure: false,
             ws: true,
           },
+        // /webapi/sites/:site/kube/exec
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         // /webapi/sites/:site/desktopplayback/:sid
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,

@@ -120,16 +120,20 @@ export function useResourceSearch() {
         : connectedClusters;
 
       const promiseResults = await Promise.allSettled(
-        clustersToSearch.map(cluster =>
-          resourcesService.searchResources({
+        clustersToSearch.map(cluster => {
+          const rootCluster = clustersService.findRootClusterByResource(
+            cluster.uri
+          );
+          return resourcesService.searchResources({
             clusterUri: cluster.uri,
             search,
             filters: resourceTypeSearchFilters.map(f => f.resourceType),
             limit,
             includeRequestable:
-              cluster.showResources === ShowResources.REQUESTABLE,
-          })
-        )
+              rootCluster?.showResources === ShowResources.REQUESTABLE &&
+              !!rootCluster?.features?.advancedAccessWorkflows,
+          });
+        })
       );
 
       const results: resourcesServiceTypes.SearchResult[] = [];

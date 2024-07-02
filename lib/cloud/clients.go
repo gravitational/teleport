@@ -77,6 +77,9 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -946,7 +949,27 @@ func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, e
 		return c.instanceMetadata, nil
 	}
 	logrus.Debug("Initializing instance metadata client.")
-	client, err := DiscoverInstanceMetadata(ctx)
+
+	providers := []func(ctx context.Context) (imds.Client, error){
+		func(ctx context.Context) (imds.Client, error) {
+			clt, err := awsimds.NewInstanceMetadataClient(ctx)
+			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return azureimds.NewInstanceMetadataClient(), nil
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			instancesClient, err := gcp.NewInstancesClient(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
+			return clt, trace.Wrap(err)
+		},
+	}
+
+	client, err := DiscoverInstanceMetadata(ctx, providers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

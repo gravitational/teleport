@@ -517,7 +517,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := utils.ParsePrivateKeyPEM(cfg.Key.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.Key.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -527,7 +527,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	// issuer for an oracle wallet user_cert, and the server cert we create
 	// is not signed by the DB Client CA, so don't pass trusted certs
 	// (DB Client CA) here.
-	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, nil, cfg.Password)
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK.Signer, certBlock, nil, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

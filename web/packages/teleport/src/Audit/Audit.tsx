@@ -72,13 +72,12 @@ export function Audit(props: State) {
       <ExternalAuditStorageCta />
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {!errorMessage && (
-        <Box mb={4}>
-          <ClusterDropdown
-            clusterLoader={ctx.clusterService}
-            clusterId={clusterId}
-            onError={setErrorMessage}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={ctx.clusterService}
+          clusterId={clusterId}
+          onError={setErrorMessage}
+          mb={2}
+        />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.status === 'processing' && (

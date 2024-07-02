@@ -46,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -73,6 +74,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
+	types.NewRule(types.KindVnetConfig, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -1197,7 +1199,7 @@ func (set RoleSet) PinSourceIP() bool {
 
 // GetAccessState returns the AccessState, setting [AccessState.MFARequired]
 // according to the user's roles and cluster auth preference.
-func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+func (set RoleSet) GetAccessState(authPref readonly.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
 		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
@@ -1526,7 +1528,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 // TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 //
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ...AccessState) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
 	_, debugf := rbacDebugLogger()
 
 	if authPref != nil {

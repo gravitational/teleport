@@ -58,13 +58,13 @@ choose:
 
 ## Step 1/5. Create a Teleport token and user
 
-(!docs/pages/includes/database-access/token.mdx!)
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
 ## Step 2/5. Create a certificate/key pair
 
-(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx!)
+(!docs/pages/includes/database-access/tctl-auth-sign-3-files.mdx dbname="Clickhouse" !)
 
 ## Step 3/5. Configure ClickHouse
 

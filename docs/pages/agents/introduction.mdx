@@ -1,6 +1,6 @@
 ---
 title: Protect Infrastructure with Teleport
-description: Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent."
+description: Deploy Agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per Agent.
 ---
 
 You can use Teleport to protect infrastructure resources like servers and
@@ -52,7 +52,8 @@ They should be the only clients that can access a resource without Teleport.
 
 In this setup, Agents dial the Teleport Proxy Service in order to establish
 reverse SSH tunnels. While the Proxy Service remains open to the public internet
-via its HTTPS port, Agents require no open ports or public address.
+via its HTTPS port, Agents require only outbound network access to the Proxy
+Service, and can run behind a firewall.
 
 The Teleport Proxy Service uses these reverse tunnels to forward traffic in
 Teleport's supported protocols to an available Agent. Agents apply RBAC

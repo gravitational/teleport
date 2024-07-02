@@ -38,7 +38,11 @@ import (
 // ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
 // process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
 // with its background tasks.
-func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager, error) {
+func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManager, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +104,8 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		}
 	}
 
-	appResolver, err := NewTCPAppResolver(appProvider)
+	appResolver, err := NewTCPAppResolver(config.AppProvider,
+		WithClusterConfigCache(config.ClusterConfigCache))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,6 +126,23 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 
 	success = true
 	return pm, nil
+}
+
+// SetupAndRunConfig provides collaborators for the [SetupAndRun] function.
+type SetupAndRunConfig struct {
+	// AppProvider is a required field providing an interface implementation for [AppProvider].
+	AppProvider AppProvider
+	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
+	// will be created.
+	ClusterConfigCache *ClusterConfigCache
+}
+
+func (c *SetupAndRunConfig) CheckAndSetDefaults() error {
+	if c.AppProvider == nil {
+		return trace.BadParameter("missing AppProvider")
+	}
+
+	return nil
 }
 
 func newProcessManager() (*ProcessManager, context.Context) {
@@ -176,20 +198,15 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tunCh, errCh := createAndSetupTUNDeviceAsRoot(ctx, ipv6Prefix, dnsAddr)
-	var tun tun.Device
-	select {
-	case tun = <-tunCh:
-	case err := <-errCh:
-		return trace.Wrap(err, "performing admin setup")
-	}
-	tunName, err := tun.Name()
+	tunName, err := createAndSendTUNDevice(ctx, socketPath)
 	if err != nil {
-		return trace.Wrap(err, "getting TUN name")
+		return trace.Wrap(err)
 	}
-	if err := sendTUNNameAndFd(socketPath, tunName, tun.File().Fd()); err != nil {
-		return trace.Wrap(err, "sending TUN over socket")
-	}
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, ipv6Prefix, dnsAddr))
+	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
 	// If the socket is deleted, indicating that the parent process exited, cancel the context and then wait
@@ -204,74 +221,74 @@ func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 				cancel()
 				return trace.Wrap(<-errCh)
 			}
-		case err = <-errCh:
+		case err := <-errCh:
 			return trace.Wrap(err)
 		}
 	}
 }
 
-// createAndSetupTUNDeviceAsRoot creates a virtual network device and configures the host OS to use that device for
-// VNet connections.
-//
-// After the TUN device is created, it will be sent on the result channel. Any error will be sent on the err
-// channel. Always select on both the result channel and the err channel when waiting for a result.
-//
-// This will keep running until [ctx] is canceled or an unrecoverable error is encountered, in order to keep
-// the host OS configuration up to date.
-func createAndSetupTUNDeviceAsRoot(ctx context.Context, ipv6Prefix, dnsAddr string) (<-chan tun.Device, <-chan error) {
-	tunCh := make(chan tun.Device, 1)
-	errCh := make(chan error, 2)
-
+// createAndSendTUNDevice creates a virtual network TUN device and sends the open file descriptor on
+// [socketPath]. It returns the name of the TUN device or an error.
+func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, error) {
 	tun, tunName, err := createTUNDevice(ctx)
 	if err != nil {
-		errCh <- trace.Wrap(err, "creating TUN device")
-		return tunCh, errCh
+		return "", trace.Wrap(err, "creating TUN device")
 	}
-	tunCh <- tun
 
+	defer func() {
+		// We can safely close the TUN device in the admin process after it has been sent on the socket.
+		if err := tun.Close(); err != nil {
+			slog.WarnContext(ctx, "Failed to close TUN device.", "error", trace.Wrap(err))
+		}
+	}()
+
+	if err := sendTUNNameAndFd(socketPath, tunName, tun.File()); err != nil {
+		return "", trace.Wrap(err, "sending TUN over socket")
+	}
+	return tunName, nil
+}
+
+// osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
+// order to keep the host OS configuration up to date.
+func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr string) error {
 	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
 	if err != nil {
-		errCh <- trace.Wrap(err, "creating OS configurator")
-		return tunCh, errCh
+		return trace.Wrap(err, "creating OS configurator")
 	}
 
 	// Clean up any stale configuration left by a previous VNet instance that may have failed to clean up.
 	// This is necessary in case any stale /etc/resolver/<proxy address> entries are still present, we need to
 	// be able to reach the proxy in order to fetch the vnet_config.
 	if err := osConfigurator.deconfigureOS(ctx); err != nil {
-		errCh <- trace.Wrap(err, "cleaning up OS configuration on startup")
-		return tunCh, errCh
+		return trace.Wrap(err, "cleaning up OS configuration on startup")
 	}
 
-	go func() {
-		defer func() {
-			// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
-			// already but we still need to clean up.
-			errCh <- trace.Wrap(osConfigurator.deconfigureOS(context.Background()))
-		}()
-
-		if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
-			errCh <- trace.Wrap(err, "applying initial OS configuration")
-			return
-		}
-
-		// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
-		// reading profiles from TELEPORT_HOME.
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
-					errCh <- trace.Wrap(err, "updating OS configuration")
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
+	defer func() {
+		// Shutting down, deconfigure OS. Pass context.Background because [ctx] has likely been canceled
+		// already but we still need to clean up.
+		if err := osConfigurator.deconfigureOS(context.Background()); err != nil {
+			slog.ErrorContext(ctx, "Error deconfiguring host OS before shutting down.", "error", err)
 		}
 	}()
-	return tunCh, errCh
+
+	if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+		return trace.Wrap(err, "applying initial OS configuration")
+	}
+
+	// Re-configure the host OS every 10 seconds. This will pick up any newly logged-in clusters by
+	// reading profiles from TELEPORT_HOME.
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := osConfigurator.updateOSConfiguration(ctx); err != nil {
+				return trace.Wrap(err, "updating OS configuration")
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {

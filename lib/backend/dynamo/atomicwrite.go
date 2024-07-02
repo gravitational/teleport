@@ -199,6 +199,10 @@ TxnLoop:
 		if err != nil {
 			txnErr := &dynamodb.TransactionCanceledException{}
 			if !errors.As(err, &txnErr) {
+				if s := err.Error(); strings.Contains(s, "AccessDenied") && strings.Contains(s, "dynamodb:ConditionCheckItem") {
+					b.Warnf("AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.  Original error: %v", err)
+					return "", trace.Errorf("teleport is missing required AWS permission dynamodb:ConditionCheckItem, please contact your administrator to update permissions")
+				}
 				return "", trace.Errorf("unexpected error during atomic write: %v", err)
 			}
 

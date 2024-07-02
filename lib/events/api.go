@@ -440,6 +440,9 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+	// DatabaseSessionCommandResult is emitted when a database returns a
+	// query/command result.
+	DatabaseSessionCommandResultEvent = "db.session.result"
 
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.

@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -110,7 +109,6 @@ func init() {
 // AuthServiceClient keeps the interfaces implemented by the auth service.
 type AuthServiceClient struct {
 	proto.AuthServiceClient
-	assist.AssistServiceClient
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
@@ -522,7 +520,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	c.conn = conn
 	c.grpc = AuthServiceClient{
 		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
-		AssistServiceClient:          assist.NewAssistServiceClient(c.conn),
 		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
 		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
 		NotificationServiceClient:    notificationsv1pb.NewNotificationServiceClient(c.conn),
@@ -607,6 +604,8 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 // Config contains configuration of the client
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
+	// If you are using identity file credentials, at least one address must be supplied.
+	// This field is optional if you are using tsh profile credentials.
 	Addrs []string
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
@@ -847,15 +846,14 @@ func (c *Client) TrustClient() trustpb.TrustServiceClient {
 	return trustpb.NewTrustServiceClient(c.conn)
 }
 
-// EmbeddingClient returns an unadorned Embedding client, using the underlying
-// Auth gRPC connection.
-func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
-	return assist.NewAssistEmbeddingServiceClient(c.conn)
-}
-
 // BotServiceClient returns an unadorned client for the bot service.
 func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
+}
+
+// BotInstanceServiceClient returns an unadorned client for the bot instance service
+func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
+	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -877,6 +875,11 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
+}
+
+// GetVnetConfig returns the singleton VnetConfig resource.
+func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
+	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 }
 
 // Ping gets basic info about the auth server.
@@ -3362,6 +3365,14 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {
+	resp, err := c.grpc.GetDesktopBootstrapScript(ctx, &emptypb.Empty{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.GetScript(), nil
+}
+
 // GetWindowsDesktops returns all registered windows desktop hosts.
 func (c *Client) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	resp, err := c.grpc.GetWindowsDesktops(ctx, &filter)
@@ -4748,78 +4759,6 @@ func (c *Client) WatchPendingHeadlessAuthentications(ctx context.Context) (types
 	}
 	go w.receiveEvents()
 	return w, nil
-}
-
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	resp, err := c.grpc.CreateAssistantConversation(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
-// GetAssistantMessages retrieves assistant messages with given conversation ID.
-func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	messages, err := c.grpc.GetAssistantMessages(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return messages, nil
-}
-
-// DeleteAssistantConversation deletes a conversation entry in the backend.
-func (c *Client) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
-	_, err := c.grpc.DeleteAssistantConversation(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
-func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// GetAssistantConversations returns all conversations started by a user.
-func (c *Client) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	messages, err := c.grpc.GetAssistantConversations(ctx, request)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return messages, nil
-}
-
-// CreateAssistantMessage saves a new conversation message.
-func (c *Client) CreateAssistantMessage(ctx context.Context, in *assist.CreateAssistantMessageRequest) error {
-	_, err := c.grpc.CreateAssistantMessage(ctx, in)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpdateAssistantConversationInfo updates conversation info.
-func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist.UpdateAssistantConversationInfoRequest) error {
-	_, err := c.grpc.UpdateAssistantConversationInfo(ctx, in)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
-	result, err := c.EmbeddingClient().GetAssistantEmbeddings(ctx, in)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return result, nil
 }
 
 // GetUserPreferences returns the user preferences for a given user.

@@ -277,13 +277,10 @@ const (
 	// ComponentAthena represents athena clients.
 	ComponentAthena = "athena"
 
-	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
-	// ComponentAssist represents Teleport Assist
-	ComponentAssist = "assist"
-
-	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// IterationsEnvVar sets tests iterations to run
@@ -306,7 +303,7 @@ const (
 	DataDirParameterName = "data_dir"
 
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
-	// a server keep pining each other with it.
+	// a server keep pinging each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like

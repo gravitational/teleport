@@ -38,13 +38,14 @@ import {
   Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
-import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
+
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
@@ -112,7 +113,7 @@ export function RequestCheckoutWithSlider<
       `}
     >
       <Dimmer className={transitionState} />
-      <SidePanel state={transitionState} className={transitionState}>
+      <SidePanel className={transitionState}>
         <RequestCheckout {...props} />
       </SidePanel>
     </div>
@@ -126,15 +127,16 @@ export function RequestCheckout<T extends PendingListItem>({
   appsGrantedByUserGroup = [],
   userGroupFetchAttempt,
   clearAttempt,
-  reviewers,
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  setMaxDuration,
-  setRequestTTL,
+  onMaxDurationChange,
+  maxDurationOptions,
+  setPendingRequestTtl,
+  pendingRequestTtlOptions,
   dryRunResponse,
   data,
   showClusterNameColumn,
@@ -143,14 +145,14 @@ export function RequestCheckout<T extends PendingListItem>({
   createRequest,
   selectedReviewers,
   maxDuration,
-  requestTTL,
+  pendingRequestTtl,
   resourceRequestRoles,
   isResourceRequest,
   selectedResourceRequestRoles,
   Header,
+  startTime,
+  onStartTimeChange,
 }: RequestCheckoutProps<T>) {
-  // Specifies the start date/time a requestor requested for.
-  const [start, setStart] = useState<Date>();
   const [reason, setReason] = useState('');
   function updateReason(reason: string) {
     setReason(reason);
@@ -165,8 +167,8 @@ export function RequestCheckout<T extends PendingListItem>({
       reason,
       suggestedReviewers: selectedReviewers.map(r => r.value),
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
-      requestTTL: requestTTL ? new Date(requestTTL.value) : null,
-      start: start,
+      requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
+      start: startTime,
     });
   }
 
@@ -313,7 +315,7 @@ export function RequestCheckout<T extends PendingListItem>({
               )}
               <Box mt={6} mb={1}>
                 <SelectReviewers
-                  reviewers={reviewers}
+                  reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
                   selectedReviewers={selectedReviewers}
                   setSelectedReviewers={setSelectedReviewers}
                 />
@@ -324,15 +326,14 @@ export function RequestCheckout<T extends PendingListItem>({
                     {dryRunResponse && (
                       <Box mb={1}>
                         <AssumeStartTime
-                          start={start}
-                          onStartChange={setStart}
+                          start={startTime}
+                          onStartChange={onStartTimeChange}
                           accessRequest={dryRunResponse}
                         />
                         <AccessDurationRequest
-                          assumeStartTime={start}
                           maxDuration={maxDuration}
-                          setMaxDuration={setMaxDuration}
-                          accessRequest={dryRunResponse}
+                          onMaxDurationChange={onMaxDurationChange}
+                          maxDurationOptions={maxDurationOptions}
                         />
                       </Box>
                     )}
@@ -343,11 +344,11 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration?.value}
-                        maxDuration={maxDuration}
-                        setRequestTTL={setRequestTTL}
-                        requestTTL={requestTTL}
+                        selectedMaxDurationTimestamp={maxDuration.value}
+                        setPendingRequestTtl={setPendingRequestTtl}
+                        pendingRequestTtl={pendingRequestTtl}
                         dryRunResponse={dryRunResponse}
+                        pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
                     <Flex
@@ -521,34 +522,20 @@ function ResourceRequestRoles({
       {fetchAttempt.status === 'success' && expanded && (
         <Box mt={2}>
           {roles.map((roleName, index) => {
-            const id = `${roleName}${index}`;
+            const checked = selectedRoles.includes(roleName);
             return (
-              <CheckboxWrapper
-                key={index}
-                css={`
-                  width: 100%;
-                  cursor: pointer;
-                  background: ${({ theme }) => theme.colors.levels.surface};
-
-                  &:hover {
-                    border-color: ${({ theme }) =>
-                      theme.colors.levels.elevated};
-                  }
-                `}
-                as="label"
-                htmlFor={id}
-              >
-                <CheckboxInput
-                  type="checkbox"
+              <RoleRowContainer checked={checked}>
+                <StyledFieldCheckbox
+                  key={index}
                   name={roleName}
-                  id={id}
                   onChange={e => {
                     onInputChange(roleName, e);
                   }}
-                  checked={selectedRoles.includes(roleName)}
+                  checked={checked}
+                  label={roleName}
+                  size="small"
                 />
-                {roleName}
-              </CheckboxWrapper>
+              </RoleRowContainer>
             );
           })}
           {selectedRoles.length < roles.length && (
@@ -576,6 +563,45 @@ function ResourceRequestRoles({
     </Box>
   );
 }
+
+const RoleRowContainer = styled.div<{ checked?: boolean }>`
+  transition: all 150ms;
+  position: relative;
+
+  // TODO(bl-nero): That's the third place where we're copying these
+  // definitions. We need to make them reusable.
+  :hover {
+    background-color: ${props => props.theme.colors.levels.surface};
+
+    // We use a pseudo element for the shadow with position: absolute in order to prevent
+    // the shadow from increasing the size of the layout and causing scrollbar flicker.
+    :after {
+      box-shadow: ${props => props.theme.boxShadow[3]};
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      width: 100%;
+      height: 100%;
+    }
+  }
+`;
+
+const StyledFieldCheckbox = styled(FieldCheckbox)`
+  margin: 0;
+  padding: ${p => p.theme.space[2]}px;
+  background-color: ${props =>
+    props.checked
+      ? props.theme.colors.interactive.tonal.primary[2]
+      : 'transparent'};
+  border-bottom: ${props => props.theme.borders[2]}
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
+
+  & > label {
+    display: block; // make it full-width
+  }
+`;
 
 function TextBox({
   reason,
@@ -743,23 +769,26 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     selectedReviewers: ReviewerOption[];
     data: T[];
     showClusterNameColumn?: boolean;
-    setRequestTTL: (value: Option<number>) => void;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';
     fetchResourceRequestRolesAttempt: Attempt;
-    requestTTL: Option<number>;
+    pendingRequestTtl: Option<number>;
+    setPendingRequestTtl: (value: Option<number>) => void;
+    pendingRequestTtlOptions: Option<number>[];
     resourceRequestRoles: string[];
-    reviewers: string[];
+    maxDuration: Option<number>;
+    onMaxDurationChange: (value: Option<number>) => void;
+    maxDurationOptions: Option<number>[];
     setSelectedReviewers: (value: ReviewerOption[]) => void;
-    setMaxDuration: (value: Option<number>) => void;
     clearAttempt: () => void;
     createAttempt: Attempt;
     setSelectedResourceRequestRoles: (value: string[]) => void;
     numRequestedResources: number;
     selectedResourceRequestRoles: string[];
     dryRunResponse: AccessRequest;
-    maxDuration: Option<number>;
     Header?: () => JSX.Element;
+    startTime: Date;
+    onStartTimeChange(t?: Date): void;
   };
 
 type SuccessComponentParams = {

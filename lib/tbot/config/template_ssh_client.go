@@ -20,19 +20,16 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,14 +53,6 @@ type templateSSHClient struct {
 	destPath string
 }
 
-const (
-	// sshConfigName is the name of the ssh_config file on disk
-	sshConfigName = "ssh_config"
-
-	// knownHostsName is the name of the known_hosts file on disk
-	knownHostsName = "known_hosts"
-)
-
 func (c *templateSSHClient) name() string {
 	return TemplateSSHClientName
 }
@@ -71,13 +60,13 @@ func (c *templateSSHClient) name() string {
 func (c *templateSSHClient) describe() []FileDescription {
 	fds := []FileDescription{
 		{
-			Name: knownHostsName,
+			Name: ssh.KnownHostsName,
 		},
 	}
 
 	if c.destPath != "" {
 		fds = append(fds, FileDescription{
-			Name: sshConfigName,
+			Name: ssh.ConfigName,
 		})
 	}
 
@@ -129,7 +118,7 @@ func (c *templateSSHClient) render(
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
-	knownHosts, err := fetchKnownHosts(
+	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		bot,
 		clusterNames,
@@ -139,7 +128,7 @@ func (c *templateSSHClient) render(
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
+	if err := destination.Write(ctx, ssh.KnownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -163,7 +152,7 @@ func (c *templateSSHClient) render(
 	}
 
 	var sshConfigBuilder strings.Builder
-	knownHostsPath := filepath.Join(absDestPath, knownHostsName)
+	knownHostsPath := filepath.Join(absDestPath, ssh.KnownHostsName)
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
@@ -227,41 +216,9 @@ func (c *templateSSHClient) render(
 		}
 	}
 
-	if err := destination.Write(ctx, sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	if err := destination.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, proxyHosts string) (string, error) {
-	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
-	for _, cn := range clusterNames {
-		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: cn,
-		}, false)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		certAuthorities = append(certAuthorities, ca)
-	}
-
-	var sb strings.Builder
-	for _, auth := range authclient.AuthoritiesToTrustedCerts(certAuthorities) {
-		pubKeys, err := auth.SSHCertPublicKeys()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		for _, pubKey := range pubKeys {
-			bytes := ssh.MarshalAuthorizedKey(pubKey)
-			sb.WriteString(fmt.Sprintf(
-				"@cert-authority %s,%s,*.%s %s type=host\n",
-				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
-			))
-		}
-	}
-
-	return sb.String(), nil
 }

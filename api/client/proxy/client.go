@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -431,10 +430,7 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 func (c *Client) Ping(ctx context.Context) error {
 	// TODO(tross): Update to call Ping when it is added to the transport service.
 	// For now we don't really care what method is used we just want to measure
-	// how long it takes to get a reply. This will always fail with a not implemented
-	// error since the Proxy gRPC server doesn't serve the auth service proto. However,
-	// we use it because it's already imported in the api package.
-	clt := authpb.NewAuthServiceClient(c.grpcConn)
-	_, _ = clt.Ping(ctx, &authpb.PingRequest{})
+	// how long it takes to get a reply.
+	_, _ = c.transport.ClusterDetails(ctx)
 	return nil
 }

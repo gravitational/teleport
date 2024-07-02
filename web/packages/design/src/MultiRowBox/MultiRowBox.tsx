@@ -39,7 +39,7 @@ type MultiRowBoxProps = {
  */
 export const MultiRowBox = styled(Box)`
   border: ${props =>
-    `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
+    `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2].background}`};
   border-radius: ${props => props.theme.radii[2]}px;
 `;
 
@@ -48,7 +48,7 @@ export const Row = styled(Box)`
   padding: ${props => props.theme.space[4]}px;
   &:not(:last-child) {
     border-bottom: ${props =>
-      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
+      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2].background}`};
   }
 `;
 

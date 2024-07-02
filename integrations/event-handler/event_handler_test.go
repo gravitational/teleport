@@ -127,6 +127,7 @@ func (s *EventHandlerSuite) SetupTest() {
 }
 
 func (s *EventHandlerSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
 	t.Helper()
 

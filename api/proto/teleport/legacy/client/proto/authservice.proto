@@ -1551,6 +1551,12 @@ message WindowsDesktopCertResponse {
   bytes Cert = 1;
 }
 
+// Response message for GetDesktopBootstrapScript.
+message DesktopBootstrapScriptResponse {
+  // The PowerShell script content.
+  string Script = 1 [(gogoproto.jsontag) = "script"];
+}
+
 // ListSAMLIdPServiceProvidersRequest is a request for a paginated list of SAML IdP service providers.
 message ListSAMLIdPServiceProvidersRequest {
   // Limit is the maximum amount of resources to retrieve.
@@ -3220,6 +3226,8 @@ service AuthService {
   rpc GenerateWindowsDesktopCert(WindowsDesktopCertRequest) returns (WindowsDesktopCertResponse);
   // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
   rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
+  // GetDesktopBootstrapScript returns a PowerShell script to bootstrap Active Directory.
+  rpc GetDesktopBootstrapScript(google.protobuf.Empty) returns (DesktopBootstrapScriptResponse);
 
   // CreateConnectionDiagnostic creates a new connection diagnostic.
   rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);

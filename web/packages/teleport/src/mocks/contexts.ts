@@ -65,7 +65,6 @@ export const allAccessAcl: Acl = {
   integrations: { ...fullAccess, use: true },
   deviceTrust: fullAccess,
   lock: fullAccess,
-  assist: fullAccess,
   samlIdpServiceProvider: fullAccess,
   accessList: fullAccess,
   auditQuery: fullAccess,

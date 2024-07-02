@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 import { Card } from 'design';
 
-export const OnboardCard = styled(Card)<{ center: boolean }>`
+export const OnboardCard = styled(Card)<{ center?: boolean }>`
   width: 600px;
   padding: ${props => props.theme.space[4]}px;
   text-align: ${props => (props.center ? 'center' : 'left')};

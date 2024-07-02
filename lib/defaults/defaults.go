@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -723,6 +722,9 @@ const (
 
 	// WebsocketLatency provides latency information for a session.
 	WebsocketLatency = "l"
+
+	// WebsocketKubeExec provides latency information for a session.
+	WebsocketKubeExec = "k"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -735,13 +737,6 @@ const (
 )
 
 const (
-	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
-	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
-	ApplicationTokenKeyType = "RSA"
-	// ApplicationTokenAlgorithm is the default algorithm used to sign
-	// application access tokens.
-	ApplicationTokenAlgorithm = jose.RS256
-
 	// JWTUse is the default usage of the JWT.
 	// See https://www.rfc-editor.org/rfc/rfc7517#section-4.2 for more information.
 	JWTUse = "sig"

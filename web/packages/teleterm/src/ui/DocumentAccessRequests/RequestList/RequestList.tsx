@@ -36,6 +36,7 @@ import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
 } from 'shared/components/AccessRequests/Shared/Shared';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 
 export function RequestList({
   attempt,
@@ -140,24 +141,6 @@ export function RequestList({
       />
     </Layout>
   );
-}
-
-function requestMatcher(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof AccessRequest & string
-) {
-  if (propName === 'roles') {
-    return targetValue.some((role: string) =>
-      role.toUpperCase().includes(searchValue)
-    );
-  }
-
-  if (propName === 'resources') {
-    return targetValue.some((r: any) =>
-      Object.keys(r).some(k => r[k].toUpperCase().includes(searchValue))
-    );
-  }
 }
 
 const renderActionCell = (

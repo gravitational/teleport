@@ -287,7 +287,7 @@ function Header({
           box-sizing: border-box;
           gap: 12px;
           border-bottom: 1px solid
-            ${p => p.theme.colors.interactive.tonal.neutral[2]};
+            ${p => p.theme.colors.interactive.tonal.neutral[2].background};
           padding-bottom: ${p => p.theme.space[3]}px;
           margin-bottom: ${p => p.theme.space[3]}px;
         `}
@@ -326,9 +326,11 @@ function EmptyState() {
           justify-content: center;
           height: 88px;
           width: 88px;
-          background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+          background-color: ${p =>
+            p.theme.colors.interactive.tonal.neutral[0].background};
           border-radius: ${p => p.theme.radii[7]}px;
-          border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[1]};
+          border: 1px solid
+            ${p => p.theme.colors.interactive.tonal.neutral[1].background};
         `}
       >
         <BellRinging size={40} />
@@ -496,7 +498,7 @@ const ViewButton = styled.div<{ selected: boolean }>`
 
 export type View = 'All' | 'Unread';
 
-const NotificationsList = styled.div<{ isScrollbarVisible: boolean }>`
+const NotificationsList = styled.div`
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -511,7 +513,8 @@ const NotificationsList = styled.div<{ isScrollbarVisible: boolean }>`
   padding-right: ${p => `${p.theme.space[3] - 8}px`};
 
   ::-webkit-scrollbar-thumb {
-    background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+    background-color: ${p =>
+      p.theme.colors.interactive.tonal.neutral[2].background};
     border-radius: ${p => p.theme.radii[2]}px;
     // Trick to make the scrollbar thumb 2px narrower than the track.
     border: 2px solid transparent;
@@ -522,7 +525,8 @@ const NotificationsList = styled.div<{ isScrollbarVisible: boolean }>`
     width: 8px;
     border-radius: ${p => p.theme.radii[2]}px;
     border-radius: ${p => p.theme.radii[2]}px;
-    background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+    background-color: ${p =>
+      p.theme.colors.interactive.tonal.neutral[0].background};
   }
 
   .notification {

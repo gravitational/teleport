@@ -83,8 +83,9 @@ func (s *ServiceNowBaseSuite) SetupTest() {
 
 // startApp starts the ServiceNow plugin, waits for it to become ready and returns.
 func (s *ServiceNowBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

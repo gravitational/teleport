@@ -31,6 +31,7 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { isTshdRpcError } from 'teleterm/services/tshd';
 
 /**
  * VnetContext manages the VNet instance.
@@ -47,6 +48,8 @@ export type VnetContext = {
   startAttempt: Attempt<void>;
   stop: () => Promise<[void, Error]>;
   stopAttempt: Attempt<void>;
+  listDNSZones: () => Promise<[string[], Error]>;
+  listDNSZonesAttempt: Attempt<string[]>;
 };
 
 export type VnetStatus =
@@ -81,7 +84,13 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
-      await vnet.start({});
+      try {
+        await vnet.start({});
+      } catch (error) {
+        if (!isTshdRpcError(error, 'ALREADY_EXISTS')) {
+          throw error;
+        }
+      }
       setStatus({ value: 'running' });
       setAppState({ autoStart: true });
     }, [vnet, setAppState])
@@ -96,6 +105,13 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
       });
       setAppState({ autoStart: false });
     }, [vnet, setAppState])
+  );
+
+  const [listDNSZonesAttempt, listDNSZones] = useAsync(
+    useCallback(
+      () => vnet.listDNSZones({}).then(({ response }) => response.dnsZones),
+      [vnet]
+    )
   );
 
   useEffect(() => {
@@ -151,6 +167,8 @@ export const VnetContextProvider: FC<PropsWithChildren> = props => {
         startAttempt,
         stop,
         stopAttempt,
+        listDNSZones,
+        listDNSZonesAttempt,
       }}
     >
       {props.children}

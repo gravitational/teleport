@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -49,6 +51,11 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
+
+var clientMetrics = metrics.CreateGRPCClientMetrics(
+	false,
+	prometheus.Labels{},
+)
 
 const componentTBot = "tbot"
 
@@ -120,6 +127,10 @@ func (b *Bot) BotIdentity() *identity.Identity {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+
+	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
@@ -290,6 +301,21 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, &ExampleService{
 				cfg: svcCfg,
 			})
+		case *config.SSHMultiplexerService:
+			svc := &SSHMultiplexerService{
+				alpnUpgradeCache:  alpnUpgradeCache,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -506,7 +532,11 @@ func clientForFacade(
 		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
 		ProxyDialer: dialer,
-		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
+		DialOpts: []grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot),
+			grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+			grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
+		},
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)

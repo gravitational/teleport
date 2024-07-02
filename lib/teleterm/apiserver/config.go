@@ -20,6 +20,7 @@ package apiserver
 
 import (
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -41,6 +42,7 @@ type Config struct {
 	// Log is a component logger
 	Log             logrus.FieldLogger
 	TshdServerCreds grpc.ServerOption
+	Clock           clockwork.Clock
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
 	ListeningC chan<- utils.NetAddr
@@ -74,6 +76,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.ClusterIDCache == nil {
 		c.ClusterIDCache = &clusteridcache.Cache{}
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 
 	return nil

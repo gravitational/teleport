@@ -86,12 +86,13 @@ Teleport provides several pre-defined roles out-of-the-box:
 
 ### Role versions
 
-There are currently four supported role versions: `v3`, `v4`, `v5`, `v6` and `v7`. `v4`, `v5` and `v6` roles are
-completely backwards-compatible with `v3`, the only difference lies in the
-default values which will be applied to the role if they are not
-explicitly set. Additionally, roles `v5` or `v6` are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v7`.
 
-Label              | `v3` Default   | `v4`, `v5` and `v6` Default
+`v4` and higher roles are completely backwards compatible with `v3`. The only difference
+lies in the default values which will be applied to the role if they are not explicitly set.
+Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+
+Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`

@@ -212,6 +212,7 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \

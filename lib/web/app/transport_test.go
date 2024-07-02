@@ -389,7 +389,6 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				jwtKey, err := jwt.New(&jwt.Config{
 					Clock:       tr.c.clock,
 					PrivateKey:  tt.jwtPrivateKey,
-					Algorithm:   defaults.ApplicationTokenAlgorithm,
 					ClusterName: types.TeleportAzureMSIEndpoint,
 				})
 				require.NoError(t, err)
@@ -410,7 +409,6 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				wsJWTKey, err := jwt.New(&jwt.Config{
 					Clock:       tr.c.clock,
 					PrivateKey:  wsPrivateKey,
-					Algorithm:   defaults.ApplicationTokenAlgorithm,
 					ClusterName: types.TeleportAzureMSIEndpoint,
 				})
 				require.NoError(t, err)

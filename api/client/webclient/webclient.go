@@ -326,8 +326,6 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
-	// AssistEnabled is true when Teleport Assist is enabled.
-	AssistEnabled bool `json:"assist_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings

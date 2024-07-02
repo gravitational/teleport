@@ -11,11 +11,11 @@ description: How to configure Teleport database access with AWS RDS and Aurora f
 (!docs/pages/includes/database-access/how-it-works/iam.mdx db="RDS" cloud="AWS"!)
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
+<TabItem label="Self-Hosted">
+![Teleport Architecture RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
+<TabItem label="Cloud-Hosted">
+![Teleport Architecture RDS Cloud-Hosted](../../../img/database-access/guides/rds_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -136,43 +136,24 @@ Next, get your environment ready to run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Generate a configuration for the Teleport Database Service:
-
-Generate a configuration file for the Teleport Database Service. Run one of the
-following commands, depending on whether you want to proxy an AWS Aurora or
-Amazon RDS instance. 
-
-Assign <Var name="example.teleport.sh:443" /> to the host **and port** of your
-Teleport Proxy Service or Enterprise Cloud site. Assign <Var name="us-west-1" />
-to the region associated with the RDS database.
-
-Run the following command to proxy an AWS Aurora cluster, assigning <Var
-name="RDS_URI" /> to your cluster's domain name and port and <Var
-name="protocol" /> to either `postgres` or `mysql`, depending on the database
-you want to proxy:
+Provide the following information and then generate a configuration file for the
+Teleport Database Service:
+- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport
+Proxy Service or cloud-hosted Teleport Enterprise site
+- <Var name="protocol" /> The protocol of the database you want to proxy, either
+`mysql` or `postgres`
+- <Var name="endpoint:port" /> The endpoint **and port** of the database - the
+cluster endpoint for Aurora or the instance endpoint for an RDS instance, e.g.
+`myrds.us-east-1.rds.amazonaws.com:5432`
 
 ```code
 $ sudo teleport db configure create \
    -o file \
-   --name="postgres-rds" \
+   --name=rds-example \
    --proxy=<Var name="example.teleport.sh:443" />  \
    --protocol=<Var name="protocol" /> \
-   --uri=<Var name="RDS_URI" /> \
-   --token=/tmp/token
-```
-
-Run the following command to proxy an AWS RDS instance, assigning <Var
-name="RDS_URI" /> to your instance's domain name and port and <Var
-name="protocol" /> to either `postgres` or `mysql`, depending on the database
-you want to proxy:
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --name="postgres-rds" \
-   --proxy=<Var name="example.teleport.sh:443" />  \
-   --protocol=<Var name="protocol" /> \
-   --uri=<Var name="RDS_URI" /> \
+   --uri=<Var name="endpoint:port" /> \
+   --labels=env=dev \
    --token=/tmp/token
 ```
 
@@ -339,7 +320,7 @@ Token                            Type Labels Expiry Time (UTC)
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, <Var
 name="example.teleport.sh:443" /> to the host **and port** of your Teleport
-Proxy Service, and <Var name="rds-uri" /> to the host **and port** of your RDS
+Proxy Service, and <Var name="endpoint:port" /> to the host **and port** of your RDS
 database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
 
 ```var
@@ -348,12 +329,10 @@ proxyAddr: <Var name="example.teleport.sh:443" />
 roles: db
 databases:
 - name: example
-  uri: "<Var name="rds-uri" />"
+  uri: "<Var name="endpoint:port" />"
   protocol: <Var name="protocol" />
   static_labels:
     env: dev
-  aws:
-    region: "<Var name="rds-region" />"
 annotations:
   serviceAccount:
     eks.amazonaws.com/role-arn: arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
@@ -421,24 +400,15 @@ Once the Database Service has started and joined the cluster, log in as the
 ```code
 $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=alice
 $ tsh db ls
-# Name         Description Labels
-# ------------ ----------- --------
-# postgres-rds 
+# Name        Description Labels
+# ----------- ----------- --------
+# rds-example             env=dev
 ```
 
-Retrieve credentials for a database and connect to it as the `alice` user,
-assigning <Var name="postgres-rds" /> to the name of a database resource listed
-by `tsh db ls`:
+Retrieve credentials for the database and connect to it as the `alice` user:
 
 ```code
-$ tsh db connect <Var name="postgres-rds" /> --db-user=alice
-```
-
-You can optionally specify the database name to use by default when connecting
-to the database instance:
-
-```code
-$ tsh db connect --db-user=postgres --db-name=postgres <Var name="postgres-rds" />
+$ tsh db connect --db-user=postgres --db-name=postgres rds-example
 ```
 
 <Admonition type="note" title="Note">
@@ -449,7 +419,7 @@ $ tsh db connect --db-user=postgres --db-name=postgres <Var name="postgres-rds" 
 Log out of the database and remove credentials:
 
 ```code
-$ tsh db logout <Var name="postgres-rds" /> 
+$ tsh db logout rds-example
 ```
 
 ## Troubleshooting

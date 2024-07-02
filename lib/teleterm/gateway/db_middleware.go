@@ -20,6 +20,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 
@@ -31,7 +32,7 @@ import (
 )
 
 type dbMiddleware struct {
-	onExpiredCert func(context.Context) error
+	onExpiredCert func(context.Context) (tls.Certificate, error)
 	log           *logrus.Entry
 	dbRoute       tlsca.RouteToDatabase
 }
@@ -55,7 +56,13 @@ func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy)
 
 	m.log.WithError(err).Debug("Gateway certificates have expired")
 
-	return trace.Wrap(m.onExpiredCert(ctx))
+	cert, err := m.onExpiredCert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	lp.SetCert(cert)
+	return nil
 }
 
 // OnStart is a noop. client.DBCertChecker.OnStart checks cert validity. However in Connect there's

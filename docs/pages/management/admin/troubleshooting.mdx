@@ -37,7 +37,7 @@ To change the instance log level use the `teleport debug set-log-level` command:
 $ teleport debug set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
 
-$ kubectl -n teleport exec my-pod -- teleport set-log-level DEBUG 
+$ kubectl -n teleport exec my-pod -- teleport set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
 ```
 
@@ -177,7 +177,7 @@ Teleport v9.0.4 git: go1.18
 
 <Tabs>
 <TabItem scope={["cloud", "enterprise","team"]} label="Commercial Teleport Editions">
-If you have a question or need assistance please submit a request 
+If you have a question or need assistance please submit a request
 through the [Teleport support portal](https://support.goteleport.com).
 
 </TabItem>
@@ -224,7 +224,7 @@ tunnel via the Proxy Service. This means that `teleport.cluster.local` appears
 in log messages that show the URL of a request made to the Auth Service, and
 does not explicitly indicate that something is misconfigured.
 
-### `ssh: overflow reading version string`
+### `ssh: overflow reading version string` and/or `502: Bad Gateway` errors
 
 (!docs/pages/includes/tls-multiplexing-warnings.mdx!)
 

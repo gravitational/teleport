@@ -20,6 +20,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"testing"
 	"time"
 
@@ -107,9 +108,9 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 			hasCalledOnExpiredCert := false
 
 			middleware := &dbMiddleware{
-				onExpiredCert: func(context.Context) error {
+				onExpiredCert: func(context.Context) (tls.Certificate, error) {
 					hasCalledOnExpiredCert = true
-					return nil
+					return tls.Certificate{}, nil
 				},
 				log:     logrus.WithField(teleport.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,

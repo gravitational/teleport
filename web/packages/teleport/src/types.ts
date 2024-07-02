@@ -180,7 +180,7 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  assist: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;

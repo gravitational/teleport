@@ -21,7 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -45,16 +44,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
@@ -194,42 +195,43 @@ func TestDatabaseServerResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	// get all database servers
-	buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
+	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
 	require.NoError(t, err)
 	requireGotDatabaseServers(t, buff, db1, db2, db3)
 
 	// get specific database server
 	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, db2.GetName())
-	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", wantServer, "--format=json"})
 	require.NoError(t, err)
 	requireGotDatabaseServers(t, buff, db2)
 
 	// get database servers by discovered name
 	wantServersDiscoveredName := fmt.Sprintf("%v/%v", types.KindDatabaseServer, "example")
-	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServersDiscoveredName, "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", wantServersDiscoveredName, "--format=json"})
 	require.NoError(t, err)
 	requireGotDatabaseServers(t, buff, db1, db2)
 
 	// remove multiple distinct database servers by discovered name is an error
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServersDiscoveredName})
+	_, err = runResourceCommand(t, clt, []string{"rm", wantServersDiscoveredName})
 	require.ErrorContains(t, err, "db_server/example matches multiple auto-discovered database servers")
 
 	// remove database server by name
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServer})
+	_, err = runResourceCommand(t, clt, []string{"rm", wantServer})
 	require.NoError(t, err)
 
-	_, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	_, err = runResourceCommand(t, clt, []string{"get", wantServer, "--format=json"})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// remove database server by discovered name.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServersDiscoveredName})
+	_, err = runResourceCommand(t, clt, []string{"rm", wantServersDiscoveredName})
 	require.NoError(t, err)
 
-	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db_server/db3", "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", "db_server/db3", "--format=json"})
 	require.NoError(t, err)
 	requireGotDatabaseServers(t, buff, db3)
 }
@@ -259,6 +261,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -283,7 +286,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	t.Run("test pagination of database services ", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseService, "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseService, "--format=json"})
 		require.NoError(t, err)
 		out := mustDecodeJSON[[]*types.DatabaseServiceV1](t, buff)
 		require.Len(t, out, totalDBServices)
@@ -292,7 +295,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	service := fmt.Sprintf("%v/%v", types.KindDatabaseService, randomDBServiceName)
 
 	t.Run("get specific database service", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", service, "--format=json"})
 		require.NoError(t, err)
 		out := mustDecodeJSON[[]*types.DatabaseServiceV1](t, buff)
 		require.Len(t, out, 1)
@@ -301,12 +304,12 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	t.Run("get unknown database service", func(t *testing.T) {
 		unknownService := fmt.Sprintf("%v/%v", types.KindDatabaseService, "unknown")
-		_, err := runResourceCommand(t, fileConfig, []string{"get", unknownService, "--format=json"})
+		_, err := runResourceCommand(t, clt, []string{"get", unknownService, "--format=json"})
 		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 	})
 
 	t.Run("get specific database service with human output", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=text"})
+		buff, err := runResourceCommand(t, clt, []string{"get", service, "--format=text"})
 		require.NoError(t, err)
 		outputString := buff.String()
 		require.Contains(t, outputString, "env=[prod]")
@@ -339,6 +342,7 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	t.Run("get", func(t *testing.T) {
 
@@ -363,7 +367,7 @@ func TestIntegrationResource(t *testing.T) {
 		}
 
 		t.Run("test pagination of integrations ", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindIntegration, "--format=json"})
+			buff, err := runResourceCommand(t, clt, []string{"get", types.KindIntegration, "--format=json"})
 			require.NoError(t, err)
 			out := mustDecodeJSON[[]types.IntegrationV1](t, buff)
 			require.Len(t, out, totalIntegrations)
@@ -372,7 +376,7 @@ func TestIntegrationResource(t *testing.T) {
 		igName := fmt.Sprintf("%v/%v", types.KindIntegration, randomIntegrationName)
 
 		t.Run("get specific integration", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=json"})
+			buff, err := runResourceCommand(t, clt, []string{"get", igName, "--format=json"})
 			require.NoError(t, err)
 			out := mustDecodeJSON[[]types.IntegrationV1](t, buff)
 			require.Len(t, out, 1)
@@ -381,12 +385,12 @@ func TestIntegrationResource(t *testing.T) {
 
 		t.Run("get unknown integration", func(t *testing.T) {
 			unknownIntegration := fmt.Sprintf("%v/%v", types.KindIntegration, "unknown")
-			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownIntegration, "--format=json"})
+			_, err := runResourceCommand(t, clt, []string{"get", unknownIntegration, "--format=json"})
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 		})
 
 		t.Run("get specific integration with human output", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=text"})
+			buff, err := runResourceCommand(t, clt, []string{"get", igName, "--format=text"})
 			require.NoError(t, err)
 			outputString := buff.String()
 			require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
@@ -397,10 +401,10 @@ func TestIntegrationResource(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		integrationYAMLPath := filepath.Join(t.TempDir(), "integration.yaml")
 		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAML), 0644))
-		_, err := runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		_, err := runResourceCommand(t, clt, []string{"create", integrationYAMLPath})
 		require.NoError(t, err)
 
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "integration/myawsint", "--format=text"})
 		require.NoError(t, err)
 		outputString := buff.String()
 		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
@@ -411,15 +415,15 @@ func TestIntegrationResource(t *testing.T) {
 		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAMLV2), 0644))
 
 		// Trying to create it again should return an error
-		_, err = runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		_, err = runResourceCommand(t, clt, []string{"create", integrationYAMLPath})
 		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 		// Using the force should be ok and replace the current object
-		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", integrationYAMLPath})
+		_, err = runResourceCommand(t, clt, []string{"create", "--force", integrationYAMLPath})
 		require.NoError(t, err)
 
 		// The RoleARN must be updated
-		buff, err = runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		buff, err = runResourceCommand(t, clt, []string{"get", "integration/myawsint", "--format=text"})
 		require.NoError(t, err)
 		outputString = buff.String()
 		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/DevTeam")
@@ -451,6 +455,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -476,7 +481,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 		}
 
 		t.Run("test pagination of discovery configs ", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDiscoveryConfig, "--format=json"})
+			buff, err := runResourceCommand(t, clt, []string{"get", types.KindDiscoveryConfig, "--format=json"})
 			require.NoError(t, err)
 			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
 			require.Len(t, out, totalDiscoveryConfigs)
@@ -485,7 +490,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 		dcName := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, randomDiscoveryConfigName)
 
 		t.Run("get specific discovery config", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=json"})
+			buff, err := runResourceCommand(t, clt, []string{"get", dcName, "--format=json"})
 			require.NoError(t, err)
 			out := mustDecodeJSON[[]discoveryconfig.DiscoveryConfig](t, buff)
 			require.Len(t, out, 1)
@@ -494,12 +499,12 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		t.Run("get unknown discovery config", func(t *testing.T) {
 			unknownDiscoveryConfig := fmt.Sprintf("%v/%v", types.KindDiscoveryConfig, "unknown")
-			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownDiscoveryConfig, "--format=json"})
+			_, err := runResourceCommand(t, clt, []string{"get", unknownDiscoveryConfig, "--format=json"})
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 		})
 
 		t.Run("get specific discovery config with human output", func(t *testing.T) {
-			buff, err := runResourceCommand(t, fileConfig, []string{"get", dcName, "--format=text"})
+			buff, err := runResourceCommand(t, clt, []string{"get", dcName, "--format=text"})
 			require.NoError(t, err)
 			outputString := buff.String()
 			require.Contains(t, outputString, "prod-resources")
@@ -510,10 +515,10 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		discoveryConfigYAMLPath := filepath.Join(t.TempDir(), "discoveryConfig.yaml")
 		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAML), 0644))
-		_, err := runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		_, err := runResourceCommand(t, clt, []string{"create", discoveryConfigYAMLPath})
 		require.NoError(t, err)
 
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
 		require.NoError(t, err)
 		outputString := buff.String()
 		require.Contains(t, outputString, "my-discovery-config")
@@ -524,15 +529,15 @@ func TestDiscoveryConfigResource(t *testing.T) {
 		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAMLV2), 0644))
 
 		// Trying to create it again should return an error
-		_, err = runResourceCommand(t, fileConfig, []string{"create", discoveryConfigYAMLPath})
+		_, err = runResourceCommand(t, clt, []string{"create", discoveryConfigYAMLPath})
 		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 		// Using the force should be ok and replace the current object
-		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", discoveryConfigYAMLPath})
+		_, err = runResourceCommand(t, clt, []string{"create", "--force", discoveryConfigYAMLPath})
 		require.NoError(t, err)
 
 		// The DiscoveryGroup must be updated
-		buff, err = runResourceCommand(t, fileConfig, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
+		buff, err = runResourceCommand(t, clt, []string{"get", "discovery_config/my-discovery-config", "--format=text"})
 		require.NoError(t, err)
 		outputString = buff.String()
 		require.Contains(t, outputString, "mydg2")
@@ -562,7 +567,8 @@ func TestCreateLock(t *testing.T) {
 
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	_, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
@@ -573,7 +579,7 @@ func TestCreateLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure there are no locks to start
-	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindLock, "--format=json"})
 	require.NoError(t, err)
 	locks := mustDecodeJSON[[]*types.LockV2](t, buf)
 	require.Empty(t, locks)
@@ -581,11 +587,11 @@ func TestCreateLock(t *testing.T) {
 	// Create the locks
 	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
 	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
-	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", lockYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the locks
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindLock, "--format=json"})
 	require.NoError(t, err)
 	locks = mustDecodeJSON[[]*types.LockV2](t, buf)
 	require.Len(t, locks, 1)
@@ -633,18 +639,14 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	// Reset RootCertPool and run tctl command with --insecure flag.
-	opts := []optionsFunc{
-		withRootCertPool(x509.NewCertPool()),
-		withInsecure(true),
-	}
-	_, err := runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath}, opts...)
+	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -774,7 +776,8 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		desc               string
@@ -830,11 +833,11 @@ version: v2`,
 			capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
 			require.NoError(t, os.WriteFile(capYAMLPath, []byte(tt.input), 0644))
 
-			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", capYAMLPath})
+			_, err := runResourceCommand(t, clt, []string{"create", "-f", capYAMLPath})
 			tt.expectError(t, err)
 
 			if tt.expectSecondFactor != nil {
-				buf, err := runResourceCommand(t, fileConfig, []string{"get", "cap", "--format=json"})
+				buf, err := runResourceCommand(t, clt, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
 				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
 				require.NotZero(t, len(authPreferences))
@@ -858,7 +861,8 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		desc           string
@@ -932,11 +936,11 @@ spec:
 			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
 			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
 
-			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", spYAMLPath})
+			_, err := runResourceCommand(t, clt, []string{"create", "-f", spYAMLPath})
 			tt.expectError(t, err)
 
 			if tt.expectEntityID != nil {
-				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				buf, err := runResourceCommand(t, clt, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
 				require.NoError(t, err)
 				sps := mustDecodeJSON[[]*types.SAMLIdPServiceProviderV1](t, buf)
 				tt.expectEntityID(t, sps[0].GetEntityID())
@@ -995,7 +999,7 @@ type dynamicResourceTest[T types.ResourceWithLabels] struct {
 	runDiscoveredNameChecks bool
 }
 
-func (test *dynamicResourceTest[T]) setup(t *testing.T) *config.FileConfig {
+func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 	t.Helper()
 	requireResource := func(t *testing.T, r T, name string) {
 		t.Helper()
@@ -1024,16 +1028,17 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *config.FileConfig {
 			},
 		},
 	}
-	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	return fileConfig
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
+	return clt
 }
 
 func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	t.Helper()
-	fileConfig := test.setup(t)
+	clt := test.setup(t)
 
 	// Initially there are no resources.
-	buf, err := runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]T](t, buf)
 	require.Empty(t, resources)
@@ -1041,11 +1046,11 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
 	require.NoError(t, os.WriteFile(yamlPath, []byte(test.resourceYAML), 0644))
-	_, err = runResourceCommand(t, fileConfig, []string{"create", yamlPath})
+	_, err = runResourceCommand(t, clt, []string{"create", yamlPath})
 	require.NoError(t, err)
 
 	// Fetch all resources.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 3)
@@ -1054,7 +1059,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	))
 
 	// Fetch specific resource.
-	buf, err = runResourceCommand(t, fileConfig,
+	buf, err = runResourceCommand(t, clt,
 		[]string{"get", fmt.Sprintf("%v/%v", test.kind, test.fooResource.GetName()), "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]T](t, buf)
@@ -1064,11 +1069,11 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	))
 
 	// Remove a resource.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, test.fooResource.GetName())})
+	_, err = runResourceCommand(t, clt, []string{"rm", fmt.Sprintf("%v/%v", test.kind, test.fooResource.GetName())})
 	require.NoError(t, err)
 
 	// Fetch all resources again.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
@@ -1082,7 +1087,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 
 	// Test discovered name behavior.
 	// Fetching multiple resources ("foo-bar-1" and "foo-bar-2") by discovered name is ok.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/%v", test.kind, "foo-bar"), "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", fmt.Sprintf("%v/%v", test.kind, "foo-bar"), "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 2)
@@ -1091,15 +1096,15 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 	))
 
 	// Removing multiple resources ("foo-bar-1" and "foo-bar-2") by discovered name is an error.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, "foo-bar")})
+	_, err = runResourceCommand(t, clt, []string{"rm", fmt.Sprintf("%v/%v", test.kind, "foo-bar")})
 	require.ErrorContains(t, err, "matches multiple")
 
 	// Remove "foo-bar-2" resource by full name.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/%v", test.kind, test.fooBar2Resource.GetName())})
+	_, err = runResourceCommand(t, clt, []string{"rm", fmt.Sprintf("%v/%v", test.kind, test.fooBar2Resource.GetName())})
 	require.NoError(t, err)
 
 	// Fetch all resources again.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", test.kind, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", test.kind, "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]T](t, buf)
 	require.Len(t, resources, 1)
@@ -1352,12 +1357,12 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewSlogLoggerForTests(), fc, fds)
+	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		kind   string
-		create func(t *testing.T, fc *config.FileConfig)
+		create func(t *testing.T, clt *authclient.Client)
 	}{
 		{
 			kind:   types.KindGithubConnector,
@@ -1403,14 +1408,14 @@ func TestCreateResources(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			test.create(t, fc)
+			test.create(t, rootClient)
 		})
 	}
 }
 
-func testCreateGithubConnector(t *testing.T, fc *config.FileConfig) {
+func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
 	// Ensure there are no connectors to start
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindGithubConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors := mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
 	require.Empty(t, connectors)
@@ -1435,11 +1440,11 @@ version: v3`
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
 	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the connector
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindGithubConnector, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindGithubConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors = mustDecodeJSON[[]*types.GithubConnectorV3](t, buf)
 	require.Len(t, connectors, 1)
@@ -1461,16 +1466,16 @@ version: v3`
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateRole(t *testing.T, fc *config.FileConfig) {
+func testCreateRole(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test role does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindRole + "/test-role", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
 
 	const roleYAML = `kind: role
@@ -1519,11 +1524,11 @@ version: v7
 	// Create the role
 	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
 	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", roleYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the role
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindRole + "/test-role", "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindRole + "/test-role", "--format=json"})
 	require.NoError(t, err)
 	roles := mustDecodeJSON[[]*types.RoleV6](t, buf)
 	require.Len(t, roles, 1)
@@ -1544,16 +1549,16 @@ version: v7
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", roleYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", roleYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", roleYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", roleYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateServerInfo(t *testing.T, fc *config.FileConfig) {
+func testCreateServerInfo(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test server info does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected test-role to not exist prior to being created")
 
 	const serverInfoYAML = `---
@@ -1572,11 +1577,11 @@ spec:
 	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
 	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
 	require.NoError(t, err)
-	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", serverInfoYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the server info
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindServerInfo + "/test-server-info", "--format=json"})
 	require.NoError(t, err)
 	serverInfos := mustDecodeJSON[[]*types.ServerInfoV1](t, buf)
 	require.Len(t, serverInfos, 1)
@@ -1599,16 +1604,16 @@ spec:
 	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
 	require.NoError(t, err)
 
-	_, err = runResourceCommand(t, fc, []string{"create", serverInfoYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", serverInfoYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", serverInfoYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", serverInfoYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateUser(t *testing.T, fc *config.FileConfig) {
+func testCreateUser(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test user does not exist
-	_, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
 
 	const userYAML = `kind: user
@@ -1622,11 +1627,11 @@ spec:
 	// Create the user
 	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
 	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the user
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
 	require.NoError(t, err)
 	users := mustDecodeJSON[[]*types.UserV2](t, buf)
 	require.Len(t, users, 1)
@@ -1649,14 +1654,14 @@ spec:
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(userYAMLPath, connectorBytes, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", userYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", userYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateDatabaseObjectImportRule(t *testing.T, fc *config.FileConfig) {
+func testCreateDatabaseObjectImportRule(t *testing.T, clt *authclient.Client) {
 	const resourceYAML = `kind: db_object_import_rule
 metadata:
   expires: "2034-03-22T18:06:35.161162Z"
@@ -1700,17 +1705,17 @@ version: v1
 
 	// Verify there is no matching resource
 	const resourceKey = "db_object_import_rule/import_all_staging_tables"
-	_, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	_, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
 	require.Error(t, err)
 
 	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
 	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the resource
-	buf, err := runResourceCommand(t, fc, []string{"get", resourceKey, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
 	require.NoError(t, err)
 	resources := mustDecodeJSON[[]databaseobjectimportrule.Resource](t, buf)
 	require.Len(t, resources, 1)
@@ -1728,9 +1733,9 @@ version: v1
 	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
-func testCreateClusterNetworkingConfig(t *testing.T, fc *config.FileConfig) {
+func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 	// Get the initial cnc.
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
 	require.NoError(t, err)
 
 	cnc := mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
@@ -1741,7 +1746,6 @@ func testCreateClusterNetworkingConfig(t *testing.T, fc *config.FileConfig) {
 metadata:
   name: cluster-networking-config
 spec:
-  assist_command_execution_workers: 30
   client_idle_timeout: 0s
   idle_timeout_message: ""
   keep_alive_count_max: 300
@@ -1758,11 +1762,11 @@ version: v2
 	// Create the cnc
 	cncYAMLPath := filepath.Join(t.TempDir(), "cnc.yaml")
 	require.NoError(t, os.WriteFile(cncYAMLPath, []byte(cncYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", cncYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the cnc
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindClusterNetworkingConfig, "--format=json"})
 	require.NoError(t, err)
 	cnc = mustDecodeJSON[[]*types.ClusterNetworkingConfigV2](t, buf)
 	require.Len(t, cnc, 1)
@@ -1782,16 +1786,16 @@ version: v2
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(cncYAMLPath, raw, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", cncYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", cncYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", cncYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", cncYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateAuthPreference(t *testing.T, fc *config.FileConfig) {
+func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 	// Get the initial CAP.
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindClusterAuthPreference, "--format=json"})
 	require.NoError(t, err)
 
 	cap := mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
@@ -1810,11 +1814,11 @@ version: v2
 	// Create the cap
 	capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
 	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", capYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the cap
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindClusterAuthPreference, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindClusterAuthPreference, "--format=json"})
 	require.NoError(t, err)
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
@@ -1832,16 +1836,16 @@ version: v2
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", capYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", capYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", capYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", capYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateSessionRecordingConfig(t *testing.T, fc *config.FileConfig) {
+func testCreateSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 	// Get the initial recording config.
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
 	require.NoError(t, err)
 
 	src := mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
@@ -1861,11 +1865,11 @@ version: v2
 	// Create the src
 	srcYAMLPath := filepath.Join(t.TempDir(), "src.yaml")
 	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the cap
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindSessionRecordingConfig, "--format=json"})
 	require.NoError(t, err)
 	src = mustDecodeJSON[[]*types.SessionRecordingConfigV2](t, buf)
 	require.Len(t, src, 1)
@@ -1883,14 +1887,14 @@ version: v2
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", srcYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", srcYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateAppServer(t *testing.T, fc *config.FileConfig) {
+func testCreateAppServer(t *testing.T, clt *authclient.Client) {
 	const appServerWithIntegrationYAML = `---
 kind: app_server
 metadata:
@@ -1929,16 +1933,16 @@ version: v3
 	// Creating an AppServer with integration is valid.
 	srcYAMLPath := filepath.Join(t.TempDir(), "appServerWithIntegrationYAML.yaml")
 	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithIntegrationYAML), 0644))
-	_, err := runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	_, err := runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.NoError(t, err)
 
 	// Creating an AppServer without integration is invalid.
 	srcYAMLPath = filepath.Join(t.TempDir(), "appServerWithoutIntegrationYAML.yaml")
 	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithoutIntegrationYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", srcYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.ErrorContains(t, err, "integration")
 
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindAppServer, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAppServer, "--format=json"})
 	require.NoError(t, err)
 	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
 	require.Len(t, appServers, 1)
@@ -1952,7 +1956,7 @@ version: v3
 	))
 }
 
-func testCreateDatabaseObject(t *testing.T, fc *config.FileConfig) {
+func testCreateDatabaseObject(t *testing.T, clt *authclient.Client) {
 	const resourceYAML = `kind: db_object
 metadata:
   expires: "2034-03-22T18:06:35.161162Z"
@@ -1977,7 +1981,7 @@ version: v1
 `
 
 	// Verify there are no pre-existing objects
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseObject, "--format=json"})
 	require.NoError(t, err)
 
 	resources := mustDecodeJSON[[]databaseobject.Resource](t, buf)
@@ -1986,11 +1990,11 @@ version: v1
 	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
 	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the resource
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindDatabaseObject, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindDatabaseObject, "--format=json"})
 	require.NoError(t, err)
 	resources = mustDecodeJSON[[]databaseobject.Resource](t, buf)
 	require.Len(t, resources, 1)
@@ -2017,17 +2021,19 @@ func TestCreateEnterpriseResources(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
-	fc, fds := testhelpers.DefaultConfig(t)
-	makeAndRunTestAuthServer(t, withFileConfig(fc), withFileDescriptors(fds), withFakeClock(clockwork.NewFakeClock()))
+	process := testenv.MakeTestServer(t)
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		kind   string
-		create func(t *testing.T, fc *config.FileConfig)
+		create func(t *testing.T, clt *authclient.Client)
 	}{
 		{
 			kind:   types.KindOIDCConnector,
@@ -2041,15 +2047,15 @@ func TestCreateEnterpriseResources(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
-			test.create(t, fc)
+			test.create(t, clt)
 		})
 	}
 
 }
 
-func testCreateOIDCConnector(t *testing.T, fc *config.FileConfig) {
+func testCreateOIDCConnector(t *testing.T, clt *authclient.Client) {
 	// Ensure there are no connectors to start
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindOIDCConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors := mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
 	require.Empty(t, connectors)
@@ -2070,11 +2076,11 @@ spec:
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
 	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the connector
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindOIDCConnector, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindOIDCConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors = mustDecodeJSON[[]*types.OIDCConnectorV3](t, buf)
 	require.Len(t, connectors, 1)
@@ -2096,16 +2102,16 @@ spec:
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
 }
 
-func testCreateSAMLConnector(t *testing.T, fc *config.FileConfig) {
+func testCreateSAMLConnector(t *testing.T, clt *authclient.Client) {
 	// Ensure there are no connectors to start
-	buf, err := runResourceCommand(t, fc, []string{"get", types.KindSAMLConnector, "--format=json"})
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors := mustDecodeJSON[[]*types.SAMLConnectorV2](t, buf)
 	require.Empty(t, connectors)
@@ -2147,11 +2153,11 @@ spec:
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
 	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
 	// Fetch the connector
-	buf, err = runResourceCommand(t, fc, []string{"get", types.KindSAMLConnector, "--format=json"})
+	buf, err = runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector, "--format=json"})
 	require.NoError(t, err)
 	connectors = mustDecodeJSON[[]*types.SAMLConnectorV2](t, buf)
 	require.Len(t, connectors, 1)
@@ -2173,10 +2179,10 @@ spec:
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
 
-	_, err = runResourceCommand(t, fc, []string{"create", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
 
-	_, err = runResourceCommand(t, fc, []string{"create", "-f", connectorYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
 }
 

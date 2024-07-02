@@ -19,6 +19,8 @@
 import React from 'react';
 import { renderHook } from '@testing-library/react';
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { ServerUri } from 'teleterm/ui/uri';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { SearchResult } from 'teleterm/ui/services/resources';
@@ -27,6 +29,7 @@ import {
   makeKube,
   makeLabelsList,
   makeRootCluster,
+  makeLeafCluster,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
@@ -188,7 +191,7 @@ describe('useResourceSearch', () => {
       search: 'foo',
       filters: [],
       limit: 100,
-      includeRequestable: true,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -220,7 +223,7 @@ describe('useResourceSearch', () => {
       search: '',
       filters: [],
       limit: 10,
-      includeRequestable: true,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -267,6 +270,50 @@ describe('useResourceSearch', () => {
     });
     await result.current('foo', [], true);
     expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
+  });
+
+  it('fetches requestable resources for leaves if the root cluster allows it', async () => {
+    const appContext = new MockAppContext();
+    const rootCluster = makeRootCluster({
+      showResources: ShowResources.REQUESTABLE,
+      features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+    });
+    const leafCluster = makeLeafCluster({
+      showResources: ShowResources.UNSPECIFIED,
+    });
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(rootCluster.uri, rootCluster);
+      draftState.clusters.set(leafCluster.uri, leafCluster);
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue([]);
+
+    const { result } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    await result.current('foo', [], false);
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
+      2
+    );
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: rootCluster.uri,
+      filters: [],
+      includeRequestable: true,
+      limit: 100,
+      search: 'foo',
+    });
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: leafCluster.uri,
+      filters: [],
+      includeRequestable: true,
+      limit: 100,
+      search: 'foo',
+    });
   });
 });
 

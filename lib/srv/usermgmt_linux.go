@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -48,6 +49,16 @@ type HostSudoersProvisioningBackend struct {
 
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend() (HostUsersBackend, error) {
+	var missing []string
+	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo"} {
+		if _, err := exec.LookPath(requiredBin); err != nil {
+			missing = append(missing, requiredBin)
+		}
+	}
+	if len(missing) != 0 {
+		return nil, trace.NotFound("missing required binaries: %s", strings.Join(missing, ","))
+	}
+
 	return &HostUsersProvisioningBackend{}, nil
 }
 
@@ -79,6 +90,12 @@ func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, e
 	return user.LookupGroupId(gid)
 }
 
+// SetUserGroups sets a user's groups, replacing their existing groups.
+func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string) error {
+	_, err := host.SetUserGroups(name, groups)
+	return trace.Wrap(err)
+}
+
 // GetAllUsers returns a full list of users present on a system
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()
@@ -92,12 +109,8 @@ func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error 
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, uid, gid string) error {
-	home, err := readDefaultHome(name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = host.UserAdd(name, groups, home, uid, gid)
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, home, uid, gid string) error {
+	_, err := host.UserAdd(name, groups, home, uid, gid)
 	return trace.Wrap(err)
 }
 
@@ -214,17 +227,12 @@ func readDefaultSkel() (string, error) {
 	return skel, trace.Wrap(err)
 }
 
-func (u *HostUsersProvisioningBackend) CreateHomeDirectory(user string, uidS, gidS string) error {
+func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS string) error {
 	uid, err := strconv.Atoi(uidS)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	gid, err := strconv.Atoi(gidS)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userHome, err := readDefaultHome(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}

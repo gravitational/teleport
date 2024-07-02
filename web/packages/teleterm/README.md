@@ -9,9 +9,6 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
-**Note: At the moment, the OSS build of Connect is broken. Please refer to
-[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
-
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
 To get started, first we need to build `tsh`.
@@ -48,16 +45,26 @@ To launch `teleterm` in development mode:
 
 ```sh
 cd teleport
+# By default, the dev version assumes that the tsh binary is at build/tsh.
 yarn start-term
 
-# By default, the dev version assumes that the tsh binary is at build/tsh.
-# You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
+# You can provide a different absolute path to the tsh binary though the CONNECT_TSH_BIN_PATH env var.
 CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn start-term
 ```
 
-For a quick restart which restarts the Electron app and the tsh daemon, press `F6` while the
-Electron window is open. If you recompiled tsh, this is going to pick up any new changes as well as
-any changes introduced to the main process of the Electron app.
+To automatically restart the app when tsh gets rebuilt or
+[when the main process or preload scripts change](https://electron-vite.org/guide/hot-reloading),
+use [watchexec](https://github.com/watchexec/watchexec):
+
+```sh
+watchexec --restart --watch build --filter tsh --no-project-ignore -- yarn start-term -w
+```
+
+This can be combined with a tool like [gow](https://github.com/mitranim/gow) to automatically rebuild tsh:
+
+```sh
+gow -s -S '✅\n' -g make build/tsh
+```
 
 ### Development-only tools
 

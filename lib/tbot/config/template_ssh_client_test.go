@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -111,10 +112,10 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
 			}
 
-			knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
+			knownHostBytes, err := os.ReadFile(filepath.Join(dir, ssh.KnownHostsName))
 			require.NoError(t, err)
 			knownHostBytes = replaceTestDir(knownHostBytes)
-			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
+			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, ssh.ConfigName))
 			require.NoError(t, err)
 			sshConfigBytes = replaceTestDir(sshConfigBytes)
 			if golden.ShouldSet() {

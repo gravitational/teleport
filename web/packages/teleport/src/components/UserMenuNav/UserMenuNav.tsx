@@ -22,6 +22,7 @@ import styled, { useTheme } from 'styled-components';
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
@@ -98,7 +99,7 @@ const StyledAvatar = styled.div`
   min-width: 24px;
 `;
 
-const Arrow = styled.div`
+const Arrow = styled.div<{ open?: boolean }>`
   line-height: 0;
   padding-left: 32px;
 
@@ -124,11 +125,10 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
+  const currentTheme = getCurrentTheme(preferences.theme);
+  const nextTheme = getNextTheme(preferences.theme);
 
   const onThemeChange = () => {
-    const nextTheme =
-      preferences.theme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT;
-
     updatePreferences({ theme: nextTheme });
     setOpen(false);
   };
@@ -161,7 +161,7 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
 
   return (
     <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)} open={open}>
+      <UserInfo onClick={() => setOpen(!open)}>
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>
@@ -182,10 +182,9 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
           <DropdownItem open={open} $transitionDelay={transitionDelay}>
             <DropdownItemButton onClick={onThemeChange}>
               <DropdownItemIcon>
-                {preferences.theme === Theme.DARK ? <Sun /> : <Moon />}
+                {currentTheme === Theme.DARK ? <Sun /> : <Moon />}
               </DropdownItemIcon>
-              Switch to {preferences.theme === Theme.DARK ? 'Light' : 'Dark'}{' '}
-              Theme
+              Switch to {currentTheme === Theme.DARK ? 'Light' : 'Dark'} Theme
             </DropdownItemButton>
           </DropdownItem>
         )}

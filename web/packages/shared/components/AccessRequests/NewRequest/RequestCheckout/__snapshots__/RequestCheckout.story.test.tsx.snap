@@ -1201,7 +1201,6 @@ exports[`failed state 1`] = `
               >
                 <label
                   class="c28"
-                  font-size="0"
                 >
                   Start Date
                 </label>
@@ -1237,7 +1236,6 @@ exports[`failed state 1`] = `
             <label
               class="c28"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
@@ -1348,7 +1346,6 @@ exports[`failed state 1`] = `
           </div>
           <label
             class="c28"
-            font-size="0"
           >
             Request Reason
             <textarea
@@ -1488,18 +1485,18 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c48 {
-  box-sizing: border-box;
-  padding-top: 24px;
-  padding-bottom: 24px;
-}
-
 .c46 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 4px;
   padding-bottom: 8px;
   height: 34px;
+}
+
+.c48 {
+  box-sizing: border-box;
+  padding-top: 24px;
+  padding-bottom: 24px;
 }
 
 .c24 {
@@ -2615,7 +2612,7 @@ exports[`loaded state 1`] = `
                       />
                       <div>
                         <div
-                          class="react-select__selected react-select__option react-select__option--is-focused react-select__option--is-selected css-9gakcf-option"
+                          class="react-select__selected react-select__option react-select__option--is-selected css-9gakcf-option"
                           id="react-select-2-option-0-0"
                           tabindex="-1"
                         >
@@ -2954,7 +2951,6 @@ exports[`loaded state 1`] = `
               >
                 <label
                   class="c36"
-                  font-size="0"
                 >
                   Start Date
                 </label>
@@ -2990,7 +2986,6 @@ exports[`loaded state 1`] = `
             <label
               class="c36"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
@@ -3101,7 +3096,6 @@ exports[`loaded state 1`] = `
           </div>
           <label
             class="c36"
-            font-size="0"
           >
             Request Reason
             <textarea

@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -77,7 +76,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
-	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
@@ -4013,6 +4011,16 @@ func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *authpb
 	return response, nil
 }
 
+func (g *GRPCServer) GetDesktopBootstrapScript(ctx context.Context, _ *emptypb.Empty) (*authpb.DesktopBootstrapScriptResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := auth.GetDesktopBootstrapScript(ctx)
+	return res, trace.Wrap(err)
+}
+
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (g *GRPCServer) ChangeUserAuthentication(ctx context.Context, req *authpb.ChangeUserAuthenticationRequest) (*authpb.ChangeUserAuthenticationResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -5160,6 +5168,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
+	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.BotInstance,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating bot instance service")
+	}
+	machineidv1pb.RegisterBotInstanceServiceServer(server, botInstanceService)
+
 	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5236,20 +5254,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	trustpb.RegisterTrustServiceServer(server, trust)
-
-	// Initialize and register the assist service.
-	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend:        cfg.AuthServer.Services,
-		Embeddings:     cfg.AuthServer.embeddingsRetriever,
-		Embedder:       cfg.AuthServer.embedder,
-		Authorizer:     cfg.Authorizer,
-		ResourceGetter: cfg.AuthServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	assist.RegisterAssistServiceServer(server, assistSrv)
-	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5348,6 +5352,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Address:  cfg.APIConfig.AccessGraph.Address,
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},
+		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5380,6 +5385,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
 		Authorizer:              cfg.Authorizer,
 		Backend:                 cfg.AuthServer.Services,
+		Clock:                   cfg.AuthServer.GetClock(),
 		UserNotificationCache:   cfg.AuthServer.UserNotificationCache,
 		GlobalNotificationCache: cfg.AuthServer.GlobalNotificationCache,
 	})

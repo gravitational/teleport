@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -788,8 +788,8 @@ func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	})
 }
 
-func genGCPInstancesLogStr(instances []*gcp.Instance) string {
-	return genInstancesLogStr(instances, func(i *gcp.Instance) string {
+func genGCPInstancesLogStr(instances []*gcpimds.Instance) string {
+	return genInstancesLogStr(instances, func(i *gcpimds.Instance) string {
 		return i.Name
 	})
 }
@@ -1137,7 +1137,7 @@ func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 		_, nameOK := labels[types.NameLabel]
 		return projectIDOK && zoneOK && nameOK
 	})
-	var filtered []*gcp.Instance
+	var filtered []*gcpimds.Instance
 outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {

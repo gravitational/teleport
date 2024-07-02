@@ -21,6 +21,7 @@ package common
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -73,7 +75,7 @@ func (c *Session) String() string {
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
-func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (c *Session) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
 	state.MFAVerified = c.Identity.IsMFAVerified()
 	state.EnableDeviceVerification = true
@@ -126,4 +128,9 @@ func (c *Session) CheckUsernameForAutoUserProvisioning() error {
 
 	return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
 		c.Identity.Username, c.DatabaseUser)
+}
+
+// GetExpiry returns the expiry time of current session.
+func (c *Session) GetExpiry() time.Time {
+	return c.Identity.Expires
 }

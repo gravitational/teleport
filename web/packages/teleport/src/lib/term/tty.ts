@@ -86,6 +86,12 @@ class Tty extends EventEmitterWebAuthnSender {
     this.socket.send(bytearray);
   }
 
+  sendKubeExecData(data: KubeExecData) {
+    const encoded = this._proto.encodeKubeExecData(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   _sendFileTransferRequest(message: string) {
     const encoded = this._proto.encodeFileTransferRequest(message);
     const bytearray = new Uint8Array(encoded);
@@ -203,6 +209,9 @@ class Tty extends EventEmitterWebAuthnSender {
             this.emit(TermEvent.DATA, msg.payload);
           }
           break;
+        case MessageTypeEnum.ERROR:
+          this.emit(TermEvent.DATA, msg.payload + '\n');
+          break;
         case MessageTypeEnum.LATENCY:
           this.emit(TermEvent.LATENCY, msg.payload);
           break;
@@ -257,5 +266,14 @@ class Tty extends EventEmitterWebAuthnSender {
     return this._pendingUploads[location];
   }
 }
+
+export type KubeExecData = {
+  kubeCluster: string;
+  namespace: string;
+  pod: string;
+  container: string;
+  command: string;
+  isInteractive: boolean;
+};
 
 export default Tty;

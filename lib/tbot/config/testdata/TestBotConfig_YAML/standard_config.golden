@@ -39,6 +39,12 @@ services:
               pid: 100
   - type: example
     message: llama
+  - type: ssh-multiplexer
+    destination:
+      type: directory
+      path: /bot/output
+    enable_resumption: null
+    proxy_templates_path: ""
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s

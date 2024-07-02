@@ -91,7 +91,7 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
 	}
-	c.Logger = c.Logger.With("rdp-addr", c.Addr)
+	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil
 }
 

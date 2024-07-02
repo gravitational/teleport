@@ -1,0 +1,22 @@
+version: v2
+proxy_server: PROXYHOST:443
+diag_addr: "0.0.0.0:3000"
+onboarding:
+  join_method: iam
+  token: rob-the-iam-token
+storage:
+  type: memory
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: tbot_destdir_id
+services:
+  - type: ssh-multiplexer
+    destination:
+      type: directory
+      path: tbot_destdir_mux
+    enable_resumption: true
+    proxy_command:
+      - fdpass-teleport
+    proxy_templates_path: proxy_templates.yaml

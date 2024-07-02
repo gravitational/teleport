@@ -1,6 +1,7 @@
 ---
-title: Introduction to Teleport
-description: Provides an overview of the purpose and benefits of Teleport Access Platform, which allows you to implement Zero Trust for all of your infrastructure.
+h1: Introduction to Teleport
+title: "Introduction to the Teleport Access Platform: Zero Trust Security for Your Infrastructure"
+description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
 ---
 
@@ -24,7 +25,7 @@ Organizations use the Teleport Access Platform to:
   certificates, verified at every endpoint. You can roll out a Zero Trust
   strategy for your organization by setting up Teleport alone.
 - **Address complex compliance needs:** Teleport allows you to satisfy
-  compliance frameworks like SOC 2 and FedRAMP with no need for additional
+  compliance frameworks like SOC 2, ISO 27001, and FedRAMP with no need for additional
   tooling or process changes. 
 
 ## Products
@@ -70,7 +71,7 @@ Get started with Teleport Access:
 
 **Teleport Identity** is an add-on to Teleport Access that offers identity
 governance and security for all of your infrastructure. You can provide users
-less-privileged roles by default, requiring any user who wants additional
+with less-privileged roles by default, requiring any user who wants additional
 permissions to request them for a limited time. This approach leaves no
 permanent admin roles for attackers to target. 
 
@@ -100,11 +101,11 @@ Get started with Teleport Identity:
 
 ### Teleport Policy
 
-**Teleport Policy** unifies and controls access policies across all of your
-infrastructure. With Teleport Access Graph, you can get insight into role-based
-access control policies, including in Teleport and your cloud provider. 
+**Teleport Policy** unifies and controls access policies across all your
+infrastructure. With Teleport Access Graph, you gain insights into role-based
+access control policies within Teleport and your cloud provider.
 
-Get started with [Teleport Access Graph](access-controls/access-graph.mdx).
+Get started with [Teleport Policy](./access-controls/teleport-policy/getting-started-policy.mdx).
 
 ## Architecture
 
@@ -112,11 +113,11 @@ The Teleport Access Platform consists of a certificate authority and
 identity-aware access proxy that run either on the Teleport-managed cloud or, in
 special cases, a self-hosted private network. 
 
-Teleport Agents, which the user deploys on Linux servers or Kubernetes, proxy
-access to infrastructure resources and cloud provider APIs. Users authenticate
-to infrastructure resources through Teleport agents using short-lived
-certificates. Certificates indicate Teleport role membership, allowing Teleport
-Agents to enforce role-based access-controls.
+Teleport Agents, which can run on Linux servers or Kubernetes, proxy access to
+infrastructure resources and cloud provider APIs. Users authenticate to
+infrastructure resources through Teleport Agents using short-lived certificates.
+Certificates embed Teleport user attributes, allowing Teleport Agents to enforce
+role-based access controls.
 
 Learn more:
 

@@ -12,16 +12,17 @@ Opsgenie plugin users, role annotations must now contain
 See [the Opsgenie plugin documentation](docs/pages/access-controls/access-request-plugins/opsgenie.mdx)
 for setup instructions.
 
-#### Teleport Assist chat has been removed
+#### Teleport Assist has been removed
 
-Teleport Assist chat has been removed from Teleport 16. Assist is still available
-in the SSH Web Terminal and Audit Monitoring.
+Teleport Assist chat has been removed from Teleport 16. `auth_service.assist` and `proxy_service.assist`
+options have been removed from the configuration. Teleport will not start if these options are present.
+
+During the migration from v15 to v16, the options mentioned above should be removed from the configuration.
 
 #### DynamoDB permission requirements have changed
 
 Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
-permission. For a full list of all required permissions see the dynamo backend iam
-policy [example](docs/pages/includes/dynamodb-iam-policy.mdx).
+permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/backends.mdx#dynamodb).
 
 #### Disabling second factor authentication_type
 
@@ -129,7 +130,7 @@ Remote Desktop Services > Remote Desktop Session Host, enable:
 1. Remote Session Environment > Limit maximum color depth
 
 Detailed instructions are available in the
-[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+[setup guide](docs/pages/desktop-access/active-directory.mdx#enable-remotefx).
 A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
@@ -3146,7 +3147,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to easily edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an easy 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](./docs/pages/access-controls/access-request-plugins/index.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/access-controls/access-request-plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -3409,7 +3410,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/access-controls/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
 *   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx)

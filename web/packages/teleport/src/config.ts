@@ -44,7 +44,6 @@ const cfg = {
   isEnterprise: false,
   edition: 'oss',
   isCloud: false,
-  assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
@@ -131,8 +130,6 @@ const cfg = {
     root: '/web',
     discover: '/web/discover',
     accessRequest: '/web/accessrequest',
-    assistBase: '/web/assist/',
-    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
@@ -141,6 +138,7 @@ const cfg = {
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
+    joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
@@ -162,6 +160,8 @@ const cfg = {
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -171,6 +171,7 @@ const cfg = {
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
+    samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
     userInviteContinue: '/web/invite/:tokenId/continue',
     userReset: '/web/reset/:tokenId',
@@ -233,6 +234,8 @@ const cfg = {
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
+    ttyKubeExecWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -255,6 +258,7 @@ const cfg = {
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
+    joinTokensPath: '/v1/webapi/tokens',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -341,16 +345,6 @@ const cfg = {
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    assistConversationsPath: '/v1/webapi/assistant/conversations',
-    assistSetConversationTitlePath:
-      '/v1/webapi/assistant/conversations/:conversationId/title',
-    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
-    assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/ws',
-    assistConversationHistoryPath:
-      '/v1/webapi/assistant/conversations/:conversationId',
-    assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute/ws',
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
@@ -496,6 +490,14 @@ const cfg = {
     return generatePath(cfg.routes.desktops, { clusterId });
   },
 
+  getJoinTokensRoute() {
+    return cfg.routes.joinTokens;
+  },
+
+  getJoinTokensUrl() {
+    return cfg.api.joinTokensPath;
+  },
+
   getJoinTokenUrl() {
     return cfg.api.joinTokenPath;
   },
@@ -571,12 +573,30 @@ const cfg = {
     });
   },
 
+  getKubeExecConnectRoute(params: UrlKubeExecParams) {
+    return generatePath(cfg.routes.kubeExec, { ...params });
+  },
+
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
       clusterId,
       desktopName,
       username,
     });
+  },
+
+  getKubeExecSessionRoute(
+    { clusterId, sid }: UrlParams,
+    mode?: ParticipantMode
+  ) {
+    const basePath = generatePath(cfg.routes.kubeExecSession, {
+      clusterId,
+      sid,
+    });
+    if (mode) {
+      return `${basePath}?mode=${mode}`;
+    }
+    return basePath;
   },
 
   getSshSessionRoute({ clusterId, sid }: UrlParams, mode?: ParticipantMode) {
@@ -931,73 +951,6 @@ const cfg = {
     return cfg.ui;
   },
 
-  getAssistSetConversationTitleUrl(conversationId: string) {
-    return generatePath(cfg.api.assistSetConversationTitlePath, {
-      conversationId,
-    });
-  },
-
-  getAssistConversationWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    conversationId: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('conversation_id', conversationId);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistActionWebSocketUrl(
-    hostname: string,
-    clusterId: string,
-    action: string
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('action', action);
-
-    return (
-      generatePath(cfg.api.assistConversationWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationHistoryUrl(conversationId: string) {
-    return generatePath(cfg.api.assistConversationHistoryPath, {
-      conversationId,
-    });
-  },
-
-  getAssistExecuteCommandUrl(
-    hostname: string,
-    clusterId: string,
-    params: Record<string, string>
-  ) {
-    const searchParams = new URLSearchParams();
-
-    searchParams.set('params', JSON.stringify(params));
-
-    return (
-      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
-        hostname,
-        clusterId,
-      }) + `?${searchParams.toString()}`
-    );
-  },
-
-  getAssistConversationUrl(conversationId: string) {
-    return generatePath(cfg.routes.assist, { conversationId });
-  },
-
   getAccessRequestUrl(requestId?: string) {
     return generatePath(cfg.api.accessRequestPath, { requestId });
   },
@@ -1186,6 +1139,11 @@ export interface UrlSshParams {
   sid?: string;
   mode?: ParticipantMode;
   clusterId: string;
+}
+
+export interface UrlKubeExecParams {
+  clusterId: string;
+  kubeId: string;
 }
 
 export interface UrlSessionRecordingsParams {

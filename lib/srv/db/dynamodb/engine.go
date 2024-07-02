@@ -323,7 +323,7 @@ func (e *Engine) getRoundTripper(ctx context.Context, URL string) (http.RoundTri
 	if rt, ok := e.RoundTrippers[URL]; ok {
 		return rt, nil
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

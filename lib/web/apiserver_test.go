@@ -58,7 +58,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +94,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
@@ -196,9 +196,6 @@ type webSuiteConfig struct {
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
-
-	// OpenAIConfig is a custom OpenAI config for the test.
-	OpenAIConfig *openai.ClientConfig
 
 	// ClusterFeatures allows overriding default auth server features
 	ClusterFeatures *authproto.Features
@@ -493,7 +490,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:               router,
 		HealthCheckAppServer: cfg.HealthCheckAppServer,
 		UI:                   cfg.uiConfig,
-		OpenAIConfig:         cfg.OpenAIConfig,
 		PresenceChecker:      cfg.presenceChecker,
 		GetProxyIdentity: func() (*state.Identity, error) {
 			return proxyIdentity, nil
@@ -4417,7 +4413,9 @@ func TestClusterAppsGet(t *testing.T) {
 func TestApplicationAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			App: false,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: false},
+			},
 		},
 	})
 
@@ -4578,7 +4576,6 @@ func TestGetWebConfig(t *testing.T) {
 		CanJoinSessions:    true,
 		ProxyClusterName:   env.server.ClusterName(),
 		IsCloud:            false,
-		AssistEnabled:      false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
@@ -4608,13 +4605,6 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 
-	mockProxySetting := &mockProxySettings{
-		mockedGetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
-			return &webclient.ProxySettings{AssistEnabled: true}, nil
-		},
-	}
-	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
-
 	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
 	testVersion := "v99.0.1"
@@ -4630,7 +4620,6 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
-	expectedCfg.AssistEnabled = false
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
 
@@ -4677,17 +4666,15 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			ProductType:                modules.ProductTypeTeam,
-			IdentityGovernanceSecurity: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 5,
-			},
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				MaxReportRangeLimit: 10,
-			},
+			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
 			IsStripeManaged:     true,
 			Questionnaire:       true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity:         {Enabled: true},
+				entitlements.AccessLists:      {Enabled: true, Limit: 5},
+				entitlements.AccessMonitoring: {Enabled: true, Limit: 10},
+			},
 		},
 	})
 
@@ -10389,4 +10376,18 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	out, err := io.ReadAll(stream)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func TestUnstartedServerShutdown(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	srv, err := NewServer(ServerConfig{
+		Server:  &http.Server{},
+		Handler: s.webHandler,
+	})
+
+	require.NoError(t, err)
+
+	// Shutdown the server before starting it shouldn't panic.
+	require.NoError(t, srv.Shutdown(context.Background()))
 }

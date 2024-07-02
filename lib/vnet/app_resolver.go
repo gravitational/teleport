@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -60,9 +60,6 @@ type AppProvider interface {
 
 	// GetDialOptions returns ALPN dial options for the profile.
 	GetDialOptions(ctx context.Context, profileName string) (*DialOptions, error)
-
-	// GetVnetConfig returns the cluster VnetConfig resource.
-	GetVnetConfig(ctx context.Context, profileName, leafClusterName string) (*vnet.VnetConfig, error)
 
 	// OnNewConnection gets called whenever a new connection is about to be established through VNet.
 	// By the time OnNewConnection, VNet has already verified that the user holds a valid cert for the
@@ -96,7 +93,7 @@ type DialOptions struct {
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
 	appProvider          AppProvider
-	clusterConfigCache   *clusterConfigCache
+	clusterConfigCache   *ClusterConfigCache
 	customDNSZoneChecker *customDNSZoneValidator
 	slog                 *slog.Logger
 	clock                clockwork.Clock
@@ -120,7 +117,7 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 		opt(r)
 	}
 	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
-	r.clusterConfigCache = newClusterConfigCache(appProvider.GetVnetConfig, r.clock)
+	r.clusterConfigCache = cmp.Or(r.clusterConfigCache, NewClusterConfigCache(r.clock))
 	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
@@ -141,6 +138,13 @@ func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
 	}
 }
 
+// WithClusterConfigCache is a functional option to override the cluster config cache.
+func WithClusterConfigCache(clusterConfigCache *ClusterConfigCache) tcpAppResolverOption {
+	return func(r *TCPAppResolver) {
+		r.clusterConfigCache = clusterConfigCache
+	}
+}
+
 // ResolveTCPHandler resolves a fully-qualified domain name to a [TCPHandlerSpec] for a Teleport TCP app that should
 // be used to handle all future TCP connections to [fqdn].
 // Avoid using [trace.Wrap] on [ErrNoTCPHandler] to prevent collecting a full stack trace on every unhandled
@@ -155,63 +159,107 @@ func (r *TCPAppResolver) ResolveTCPHandler(ctx context.Context, fqdn string) (*T
 			// This is a query for the proxy address, which we'll never want to handle.
 			return nil, ErrNoTCPHandler
 		}
-		if match, err := r.fqdnMatchesProfile(ctx, profileName, fqdn); err != nil {
-			return nil, trace.Wrap(err)
-		} else if !match {
-			continue
-		}
 
-		slog := r.slog.With("profile", profileName, "fqdn", fqdn)
-		rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
+		clusterClient, err := r.clusterClientForAppFQDN(ctx, profileName, fqdn)
 		if err != nil {
-			// The user might be logged out from this one cluster (and retryWithRelogin isn't working). Don't
-			// return an error so that DNS resolution will be forwarded upstream instead of failing, to avoid
-			// breaking e.g. web app access (we don't know if this is a web or TCP app yet because we can't
-			// log in).
+			if errors.Is(err, errNoMatch) {
+				continue
+			}
+			// The user might be logged out from this one cluster (and retryWithRelogin isn't working). Log
+			// the error but don't return it so that DNS resolution will be forwarded upstream instead of
+			// failing, to avoid breaking e.g. web app access (we don't know if this is a web or TCP app yet
+			// because we can't log in).
 			slog.ErrorContext(ctx, "Failed to get teleport client.", "error", err)
 			continue
 		}
-		return r.resolveTCPHandlerForCluster(ctx, slog, rootClient.CurrentCluster(), profileName, "", fqdn)
+
+		leafClusterName := ""
+		if clusterClient.ClusterName() != profileName {
+			leafClusterName = clusterClient.ClusterName()
+		}
+
+		slog := r.slog.With("profile", profileName, "fqdn", fqdn, "leaf_cluster", leafClusterName)
+		return r.resolveTCPHandlerForCluster(ctx, slog, clusterClient, profileName, leafClusterName, fqdn)
 	}
 	// fqdn did not match any profile, forward the request upstream.
 	return nil, ErrNoTCPHandler
 }
 
-func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fqdn string) (bool, error) {
-	if isSubdomain(fqdn, profileName) {
-		// The queried app fqdn is a subdomain of the proxy address, this is a match.
-		return true, nil
-	}
-	// Not a proxy address subdomain, must check custom DNS zones.
+var errNoMatch = errors.New("cluster does not match queried FQDN")
 
-	// TODO(nklaassen): support leaf clusters.
-	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, "" /*leafClustername*/)
-	if err != nil {
-		// Good chance we're here because the user is not logged in to the profile.
-		r.slog.ErrorContext(ctx, "Failed to get VnetConfig, not checking custom DNS zones.", "profile", profileName, "error", err)
-		return false, nil
-	}
-
-	// TODO(nklaassen): support leaf clusters.
+func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileName, fqdn string) (ClusterClient, error) {
 	rootClient, err := r.appProvider.GetCachedClient(ctx, profileName, "")
 	if err != nil {
-		r.slog.ErrorContext(ctx, "Failed to get teleport client, not checking custom DNS zones.", "profile", profileName, "error", err)
-		return false, nil
+		r.slog.ErrorContext(ctx, "Failed to get root cluster client, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		return nil, errNoMatch
 	}
-	clusterName := rootClient.ClusterName()
-	for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
-		if !isSubdomain(fqdn, zone.GetSuffix()) {
-			// The queried app fqdn is not a subdomain of this custom zone suffix, skip it.
+
+	if isSubdomain(fqdn, profileName) {
+		// The queried app fqdn is direct subdomain of this cluster proxy address.
+		return rootClient, nil
+	}
+
+	leafClusters, err := getLeafClusters(ctx, rootClient)
+	if err != nil {
+		// Good chance we're here because the user is not logged in to the profile.
+		r.slog.ErrorContext(ctx, "Failed to list leaf clusters, apps in this cluster will not be resolved.", "profile", profileName, "error", err)
+		return nil, errNoMatch
+	}
+
+	// Prefix with an empty string to represent the root cluster.
+	allClusters := append([]string{""}, leafClusters...)
+	for _, leafClusterName := range allClusters {
+		clusterClient, err := r.appProvider.GetCachedClient(ctx, profileName, leafClusterName)
+		if err != nil {
+			r.slog.ErrorContext(ctx, "Failed to get cluster client, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
-		// The queried app fqdn is a subdomain of this custom zone suffix. Check if the custom zone is valid.
-		if err := r.customDNSZoneChecker.validate(ctx, clusterName, zone.GetSuffix()); err != nil {
-			r.slog.ErrorContext(ctx, "Failed to validate custom DNS zone %q for cluster %q", "error", err)
-			return false, trace.Wrap(err, "validating custom DNS zone")
+
+		clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+		if err != nil {
+			r.slog.ErrorContext(ctx, "Failed to get VnetConfig, apps in the cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			continue
 		}
-		return true, nil
+		for _, zone := range clusterConfig.DNSZones {
+			if !isSubdomain(fqdn, zone) {
+				// The queried app fqdn is not a subdomain of this zone, skip it.
+				continue
+			}
+
+			// Found a matching cluster.
+
+			if zone == clusterConfig.ProxyPublicAddr {
+				// We don't need to validate a custom DNS zone if this is the proxy public address, this is a
+				// normal app public_addr.
+				return clusterClient, nil
+			}
+			// The queried app fqdn is a subdomain of this custom zone. Check if the zone is valid.
+			if err := r.customDNSZoneChecker.validate(ctx, clusterConfig.ClusterName, zone); err != nil {
+				// Return an error here since the FQDN does match this custom zone, but the zone failed to
+				// validate.
+				return nil, trace.Wrap(err, "validating custom DNS zone %q matching queried FQDN %q", zone, fqdn)
+			}
+			return clusterClient, nil
+		}
 	}
-	return false, nil
+	return nil, errNoMatch
+}
+
+func getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
+	var leafClusters []string
+	nextPage := ""
+	for {
+		remoteClusters, nextPage, err := rootClient.CurrentCluster().ListRemoteClusters(ctx, 0, nextPage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, rc := range remoteClusters {
+			leafClusters = append(leafClusters, rc.GetName())
+		}
+		if nextPage == "" {
+			return leafClusters, nil
+		}
+	}
 }
 
 // resolveTCPHandlerForCluster takes a cluster client and resolves [fqdn] to a [TCPHandlerSpec] if a matching
@@ -221,13 +269,13 @@ func (r *TCPAppResolver) fqdnMatchesProfile(ctx context.Context, profileName, fq
 func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 	ctx context.Context,
 	slog *slog.Logger,
-	clt apiclient.GetResourcesClient,
+	clusterClient ClusterClient,
 	profileName, leafClusterName, fqdn string,
 ) (*TCPHandlerSpec, error) {
 	// An app public_addr could technically be full-qualified or not, match either way.
 	expr := fmt.Sprintf(`(resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s") && hasPrefix(resource.spec.uri, "tcp://")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
-	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clusterClient.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		PredicateExpression: expr,
 		Limit:               1,
@@ -248,19 +296,13 @@ func (r *TCPAppResolver) resolveTCPHandlerForCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	var cidrRange string
-	vnetConfig, err := r.clusterConfigCache.getVnetConfig(ctx, profileName, leafClusterName)
-	switch {
-	case err == nil:
-		cidrRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
-	case trace.IsNotFound(err) || trace.IsNotImplemented(err):
-		cidrRange = defaultIPv4CIDRRange
-	default:
+	clusterConfig, err := r.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &TCPHandlerSpec{
-		IPv4CIDRRange: cidrRange,
+		IPv4CIDRRange: clusterConfig.IPv4CIDRRange,
 		TCPHandler:    appHandler,
 	}, nil
 }
