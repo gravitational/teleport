@@ -99,9 +99,6 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		*memberCount = *msg.Status.MemberCount
 	}
 
-	var dynamicOwnerAccessLists accesslist.DynamicAccessListMembers
-	dynamicOwnerAccessLists.AccessLists = append(dynamicOwnerAccessLists.AccessLists, msg.Spec.DynamicOwners.AccessLists...)
-
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -123,8 +120,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
-		OwnerGrants:   ownerGrants,
-		DynamicOwners: dynamicOwnerAccessLists,
+		OwnerGrants: ownerGrants,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -152,6 +148,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Name:             owner.Name,
 			Description:      owner.Description,
 			IneligibleStatus: ineligibleStatus,
+			Kind:             owner.Kind,
 		}
 	}
 
@@ -182,9 +179,6 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		*memberCount = *accessList.Status.MemberCount
 	}
 
-	var ownerAccessListRefs accesslistv1.DynamicAccessListMembers
-	ownerAccessListRefs.AccessLists = append(ownerAccessListRefs.AccessLists, accessList.Spec.DynamicOwners.AccessLists...)
-
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
@@ -213,8 +207,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
-			OwnerGrants:   ownerGrants,
-			DynamicOwners: &ownerAccessListRefs,
+			OwnerGrants: ownerGrants,
 		},
 		Status: &accesslistv1.AccessListStatus{
 			MemberCount: memberCount,

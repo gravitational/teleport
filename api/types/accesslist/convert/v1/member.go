@@ -47,8 +47,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
-		Origin:           msg.Spec.Origin,
-		AccessListTitle:  msg.Spec.AccessListTitle,
+		Kind:             msg.Spec.Kind,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,7 +90,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
 			IneligibleStatus: ineligibleStatus,
-			Origin:           member.Spec.Origin,
+			Kind:             member.Spec.Kind,
 		},
 	}
 }

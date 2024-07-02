@@ -271,7 +271,7 @@ func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListRec
 	}
 }
 
-func recurseAccessLists(username string, initialList string,
+func RecurseAccessLists(username string, initialList string,
 	lists func(string) ([]string, error),
 	listMember func(username, list string) error,
 	onAcl func(current string) error) error {
@@ -292,7 +292,7 @@ func recurseAccessLists(username string, initialList string,
 			if trace.IsNotFound(err) {
 				subAccessListMembers, err := lists(pal)
 				if err != nil {
-					return trace.NotFound("error find access list %s", pal)
+					return trace.NotFound("error finding access list %s", pal)
 				}
 				for _, next := range subAccessListMembers {
 					if _, ok := seen[next]; ok {
@@ -325,8 +325,8 @@ func (a AccessListMembershipChecker) getAccessListDynamicMembers(ctx context.Con
 		}
 
 		for _, member := range members {
-			if member.Spec.Origin == accesslist.MemberOriginDynamic {
-				dynamicMembers = append(dynamicMembers)
+			if member.Spec.Kind == accesslist.MemberKindList {
+				dynamicMembers = append(dynamicMembers, member.GetName())
 			}
 		}
 
@@ -339,7 +339,7 @@ func (a AccessListMembershipChecker) getAccessListDynamicMembers(ctx context.Con
 }
 
 func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) error {
-	err := recurseAccessLists(identity.Username, accessList.GetName(),
+	err := RecurseAccessLists(identity.Username, accessList.GetName(),
 		func(s string) ([]string, error) {
 			return a.getAccessListDynamicMembers(ctx, s)
 		},
@@ -379,9 +379,13 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListMemb
 	}
 	lists := make(map[string][]string)
 	for _, acl := range acls {
-		lists[acl.GetName()] = acl.Spec.DynamicOwners.AccessLists
+		for _, owner := range acl.GetOwners() {
+			if owner.Kind == accesslist.MemberKindList {
+				lists[acl.GetName()] = append(lists[acl.GetName()], owner.Name)
+			}
+		}
 	}
-	err = recurseAccessLists(identity.Username, accessList.GetName(), func(s string) ([]string, error) {
+	err = RecurseAccessLists(identity.Username, accessList.GetName(), func(s string) ([]string, error) {
 		dynLists, ok := lists[s]
 		if !ok {
 			return nil, trace.NotFound("access list %q not found", s)

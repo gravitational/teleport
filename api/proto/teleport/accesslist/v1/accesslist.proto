@@ -71,23 +71,6 @@ message AccessListSpec {
 
   // owner_grants describes the access granted by owners to this access list.
   AccessListGrants owner_grants = 11;
-
-  // owner_access_lists is a list of access lists that owner
-  // membership should be fetched from. Owners included are pulled
-  // from the members of the referenced access lists.
-  // If a cycle between access lists is introduced it will result in
-  // an error.
-  // In order for an owner of a nested access list to be included in
-  // the access list referencing it, they must pass the ownership
-  // requirements of the list including it.
-  DynamicAccessListMembers dynamic_owners = 12;
-}
-
-// AccessListRef contains information about access lists included
-// as references in an access list
-message DynamicAccessListMembers {
-  // name is the id of the parent access list
-  repeated string access_lists = 1;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -102,6 +85,10 @@ message AccessListOwner {
   // ineligible_status describes if this owner is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
+
+  // Kind is the type of owner, either a user or from a dynamic list,
+  // options `user` and `list`
+  string kind = 4;
 }
 
 // AccessListAudit describes the audit configuration for an access list.
@@ -215,11 +202,8 @@ message MemberSpec {
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
 
-  // origin of the member, either "member", or "dynamic"
-  string origin = 9;
-
-  // access_list_title is the title of the access list being nested, used if origin is "dynamic"
-  string access_list_title = 10;
+  // kind of the member, either "user", or "list"
+  string kind = 9;
 }
 
 // IneligibleStatus describes how the user is ineligible.

@@ -63,9 +63,7 @@ type AccessListMemberSpec struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// origin of the member, either "member", or "dynamic"
-	Origin string `json:"origin" yaml:"origin"`
-	// AccessListTitle is the title of the access list being nested, used if origin is "dynamic"
-	AccessListTitle string `json:"access_list_title" yaml:"access_list_title"`
+	Kind string `json:"kind" yaml:"kind"`
 }
 
 // NewAccessListMember will create a new access listm member.
@@ -83,8 +81,8 @@ func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*
 }
 
 const (
-	MemberOriginMember  = "member"
-	MemberOriginDynamic = "dynamic"
+	MemberKindUser = "user"
+	MemberKindList = "list"
 )
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
@@ -96,8 +94,8 @@ func (a *AccessListMember) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec.Origin == "" {
-		a.Spec.Origin = MemberOriginMember
+	if a.Spec.Kind == "" {
+		a.Spec.Kind = MemberKindUser
 	}
 
 	if a.Spec.AccessList == "" {

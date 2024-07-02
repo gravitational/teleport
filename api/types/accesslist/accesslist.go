@@ -155,10 +155,6 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
-
-	// OwnerAccessLists is a list of AccessLists that owner membership
-	// should be fetched from
-	DynamicOwners DynamicAccessListMembers `json:"dynamic_owners" yaml:"dynamic_owners"`
 }
 
 // Owner is an owner of an access list.
@@ -171,6 +167,9 @@ type Owner struct {
 
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// Kind is the kind of owner, either list or user
+	Kind string `json:"kind" yaml:"kind"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -229,10 +228,6 @@ type Grants struct {
 type Status struct {
 	// MemberCount is the number of members in the access list.
 	MemberCount *uint32
-}
-
-type DynamicAccessListMembers struct {
-	AccessLists []string `json:"access_lists" yaml:"access_lists"`
 }
 
 // NewAccessList will create a new access list.
@@ -306,6 +301,9 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	for _, owner := range a.Spec.Owners {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
+		}
+		if owner.Kind == "" {
+			owner.Kind = MemberKindUser
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {
