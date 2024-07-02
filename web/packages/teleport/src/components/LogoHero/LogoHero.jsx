@@ -17,9 +17,8 @@ limitations under the License.
 import React from 'react';
 import { useTheme } from 'styled-components';
 import Image from 'design/Image';
-
-import LogoHeroLight from './LogoHeroLight.svg';
-import LogoHeroDark from './LogoHeroDark.svg';
+import LogoHeroLight from 'design/assets/images/enterprise-light.svg';
+import LogoHeroDark from 'design/assets/images/enterprise-dark.svg';
 
 const LogoHero = ({ ...rest }) => {
   const theme = useTheme();

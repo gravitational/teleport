@@ -16,10 +16,8 @@ limitations under the License.
 
 import React from 'react';
 
-import logoSrc from 'design/assets/images/teleport-medallion.svg';
-
 import FormLogin from 'teleport/components/FormLogin';
-import Logo from 'teleport/components/LogoHero';
+import LogoHero from 'teleport/components/LogoHero';
 
 import useLogin, { State } from './useLogin';
 import Motd from './Motd';
@@ -54,7 +52,7 @@ export function Login({
   }
   return (
     <>
-      <Logo src={logoSrc} />
+      <LogoHero />
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (

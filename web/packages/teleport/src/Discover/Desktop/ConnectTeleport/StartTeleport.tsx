@@ -15,10 +15,6 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-
-import logoSrc from 'design/assets/images/teleport-medallion.svg';
-
 import { Box, Text } from 'design';
 
 import { ButtonPrimary } from 'design/Button';
@@ -34,6 +30,7 @@ import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
 import { Mark, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
 import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import LogoHero from 'teleport/components/LogoHero';
 
 interface StartTeleportProps {
   onNext: () => void;
@@ -48,7 +45,7 @@ function StepWrapper(props: StepWrapperProps) {
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <TeleportIcon />
+          <LogoHero />
         </StepTitleIcon>
         4. Start Teleport
       </StepTitle>
@@ -123,12 +120,3 @@ export function StartTeleport(
     </StepWrapper>
   );
 }
-
-const TeleportIcon = styled.div`
-  width: 30px;
-  height: 30px;
-  background: url(${logoSrc}) no-repeat;
-  background-size: contain;
-  top: 1px;
-  position: relative;
-`;
