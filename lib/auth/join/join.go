@@ -240,8 +240,14 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialling.
 	if params.AuthClient != nil {
-		log.Debug("Registering node to the cluster using an existing client.")
-		return registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		log.Info("Attempting registration with existing auth client.")
+		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		if err != nil {
+			log.WithError(err).Error("Registration with existing auth client failed.")
+			return nil, trace.Wrap(err)
+		}
+		log.Info("Successfully registered with existing auth client.")
+		return certs, nil
 	}
 
 	type registerMethod struct {

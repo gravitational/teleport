@@ -150,7 +150,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	if now.After(loadedIdent.X509Cert.NotAfter) {
 		s.log.WarnContext(
 			ctx,
-			"Identity loaded from store is expired",
+			"Identity loaded from store is expired, it will not be used",
 			"not_after", loadedIdent.X509Cert.NotAfter.Format(time.RFC3339),
 			"current_time", now.Format(time.RFC3339),
 		)
@@ -158,7 +158,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	} else if now.Before(loadedIdent.X509Cert.NotBefore) {
 		s.log.WarnContext(
 			ctx,
-			"Identity is not yet valid. Confirm that the system time is correct",
+			"Identity loaded from store is not yet valid, it will not be used. Confirm that the system time is correct",
 			"not_before", loadedIdent.X509Cert.NotBefore.Format(time.RFC3339),
 			"current_time", now.Format(time.RFC3339),
 		)
@@ -197,7 +197,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		}
 		s.log.InfoContext(
 			ctx,
-			"Bot was unable to load an existing identity from the store, will attempt to join using configured token",
+			"Bot was unable to load a valid existing identity from the store, will attempt to join using configured token",
 		)
 	}
 
