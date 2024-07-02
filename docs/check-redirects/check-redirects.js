@@ -39,13 +39,8 @@ class RedirectChecker {
   // returns a list of problematic URLs.
   check() {
     const results = this.checkDir(this.otherRepoRoot);
-    let deduped = {};
-    if (results != undefined) {
-      results.forEach(r => {
-        deduped[r] = true;
-      });
-      return Object.keys(deduped);
-    }
+    let deduped = new Set(results);
+    return [...deduped];
   }
 
   // checkDir recursively checks for docs URLs with missing docs paths or
@@ -81,7 +76,7 @@ class RedirectChecker {
     const text = this.fs.readFileSync(filePath, 'utf8');
     const docsURLs = [...text.matchAll(docsPattern)];
     if (docsURLs.length === 0) {
-      return;
+      return [];
     }
     let result = [];
     docsURLs.forEach(url => {
