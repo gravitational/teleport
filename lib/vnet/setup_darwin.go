@@ -225,3 +225,9 @@ func recvTUNNameAndFd(socket *net.UnixListener) (string, uintptr, error) {
 
 	return tunName, fd, nil
 }
+
+func DaemonSubcommand(ctx context.Context) error {
+	return trace.Wrap(daemon.Start(ctx, func(config daemon.Config) error {
+		return trace.Wrap(AdminSetup(ctx, config))
+	}))
+}
