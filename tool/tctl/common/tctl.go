@@ -196,6 +196,8 @@ func TryRun(commands []CLICommand, args []string) error {
 		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
 	}
 
+	cfg.Debug = ccf.Debug
+
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
