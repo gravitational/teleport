@@ -291,7 +291,7 @@ Guides related to Database Access.
     expect(actual).toBe(expected);
   });
 
-  test.only('orders sections correctly', () => {
+  test('orders sections correctly', () => {
     const expected = `---
 title: Documentation Home
 description: Guides to setting up the product.

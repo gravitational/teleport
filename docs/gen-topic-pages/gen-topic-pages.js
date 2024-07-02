@@ -117,6 +117,7 @@ class TopicContentsFragment {
       // Skip TOC pages (with the same name as the parent directory) since we
       // process these elswhere.
       if (path.dirname(f).endsWith(path.parse(f).name)) {
+      	mdxFiles.delete(f);
         return;
       }
 
