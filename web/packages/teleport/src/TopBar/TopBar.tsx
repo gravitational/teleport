@@ -33,6 +33,8 @@ import {
   SlidersVertical,
 } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
+import logoLight from 'design/assets/images/enterprise-light.svg';
+import logoDark from 'design/assets/images/enterprise-dark.svg';
 
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -46,8 +48,6 @@ import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
 
 import type * as history from 'history';
 

@@ -21,8 +21,9 @@ import styled from 'styled-components';
 
 import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
 
-import logoLight from 'teleport/Navigation/logoLight.svg';
-import logoDark from 'teleport/Navigation/logoDark.svg';
+import logoDark from 'design/assets/images/enterprise-dark.svg';
+import logoLight from 'design/assets/images/enterprise-light.svg';
+
 import { Description, Title } from 'teleport/Assist/Settings/shared';
 
 interface DisplaySettingsProps {
