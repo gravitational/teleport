@@ -78,16 +78,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -4579,6 +4580,41 @@ func TestGetWebConfig(t *testing.T) {
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
+		Entitlements: map[string]webclient.EntitlementInfo{
+			"AccessLists":            {Enabled: false},
+			"AccessMonitoring":       {Enabled: false},
+			"AccessRequests":         {Enabled: false},
+			"App":                    {Enabled: true},
+			"CloudAuditLogRetention": {Enabled: false},
+			"DB":                     {Enabled: true},
+			"Desktop":                {Enabled: true},
+			"DeviceTrust":            {Enabled: false},
+			"ExternalAuditStorage":   {Enabled: false},
+			"FeatureHiding":          {Enabled: false},
+			"HSM":                    {Enabled: false},
+			"Identity":               {Enabled: false},
+			"JoinActiveSessions":     {Enabled: true},
+			"K8s":                    {Enabled: true},
+			"MobileDeviceManagement": {Enabled: false},
+			"OIDC":                   {Enabled: false},
+			"OktaSCIM":               {Enabled: false},
+			"OktaUserSync":           {Enabled: false},
+			"Policy":                 {Enabled: false},
+			"SAML":                   {Enabled: false},
+			"SessionLocks":           {Enabled: false},
+			"UpsellAlert":            {Enabled: false},
+			"UsageReporting":         {Enabled: false},
+		},
+		TunnelPublicAddress:            "",
+		RecoveryCodesEnabled:           false,
+		UI:                             webclient.UIConfig{},
+		IsDashboard:                    false,
+		IsUsageBasedBilling:            false,
+		AutomaticUpgradesTargetVersion: "",
+		CustomTheme:                    "",
+		Questionnaire:                  false,
+		IsStripeManaged:                false,
+		PremiumSupport:                 false,
 	}
 
 	// Make a request.
@@ -4602,6 +4638,11 @@ func TestGetWebConfig(t *testing.T) {
 			Cloud:               true,
 			IsUsageBasedBilling: true,
 			AutomaticUpgrades:   true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB:          {Enabled: true, Limit: 22},
+				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
+				entitlements.Desktop:     {Enabled: true, Limit: 44},
+			},
 		},
 	})
 
@@ -4622,6 +4663,13 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
+	expectedCfg.TrustedDevices = true
+	expectedCfg.Entitlements["App"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
+	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
+	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
+	expectedCfg.Entitlements["JoinActiveSessions"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["K8s"] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4641,6 +4689,10 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
+	expectedCfg.TrustedDevices = false
+	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
@@ -4660,7 +4712,7 @@ func TestGetWebConfig(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 }
 
-func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
@@ -4696,6 +4748,31 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 		IsStripeManaged:     true,
 		Questionnaire:       true,
 		IsUsageBasedBilling: true,
+		Entitlements: map[string]webclient.EntitlementInfo{
+			"AccessLists":            {Enabled: true, Limit: 5},
+			"AccessMonitoring":       {Enabled: true, Limit: 10},
+			"AccessRequests":         {Enabled: false},
+			"App":                    {Enabled: false},
+			"CloudAuditLogRetention": {Enabled: false},
+			"DB":                     {Enabled: false},
+			"Desktop":                {Enabled: false},
+			"DeviceTrust":            {Enabled: false},
+			"ExternalAuditStorage":   {Enabled: false},
+			"FeatureHiding":          {Enabled: false},
+			"HSM":                    {Enabled: false},
+			"Identity":               {Enabled: true},
+			"JoinActiveSessions":     {Enabled: false},
+			"K8s":                    {Enabled: false},
+			"MobileDeviceManagement": {Enabled: false},
+			"OIDC":                   {Enabled: false},
+			"OktaSCIM":               {Enabled: false},
+			"OktaUserSync":           {Enabled: false},
+			"Policy":                 {Enabled: false},
+			"SAML":                   {Enabled: false},
+			"SessionLocks":           {Enabled: false},
+			"UpsellAlert":            {Enabled: false},
+			"UsageReporting":         {Enabled: false},
+		},
 	}
 
 	// Make a request.
