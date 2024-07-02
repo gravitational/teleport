@@ -421,8 +421,6 @@ func botIdentityFromToken(
 		JoinMethod:   cfg.Onboarding.JoinMethod,
 		Expires:      &expires,
 
-		AuthClient: authClient,
-
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Insecure,
 		CAPins:             cfg.Onboarding.CAPins,
@@ -430,6 +428,9 @@ func botIdentityFromToken(
 		FIPS:               cfg.FIPS,
 		GetHostCredentials: client.HostCredentials,
 		CipherSuites:       cfg.CipherSuites(),
+	}
+	if authClient != nil {
+		params.AuthClient = authClient
 	}
 
 	addr, addrKind := cfg.Address()
