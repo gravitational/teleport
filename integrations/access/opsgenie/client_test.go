@@ -59,7 +59,7 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@teleport.com"},
+			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel: {"responder@example.com"},
 			types.TeleportNamespace + types.ReqAnnotationTeamsLabel:           {"MyOpsGenieTeam"},
 		},
 	})
@@ -70,7 +70,7 @@ func TestCreateAlert(t *testing.T) {
 		Alias:       "teleport-access-request/someRequestID",
 		Description: "someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\nReason: someReason\n\n",
 		Responders: []Responder{
-			{Type: "schedule", ID: "responder@teleport.com"},
+			{Type: "schedule", ID: "responder@example.com"},
 			{Type: "team", ID: "MyOpsGenieTeam"},
 		},
 		Priority: "somePriority",
