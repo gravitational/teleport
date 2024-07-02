@@ -83,12 +83,12 @@ discovery_service:
        # This value is an optional AWS role ARN to assume when polling EKS clusters
        assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
        # External ID is an optional value that should be set when accessing
-	     # your AWS account from a third-party service (delegated access).
+       # your AWS account from a third-party service (delegated access).
        external_id: "example-external-id"
-       # Specifies the role for which the Discovery Service should create the EKS access entry.
-       # This is an optional parameter. If not set, the Discovery Service will attempt to create
-       # the access entry using its own identity.
-       # If used, the role must match the role configured for the Kubernetes Service.
+       # Optional role for which the Discovery Service should create the EKS access entry.
+       # If not set, the Discovery Service will attempt to create the access
+       # entry using its own identity.
+       # If used, the role must match the role configured for a Teleport Kubernetes Service.
        setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
     # Matchers for discovering Azure-hosted resources.
     azure:
