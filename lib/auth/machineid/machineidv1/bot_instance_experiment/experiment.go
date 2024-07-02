@@ -29,12 +29,12 @@ func init() {
 	enabled.Store(os.Getenv("BOT_INSTANCE_EXPERIMENT") == "1")
 }
 
-// Enabled returns true if the workload identity experiment is enabled.
+// Enabled returns true if the bot instance experiment is enabled.
 func Enabled() bool {
 	return enabled.Load()
 }
 
-// SetEnabled sets the workload identity experiment to the given value.
+// SetEnabled sets the bot instance experiment flag to the given value.
 func SetEnabled(value bool) {
 	enabled.Store(value)
 }
