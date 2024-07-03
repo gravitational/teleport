@@ -508,7 +508,7 @@ const NotificationsList = styled.div`
   max-height: 100%;
   overflow-y: auto;
   padding: ${p => p.theme.space[3]}px;
-  padding-top: 0px;
+  padding-top: 2px;
   // Subtract the width of the scrollbar from the right padding.
   padding-right: ${p => `${p.theme.space[3] - 8}px`};
 
