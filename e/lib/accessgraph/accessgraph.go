@@ -54,7 +54,7 @@ import (
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
 // events to the access graph service at a time.
-func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config ServiceClientConfig, creds ClientCredentials, authServer *auth.Server, bk backend.Backend) error {
+func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config ServiceClientConfig, getCreds ClientCredentialsGetter, authServer *auth.Server, bk backend.Backend) error {
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -81,7 +81,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			accessGraphConn, err := NewAccessGraphClient(
 				ctx,
 				config,
-				creds,
+				getCreds,
 				grpc.WithDefaultServiceConfig(serviceConfig),
 			)
 			if err != nil {

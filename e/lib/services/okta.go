@@ -157,7 +157,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	// Create the authorizer.
-	clusterName := conn.ServerIdentity.ClusterName
+	clusterName := conn.ClusterName()
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOkta,
@@ -192,7 +192,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		}
 	}()
 
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(nil)
+	tlsConfig, err := conn.ServerTLSConfig(nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

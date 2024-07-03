@@ -569,9 +569,9 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
-	adminIdentity, err := process.GetIdentity(types.RoleAdmin)
-	require.NoError(t, err)
-	adminTLS, err := adminIdentity.TLSConfig(nil)
+	authConn, err := process.WaitForConnector(service.AuthIdentityEvent, nil)
+	require.NotNil(t, authConn, err)
+	adminTLS, err := authConn.ClientTLSConfig(nil)
 	require.NoError(t, err)
 	require.NotNil(t, adminTLS)
 

@@ -28,17 +28,11 @@ type ServiceClientConfig struct {
 	Insecure bool
 }
 
-// ClientCredentials holds TLS client credentials for connecting to the access graph service.
-type ClientCredentials struct {
-	// Cert is the PEM-encoded TLS certificate used to authenticate to TAG
-	CertPEM []byte
-	// Key is the PEM-encoded private key for Cert
-	KeyPEM []byte
-}
+type ClientCredentialsGetter = func() (*tls.Certificate, error)
 
 // NewAccessGraphClient returns a new access graph service client.
-func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	credsOpt, err := grpcCredentials(config, creds)
+func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	credsOpt, err := grpcCredentials(config, getCreds)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,30 +61,8 @@ func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.Clie
 	return conn, trace.Wrap(err)
 }
 
-// NewAccessGraphClientWithCert returns a new access graph service client.
-func NewAccessGraphClientWithCert(ctx context.Context, config ServiceClientConfig, creds tls.Certificate, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentialsWithCert(config, creds)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conn, err := dial(ctx, config.Addr, append(opts, opt)...)
-	return conn, trace.Wrap(err)
-}
-
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config ServiceClientConfig, creds ClientCredentials) (grpc.DialOption, error) {
-	cert, err := tls.X509KeyPair(
-		creds.CertPEM,
-		creds.KeyPEM,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "cannot parse keypair")
-	}
-	return grpcCredentialsWithCert(config, cert)
-}
-
-func grpcCredentialsWithCert(config ServiceClientConfig, cert tls.Certificate) (grpc.DialOption, error) {
+func grpcCredentials(config ServiceClientConfig, getCreds ClientCredentialsGetter) (grpc.DialOption, error) {
 	var pool *x509.CertPool
 	if config.CA != "" {
 		pool = x509.NewCertPool()
@@ -104,8 +76,8 @@ func grpcCredentialsWithCert(config ServiceClientConfig, cert tls.Certificate) (
 	}
 
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{
-			cert,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return getCreds()
 		},
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: config.Insecure,

@@ -2,6 +2,7 @@ package accessgraph
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -29,24 +31,24 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 }
 
 type mockRegistrator struct {
-	register         func(config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, clusterName string) error
+	register         func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error
 	registerCalled   int
-	replaceCAs       func(config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error
+	replaceCAs       func(config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error
 	replaceCAsCalled int
 }
 
-func (m *mockRegistrator) Register(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, clusterName string) error {
+func (m *mockRegistrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error {
 	m.registerCalled++
 	if m.register != nil {
-		return m.register(config, creds, hostCAPem, clusterName)
+		return m.register(config, getCreds, hostCAPem, clusterName)
 	}
 	return nil
 }
 
-func (m *mockRegistrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error {
+func (m *mockRegistrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error {
 	m.replaceCAsCalled++
 	if m.replaceCAs != nil {
-		return m.replaceCAs(config, creds, caPEMs)
+		return m.replaceCAs(config, getCreds, caPEMs)
 	}
 	return nil
 }
@@ -55,10 +57,6 @@ var (
 	testConfig = ServiceClientConfig{
 		Addr: "foo:123",
 		CA:   "/foo/bar.pem",
-	}
-	testAdminCreds = ClientCredentials{
-		CertPEM: []byte("admin cert"),
-		KeyPEM:  []byte("admin key"),
 	}
 	testActiveKeyPair = &types.TLSKeyPair{
 		Cert: []byte("active cert"),
@@ -129,22 +127,29 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			certSentinel := new(tls.Certificate)
 			registrator := &mockRegistrator{
-				register: func(config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, name string) error {
+				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
 					require.Equal(t, testConfig, config)
-					require.Equal(t, testAdminCreds, creds)
+					c, err := getCreds()
+					require.NoError(t, err)
+					require.Same(t, certSentinel, c)
 					require.Equal(t, ca.GetActiveKeys().TLS[0].Cert, hostCAPem)
 					require.Equal(t, clusterName.GetClusterName(), name)
 					return tc.registerError
 				},
-				replaceCAs: func(config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error {
+				replaceCAs: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error {
 					require.Equal(t, testConfig, config)
-					require.Equal(t, testAdminCreds, creds)
+					c, err := getCreds()
+					require.NoError(t, err)
+					require.Same(t, certSentinel, c)
 					require.Equal(t, [][]byte{ca.GetActiveKeys().TLS[0].Cert}, caPEMs)
 					return tc.replaceCAsError
 				},
 			}
-			err := Register(ctx, registrator, testConfig, testAdminCreds, auth, nil)
+			err := Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
+				return certSentinel, nil
+			}, auth, nil)
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)
 
@@ -171,6 +176,10 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 			Cloud: true,
 		},
 	})
+
+	licenseKeyPair, err := liblicense.ParseLicensePEM([]byte(fixtures.TestLicenseData))
+	require.NoError(t, err)
+
 	ctx := context.Background()
 
 	ca := createCA(t, "", nil)
@@ -180,26 +189,29 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 		clusterName: clusterName,
 	}
 	license := &licensefile.LicenseFile{
-		KeyPair: &liblicense.License{
-			CertPEM: []byte("license_cert"),
-			KeyPEM:  []byte("license_key"),
-		},
+		KeyPair: licenseKeyPair,
 	}
 
+	certSentinel := new(tls.Certificate)
 	registrator := &mockRegistrator{
-		register: func(config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, name string) error {
+		register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
 			require.Equal(t, testConfig, config)
-			require.Equal(t, license.KeyPair.CertPEM, creds.CertPEM)
-			require.Equal(t, license.KeyPair.KeyPEM, creds.KeyPEM)
+			c, err := getCreds()
+			require.NoError(t, err)
+			require.NotSame(t, certSentinel, c)
 			return nil
 		},
-		replaceCAs: func(config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error {
+		replaceCAs: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error {
 			require.Equal(t, testConfig, config)
-			require.Equal(t, testAdminCreds, creds)
+			c, err := getCreds()
+			require.NoError(t, err)
+			require.Same(t, certSentinel, c)
 			return nil
 		},
 	}
-	err := Register(ctx, registrator, testConfig, testAdminCreds, auth, license)
+	err = Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
+		return certSentinel, nil
+	}, auth, license)
 	require.NoError(t, err)
 	require.Equal(t, 1, registrator.registerCalled)
 	require.Equal(t, 1, registrator.replaceCAsCalled)
@@ -255,21 +267,28 @@ func TestRegister_CARotation(t *testing.T) {
 				clusterName: clusterName,
 			}
 
+			certSentinel := new(tls.Certificate)
 			registrator := &mockRegistrator{
-				register: func(config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, name string) error {
+				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
 					require.Equal(t, testConfig, config)
-					require.Equal(t, testAdminCreds, creds)
+					c, err := getCreds()
+					require.NoError(t, err)
+					require.Same(t, certSentinel, c)
 					require.Equal(t, tc.expectedRegisterCA, hostCAPem)
 					return nil
 				},
-				replaceCAs: func(config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error {
+				replaceCAs: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error {
 					require.Equal(t, testConfig, config)
-					require.Equal(t, testAdminCreds, creds)
+					c, err := getCreds()
+					require.NoError(t, err)
+					require.Same(t, certSentinel, c)
 					require.Equal(t, tc.expectedCAs, caPEMs)
 					return nil
 				},
 			}
-			err := Register(ctx, registrator, testConfig, testAdminCreds, auth, nil)
+			err := Register(ctx, registrator, testConfig, func() (*tls.Certificate, error) {
+				return certSentinel, nil
+			}, auth, nil)
 			require.NoError(t, err)
 			require.Equal(t, 1, registrator.registerCalled)
 			require.Equal(t, 1, registrator.replaceCAsCalled)

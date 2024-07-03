@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/entraid"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
@@ -106,15 +105,10 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 			return trace.BadParameter("Access graph synchronization requested, but access graph is not configured ")
 		}
 
-		creds := accessgraph.ClientCredentials{
-			CertPEM: conn.ClientIdentity.TLSCertBytes,
-			KeyPEM:  conn.ClientIdentity.KeyBytes,
-		}
-
 		tagSynchronizer, err = entraid.NewAccessGraphSynchronizer(entraid.AccessGraphConfig{
 			Logger:           logger,
 			ConnectionConfig: tagCfg,
-			Credentials:      creds,
+			Credentials:      conn.ClientGetCertificate,
 			SyncSettings:     spec.AccessGraphSettings,
 			GraphClient:      graphClient,
 			TenantID:         integrationSpec.TenantID,

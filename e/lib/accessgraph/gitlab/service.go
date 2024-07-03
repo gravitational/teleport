@@ -2,7 +2,6 @@ package gitlab
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"log/slog"
 	"time"
@@ -40,7 +39,7 @@ type Service struct {
 	accessGraphConfig servicecfg.AccessGraphConfig
 	clusterFeatures   func() proto.Features
 	hostID            string
-	creds             tls.Certificate
+	getCreds          accessgraph.ClientCredentialsGetter
 	fetcher           *gitlabFetcher
 	pluginStatusSink  common.StatusSink
 }
@@ -60,7 +59,7 @@ type Opts struct {
 	Logger            *slog.Logger
 	AccessGraphConfig servicecfg.AccessGraphConfig
 	HostID            string
-	Creds             tls.Certificate
+	GetCreds          accessgraph.ClientCredentialsGetter
 	AccessPoint       types.Semaphores
 	PluginStatusSink  common.StatusSink
 	ClusterFeatures   func() proto.Features
@@ -120,7 +119,7 @@ func New(ctx context.Context, opts Opts) (*Service, error) {
 		accessGraphConfig: opts.AccessGraphConfig,
 		clusterFeatures:   opts.ClusterFeatures,
 		hostID:            opts.HostID,
-		creds:             opts.Creds,
+		getCreds:          opts.GetCreds,
 		fetcher:           fetcher,
 		pluginStatusSink:  opts.PluginStatusSink,
 	}, nil
@@ -221,14 +220,14 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 		}
 	}()
 
-	accessGraphConn, err := accessgraph.NewAccessGraphClientWithCert(
+	accessGraphConn, err := accessgraph.NewAccessGraphClient(
 		ctx,
 		accessgraph.ServiceClientConfig{
 			Addr:     s.accessGraphConfig.Addr,
 			CA:       s.accessGraphConfig.CA,
 			Insecure: s.accessGraphConfig.Insecure,
 		},
-		s.creds,
+		s.getCreds,
 		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
 	if err != nil {

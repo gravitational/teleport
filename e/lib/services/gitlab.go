@@ -42,18 +42,13 @@ func startGitlabService(ctx context.Context, process *service.TeleportProcess, s
 		return trace.BadParameter("failed to acquire AccessGraphPlugin credentials from Auth")
 	}
 
-	tlsConfig, err := conn.ClientIdentity.TLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	s, err := gitlabservice.New(ctx, gitlabservice.Opts{
 		GitlabOpts:        gitlabOpts,
 		Clock:             process.Clock,
 		Logger:            logger,
 		AccessGraphConfig: process.Config.AccessGraph,
 		HostID:            process.Config.HostUUID,
-		Creds:             tlsConfig.Certificates[0],
+		GetCreds:          conn.ClientGetCertificate,
 		AccessPoint:       conn.Client,
 		ClusterFeatures:   process.GetClusterFeatures,
 		PluginStatusSink:  statusSink,

@@ -162,13 +162,9 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 
 		ctx := process.GracefulExitContext()
 
-		identity, err := process.GetIdentity(types.RoleAdmin)
+		conn, err := process.WaitForConnector(service.AuthIdentityEvent, cfg.Logger)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		adminCreds := ClientCredentials{
-			CertPEM: identity.TLSCertBytes,
-			KeyPEM:  identity.KeyBytes,
 		}
 
 		log := cfg.Logger.With(teleport.ComponentKey, "accessgraph", "listen_address", accessGraphAddr)
@@ -184,7 +180,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 
 		// Retry registration first: after it succeeds once, we do not need to re-attempt it.
 		for {
-			err := Register(ctx, &registrator{}, config, adminCreds, process.GetAuthServer(), license)
+			err := Register(ctx, &registrator{}, config, conn.ClientGetCertificate, process.GetAuthServer(), license)
 			if err == nil {
 				break
 			}
@@ -203,7 +199,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			if err := initializeAndWatchAccessGraph(ctx,
 				log,
 				config,
-				adminCreds,
+				conn.ClientGetCertificate,
 				process.GetAuthServer(), process.GetBackend()); err != nil {
 				cfg.Logger.ErrorContext(ctx, "Access graph sync process failed", "error", err)
 				select {

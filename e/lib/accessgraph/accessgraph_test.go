@@ -227,9 +227,8 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 				Addr:     svc.accessGraphListener.Addr().String(),
 				Insecure: true,
 			},
-			ClientCredentials{
-				CertPEM: fixtures.LocalhostCert,
-				KeyPEM:  fixtures.LocalhostKey,
+			func() (*tls.Certificate, error) {
+				return &fixtures.LocalhostTLSCertificate, nil
 			},
 			svc.authServer,
 			svc.bk,

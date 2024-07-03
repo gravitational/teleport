@@ -38,7 +38,6 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -242,7 +241,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &stubProxySettings{},
 		PluginRegistry:                  pluginRegistry,
-		GetProxyIdentity: func() (*state.Identity, error) {
+		GetProxyClientTLSConfig: func(cipherSuites []uint16) (*tls.Config, error) {
 			return nil, nil
 		},
 		ClusterFeatures: proto.Features{

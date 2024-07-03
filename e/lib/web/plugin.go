@@ -33,7 +33,6 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -146,14 +145,6 @@ func (p *Plugin) GetProxyClient() authclient.ClientI {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.h.GetProxyClient()
-}
-
-// GetProxyIdentity returns the proxy identity.
-func (p *Plugin) GetProxyIdentity() (*state.Identity, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	rsp, err := p.h.GetProxyIdentity()
-	return rsp, trace.Wrap(err)
 }
 
 // GetAccessPoint returns the proxy caching access point.
@@ -745,12 +736,11 @@ func (p *Plugin) getProxyTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 			InsecureSkipVerify: true,
 		}, nil
 	}
-	id, err := p.h.GetProxyIdentity()
+	tlsConfig, err := p.h.GetProxyClientTLSConfig(cipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := id.TLSConfig(cipherSuites)
-	return tlsConfig.Clone(), trace.Wrap(err)
+	return tlsConfig, nil
 }
 
 // getAccessGraphTLSConfig builds the TLS config used to retrieve static assets from access graph service.

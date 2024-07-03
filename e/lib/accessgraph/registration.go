@@ -2,6 +2,7 @@ package accessgraph
 
 import (
 	"context"
+	"crypto/tls"
 
 	"github.com/gravitational/trace"
 
@@ -15,16 +16,16 @@ import (
 // Registrator is a thin layer around methods of the same name in the accessgraphv1alpha service.
 // Its purpose is to help decouple the logic from concrete transport (gRPC).
 type Registrator interface {
-	Register(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, clusterName string) error
-	ReplaceCAs(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error
+	Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error
+	ReplaceCAs(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error
 }
 
 // registrator is a concrete implementation of Registrator
 type registrator struct{}
 
 // Register implements Registrator.
-func (*registrator) Register(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, hostCAPem []byte, clusterName string) error {
-	conn, err := NewAccessGraphClient(ctx, config, creds)
+func (*registrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error {
+	conn, err := NewAccessGraphClient(ctx, config, getCreds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -39,8 +40,8 @@ func (*registrator) Register(ctx context.Context, config ServiceClientConfig, cr
 }
 
 // ReplaceCAs implements Registrator.
-func (*registrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, creds ClientCredentials, caPEMs [][]byte) error {
-	conn, err := NewAccessGraphClient(ctx, config, creds)
+func (*registrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error {
+	conn, err := NewAccessGraphClient(ctx, config, getCreds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -58,7 +59,14 @@ type authServer interface {
 
 // Register registers the cluster as a tenant with the Access Graph server,
 // and submits additional Host CA certificates (if any exist due to ongoing CA rotation).
-func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, adminCreds ClientCredentials, auth authServer, license *licensefile.LicenseFile) error {
+func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, getAdminCreds ClientCredentialsGetter, auth authServer, license *licensefile.LicenseFile) error {
+	// we need to call Register and ReplaceCAs with the same identity if we're
+	// not using the license file as registration credentials
+	adminCreds, err := getAdminCreds()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clusterName, err := auth.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -95,10 +103,11 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 	regCreds := adminCreds
 	// In cloud, registration CA is the licensing CA.
 	if modules.GetModules().Features().Cloud {
-		regCreds = ClientCredentials{
-			CertPEM: license.KeyPair.CertPEM,
-			KeyPEM:  license.KeyPair.KeyPEM,
+		c, err := tls.X509KeyPair(license.KeyPair.CertPEM, license.KeyPair.KeyPEM)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		regCreds = &c
 	}
 
 	// It is possible for Register() to fail despite the fact we have previously registered successfully.
@@ -107,14 +116,14 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 	// but the user might not have updated `registration_cas` in the TAG service config.
 	// We should only raise this as a hard error if subsequent ReplaceCAs() call fails,
 	// as it indicates that authentication with this Host CA fails in general (i.e. the Host CA is not trusted).
-	regErr := reg.Register(ctx, config, regCreds, caToRegister, clusterName.GetClusterName())
+	regErr := reg.Register(ctx, config, func() (*tls.Certificate, error) { return regCreds, nil }, caToRegister, clusterName.GetClusterName())
 
 	cas := [][]byte{activeCA}
 	if additionalCA != nil {
 		cas = append(cas, additionalCA)
 	}
 
-	err = reg.ReplaceCAs(ctx, config, adminCreds, cas)
+	err = reg.ReplaceCAs(ctx, config, func() (*tls.Certificate, error) { return adminCreds, nil }, cas)
 	if err != nil {
 		return trace.NewAggregate(regErr, err)
 	}

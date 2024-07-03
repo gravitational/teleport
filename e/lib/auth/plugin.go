@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -398,6 +400,11 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 	// Ask Auth to generate a host certificate. This is probably not the best approach.
 	// TODO(justinas): remove Access Graph relay gRPC service from auth altogether,
 	// see https://github.com/gravitational/access-graph/issues/362
+	// TODO(espadolini): use credentials from a connector from the
+	// TeleportProcess which definitely exists already at this point, the chain
+	// is NewTeleport -> process.initAuthService -> NewTLSServer ->
+	// registry.RegisterAuthServices -> plugin.RegisterAuthServices ->
+	// plugin.registerAccessGraphService
 	key, err := native.GeneratePrivateKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -421,6 +428,10 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsCert, err := keys.X509KeyPair(cert.TLS, tlsPriv)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	agConn, err := accessgraph.NewAccessGraphClient(
 		ctx,
@@ -429,10 +440,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 			CA:       p.Config.AccessGraph.CA,
 			Insecure: p.Config.AccessGraph.Insecure,
 		},
-		accessgraph.ClientCredentials{
-			CertPEM: cert.TLS,
-			KeyPEM:  tlsPriv,
-		},
+		func() (*tls.Certificate, error) { return &tlsCert, nil },
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -23,7 +23,7 @@ type AccessGraphConfig struct {
 	Clock            clockwork.Clock
 	Logger           *slog.Logger
 	ConnectionConfig servicecfg.AccessGraphConfig
-	Credentials      accessgraph.ClientCredentials
+	Credentials      accessgraph.ClientCredentialsGetter
 	SyncSettings     *types.PluginEntraIDAccessGraphSettings
 	// GraphClient is the instantiated Microsoft Graph SDK client.
 	GraphClient *msgraphsdk.GraphServiceClient
@@ -57,7 +57,7 @@ type AccessGraphSynchronizer struct {
 	log   *slog.Logger
 
 	connectionConfig servicecfg.AccessGraphConfig
-	credentials      accessgraph.ClientCredentials
+	credentials      accessgraph.ClientCredentialsGetter
 	// appCache is a mapping of AppId to its sso cache entry
 	ssoCache map[string]*types.PluginEntraIDAppSSOSettings
 
@@ -223,7 +223,7 @@ func (s *AccessGraphSynchronizer) convertApp(ctx context.Context, app models.App
 	return protoApp, trace.Wrap(err)
 }
 
-func newAccessGraphConnection(ctx context.Context, cfg servicecfg.AccessGraphConfig, creds accessgraph.ClientCredentials) (*grpc.ClientConn, error) {
+func newAccessGraphConnection(ctx context.Context, cfg servicecfg.AccessGraphConfig, getCreds accessgraph.ClientCredentialsGetter) (*grpc.ClientConn, error) {
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -240,7 +240,7 @@ func newAccessGraphConnection(ctx context.Context, cfg servicecfg.AccessGraphCon
 		CA:       cfg.CA,
 	}
 
-	accessGraphConn, err := accessgraph.NewAccessGraphClient(ctx, tagCfg, creds, grpc.WithDefaultServiceConfig(serviceConfig))
+	accessGraphConn, err := accessgraph.NewAccessGraphClient(ctx, tagCfg, getCreds, grpc.WithDefaultServiceConfig(serviceConfig))
 	return accessGraphConn, trace.Wrap(err)
 }
 
