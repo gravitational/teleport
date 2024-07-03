@@ -46,6 +46,8 @@ jobs:
               - 'api/proto/**'
               - 'proto/**'
               - '.github/workflows/lint.yaml'
+              - 'integrations/terraform/examples/**'
+              - 'integrations/terraform/templates/**'
 
   lint-go:
     name: Lint (Go)
