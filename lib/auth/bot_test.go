@@ -161,7 +161,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 		// There should always be at least 1 entry as the initial join is
 		// duplicated in the list.
-		require.Equal(t, min(i+1, machineidv1.AuthenticationHistoryLimit), len(bi.Status.LatestAuthentications))
+		require.Len(t, bi.Status.LatestAuthentications, min(i+1, machineidv1.AuthenticationHistoryLimit))
 
 		// Generation starts at 1 for initial certs.
 		latest := bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
@@ -187,7 +187,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
 
-		require.Equal(t, min(i+2, machineidv1.AuthenticationHistoryLimit), len(bi.Status.LatestAuthentications))
+		require.Len(t, bi.Status.LatestAuthentications, min(i+2, machineidv1.AuthenticationHistoryLimit))
 
 		latest = bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
 		require.Equal(t, int32(i+2), latest.Generation)
