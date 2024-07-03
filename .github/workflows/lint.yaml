@@ -41,11 +41,20 @@ jobs:
               - 'build.assets/versions.mk'
               - 'Makefile'
             has_proto:
+              # workflow changes
+              - '.github/workflows/lint.yaml'
+              # proto files or buf changes
               - 'go.mod'
               - 'go.sum'
               - 'api/proto/**'
               - 'proto/**'
-              - '.github/workflows/lint.yaml'
+              # operator protoc generator change
+              - 'integrations/operator/crdgen'
+              # terraform protoc generator changes
+              - 'integrations/terraform/go.mod'
+              - 'integrations/terraform/gen/docs.sh'
+              - 'integrations/terraform/protoc-gen-terraform-*'
+              - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
 
