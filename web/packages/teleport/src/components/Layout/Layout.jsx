@@ -17,7 +17,7 @@
  */
 
 import styled from 'styled-components';
-import { border } from 'styled-system';
+// import { border } from 'styled-system';
 import { Flex, Text } from 'design';
 
 /**
@@ -31,7 +31,6 @@ const FeatureHeader = styled(Flex)`
   margin-right: -40px;
   padding-left: 40px;
   padding-right: 40px;
-  ${border}
 `;
 
 FeatureHeader.defaultProps = {

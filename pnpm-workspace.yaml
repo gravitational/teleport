@@ -1,0 +1,4 @@
+packages:
+  - '.'
+  - 'web/packages/*'
+  - 'e/web/*'

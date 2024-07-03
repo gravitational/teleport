@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 
-import { existsSync, readFileSync } from 'fs';
-
-import react from '@vitejs/plugin-react-swc';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 
-import { cspPlugin } from '../build/vite/csp';
-
-import { getStyledComponentsConfig } from '../build/vite/styled';
+import { commonConfig } from '@gravitational/build/vite/react.mjs';
+import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
+import type { Plugin } from 'vite';
 
 const rootDirectory = resolve(__dirname, '../../..');
 const outputDirectory = resolve(__dirname, 'build', 'app');
@@ -38,9 +35,7 @@ const outputDirectory = resolve(__dirname, 'build', 'app');
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
 const config = defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPaths({
-    projects: [resolve(rootDirectory, 'tsconfig.json')],
-  });
+  const tsConfigPathsPlugin = tsconfigPathsPlugin();
 
   const commonPlugins = [
     externalizeDepsPlugin({ exclude: externalizeDeps }),
@@ -114,14 +109,7 @@ const config = defineConfig(env => {
         },
       },
       plugins: [
-        react({
-          plugins: [
-            [
-              '@swc/plugin-styled-components',
-              getStyledComponentsConfig(env.mode),
-            ],
-          ],
-        }),
+        commonConfig(env.mode === 'development'),
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
       ],
@@ -142,7 +130,7 @@ const config = defineConfig(env => {
 
       if (!existsSync(certsDirectory)) {
         throw new Error(
-          'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
+          'Could not find SSL certificates. Please follow web/README.md to generate certificates.',
         );
       }
 
@@ -167,4 +155,24 @@ function manualChunks(id: string) {
       return dep;
     }
   }
+}
+
+function cspPlugin(csp: string): Plugin {
+  return {
+    name: 'teleport-connect-html-plugin',
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [
+          {
+            tag: 'meta',
+            attrs: {
+              'http-equiv': 'Content-Security-Policy',
+              content: csp,
+            },
+          },
+        ],
+      };
+    },
+  };
 }

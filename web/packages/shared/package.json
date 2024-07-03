@@ -10,7 +10,7 @@
     "directory": "packages/shared"
   },
   "dependencies": {
-    "@gravitational/design": "1.0.0",
+    "@gravitational/design": "workspace:1.0.0",
     "ace-builds": "1.35.0",
     "highlight-words-core": "^1.2.2"
   }

@@ -22,3 +22,11 @@ import { Theme } from 'design/theme/themes/types';
 declare module 'styled-components' {
   export interface DefaultTheme extends Theme {}
 }
+
+import type { CSSProp } from 'styled-components';
+
+declare module 'react' {
+  interface Attributes {
+    css?: CSSProp | undefined;
+  }
+}
