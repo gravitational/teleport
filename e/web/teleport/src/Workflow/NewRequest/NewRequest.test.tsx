@@ -204,16 +204,9 @@ test('select all uses node hostnames in checkout', async () => {
 
   render(Component);
 
-  const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
-    'textbox'
-  );
-  fireEvent.change(inputEl, { target: { value: 'resource' } });
-  fireEvent.focus(inputEl);
-  fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
-
-  let addrs = await screen.findAllByText('node1-addr');
-  // addrs should not increment when the checkout window because we display hostname
-  expect(addrs).toHaveLength(1);
+  let hostnames = await screen.findAllByText('hostname-node1');
+  // only one in the resource list
+  expect(hostnames).toHaveLength(1);
   const addButtons = await screen.findAllByText(/request access/i);
 
   await userEvent.click(addButtons[0]);
@@ -221,9 +214,10 @@ test('select all uses node hostnames in checkout', async () => {
   await userEvent.click(proceedToRequest);
 
   expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
-  addrs = await screen.findAllByText('node1-addr');
+  hostnames = await screen.findAllByText('hostname-node1');
 
-  expect(addrs).toHaveLength(1);
+  // one in list and one in the checkout
+  expect(hostnames).toHaveLength(2);
 });
 
 test('select all buttons work properly', async () => {
@@ -490,7 +484,7 @@ const nodesResponse = [
     id: '1',
     kind: 'node',
     clusterId: 'one',
-    hostname: 'node1',
+    hostname: 'hostname-node1',
     addr: 'node1-addr',
     tags: [
       {

@@ -348,12 +348,17 @@ function NewRequest(props: State) {
                       isAgentAdded={Boolean(
                         addedResources[resource.kind][getResourceId(resource)]
                       )}
-                      onClick={() =>
+                      onClick={() => {
+                        let resourceName;
+                        if (resource.kind === 'node') {
+                          resourceName = resource.hostname;
+                        }
                         addOrRemoveResource(
                           resource.kind,
-                          getResourceId(resource)
-                        )
-                      }
+                          getResourceId(resource),
+                          resourceName
+                        );
+                      }}
                     />
                   ),
               },

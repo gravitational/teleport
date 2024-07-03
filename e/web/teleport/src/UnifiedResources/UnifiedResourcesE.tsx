@@ -105,9 +105,17 @@ export function UnifiedResourcesE() {
       return (
         <RequestButton
           isAgentAdded={isAgentAdded}
-          onClick={() =>
-            addOrRemoveResource(resource.kind, getResourceId(resource))
-          }
+          onClick={() => {
+            let resourceName;
+            if (resource.kind === 'node') {
+              resourceName = resource.hostname;
+            }
+            addOrRemoveResource(
+              resource.kind,
+              getResourceId(resource),
+              resourceName
+            );
+          }}
           disabled={false}
           requestStarted={requestStarted}
         />
