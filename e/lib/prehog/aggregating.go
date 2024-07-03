@@ -1,9 +1,11 @@
 package prehog
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"net/http"
+	"net/url"
 	"os"
 
 	"connectrpc.com/connect"
@@ -11,6 +13,7 @@ import (
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -32,6 +35,27 @@ func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16
 		return nil, trace.Wrap(err)
 	}
 
+	// logic extended from [httpproxy.FromEnvironment]
+	proxyFunc := (&httpproxy.Config{
+		HTTPProxy: cmp.Or(
+			os.Getenv("TELEPORT_REPORTING_HTTP_PROXY"),
+			os.Getenv("HTTP_PROXY"),
+			os.Getenv("http_proxy"),
+		),
+		HTTPSProxy: cmp.Or(
+			os.Getenv("TELEPORT_REPORTING_HTTPS_PROXY"),
+			os.Getenv("HTTPS_PROXY"),
+			os.Getenv("https_proxy"),
+		),
+		NoProxy: cmp.Or(
+			os.Getenv("NO_PROXY"),
+			os.Getenv("no_proxy"),
+		),
+		CGI: os.Getenv("REQUEST_METHOD") != "",
+	}).ProxyFunc()
+	ht.Proxy = func(req *http.Request) (*url.URL, error) {
+		return proxyFunc(req.URL)
+	}
 	ht.TLSClientConfig = utils.TLSConfig(cipherSuites)
 	ht.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		return clientCert, nil
