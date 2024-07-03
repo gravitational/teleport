@@ -29,9 +29,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/player/db"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -72,6 +75,9 @@ type Player struct {
 
 	// err holds the error (if any) encountered during playback
 	err error
+
+	// translator is the current SessionPrintTranslator used.
+	translator SessionPrintTranslator
 }
 
 const normalPlayback = math.MinInt64
@@ -84,6 +90,18 @@ type Streamer interface {
 		sessionID session.ID,
 		startIndex int64,
 	) (chan events.AuditEvent, chan error)
+}
+
+// NewSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
+type NewSessionPrintTranslatorFunc func() SessionPrintTranslator
+
+// SessionPrintTranslator provides a way to transform detailed protocol-specific
+// audit events into a textual representation.
+type SessionPrintTranslator interface {
+	// TranslateEvent takes an audit event and converts it into a print event.
+	// The function might return `nil` in cases where there is no textual
+	// representation for the provided event.
+	TranslateEvent(events.AuditEvent) *events.SessionPrint
 }
 
 // Config configures a session player.
@@ -162,6 +180,7 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var skip bool
 	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
 	lastDelay := int64(0)
 	for {
@@ -185,6 +204,11 @@ func (p *Player) stream() {
 				p.log.Warn(err)
 				close(p.emit)
 				return
+			}
+
+			evt, skip = p.translateEvent(evt)
+			if skip {
+				continue
 			}
 
 			currentDelay := getDelay(evt)
@@ -428,6 +452,38 @@ func (p *Player) waitWhilePaused() error {
 func (p *Player) LastPlayed() int64 {
 	return p.lastPlayed.Load()
 }
+
+// translateEvent translates events if applicable and return if they should be
+// skipped.
+func (p *Player) translateEvent(evt events.AuditEvent) (events.AuditEvent, bool) {
+	// We can only define the translator when the first event arrives.
+	switch e := evt.(type) {
+	case *events.DatabaseSessionStart:
+		if newTranslatorFunc, ok := databaseTranslators[e.DatabaseProtocol]; ok {
+			p.translator = newTranslatorFunc()
+		}
+	}
+
+	if p.translator == nil {
+		return evt, false
+	}
+
+	if translatedEvt := p.translator.TranslateEvent(evt); translatedEvt != nil {
+		return translatedEvt, false
+	}
+
+	// Always skip if the translator returns an nil event.
+	return nil, true
+}
+
+// databaseTranslators maps database protocol event translators.
+var databaseTranslators = map[string]NewSessionPrintTranslatorFunc{
+	defaults.ProtocolPostgres: func() SessionPrintTranslator { return db.NewPostgresTranslator() },
+}
+
+// SupportedDatabaseProtocols a list of database protocols supported by the
+// player.
+var SupportedDatabaseProtocols = maps.Keys(databaseTranslators)
 
 func getDelay(e events.AuditEvent) int64 {
 	switch x := e.(type) {
