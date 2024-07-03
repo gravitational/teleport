@@ -193,6 +193,8 @@ func Run(args []string, stdout io.Writer) error {
 	tpmCommand := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCommand := tpmCommand.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
+	installSystemdCmdStr, installSystemdCmdFn := setupInstallSystemdCmd(app)
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -313,6 +315,8 @@ func Run(args []string, stdout io.Writer) error {
 		return onSSHProxyCommand(ctx, &cf)
 	case sshMultiplexProxyCmd.FullCommand():
 		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
+	case installSystemdCmdStr:
+		return installSystemdCmdFn(ctx, log, cf)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
