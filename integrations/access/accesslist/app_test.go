@@ -32,14 +32,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockMessagingBot struct {
 	lastReminderRecipients []common.Recipient
+	isBatchTest            bool
+	numSentSingleReminders int
+	numSentBatchReminders  int
 	recipients             map[string]*common.Recipient
 	mutex                  sync.Mutex
 }
@@ -52,6 +57,15 @@ func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient co
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
+	m.numSentSingleReminders += 1
+	return nil
+}
+
+func (m *mockMessagingBot) SendBatchedReviewReminder(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
+	m.numSentBatchReminders += 1
 	return nil
 }
 
@@ -65,6 +79,8 @@ func (m *mockMessagingBot) resetLastRecipients() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.lastReminderRecipients = make([]common.Recipient, 0)
+	m.numSentBatchReminders = 0
+	m.numSentSingleReminders = 0
 }
 
 func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
@@ -105,7 +121,7 @@ func (m *mockPluginConfig) GetPluginType() types.PluginType {
 	return types.PluginTypeSlack
 }
 
-func TestAccessListReminders(t *testing.T) {
+func TestAccessListReminders_Single(t *testing.T) {
 	t.Parallel()
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -124,8 +140,8 @@ func TestAccessListReminders(t *testing.T) {
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
-			"owner1": {Name: "owner1"},
-			"owner2": {Name: "owner2"},
+			"owner1": {Name: "owner1", ID: "owner1"},
+			"owner2": {Name: "owner2", ID: "owner2"},
 		},
 	}
 	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
@@ -162,44 +178,137 @@ func TestAccessListReminders(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	accessLists := []*accesslist.AccessList{accessList}
+
 	// No notifications for today
-	advanceAndLookForRecipients(t, bot, as, clock, 0, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
 
 	// Advance by one week, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
 
 	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessList, "owner1")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1")
 
 	// Add a new owner.
 	accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
 
 	// Advance by one day, expect a notification only to the new owner.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList, "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists, "owner2")
 
 	// Advance by one day, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
 	// Advance by one day, expect no notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessList)
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
 
 	// Advance by five more days, to the next week, expect two notifications
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessList, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
 
 	// Advance 60 days a day at a time, expect two notifications each time.
 	for i := 0; i < 60; i++ {
 		// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
 		for j := 0; j < 3; j++ {
-			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessList)
+			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists)
 		}
-		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessList, "owner1", "owner2")
+		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists, "owner1", "owner2")
 	}
+}
+
+func TestAccessListReminders_Batched(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	server := newTestAuth(t)
+
+	as := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, as.Close())
+	})
+
+	bot := &mockMessagingBot{
+		isBatchTest: true,
+		recipients: map[string]*common.Recipient{
+			"owner1": {Name: "owner1", ID: "owner1"},
+			"owner2": {Name: "owner2", ID: "owner2"},
+		},
+	}
+	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+	go func() {
+		app.Run(ctx)
+	}()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	t.Cleanup(func() {
+		app.Terminate()
+		<-app.Done()
+		require.NoError(t, app.Err())
+	})
+
+	accessList1, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title:  "test access list",
+		Owners: []accesslist.Owner{{Name: "owner1"}, {Name: "owner2"}, {Name: "not-found"}},
+		Grants: accesslist.Grants{
+			Roles: []string{"role"},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: clock.Now().Add(28 * 24 * time.Hour), // Four weeks out from today
+			Notifications: accesslist.Notifications{
+				Start: oneDay * 14, // Start alerting at two weeks before audit date
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	accessList2, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list-2",
+	}, accesslist.Spec{
+		Title:  "test access list 2",
+		Owners: []accesslist.Owner{{Name: "owner1"}, {Name: "owner2"}, {Name: "not-found"}},
+		Grants: accesslist.Grants{
+			Roles: []string{"role"},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: clock.Now().Add(28 * 24 * time.Hour), // Four weeks out from today
+			Notifications: accesslist.Notifications{
+				Start: oneDay * 14, // Start alerting at two weeks before audit date
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	accessLists := []*accesslist.AccessList{accessList1, accessList2}
+
+	// No notifications for today
+	advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+
+	// Advance by one week, expect no notifications.
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+
+	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1", "owner2")
+
+	// Advance another week, expect notifications.
+	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1", "owner2")
 }
 
 type mockClient struct {
@@ -271,13 +380,15 @@ func advanceAndLookForRecipients(t *testing.T,
 	alSvc services.AccessLists,
 	clock clockwork.FakeClock,
 	advance time.Duration,
-	accessList *accesslist.AccessList,
+	accessLists []*accesslist.AccessList,
 	recipients ...string) {
 
 	ctx := context.Background()
 
-	_, err := alSvc.UpsertAccessList(ctx, accessList)
-	require.NoError(t, err)
+	for _, accessList := range accessLists {
+		_, err := alSvc.UpsertAccessList(ctx, accessList)
+		require.NoError(t, err)
+	}
 
 	bot.resetLastRecipients()
 
@@ -285,11 +396,17 @@ func advanceAndLookForRecipients(t *testing.T,
 	if len(recipients) > 0 {
 		expectedRecipients = make([]common.Recipient, len(recipients))
 		for i, r := range recipients {
-			expectedRecipients[i] = common.Recipient{Name: r}
+			expectedRecipients[i] = common.Recipient{Name: r, ID: r}
 		}
 	}
 	clock.Advance(advance)
 	clock.BlockUntil(1)
 
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
+
+	if bot.isBatchTest {
+		require.Equal(t, len(expectedRecipients), bot.numSentBatchReminders, "batched reminders")
+	} else {
+		require.Equal(t, len(expectedRecipients), bot.numSentSingleReminders, "single reminders")
+	}
 }

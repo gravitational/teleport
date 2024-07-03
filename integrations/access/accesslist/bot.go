@@ -30,4 +30,6 @@ type MessagingBot interface {
 
 	// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
 	SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error
+	// SendBatchedReviewReminder will send a batched review reminder.
+	SendBatchedReviewReminder(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error
 }
