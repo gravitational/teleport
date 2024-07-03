@@ -122,14 +122,18 @@ func (a *App) Err() error {
 
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
+	ctx, log := logger.WithField(ctx, "plugin", a.pluginName)
 
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
 	}
-	accessMonitoringEnabled := true
-	if accessMonitoringEnabled {
+
+	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+		log.WithError(err).Errorf("initialising Access Monitoring Rule cache")
+	} else {
 		watchKinds = append(watchKinds, types.WatchKind{Kind: types.KindAccessMonitoringRule})
 	}
+
 	job, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
@@ -147,12 +151,6 @@ func (a *App) run(ctx context.Context) error {
 	ok, err := job.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if accessMonitoringEnabled {
-		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	a.job.SetReady(ok)
