@@ -20,6 +20,7 @@ package migration
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -33,9 +34,8 @@ import (
 // Database CA for all existing clusters that do not already
 // have one. Introduced in v10.
 type createDBAuthority struct {
-	trustServiceFn    func(b backend.Backend) services.Trust
-	configServiceFn   func(b backend.Backend) (services.ClusterConfiguration, error)
-	presenceServiceFn func(b backend.Backend) services.Presence
+	trustServiceFn  func(b backend.Backend) services.Trust
+	configServiceFn func(b backend.Backend) (services.ClusterConfiguration, error)
 }
 
 func (d createDBAuthority) Version() int64 {
@@ -66,25 +66,18 @@ func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 		}
 	}
 
-	if d.presenceServiceFn == nil {
-		d.presenceServiceFn = func(b backend.Backend) services.Presence {
-			return local.NewPresenceService(b)
-		}
-	}
-
 	trustSvc := d.trustServiceFn(b)
 	configSvc, err := d.configServiceFn(b)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	presenceSvc := d.presenceServiceFn(b)
 
 	localClusterName, err := configSvc.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	trustedClusters, err := presenceSvc.GetTrustedClusters(ctx)
+	trustedClusters, err := trustSvc.GetTrustedClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,7 +126,7 @@ func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster st
 	// The migration for this cluster can be skipped since
 	// the new CA already exists.
 	if err == nil {
-		log.Debugf("Migrations: cert authority %q already exists.", toType)
+		slog.DebugContext(ctx, "Migrations: cert authority already exists.", "authority", toType)
 		return nil
 	}
 	if !trace.IsNotFound(err) {
@@ -157,7 +150,7 @@ func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster st
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Migrating %s CA for cluster: %s", toType, cluster)
+	slog.InfoContext(ctx, "Migrating CA", "authority", toType, "cluster", cluster)
 
 	existingCAV2, ok := existingCA.(*types.CertAuthorityV2)
 	if !ok {
@@ -175,7 +168,7 @@ func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster st
 
 	err = trustSvc.CreateCertAuthority(ctx, newCA)
 	if trace.IsAlreadyExists(err) {
-		log.Warnf("%s CA has already been created by a different Auth instance", toType)
+		slog.WarnContext(ctx, "CA has already been created by a different Auth instance", "authority", toType)
 		return nil
 	}
 	return trace.Wrap(err)
