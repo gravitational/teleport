@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -116,6 +117,22 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
 		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListReminderMsgSection(accessList)}).
+		SetResult(&result).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
+}
+
+// SendBatchedReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendBatchedReviewReminder(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
+	// Sort by earliest date due.
+	slices.SortFunc(accessLists, func(a, b *accesslist.AccessList) int {
+		return a.Spec.Audit.NextAuditDate.Compare(b.Spec.Audit.NextAuditDate)
+	})
+
+	var result ChatMsgResponse
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListBatchedReminderMsgSection(accessLists)}).
 		SetResult(&result).
 		Post("chat.postMessage")
 	return trace.Wrap(err)
@@ -273,21 +290,67 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
 	nextAuditDate := accessList.Spec.Audit.NextAuditDate
 
+	link := ""
+	if b.webProxyURL != nil {
+		reqURL := *b.webProxyURL
+		reqURL.Path = lib.BuildURLPath("web", "accesslists", accessList.Metadata.Name)
+		link = fmt.Sprintf("*Link*: %s", reqURL.String())
+	}
+
 	name := fmt.Sprintf("*%s*", accessList.Spec.Title)
 	var msg string
 	if b.clock.Now().After(nextAuditDate) {
 		daysSinceDue := int(b.clock.Since(nextAuditDate).Hours() / 24)
-		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.",
-			name, daysSinceDue)
+		msg = fmt.Sprintf("Access List %s is %d day(s) past due for a review! Please review it.\n%s",
+			name, daysSinceDue, link)
 	} else {
 		msg = fmt.Sprintf(
-			"Access List %s is due for a review by %s. Please review it soon!",
-			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+			"Access List %s is due for a review by %s. Please review it soon!\n%s",
+			name, accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly), link)
 	}
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
 			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+		}),
+	}
+
+	return sections
+}
+
+// slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
+func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.AccessList) []BlockItem {
+	// Sort by earliest date due.
+	slices.SortFunc(accessLists, func(a, b *accesslist.AccessList) int {
+		return a.Spec.Audit.NextAuditDate.Compare(b.Spec.Audit.NextAuditDate)
+	})
+
+	accessList := accessLists[0]
+
+	earliestNextAuditDate := accessList.Spec.Audit.NextAuditDate
+	numOfReviewsRequired := len(accessLists)
+	link := ""
+	dueDate := ""
+
+	if b.webProxyURL != nil {
+		reqURL := *b.webProxyURL
+		reqURL.Path = lib.BuildURLPath("web", "accesslists")
+		link = fmt.Sprintf("*Link*: %s", reqURL.String())
+	}
+
+	if b.clock.Now().After(earliestNextAuditDate) {
+		daysSinceDue := int(b.clock.Since(earliestNextAuditDate).Hours() / 24)
+		dueDate = fmt.Sprintf("Earliest of which is %d day(s) past due. Please review!",
+			daysSinceDue)
+	} else {
+		dueDate = fmt.Sprintf(
+			"Earliest of which is due by %s. Please review them soon!",
+			accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
+	}
+
+	sections := []BlockItem{
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews. %s\n%s", numOfReviewsRequired, dueDate, link)}),
 		}),
 	}
 
