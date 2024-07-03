@@ -75,7 +75,7 @@
     "react-select-event": "^5.5.1",
     "react-transition-group": "^4.4.5",
     "rollup-plugin-visualizer": "^5.12.0",
-    "styled-components": "5.3.11",
+    "styled-components": "6.1.11",
     "typescript-eslint": "^7.14.1",
     "vite": "^5.3.2",
     "vite-plugin-wasm": "^3.3.0",
@@ -86,4 +86,3 @@
     "ts-loader": "^9.5.1"
   }
 }
-
