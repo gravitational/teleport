@@ -20,8 +20,6 @@ import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
-
 import { App } from './types';
 
 export default function makeApp(json: any): App {
@@ -37,6 +35,7 @@ export default function makeApp(json: any): App {
     samlApp = false,
     friendlyName = '',
     integration = '',
+    samlAppPreset,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -66,9 +65,6 @@ export default function makeApp(json: any): App {
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
   }
-  const samlAppPreset = json.samlAppPreset
-    ? json.samlAppPreset
-    : SamlServiceProviderPreset.Unspecified;
 
   return {
     kind: 'app',
