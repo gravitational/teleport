@@ -504,8 +504,51 @@ func TestKubeMiddleware(t *testing.T) {
 	)
 
 	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return newCert, nil
+		select {
+		case <-ctx.Done():
+			return tls.Certificate{}, ctx.Err()
+		default:
+			return newCert, nil
+		}
 	}
+
+	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
+		req := &http.Request{
+			TLS: &tls.ConnectionState{
+				ServerName: "kube1",
+			},
+		}
+		// we set request context to a context that will expired immediately.
+		reqCtx, cancel := context.WithDeadline(context.Background(), time.Now())
+		defer cancel()
+		req = req.WithContext(reqCtx)
+
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        KubeClientCerts{"kube1": kube1Cert},
+			CertReissuer: certReissuer,
+			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			CloseContext: context.Background(),
+		})
+		err := km.CheckAndSetDefaults()
+		require.NoError(t, err)
+
+		rw := responsewriters.NewMemoryResponseWriter()
+		// HandleRequest will reissue certificate if needed.
+		km.HandleRequest(rw, req)
+
+		// request timed out.
+		require.Equal(t, http.StatusInternalServerError, rw.Status())
+		require.Contains(t, rw.Buffer().String(), "context deadline exceeded")
+
+		// just let the reissuing goroutine some time to replace certs.
+		time.Sleep(10 * time.Millisecond)
+
+		// but certificate still was reissued.
+		certs, err := km.OverwriteClientCerts(req)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, newCert, certs[0], "certificate was not reissued")
+	})
 
 	testCases := []struct {
 		name            string
@@ -559,6 +602,7 @@ func TestKubeMiddleware(t *testing.T) {
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
 				Clock:        tt.clock,
+				CloseContext: context.Background(),
 			})
 
 			// HandleRequest will reissue certificate if needed

@@ -2,7 +2,7 @@ module github.com/gravitational/teleport
 
 go 1.22.0
 
-toolchain go1.22.4
+toolchain go1.22.5
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.10.0
@@ -122,7 +122,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/guptarohit/asciigraph v0.7.1
-	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/icza/mjpeg v0.0.0-20230330134156-38318e5ab8f4
 	github.com/jackc/pgconn v1.14.3
@@ -378,6 +377,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect

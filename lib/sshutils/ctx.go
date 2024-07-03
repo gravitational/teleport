@@ -31,7 +31,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
@@ -40,7 +39,7 @@ type TCPIPForwardDialer func(string) (net.Conn, error)
 // TCPIPForwardProcess represents an instance of a port forwarding process.
 type TCPIPForwardProcess struct {
 	// Conn is the socket used to request a dialer or listener in the process.
-	Conn *uds.Conn
+	Conn *net.UnixConn
 	// Done signals when the process completes.
 	Done <-chan struct{}
 	// Closer contains and extra io.Closer to run when the process as a whole

@@ -368,16 +368,21 @@ func dialResumable(ctx context.Context, token resumptionToken, hostID string, re
 		return nil, trace.Wrap(err)
 	}
 
-	switch responseTag {
-	default:
-		logrus.Errorf("Received unknown response tag %v, giving up.", responseTag)
-		conn.Close()
-		return nil, nil
-	case notFoundServerExchangeTag, badAddressServerExchangeTag:
-		logrus.Errorf("Received error tag %v, giving up.", responseTag)
-		conn.Close()
-		return nil, nil
-	case successServerExchangeTag:
+	// success case
+	if responseTag == successServerExchangeTag {
 		return conn, nil
 	}
+
+	// all other tags are failure cases
+	_ = conn.Close()
+	switch responseTag {
+	case notFoundServerExchangeTag:
+		logrus.Error("Server responded with 'resumable connection not found', giving up.")
+	case badAddressServerExchangeTag:
+		logrus.Error("Server responded with 'bad client IP address', giving up.")
+	default:
+		logrus.Errorf("Server responded with an unknown error tag (%v), giving up.", responseTag)
+	}
+
+	return nil, nil
 }

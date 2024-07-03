@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -1558,7 +1559,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
-	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
@@ -2951,11 +2952,11 @@ func getBotName(user types.User) string {
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
-	authPref, err := a.authServer.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3053,7 +3054,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
+			sessionTTL := roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration())
 			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
@@ -3499,7 +3500,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3520,7 +3521,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3540,7 +3541,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3584,7 +3585,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3658,7 +3659,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3681,7 +3682,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3699,7 +3700,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3745,7 +3746,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4494,8 +4495,11 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetAuthPreference(ctx)
+	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -4684,7 +4688,11 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx)
+	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -6783,12 +6791,12 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 // enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
 // for key endpoints.
 func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 

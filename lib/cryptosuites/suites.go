@@ -75,9 +75,11 @@ const (
 	// SPIFFECAJWT represents the JWT key for the spiffe CA.
 	SPIFFECAJWT
 
-	// New key purposes should be added here.
+	// ProxyToDatabaseAgent represents keys used by the Proxy to dial the
+	// Database agent over a reverse tunnel.
+	ProxyToDatabaseAgent
 
-	// TODO(nklaassen): define subject key purposes. Currently only CA key purposes are defined above.
+	// TODO(nklaassen): define remaining key purposes.
 
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
@@ -134,45 +136,50 @@ var (
 		SAMLIdPCATLS:        RSA2048,
 		SPIFFECATLS:         RSA2048,
 		SPIFFECAJWT:         RSA2048,
-		// TODO(nklaassen): subject key purposes.
+		// We could consider updating this algorithm even in the legacy suite, only database agents need to
+		// accept these connections and they have never restricted algorithm support.
+		ProxyToDatabaseAgent: RSA2048,
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
 	// performance. It uses ECDSA256, Ed25591, and 2048-bit RSA. It is not
 	// completely implemented yet.
 	balancedV1 = suite{
-		UserCATLS:           ECDSAP256,
-		UserCASSH:           Ed25519,
-		HostCATLS:           ECDSAP256,
-		HostCASSH:           Ed25519,
-		DatabaseCATLS:       RSA2048,
-		DatabaseClientCATLS: RSA2048,
-		OpenSSHCASSH:        Ed25519,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
-		// TODO(nklaassen): subject key purposes.
+		UserCATLS:            ECDSAP256,
+		UserCASSH:            Ed25519,
+		HostCATLS:            ECDSAP256,
+		HostCASSH:            Ed25519,
+		DatabaseCATLS:        RSA2048,
+		DatabaseClientCATLS:  RSA2048,
+		OpenSSHCASSH:         Ed25519,
+		JWTCAJWT:             ECDSAP256,
+		OIDCIdPCAJWT:         ECDSAP256,
+		SAMLIdPCATLS:         ECDSAP256,
+		SPIFFECATLS:          ECDSAP256,
+		SPIFFECAJWT:          ECDSAP256,
+		ProxyToDatabaseAgent: ECDSAP256,
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
 	// the balancedv1 suite but replaces all instances of Ed25519 with ECDSA on
 	// the NIST P256 curve. It is not completely implemented yet.
 	fipsv1 = suite{
-		UserCATLS:           ECDSAP256,
-		UserCASSH:           ECDSAP256,
-		HostCATLS:           ECDSAP256,
-		HostCASSH:           ECDSAP256,
-		DatabaseCATLS:       RSA2048,
-		DatabaseClientCATLS: RSA2048,
-		OpenSSHCASSH:        ECDSAP256,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
-		// TODO(nklaassen): subject key purposes.
+		UserCATLS:            ECDSAP256,
+		UserCASSH:            ECDSAP256,
+		HostCATLS:            ECDSAP256,
+		HostCASSH:            ECDSAP256,
+		DatabaseCATLS:        RSA2048,
+		DatabaseClientCATLS:  RSA2048,
+		OpenSSHCASSH:         ECDSAP256,
+		JWTCAJWT:             ECDSAP256,
+		OIDCIdPCAJWT:         ECDSAP256,
+		SAMLIdPCATLS:         ECDSAP256,
+		SPIFFECATLS:          ECDSAP256,
+		SPIFFECAJWT:          ECDSAP256,
+		ProxyToDatabaseAgent: ECDSAP256,
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -181,19 +188,20 @@ var (
 	// only*. It is also valid to use the legacy or fipsv1 suites if your
 	// cluster uses an HSM or KMS. It is not completely implemented yet.
 	hsmv1 = suite{
-		UserCATLS:           ECDSAP256,
-		UserCASSH:           ECDSAP256,
-		HostCATLS:           ECDSAP256,
-		HostCASSH:           ECDSAP256,
-		DatabaseCATLS:       RSA2048,
-		DatabaseClientCATLS: RSA2048,
-		OpenSSHCASSH:        ECDSAP256,
-		JWTCAJWT:            ECDSAP256,
-		OIDCIdPCAJWT:        ECDSAP256,
-		SAMLIdPCATLS:        ECDSAP256,
-		SPIFFECATLS:         ECDSAP256,
-		SPIFFECAJWT:         ECDSAP256,
-		// TODO(nklaassen): subject key purposes.
+		UserCATLS:            ECDSAP256,
+		UserCASSH:            ECDSAP256,
+		HostCATLS:            ECDSAP256,
+		HostCASSH:            ECDSAP256,
+		DatabaseCATLS:        RSA2048,
+		DatabaseClientCATLS:  RSA2048,
+		OpenSSHCASSH:         ECDSAP256,
+		JWTCAJWT:             ECDSAP256,
+		OIDCIdPCAJWT:         ECDSAP256,
+		SAMLIdPCATLS:         ECDSAP256,
+		SPIFFECATLS:          ECDSAP256,
+		SPIFFECAJWT:          ECDSAP256,
+		ProxyToDatabaseAgent: ECDSAP256,
+		// TODO(nklaassen): define remaining key purposes.
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

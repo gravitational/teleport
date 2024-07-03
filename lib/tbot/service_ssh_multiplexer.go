@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 const (
@@ -145,14 +146,36 @@ func writeIfChanged(ctx context.Context, dest bot.Destination, log *slog.Logger,
 	return dest.Write(ctx, path, data)
 }
 
-func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost string, id *identity.Identity) error {
+func (s *SSHMultiplexerService) getClusterNames(ctx context.Context, clt *authclient.Client) ([]string, error) {
+	allClusterNames := []string{s.identity.Get().ClusterName}
+	leafClusters, err := clt.GetRemoteClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, lc := range leafClusters {
+		allClusterNames = append(allClusterNames, lc.GetName())
+	}
+
+	return allClusterNames, nil
+}
+
+func (s *SSHMultiplexerService) writeArtifacts(
+	ctx context.Context,
+	proxyHost string,
+	authClient *authclient.Client,
+) error {
 	dest := s.cfg.Destination.(*config.DestinationDirectory)
+
+	clusterNames, err := s.getClusterNames(ctx, authClient)
+	if err != nil {
+		return trace.Wrap(err, "fetching cluster names")
+	}
 
 	// Generate known hosts
 	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
-		[]string{id.ClusterName},
+		clusterNames,
 		proxyHost,
 	)
 	if err != nil {
@@ -186,10 +209,9 @@ func (s *SSHMultiplexerService) writeArtifacts(ctx context.Context, proxyHost st
 	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
 	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
-		ClusterNames:    []string{id.ClusterName},
+		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),
 		ProxyCommand:    proxyCommand,
-		Data:            `%h:%p`,
 		MuxSocketPath:   filepath.Join(absPath, sshMuxSocketName),
 		AgentSocketPath: filepath.Join(absPath, agentSocketName),
 	})
@@ -357,10 +379,11 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	return id, nil
 }
 
-func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHost string) error {
+func (s *SSHMultiplexerService) identityRenewalLoop(
+	ctx context.Context, proxyHost string, authClient *authclient.Client,
+) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
-
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name: "identity-renewal",
 		f: func(ctx context.Context) error {
@@ -369,7 +392,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(ctx context.Context, proxyHo
 				return trace.Wrap(err, "generating identity")
 			}
 			s.identity.Set(id)
-			return s.writeArtifacts(ctx, proxyHost, id)
+			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
 		interval:   s.botCfg.RenewalInterval,
 		retryLimit: renewalRetryLimit,
@@ -513,7 +536,7 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 	})
 	// Handle identity renewal
 	eg.Go(func() error {
-		return s.identityRenewalLoop(egCtx, proxyHost)
+		return s.identityRenewalLoop(egCtx, proxyHost, authClient)
 	})
 
 	return eg.Wait()
@@ -539,28 +562,85 @@ func (s *SSHMultiplexerService) handleConn(
 		}
 	}()
 
+	var stderr *os.File
+	defer func() {
+		if stderr == nil {
+			return
+		}
+		defer stderr.Close()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+		}
+	}()
+
+	var req string
+	// here we try receiving a file descriptor to use for error output, which
+	// should be mapped to OpenSSH's own stderr (or /dev/null)
+	if un, _ := downstream.(*net.UnixConn); un != nil {
+		b := make([]byte, 1)
+		fds := make([]*os.File, 1)
+
+		n, fdn, err := uds.ReadWithFDs(un, b, fds)
+		if err != nil {
+			return trace.Wrap(err, "reading request")
+		}
+		if fdn > 0 {
+			s.log.DebugContext(ctx, "Received stderr file descriptor from client for error reporting")
+			stderr = fds[0]
+		}
+		// this approach works because we know that req must be at least one
+		// byte at the end (as it must end with a NUL)
+		req = string(b[:n])
+	}
+
 	// The first thing downstream will send is the multiplexing request which is
-	// the "[host]:[port]\x00" format.
+	// in the "[host]:[port]|[cluster_name]\x00" format.
+	// The "|[cluster_name]" section is optional and if omitted, the cluster
+	// associated with the bot will be used.
+	//
+	// We choose this format because | is not an acceptable character in
+	// hostnames or ports through OpenSSH.
+	// https://github.com/openssh/openssh-portable/commit/7ef3787c84b6b524501211b11a26c742f829af1a
 	buf := bufio.NewReader(downstream)
-	req, err := buf.ReadString('\x00')
-	if err != nil {
-		return trace.Wrap(err, "reading request")
+	if !strings.HasSuffix(req, "\x00") {
+		r, err := buf.ReadString('\x00')
+		if err != nil {
+			return trace.Wrap(err, "reading request")
+		}
+		req += r
 	}
 	req = req[:len(req)-1] // Drop the NUL.
-	host, port, err := utils.SplitHostPort(req)
+
+	// Split by | to pull out the optionally specified cluster name.
+	// TODO(noah): When we need to add another parameter in future, we should
+	// roll this API to v2 and use a more extensible format.
+	splitReq := strings.Split(req, "|")
+	if len(splitReq) > 2 {
+		return trace.BadParameter(
+			"malformed request, expected at most 2 fields, got %d: %q",
+			len(splitReq), req,
+		)
+	}
+
+	host, port, err := utils.SplitHostPort(splitReq[0])
 	if err != nil {
 		return trace.Wrap(err, "malformed request %q", req)
+	}
+
+	clusterName := s.identity.Get().ClusterName
+	if len(splitReq) > 1 {
+		clusterName = splitReq[1]
 	}
 
 	log := s.log.With(
 		slog.Group("req",
 			"host", host,
 			"port", port,
+			"cluster_name", clusterName,
 		),
 	)
 	log.InfoContext(ctx, "Received multiplexing request")
 
-	clusterName := s.identity.Get().ClusterName
 	expanded, matched := tshConfig.ProxyTemplates.Apply(
 		net.JoinHostPort(host, port),
 	)
@@ -646,6 +726,13 @@ func (s *SSHMultiplexerService) handleConn(
 
 	log.InfoContext(ctx, "Proxying connection for multiplexing request")
 	startedProxying := time.Now()
+
+	// once the connection is actually started we should stop writing to the
+	// client's stderr
+	if stderr != nil {
+		_ = stderr.Close()
+		stderr = nil
+	}
 
 	errCh := make(chan error, 2)
 	go func() {

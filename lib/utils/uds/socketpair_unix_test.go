@@ -23,6 +23,7 @@ package uds
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestSocketparFDPassing(t *testing.T) {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, maxFiles*2)
 		for {
-			n, fn, err := server.ReadWithFDs(buf, fbuf)
+			n, fn, err := ReadWithFDs(server, buf, fbuf)
 			if err != nil {
 				select {
 				case <-done:
@@ -79,7 +80,7 @@ func TestSocketparFDPassing(t *testing.T) {
 			msg := fmt.Sprintf("send-%d", f)
 			// conns are the local halves of socket pairs that we
 			// will use to read our message back from the server.
-			conns := make([]*Conn, 0, f)
+			conns := make([]*net.UnixConn, 0, f)
 
 			// fds are the remote halves of socket pairs to be sent
 			// to the server along with the associated message.
@@ -102,7 +103,7 @@ func TestSocketparFDPassing(t *testing.T) {
 			// write message and files together so that server reads them
 			// together and therefore will know what message to send back
 			// over the fds.
-			_, _, err := client.WriteWithFDs([]byte(msg), fds)
+			_, _, err := WriteWithFDs(client, []byte(msg), fds)
 			if err != nil {
 				return trace.Errorf("failed to write fds: %v", err)
 			}

@@ -22,13 +22,15 @@ package uds
 
 import (
 	"errors"
+	"net"
 
 	"github.com/gravitational/trace"
 )
 
 var nonUnixErr = errors.New("socket pair not available on non-unix platform")
 
-// NewSocketpair creates a unix socket pair, returning the halves as files.
-func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+// NewSocketpair creates a unix socket pair, returning the halves as
+// [*net.UnixConn]s.
+func NewSocketpair(t SocketType) (left, right *net.UnixConn, err error) {
 	return nil, nil, trace.Wrap(nonUnixErr)
 }

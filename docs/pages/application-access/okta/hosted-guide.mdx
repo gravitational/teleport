@@ -12,6 +12,24 @@ can be managed by Teleport's RBAC along with access requests.
 This guide will help you set up the Okta Service as a Teleport hosted
 integration.
 
+<Admonition type="warning">
+Enabling the Okta integration will make Teleport take ownership over app and group
+assignments in Okta and can make changes within Okta based on Teleport RBAC
+configuration.
+
+Specifically, access to Okta apps is governed by Teleport roles' [app_labels](../controls.mdx#configuring-application-labels-in-roles)
+so before enabling the integration make sure that your users do not have roles
+with wildcard app labels, which otherwise will result into those users being
+assigned to all Okta applications.
+
+To limit the scope of the integration, you can constrain Okta access token to
+a subset of apps and groups by using an [Okta resource set](https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm).
+
+Teleport manages Okta application group assignments using a declarative state approach.
+If an assignment is created via Teleport and subsequently removed via the Okta UI,
+Teleport will re-evaluate and potentially overwrite Okta UI changes to align with the state defined by Teleport's RBAC configuration.
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
