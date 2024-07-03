@@ -1965,6 +1965,9 @@ type certRequest struct {
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2790,6 +2793,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2885,6 +2889,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,

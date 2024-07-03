@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -61,25 +60,21 @@ func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*Bot
 
 // CreateBotInstance inserts a new BotInstance into the backend.
 //
-// Note that new BotInstances must have a nil metadata field; this will be
-// generated automatically from the spec upon insert.
+// Note that new BotInstances will have their .Metadata.Name overwritten by the
+// instance UUID.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 	if err := services.ValidateBotInstance(instance); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if instance.Metadata != nil {
-		return nil, trace.BadParameter("metadata should be nil; initial parameters should be set in spec")
-	}
-
 	instance.Kind = types.KindBotInstance
 	instance.Version = types.V1
-	instance.Metadata = &headerv1.Metadata{Name: instance.Spec.InstanceId}
 
-	if instance.Spec.Ttl != nil {
-		expires := b.clock.Now().Add(instance.Spec.Ttl.AsDuration())
-		instance.Metadata.Expires = timestamppb.New(expires)
+	if instance.Metadata == nil {
+		instance.Metadata = &headerv1.Metadata{}
 	}
+
+	instance.Metadata.Name = instance.Spec.InstanceId
 
 	serviceWithPrefix := b.service.WithPrefix(instance.Spec.BotName)
 	created, err := serviceWithPrefix.CreateResource(ctx, instance)
@@ -142,6 +137,10 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.BadParameter("metadata.name: cannot be patched")
 		case updated.GetMetadata().GetRevision() != existing.GetMetadata().GetRevision():
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
+		case updated.GetSpec().GetInstanceId() != existing.GetSpec().GetInstanceId():
+			return nil, trace.BadParameter("spec.instance_id: cannot be patched")
+		case updated.GetSpec().GetBotName() != existing.GetSpec().GetBotName():
+			return nil, trace.BadParameter("spec.bot_name: cannot be patched")
 		}
 
 		serviceWithPrefix := b.service.WithPrefix(botName)

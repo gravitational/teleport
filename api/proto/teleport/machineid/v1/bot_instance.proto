@@ -47,10 +47,9 @@ message BotInstanceSpec {
   string bot_name = 1;
   // The unique identifier for this instance.
   string instance_id = 2;
-  // The desired expiration offset for this bot instance. The expiration will be
-  // calculated from the current time at creation or authentication plus this
-  // value. A nil `ttl` will not expire.
-  google.protobuf.Duration ttl = 3;
+
+  reserved 3;
+  reserved "ttl";
 }
 
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
@@ -104,8 +103,9 @@ message BotInstanceStatusAuthentication {
   int32 generation = 5;
   // The public key of the Bot instance.
   bytes public_key = 6;
-  // The fingerprint of the public key of the Bot instance.
-  string fingerprint = 7;
+
+  reserved 7;
+  reserved "fingerprint";
 }
 
 // BotInstanceStatus holds the status of a BotInstance.

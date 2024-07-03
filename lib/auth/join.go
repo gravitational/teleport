@@ -30,8 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -346,8 +349,54 @@ func (a *Server) generateCertsBot(
 		expires = *req.Expires
 	}
 
+	// Construct a Join event to be sent later.
+	joinEvent := &apievents.BotJoin{
+		Metadata: apievents.Metadata{
+			Type: events.BotJoinEvent,
+			Code: events.BotJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		BotName:   botName,
+		Method:    string(joinMethod),
+		TokenName: provisionToken.GetSafeName(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+		},
+	}
+
+	auth := &machineidv1pb.BotInstanceStatusAuthentication{
+		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
+		// TODO: GetSafeName may not return an appropriate value for later
+		// comparison / locking purposes, and this also shouldn't contain
+		// secrets. Should we hash it?
+		JoinToken:  provisionToken.GetSafeName(),
+		JoinMethod: string(provisionToken.GetJoinMethod()),
+		PublicKey:  req.PublicTLSKey,
+
+		// Note: Generation will be set during `generateInitialBotCerts()` as
+		// needed.
+	}
+
+	if joinAttributeSrc != nil {
+		attributes, err := joinAttributeSrc.JoinAuditAttributes()
+		if err != nil {
+			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
+		}
+		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
+		}
+
+		auth.Metadata, err = structpb.NewStruct(attributes)
+		if err != nil {
+			log.WithError(err).Warn("Unable to encode struct value for join metadata.")
+		}
+	}
+
 	certs, err := a.generateInitialBotCerts(
-		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
+		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable, auth,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -364,31 +413,7 @@ func (a *Server) generateCertsBot(
 
 	// Emit audit event for bot join.
 	log.Infof("Bot %q has joined the cluster.", botName)
-	joinEvent := &apievents.BotJoin{
-		Metadata: apievents.Metadata{
-			Type: events.BotJoinEvent,
-			Code: events.BotJoinCode,
-		},
-		Status: apievents.Status{
-			Success: true,
-		},
-		BotName:   botName,
-		Method:    string(joinMethod),
-		TokenName: provisionToken.GetSafeName(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
-		},
-	}
-	if joinAttributeSrc != nil {
-		attributes, err := joinAttributeSrc.JoinAuditAttributes()
-		if err != nil {
-			log.WithError(err).Warn("Unable to fetch join attributes from join method.")
-		}
-		joinEvent.Attributes, err = apievents.EncodeMap(attributes)
-		if err != nil {
-			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
-		}
-	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}
