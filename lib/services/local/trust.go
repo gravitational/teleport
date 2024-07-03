@@ -20,9 +20,11 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -421,6 +423,308 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
+func (s *CA) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev := trustedCluster.GetRevision()
+	value, err := services.MarshalTrustedCluster(trustedCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:      backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
+		Value:    value,
+		Expires:  trustedCluster.Expiry(),
+		ID:       trustedCluster.GetResourceID(),
+		Revision: rev,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return trustedCluster, nil
+}
+
+// GetTrustedCluster returns a single TrustedCluster by name.
+func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing trusted cluster name")
+	}
+	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalTrustedCluster(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+}
+
+// GetTrustedClusters returns all TrustedClusters in the backend.
+func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	startKey := backend.ExactKey(trustedClustersPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]types.TrustedCluster, len(result.Items))
+	for i, item := range result.Items {
+		tc, err := services.UnmarshalTrustedCluster(item.Value,
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = tc
+	}
+
+	sort.Sort(types.SortedTrustedCluster(out))
+	return out, nil
+}
+
+// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
+func (s *CA) DeleteTrustedCluster(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing trusted cluster name")
+	}
+	err := s.Delete(ctx, backend.Key(trustedClustersPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("trusted cluster %q is not found", name)
+		}
+	}
+	return trace.Wrap(err)
+}
+
+// UpsertTunnelConnection updates or creates tunnel connection
+func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
+	if err := services.CheckAndSetDefaults(conn); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rev := conn.GetRevision()
+	value, err := services.MarshalTunnelConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(context.TODO(), backend.Item{
+		Key:      backend.Key(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
+		Value:    value,
+		Expires:  conn.Expiry(),
+		ID:       conn.GetResourceID(),
+		Revision: rev,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetTunnelConnection returns connection by cluster name and connection name
+func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (types.TunnelConnection, error) {
+	item, err := s.Get(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("trusted cluster connection %q is not found", connectionName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	conn, err := services.UnmarshalTunnelConnection(item.Value,
+		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+// GetTunnelConnections returns connections for a trusted cluster
+func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name")
+	}
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(result.Items))
+	for i, item := range result.Items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+
+	return conns, nil
+}
+
+// GetAllTunnelConnections returns all tunnel connections
+func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conns := make([]types.TunnelConnection, len(result.Items))
+	for i, item := range result.Items {
+		conn, err := services.UnmarshalTunnelConnection(item.Value,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+
+	return conns, nil
+}
+
+// DeleteTunnelConnection deletes tunnel connection by name
+func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	if connectionName == "" {
+		return trace.BadParameter("missing connection name")
+	}
+	return s.Delete(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+}
+
+// DeleteTunnelConnections deletes all tunnel connections for cluster
+func (s *CA) DeleteTunnelConnections(clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
+}
+
+// DeleteAllTunnelConnections deletes all tunnel connections
+func (s *CA) DeleteAllTunnelConnections() error {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
+}
+
+// CreateRemoteCluster creates remote cluster
+func (s *CA) CreateRemoteCluster(rc types.RemoteCluster) error {
+	value, err := json.Marshal(rc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
+		Value:   value,
+		Expires: rc.Expiry(),
+	}
+	_, err = s.Create(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
+// other changed fields will be ignored by the method
+func (s *CA) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+	if err := services.CheckAndSetDefaults(rc); err != nil {
+		return trace.Wrap(err)
+	}
+	existingItem, update, err := s.getRemoteCluster(ctx, rc.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	update.SetExpiry(rc.Expiry())
+	update.SetLastHeartbeat(rc.GetLastHeartbeat())
+	update.SetConnectionStatus(rc.GetConnectionStatus())
+	update.SetMetadata(rc.GetMetadata())
+
+	rev := update.GetRevision()
+	updateValue, err := services.MarshalRemoteCluster(update)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updateItem := backend.Item{
+		Key:      backend.Key(remoteClustersPrefix, update.GetName()),
+		Value:    updateValue,
+		Expires:  update.Expiry(),
+		Revision: rev,
+	}
+
+	_, err = s.CompareAndSwap(ctx, *existingItem, updateItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("remote cluster %v has been updated by another client, try again", rc.GetName())
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetRemoteClusters returns a list of remote clusters
+func (s *CA) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	startKey := backend.ExactKey(remoteClustersPrefix)
+	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters := make([]types.RemoteCluster, len(result.Items))
+	for i, item := range result.Items {
+		cluster, err := services.UnmarshalRemoteCluster(item.Value,
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters[i] = cluster
+	}
+	return clusters, nil
+}
+
+// getRemoteCluster returns a remote cluster in raw form and unmarshaled
+func (s *CA) getRemoteCluster(ctx context.Context, clusterName string) (*backend.Item, types.RemoteCluster, error) {
+	if clusterName == "" {
+		return nil, nil, trace.BadParameter("missing parameter cluster name")
+	}
+	item, err := s.Get(ctx, backend.Key(remoteClustersPrefix, clusterName))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
+		}
+		return nil, nil, trace.Wrap(err)
+	}
+	rc, err := services.UnmarshalRemoteCluster(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return item, rc, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (s *CA) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+	_, rc, err := s.getRemoteCluster(context.TODO(), clusterName)
+	return rc, trace.Wrap(err)
+}
+
+// DeleteRemoteCluster deletes remote cluster by name
+func (s *CA) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing parameter cluster name")
+	}
+	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
+}
+
+// DeleteAllRemoteClusters deletes all remote clusters
+func (s *CA) DeleteAllRemoteClusters() error {
+	startKey := backend.ExactKey(remoteClustersPrefix)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
 }
 
 // catToItem builds a backend.Item corresponding to the supplied CA.
