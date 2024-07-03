@@ -23,7 +23,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
     "react-router": "5.1.1",
-    "react-router-dom": "5.1.1",
+    "react-router-dom": "6.24.1",
     "react-select": "^3.0.8",
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
