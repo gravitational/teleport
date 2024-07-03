@@ -84,6 +84,15 @@ func renewBotCerts(
 // TestRegisterBotCertificateGenerationCheck ensures bot cert generation checks
 // work in ordinary conditions, with several rapid renewals.
 func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
+	// TODO: Enable parallel once the experiment is removed
+	//  t.Parallel()
+
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
@@ -132,29 +141,60 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
 
+	initialCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	initialIdent, err := tlsca.FromSubject(initialCert.Subject, initialCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(1), initialIdent.Generation)
+	require.Equal(t, "test", initialIdent.BotName)
+	require.NotEmpty(t, initialIdent.BotInstanceID)
+
 	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
 	require.NoError(t, err)
 
 	// Renew the cert a bunch of times.
 	for i := 0; i < 10; i++ {
+		// Ensure the state of the bot instance before renewal is sane.
+		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		require.NoError(t, err)
+
+		// There should always be at least 1 entry as the initial join is
+		// duplicated in the list.
+		require.Equal(t, min(i+1, machineidv1.AuthenticationHistoryLimit), len(bi.Status.LatestAuthentications))
+
+		// Generation starts at 1 for initial certs.
+		latest := bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
+		require.Equal(t, int32(i+1), latest.Generation)
+
 		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
 		require.NoError(t, err)
 
 		// Parse the Identity
-		impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		renewedCert, err := tlsca.ParseCertificatePEM(certs.TLS)
 		require.NoError(t, err)
-		impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+		renewedIdent, err := tlsca.FromSubject(renewedCert.Subject, renewedCert.NotAfter)
 		require.NoError(t, err)
 
 		// Cert must be renewable.
-		require.True(t, impersonatedIdent.Renewable)
-		require.False(t, impersonatedIdent.DisallowReissue)
+		require.True(t, renewedIdent.Renewable)
+		require.False(t, renewedIdent.DisallowReissue)
 
 		// Initial certs have generation=1 and we start the loop with a renewal, so add 2
-		require.Equal(t, uint64(i+2), impersonatedIdent.Generation)
+		require.Equal(t, uint64(i+2), renewedIdent.Generation)
+
+		// Ensure the bot instance after renewal is sane.
+		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		require.NoError(t, err)
+
+		require.Equal(t, min(i+2, machineidv1.AuthenticationHistoryLimit), len(bi.Status.LatestAuthentications))
+
+		latest = bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
+		require.Equal(t, int32(i+2), latest.Generation)
 	}
 }
 
+// TestRegisterBotInstance tests that bot instances are created properly on join
 func TestRegisterBotInstance(t *testing.T) {
 	// TODO: Enable parallel once the experiment is removed
 	//  t.Parallel()
