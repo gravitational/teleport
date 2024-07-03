@@ -300,81 +300,56 @@ var imdsClientTypeToJoinMethod = map[types.InstanceMetadataType]types.JoinMethod
 }
 
 // Install teleport in the current system.
-func (asi *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
+func (ani *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
 	// Ensure only one installer is running by locking the same file as the script installers.
-	lockFile := asi.buildAbsoluteFilePath(exclusiveInstallFileLock)
+	lockFile := ani.buildAbsoluteFilePath(exclusiveInstallFileLock)
 	unlockFn, err := utils.FSTryWriteLock(lockFile)
 	if err != nil {
 		return trace.BadParameter("Could not get lock %s. Either remove it or wait for the other installer to finish.", lockFile)
 	}
 	defer func() {
 		if err := unlockFn(); err != nil {
-			asi.Logger.WarnContext(ctx, "Failed to remove lock. Please remove it manually.", "file", exclusiveInstallFileLock)
+			ani.Logger.WarnContext(ctx, "Failed to remove lock. Please remove it manually.", "file", exclusiveInstallFileLock)
 		}
 	}()
 
 	// Check if teleport is already installed.
-	if _, err := os.Stat(asi.binariesLocation.teleport); err == nil {
-		asi.Logger.InfoContext(ctx, "Teleport is already installed in the system.")
+	if _, err := os.Stat(ani.binariesLocation.teleport); err == nil {
+		ani.Logger.InfoContext(ctx, "Teleport is already installed in the system.")
 		return nil
 	}
 
-	teleportYamlConfigurationPath := asi.buildAbsoluteFilePath(defaults.ConfigFilePath)
+	teleportYamlConfigurationPath := ani.buildAbsoluteFilePath(defaults.ConfigFilePath)
 	// Check is teleport was already configured.
 	if _, err := os.Stat(teleportYamlConfigurationPath); err == nil {
 		return trace.BadParameter("Teleport configuration already exists at %s. Please remove it manually.", teleportYamlConfigurationPath)
 	}
 
-	// Read current system information.
-	linuxInfo, err := asi.linuxDistribution()
+	imdsClient, err := ani.getIMDSClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
-	asi.Logger.InfoContext(ctx, "Operating system detected.",
-		"id", linuxInfo.ID,
-		"id_like", linuxInfo.IDLike,
-		"codename", linuxInfo.VersionCodename,
-		"version_id", linuxInfo.VersionID,
-	)
-
-	// Pick up the correct package manager/repository for the system.
-	packageManager, ok := asi.packageManagers[linuxInfo.packageManagerKind()]
-	if !ok {
-		return trace.BadParameter("package manager for %s (%s) is not yet supported", linuxInfo.ID, linuxInfo.IDLike)
-	}
-
-	imdsClient, err := asi.getIMDSClient(ctx)
-	if err != nil {
+	if err := ani.installTeleportFromRepo(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	asi.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
-
-	targetVersion := ""
-	var packagesToInstall []packageVersion
-	if asi.AutoUpgrades {
-		teleportAutoUpdaterPackage := asi.TeleportPackage + "-updater"
-
-		asi.Logger.InfoContext(ctx, "Auto-upgrade enabled: fetching target version", "auto_upgrade_endpoint", asi.autoUpgradesChannelURL)
-		targetVersion = asi.fetchTargetVersion(ctx)
-
-		// No target version advertised.
-		if targetVersion == constants.NoVersion {
-			targetVersion = ""
-		}
-		asi.Logger.InfoContext(ctx, "Using teleport version", "version", targetVersion)
-		packagesToInstall = append(packagesToInstall, packageVersion{Name: teleportAutoUpdaterPackage, Version: targetVersion})
-	}
-	packagesToInstall = append(packagesToInstall, packageVersion{Name: asi.TeleportPackage, Version: targetVersion})
-
-	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, asi.RepositoryChannel); err != nil {
-		return trace.BadParameter("failed to add teleport repository to system: %v", err)
-	}
-	if err := packageManager.InstallPackages(ctx, packagesToInstall); err != nil {
-		return trace.BadParameter("failed to install teleport: %v", err)
+	if err := ani.configureTeleportNode(ctx, imdsClient, teleportYamlConfigurationPath); err != nil {
+		return trace.Wrap(err)
 	}
 
+	ani.Logger.InfoContext(ctx, "Enabling and starting teleport service")
+	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.systemctl, "enable", "--now", "teleport")
+	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
+	}
+
+	return nil
+}
+
+func (ani *AutodiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client, teleportYamlConfigurationPath string) error {
 	nodeLabels, err := fetchNodeAutoDiscoverLabels(ctx, imdsClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -399,36 +374,76 @@ func (asi *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 
 	teleportNodeConfigureArgs := []string{"node", "configure", "--output=file://" + teleportYamlConfigurationPath,
-		fmt.Sprintf(`--proxy=%s`, shsprintf.EscapeDefaultContext(asi.ProxyPublicAddr)),
+		fmt.Sprintf(`--proxy=%s`, shsprintf.EscapeDefaultContext(ani.ProxyPublicAddr)),
 		fmt.Sprintf(`--join-method=%s`, shsprintf.EscapeDefaultContext(string(joinMethod))),
-		fmt.Sprintf(`--token=%s`, shsprintf.EscapeDefaultContext(asi.TokenName)),
+		fmt.Sprintf(`--token=%s`, shsprintf.EscapeDefaultContext(ani.TokenName)),
 		fmt.Sprintf(`--labels=%s`, shsprintf.EscapeDefaultContext(nodeLabelsCommaSeperated)),
 	}
-	if asi.AzureClientID != "" {
+	if ani.AzureClientID != "" {
 		teleportNodeConfigureArgs = append(teleportNodeConfigureArgs,
-			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(asi.AzureClientID)))
+			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(ani.AzureClientID)))
 	}
 
-	asi.Logger.InfoContext(ctx, "Writing teleport configuration", "teleport", asi.binariesLocation.teleport, "args", teleportNodeConfigureArgs)
-	teleportNodeConfigureCmd := exec.CommandContext(ctx, asi.binariesLocation.teleport, teleportNodeConfigureArgs...)
+	ani.Logger.InfoContext(ctx, "Writing teleport configuration", "teleport", ani.binariesLocation.teleport, "args", teleportNodeConfigureArgs)
+	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.teleport, teleportNodeConfigureArgs...)
 	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(teleportNodeConfigureCmdOutput))
 	}
 
-	asi.Logger.InfoContext(ctx, "Enabling and starting teleport service")
-	systemctlEnableNowCMD := exec.CommandContext(ctx, asi.binariesLocation.systemctl, "enable", "--now", "teleport")
-	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
+	return nil
+}
+
+func (ani *AutodiscoverNodeInstaller) installTeleportFromRepo(ctx context.Context) error {
+	// Read current system information.
+	linuxInfo, err := ani.linuxDistribution()
 	if err != nil {
-		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
+		return trace.Wrap(err)
+	}
+
+	ani.Logger.InfoContext(ctx, "Operating system detected.",
+		"id", linuxInfo.ID,
+		"id_like", linuxInfo.IDLike,
+		"codename", linuxInfo.VersionCodename,
+		"version_id", linuxInfo.VersionID,
+	)
+
+	// Pick up the correct package manager/repository for the system.
+	packageManager, ok := ani.packageManagers[linuxInfo.packageManagerKind()]
+	if !ok {
+		return trace.BadParameter("package manager for %s (%s) is not yet supported", linuxInfo.ID, linuxInfo.IDLike)
+	}
+
+	targetVersion := ""
+	var packagesToInstall []packageVersion
+	if ani.AutoUpgrades {
+		teleportAutoUpdaterPackage := ani.TeleportPackage + "-updater"
+
+		ani.Logger.InfoContext(ctx, "Auto-upgrade enabled: fetching target version", "auto_upgrade_endpoint", ani.autoUpgradesChannelURL)
+		targetVersion = ani.fetchTargetVersion(ctx)
+
+		// No target version advertised.
+		if targetVersion == constants.NoVersion {
+			targetVersion = ""
+		}
+		ani.Logger.InfoContext(ctx, "Using teleport version", "version", targetVersion)
+		packagesToInstall = append(packagesToInstall, packageVersion{Name: teleportAutoUpdaterPackage, Version: targetVersion})
+	}
+	packagesToInstall = append(packagesToInstall, packageVersion{Name: ani.TeleportPackage, Version: targetVersion})
+
+	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, ani.RepositoryChannel); err != nil {
+		return trace.BadParameter("failed to add teleport repository to system: %v", err)
+	}
+	if err := packageManager.InstallPackages(ctx, packagesToInstall); err != nil {
+		return trace.BadParameter("failed to install teleport: %v", err)
 	}
 
 	return nil
 }
 
-func (asi *AutodiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.Client, error) {
+func (ani *AutodiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.Client, error) {
 	// detect and fetch cloud provider metadata
-	imdsClient, err := cloud.DiscoverInstanceMetadata(ctx, asi.imdsProviders)
+	imdsClient, err := cloud.DiscoverInstanceMetadata(ctx, ani.imdsProviders)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.BadParameter("Auto Discover only runs on Cloud instances with IMDS/Metadata service enabled. Ensure the service is running and try again.")
@@ -439,26 +454,25 @@ func (asi *AutodiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.C
 	return imdsClient, nil
 }
 
-func (asi *AutodiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) string {
-	upgradeURL, err := url.Parse(asi.autoUpgradesChannelURL)
+func (ani *AutodiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) string {
+	upgradeURL, err := url.Parse(ani.autoUpgradesChannelURL)
 	if err != nil {
-		asi.Logger.WarnContext(ctx, "Failed to parse automatic upgrades default channel url, using api version",
-			"channel_url", asi.autoUpgradesChannelURL,
+		ani.Logger.WarnContext(ctx, "Failed to parse automatic upgrades default channel url, using api version",
+			"channel_url", ani.autoUpgradesChannelURL,
 			"error", err,
 			"version", api.Version)
 		return api.Version
 	}
 
-	autoUpgradesVersionGetter := version.NewBasicHTTPVersionGetter(upgradeURL)
-	targetVersion, err := autoUpgradesVersionGetter.GetVersion(ctx)
+	targetVersion, err := version.NewBasicHTTPVersionGetter(upgradeURL).GetVersion(ctx)
 	if err != nil {
-		asi.Logger.WarnContext(ctx, "Failed to query target version, using api version",
+		ani.Logger.WarnContext(ctx, "Failed to query target version, using api version",
 			"error", err,
 			"version", api.Version)
 		return api.Version
 	}
-	asi.Logger.InfoContext(ctx, "Found target version",
-		"channel_url", asi.autoUpgradesChannelURL,
+	ani.Logger.InfoContext(ctx, "Found target version",
+		"channel_url", ani.autoUpgradesChannelURL,
 		"version", targetVersion)
 
 	return strings.TrimSpace(strings.TrimPrefix(targetVersion, "v"))
@@ -535,8 +549,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (asi *AutodiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
-	return path.Join(asi.fsRootPrefix, filepath)
+func (ani *AutodiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
+	return path.Join(ani.fsRootPrefix, filepath)
 }
 
 type linuxDistroInfo struct {
@@ -572,8 +586,8 @@ func (l *linuxDistroInfo) packageManagerKind() packageManagerKind {
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.
 //
 // https://www.freedesktop.org/software/systemd/man/latest/os-release.html
-func (asi *AutodiscoverNodeInstaller) linuxDistribution() (*linuxDistroInfo, error) {
-	f, err := os.Open(asi.buildAbsoluteFilePath(etcOSReleaseFile))
+func (ani *AutodiscoverNodeInstaller) linuxDistribution() (*linuxDistroInfo, error) {
+	f, err := os.Open(ani.buildAbsoluteFilePath(etcOSReleaseFile))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
