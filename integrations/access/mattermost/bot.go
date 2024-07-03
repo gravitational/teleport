@@ -245,6 +245,11 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
+// SendBatchedReviewReminder will send a review reminder that an access list needs to be reviewed.
+func (b Bot) SendBatchedReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list batched review reminder is not yet implemented")
+}
+
 // BroadcastAccessRequestMessage posts request info to Mattermost.
 func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
 	text, err := b.buildPostText(reqID, reqData)
