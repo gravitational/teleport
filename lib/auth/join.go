@@ -396,12 +396,20 @@ func (a *Server) generateCertsBot(
 		}
 	}
 
-	certs, err := a.generateInitialBotCerts(
-		ctx, botName, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable, auth,
+	certs, botInstanceID, err := a.generateInitialBotCerts(
+		ctx,
+		botName,
+		machineidv1.BotResourceName(botName),
+		req.RemoteAddr,
+		req.PublicSSHKey,
+		expires,
+		renewable,
+		auth,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinEvent.BotInstanceID = botInstanceID
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
@@ -413,7 +421,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	// Emit audit event for bot join.
-	log.Infof("Bot %q has joined the cluster.", botName)
+	log.Infof("Bot %q (instance: %s) has joined the cluster.", botName, botInstanceID)
 
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
