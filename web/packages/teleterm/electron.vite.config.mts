@@ -24,11 +24,11 @@ import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 
-import { cspPlugin } from '../build/vite/csp';
-
 import { getStyledComponentsConfig } from '../build/vite/styled';
 
 import { getConnectCsp } from './csp';
+
+import type { Plugin } from 'vite';
 
 const rootDirectory = resolve(__dirname, '../../..');
 const outputDirectory = resolve(__dirname, 'build', 'app');
@@ -167,4 +167,24 @@ function manualChunks(id: string) {
       return dep;
     }
   }
+}
+
+function cspPlugin(csp: string): Plugin {
+  return {
+    name: 'teleport-connect-html-plugin',
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [
+          {
+            tag: 'meta',
+            attrs: {
+              'http-equiv': 'Content-Security-Policy',
+              content: csp,
+            },
+          },
+        ],
+      };
+    },
+  };
 }
