@@ -168,7 +168,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 				IsUsageBased: true,
 				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_TEAM,
 				Entitlements: map[string]*cloudapi.EntitlementInfo{
-					"K8s": {Enabled: true, Limit: 0},
+					string(entitlements.K8s):            {Enabled: true},
+					string(entitlements.AccessRequests): {Enabled: true},
 				},
 			}, nil
 		},
@@ -180,15 +181,16 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 
 	// Check if the features are stored in the backend.
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		IsUsageBasedBilling: true,
-		ProductType:         modules.ProductTypeTeam,
-		AccessControls:      true,
-		Assist:              false,
+		IsUsageBasedBilling:     true,
+		ProductType:             modules.ProductTypeTeam,
+		AccessControls:          true,
+		Assist:                  false,
+		AdvancedAccessWorkflows: true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s:                    {Enabled: true, Limit: 0},
 			entitlements.AccessLists:            {},
 			entitlements.AccessMonitoring:       {},
-			entitlements.AccessRequests:         {},
+			entitlements.AccessRequests:         {Enabled: true, Limit: 0},
 			entitlements.App:                    {},
 			entitlements.CloudAuditLogRetention: {},
 			entitlements.DB:                     {},

@@ -65,10 +65,13 @@ func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.F
 		AccessControls: true,                                  // AccessControls is true for all customers
 
 		// The following features exist on modules.Features but are not set by Cloud, so they are not set here.
-		// AdvancedAccessWorkflows, RecoveryCodes, Plugins, AutomaticUpgrades,
+		// RecoveryCodes, Plugins, AutomaticUpgrades,
 		// The following features are enabled elsewhere if the cluster is configured for that feature
 		//AccessGraph, AccessMonitoringConfigured
 	}
+
+	// todo (michellescripts) replace with AccessRequests
+	f.AdvancedAccessWorkflows = f.Entitlements[entitlements.AccessRequests].Enabled
 
 	return f, nil
 }
