@@ -34,6 +34,7 @@ import (
 	"github.com/digitorus/pkcs7"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -61,12 +62,13 @@ func renewBotCerts(
 	publicKey []byte,
 	privateKey []byte,
 ) (*authclient.Client, *proto.Certs, tls.Certificate, error) {
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 	client := srv.NewClientWithCert(tlsCert)
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: publicKey,
 		Username:  botUser,
-		Expires:   time.Now().Add(time.Hour),
+		Expires:   fakeClock.Now().Add(time.Hour),
 	})
 	if err != nil {
 		return nil, nil, tls.Certificate{}, trace.Wrap(err)
@@ -93,9 +95,9 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		experiment.SetEnabled(experimentBefore)
 	})
 
-	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -167,6 +169,11 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		latest := bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
 		require.Equal(t, int32(i+1), latest.Generation)
 
+		lastExpires := bi.Metadata.Expires.AsTime()
+
+		// Advance the clock a bit.
+		fakeClock.Advance(time.Minute)
+
 		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
 		require.NoError(t, err)
 
@@ -191,6 +198,8 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 		latest = bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
 		require.Equal(t, int32(i+2), latest.Generation)
+
+		require.True(t, bi.Metadata.Expires.AsTime().After(lastExpires), "Metadata.Expires must be extended")
 	}
 }
 
