@@ -48,7 +48,7 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import { ResourceKind } from './Shared';
-import { useDiscover } from './useDiscover';
+import { useDiscover, DiscoverUpdateProps } from './useDiscover';
 
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
@@ -209,12 +209,7 @@ describe('location state', () => {
   });
 });
 
-type updateProps = {
-  resourceName?: string;
-  resourceSpecForUpdate?: ResourceSpec;
-};
-
-const renderUpdate = (props: updateProps) => {
+const renderUpdate = (props: DiscoverUpdateProps) => {
   const defaultPref = makeDefaultUserPreferences();
   defaultPref.onboard.preferredResources = [Resource.WEB_APPLICATIONS];
 
@@ -255,19 +250,14 @@ const renderUpdate = (props: updateProps) => {
       ]}
     >
       <TeleportContextProvider ctx={ctx}>
-        <DiscoverComponent
-          eViewConfigs={testViews}
-          isUpdateFlow={true}
-          resourceSpecForUpdate={props.resourceSpecForUpdate}
-          agentMetaForUpdate={{ resourceName: props.resourceName }}
-        />
+        <DiscoverComponent eViewConfigs={testViews} updateFlow={props} />
       </TeleportContextProvider>
     </MemoryRouter>
   );
 };
 
-test('update flow: renders single component based on resourceSpecForUpdatvalue', () => {
-  const resourceSpecForUpdate: ResourceSpec = {
+test('update flow: renders single component based on resourceSpec', () => {
+  const resourceSpec: ResourceSpec = {
     name: 'Connect My Computer',
     kind: ResourceKind.ConnectMyComputer,
     event: null,
@@ -276,7 +266,7 @@ test('update flow: renders single component based on resourceSpecForUpdatvalue',
     hasAccess: true,
   };
 
-  renderUpdate({ resourceSpecForUpdate: resourceSpecForUpdate });
+  renderUpdate({ resourceSpec: resourceSpec, agentMeta: { resourceName: '' } });
 
   expect(screen.queryAllByTestId(ResourceKind.Server).length).toBeFalsy();
 
@@ -289,8 +279,8 @@ test('update flow: renders single component based on resourceSpecForUpdatvalue',
   expect(screen.getByText('Sign In & Connect My Computer')).toBeInTheDocument();
 });
 
-test('update flow: agentMeta is prepopulated based on agentMetaForUpdate', () => {
-  const resourceSpecForUpdate: ResourceSpec = {
+test('update flow: agentMeta is prepopulated based on agentMeta', () => {
+  const resourceSpec: ResourceSpec = {
     name: 'MockComponent1',
     kind: ResourceKind.SamlApplication,
     event: null,
@@ -300,8 +290,8 @@ test('update flow: agentMeta is prepopulated based on agentMetaForUpdate', () =>
   };
 
   renderUpdate({
-    resourceName: 'saml2',
-    resourceSpecForUpdate: resourceSpecForUpdate,
+    resourceSpec: resourceSpec,
+    agentMeta: { resourceName: 'saml2' },
   });
 
   expect(screen.getByText('saml2')).toBeInTheDocument();

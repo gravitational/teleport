@@ -89,19 +89,22 @@ type CustomEventInput = {
   discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
+export type DiscoverUpdateProps = {
+  // resourceSpecForUpdate specifies ResourceSpec which should be used to
+  // start a Discover flow.
+  resourceSpec: ResourceSpec;
+  // agentMetaForUpdate includes data that will be used to prepopulate input fields
+  // in the respective Discover compnents.
+  agentMeta: AgentMeta;
+};
+
 type DiscoverProviderProps = {
   // mockCtx used for testing purposes.
   mockCtx?: DiscoverContextState;
   // Extra view configs that are passed in. This is used to add view configs from Enterprise.
   eViewConfigs?: EViewConfigs;
-  // isUpdateFlow indicates if the Discover flow is an update resource flow.
-  isUpdateFlow?: boolean;
-  // resourceSpecForUpdate specifies ResourceSpec which should be used to
-  // start a Discover flow.
-  resourceSpecForUpdate?: ResourceSpec;
-  // agentMetaForUpdate includes data that will be used to prepopulate input fields
-  // in the respective Discover compnents.
-  agentMetaForUpdate?: AgentMeta;
+  // updateFlow holds properties used in Discover update flow.
+  updateFlow?: DiscoverUpdateProps;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -126,9 +129,7 @@ export function DiscoverProvider({
   mockCtx,
   children,
   eViewConfigs = [],
-  isUpdateFlow,
-  resourceSpecForUpdate,
-  agentMetaForUpdate,
+  updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
@@ -243,11 +244,11 @@ export function DiscoverProvider({
 
   // trigger update Discover flow.
   useEffect(() => {
-    if (isUpdateFlow) {
-      onSelectResource(resourceSpecForUpdate);
-      updateAgentMeta(agentMetaForUpdate);
+    if (updateFlow) {
+      onSelectResource(updateFlow.resourceSpec);
+      updateAgentMeta(updateFlow.agentMeta);
     }
-  }, [agentMetaForUpdate]);
+  }, [updateFlow]);
 
   // If a location.state.discover was provided, that means the user is
   // coming back from another location to resume the flow.
@@ -473,7 +474,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
-    isUpdateFlow,
+    isUpdateFlow: Boolean(updateFlow),
   };
 
   return (
