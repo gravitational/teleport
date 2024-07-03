@@ -387,7 +387,6 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 
 	id := facade.Get()
 
-	// Workaround for https://github.com/gravitational/teleport-private/issues/1572
 	clusterName, err := clt.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "retrieving cluster name")
