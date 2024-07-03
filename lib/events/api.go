@@ -697,6 +697,15 @@ const (
 	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
 	// disabled.
 	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
+
+	// DiscoveryConfigCreatedEvent is emitted when a discovery config is created.
+	DiscoveryConfigCreateEvent = "discovery_config.create"
+	// DiscoveryConfigUpdatedEvent is emitted when a discovery config is updated.
+	DiscoveryConfigUpdateEvent = "discovery_config.update"
+	// DiscoveryConfigDeletedEvent is emitted when a discovery config is deleted.
+	DiscoveryConfigDeleteEvent = "discovery_config.delete"
+	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
+	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
 )
 
 const (
