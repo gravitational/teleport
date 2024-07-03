@@ -18,7 +18,7 @@
 
 import { rest } from 'msw';
 
-import type { SetupWorkerApi } from 'msw';
+import type { SetupWorker } from 'msw';
 
 // Gives us access to vite's import.meta
 import 'vite/client';
@@ -26,7 +26,7 @@ import 'vite/client';
 declare global {
   interface Window {
     msw: {
-      worker: SetupWorkerApi;
+      worker: SetupWorker;
       rest: typeof rest;
     };
   }
