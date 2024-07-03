@@ -481,7 +481,7 @@ const (
 	EnvVarTerraformRootCertificates = "TF_TELEPORT_ROOT_CA"
 	// EnvVarTerraformRootCertificatesBase64 is the environment variable configuring the CA certificates trusted by the
 	// Terraform provider. This only works for direct auth joining.
-	EnvVarTerraformRootCertificatesBase64 = "TF_TELEPORT_CA_BAS64"
+	EnvVarTerraformRootCertificatesBase64 = "TF_TELEPORT_CA_BASE64"
 	// EnvVarTerraformProfileName is the environment variable containing name of the profile used by the Terraform provider.
 	EnvVarTerraformProfileName = "TF_TELEPORT_PROFILE_NAME"
 	// EnvVarTerraformProfilePath is the environment variable containing the profile directory used by the Terraform provider.

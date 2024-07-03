@@ -218,7 +218,7 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 	// Export environment variables
 	c.showProgress("Certificates obtained, you can now use Terraform in this terminal 🚀")
 	for env, value := range envVars {
-		_, _ = fmt.Fprintf(c.envOutput, "export %s=%q\n", env, value)
+		fmt.Fprintf(c.envOutput, "export %s=%q\n", env, value)
 	}
 	fmt.Fprintln(c.envOutput, "# You must invoke this command in an eval: eval $(tctl terraform env)")
 	return nil
