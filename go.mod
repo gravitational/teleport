@@ -146,7 +146,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/microsoft/go-mssqldb v1.7.2 // replaced
 	github.com/microsoft/kiota-authentication-azure-go v1.0.2
-	github.com/microsoftgraph/msgraph-sdk-go v1.45.0
+	github.com/microsoftgraph/msgraph-sdk-go v1.43.0
 	github.com/microsoftgraph/msgraph-sdk-go-core v1.1.0
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
