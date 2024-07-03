@@ -47,7 +47,6 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
-        samlAppPreset: 'unspecified',
         integration: '',
       },
       {
@@ -69,7 +68,6 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
-        samlAppPreset: 'unspecified',
         integration: '',
       },
       {
@@ -91,7 +89,6 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
-        samlAppPreset: 'unspecified',
         integration: '',
       },
       {
