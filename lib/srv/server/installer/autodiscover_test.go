@@ -34,9 +34,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
+	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
-func buildMockBins(t *testing.T) (map[string]*bintest.Mock, binariesLocation, []func() error) {
+func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.BinariesLocation, []func() error) {
 	mockedBins := []string{"systemctl",
 		"apt-get", "apt-key",
 		"rpm",
@@ -55,15 +56,15 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, binariesLocation, []
 		releaseMockFNs = append(releaseMockFNs, mockBin.Close)
 	}
 
-	return mapMockBins, binariesLocation{
-		systemctl:        mapMockBins["systemctl"].Path,
-		aptGet:           mapMockBins["apt-get"].Path,
-		aptKey:           mapMockBins["apt-key"].Path,
-		rpm:              mapMockBins["rpm"].Path,
-		yum:              mapMockBins["yum"].Path,
-		yumConfigManager: mapMockBins["yum-config-manager"].Path,
-		zypper:           mapMockBins["zypper"].Path,
-		teleport:         mapMockBins["teleport"].Path,
+	return mapMockBins, packagemanager.BinariesLocation{
+		Systemctl:        mapMockBins["systemctl"].Path,
+		AptGet:           mapMockBins["apt-get"].Path,
+		AptKey:           mapMockBins["apt-key"].Path,
+		Rpm:              mapMockBins["rpm"].Path,
+		Yum:              mapMockBins["yum"].Path,
+		YumConfigManager: mapMockBins["yum-config-manager"].Path,
+		Zypper:           mapMockBins["zypper"].Path,
+		Teleport:         mapMockBins["teleport"].Path,
 	}, releaseMockFNs
 }
 
@@ -164,7 +165,7 @@ func TestAutodiscoverNode(t *testing.T) {
 							c.Exit(0)
 						})
 					case "sles":
-						mockBins["rpm"].Expect("--import", zypperPublicKeyEndpoint)
+						mockBins["rpm"].Expect("--import", packagemanager.ZypperPublicKeyEndpoint)
 						mockBins["rpm"].Expect("--eval", bintest.MatchAny())
 						mockBins["zypper"].Expect("--non-interactive", "addrepo", bintest.MatchAny())
 						mockBins["zypper"].Expect("--gpg-auto-import-keys", "refresh")
