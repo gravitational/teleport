@@ -2,7 +2,7 @@ module github.com/gravitational/teleport-plugins/tooling
 
 go 1.21
 
-toolchain go1.21.9
+toolchain go1.22.5
 
 require (
 	github.com/ProtonMail/go-crypto v1.0.0
