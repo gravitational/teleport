@@ -26,12 +26,11 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
-
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 type connector struct {
