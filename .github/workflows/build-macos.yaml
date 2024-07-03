@@ -56,7 +56,7 @@ jobs:
 
       - name: Setup yarn
         run: |
-          corepack enable yarn
+          corepack enable pnpm
 
       - name: Install Go Toolchain
         uses: actions/setup-go@v5

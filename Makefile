@@ -681,9 +681,9 @@ release-windows: release-windows-unsigned
 # details.
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	yarn install --frozen-lockfile
-	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	pnpm install --frozen-lockfile
+	pnpm run build-term
+	pnpm run package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
 	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
@@ -1616,15 +1616,15 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else yarn install --ignore-scripts; fi
+	else pnpm install --ignore-scripts; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
 docker-ui:

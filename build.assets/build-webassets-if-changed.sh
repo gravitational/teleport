@@ -62,7 +62,7 @@ done
 function calculate_sha() {
   #shellcheck disable=SC2086
   #We want to split $SHASUM on spaces so we dont want it quoted.
-  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" \
+  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/pnpm-lock.yaml" \
     -not \( -type d \( -name node_modules -o -name .swc -o -path '*ironrdp/pkg*' \) -prune \) \
     -type f -print0 | \
     LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -'
