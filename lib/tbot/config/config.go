@@ -870,22 +870,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 
 	switch version.Version {
 	case V1, "":
-		if !manualMigration {
-			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
-		}
-		config := &configV1{}
-		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
-		}
-		latestConfig, err := config.migrate()
-		if err != nil {
-			return nil, trace.WithUserMessage(
-				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/",
-			)
-		}
-		return latestConfig, nil
+		return nil, trace.BadParameter("configuration version v1 is no longer supported")
 	case V2:
 		if manualMigration {
 			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")
