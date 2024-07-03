@@ -40,7 +40,6 @@ resource "teleport_provision_token" "bot_example" {
 
 resource "teleport_bot" "example" {
   name     = local.bot_name
-  token_id = teleport_provision_token.bot_example.metadata.name
   roles    = ["access"]
 }
 ```
