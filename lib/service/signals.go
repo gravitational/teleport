@@ -76,7 +76,6 @@ var teleportSignals = []os.Signal{
 	syscall.SIGUSR1, // log process diagnostic info
 	syscall.SIGUSR2, // initiate process restart procedure
 	syscall.SIGHUP,  // graceful restart procedure
-	syscall.SIGCONT, // Re-open the log file
 }
 
 // WaitForSignals waits for system signals and processes them.

@@ -230,10 +230,10 @@ type Config struct {
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
-	// LogFileReopen is used to close and re-open the log file by
+	// WatchLogFile is used to close and re-open the log file by
 	// filesystem notify to react on rename or remove event, might be used
 	// in log rotation.
-	LogFileReopen bool
+	WatchLogFile bool
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
