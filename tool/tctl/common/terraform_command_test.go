@@ -23,81 +23,66 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Note: due to its complex interactions with Teleport, the `tctl terraform env`
 // command is mainly not tested via unit tests but by integration tests validating the full flow.
 // You can find its integration tests in `integration/tctl_terraform_env_test.go`
 
-func TestTerraformCommand_createRoleIfNeeded(t *testing.T) {
+func TestTerraformCommand_checkIfRoleExists(t *testing.T) {
 	// Test setup
 	authHelper := integration.MinimalAuthHelper{}
 	adminClient := authHelper.StartServer(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// Setting labels allows us to check whether the role
-	// has been updated by the helper or not.
-	defaultLabels := terraformRoleSpec.Allow.AppLabels
-	testLabels := types.Labels{"foo": []string{"bar"}}
-	existingRoleSpec := terraformRoleSpec
-	existingRoleSpec.Allow.AppLabels = testLabels
-
-	newRoleFixture := func(t *testing.T, name string) types.Role {
-		role, err := types.NewRole(name, existingRoleSpec)
-		require.NoError(t, err)
+	newRoleFixture := func(name string) types.Role {
+		role := services.NewPresetTerraformProviderRole()
+		role.SetName(name)
 		return role
 	}
 
 	tests := []struct {
 		name string
 		// Test setup
-		resourcePrefixFlag string
-		existingRoleFlag   string
-		fixture            types.Role
+		existingRoleFlag string
+		fixture          types.Role
 		// Test validation
-		wantErr               require.ErrorAssertionFunc
-		expectedRoleName      string
-		expectedRoleAppLabels types.Labels
+		expectedRoleName string
+		expectedErr      require.ErrorAssertionFunc
 	}{
 		{
-			name:                  "Create role when not exist",
-			wantErr:               require.NoError,
-			expectedRoleAppLabels: defaultLabels,
-			expectedRoleName:      terraformHelperDefaultResourcePrefix + "provider",
+			name:             "Succeeds if preset role is found",
+			existingRoleFlag: "",
+			fixture:          newRoleFixture(teleport.PresetTerraformProviderRoleName),
+			expectedRoleName: teleport.PresetTerraformProviderRoleName,
+			expectedErr:      require.NoError,
 		},
 		{
-			name:                  "Update existing role",
-			fixture:               newRoleFixture(t, terraformHelperDefaultResourcePrefix+"provider"),
-			wantErr:               require.NoError,
-			expectedRoleAppLabels: defaultLabels,
-			expectedRoleName:      terraformHelperDefaultResourcePrefix + "provider",
+			name:             "Fails if preset role is not found",
+			existingRoleFlag: "",
+			expectedRoleName: teleport.PresetTerraformProviderRoleName,
+			expectedErr:      require.Error,
 		},
 		{
-			name:                  "Honour resource prefix",
-			resourcePrefixFlag:    "test-",
-			wantErr:               require.NoError,
-			expectedRoleName:      "test-provider",
-			expectedRoleAppLabels: defaultLabels,
-		},
-		{
-			name:                  "Does not change existing role",
-			existingRoleFlag:      "existing-role",
-			fixture:               newRoleFixture(t, "existing-role"),
-			wantErr:               require.NoError,
-			expectedRoleName:      "existing-role",
-			expectedRoleAppLabels: testLabels,
-		},
-		{
-			name:             "Fails if existing role is not found",
+			name:             "Succeeds if custom existing role is specified and exists",
 			existingRoleFlag: "existing-role",
-			wantErr:          require.Error,
+			fixture:          newRoleFixture("existing-role"),
+			expectedRoleName: "existing-role",
+			expectedErr:      require.NoError,
+		},
+		{
+			name:             "Fails if custom existing role is specified and does not exist",
+			existingRoleFlag: "existing-role",
+			expectedRoleName: "existing-role",
+			expectedErr:      require.Error,
 		},
 	}
 	for _, tt := range tests {
@@ -108,33 +93,20 @@ func TestTerraformCommand_createRoleIfNeeded(t *testing.T) {
 				_, err := adminClient.CreateRole(ctx, tt.fixture)
 				require.NoError(t, err)
 			}
-			// mimick the kingpin default behaviour
-			resourcePrefix := tt.resourcePrefixFlag
-			if resourcePrefix == "" {
-				resourcePrefix = terraformHelperDefaultResourcePrefix
-			}
 
 			// Test execution
 			c := &TerraformCommand{
-				resourcePrefix: resourcePrefix,
-				existingRole:   tt.existingRoleFlag,
-				userOutput:     os.Stderr,
+				existingRole: tt.existingRoleFlag,
+				userOutput:   os.Stderr,
+				log:          utils.NewSlogLoggerForTests(),
 			}
-			roleName, err := c.createRoleIfNeeded(ctx, adminClient)
-			tt.wantErr(t, err)
+			roleName, err := c.checkIfRoleExists(ctx, adminClient)
+			tt.expectedErr(t, err)
 			require.Equal(t, tt.expectedRoleName, roleName)
-			if tt.expectedRoleAppLabels != nil {
-				gotRole, err := adminClient.GetRole(ctx, roleName)
-				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(tt.expectedRoleAppLabels, gotRole.GetAppLabels(types.Allow)))
-			}
 
 			// Test cleanup
-			if roleName != "" {
-				err = adminClient.DeleteRole(ctx, roleName)
-				if !trace.IsNotFound(err) {
-					require.NoError(t, err)
-				}
+			if tt.fixture != nil {
+				require.NoError(t, adminClient.DeleteRole(ctx, roleName))
 			}
 		})
 	}

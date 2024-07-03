@@ -1,6 +1,6 @@
 ---
 author: hugoShaka (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 173 - Authenticating the Terraform provider with MachineID
@@ -115,9 +115,12 @@ we used for the Teleport operator.
 
 #### Resource bootstrapping
 
+Teleport will now ship with a default Terraform provider role: `terraform-provider-all-resources` automatically updated using
+our existing preset logic. This will allow users to benefit from the new resources supported by the Terraform provider
+without having to update their preset role. The suffix `-all-resources` is here to minimize the risk of conflict with existing
+terraform provider roles.
+
 We will automatically create the resources required by the Terraform provider before executing Terraform:
-- the `terraform-provider` role (this is an upsert so we can add new rules after a provider update). This resource does
-  not expire.
 - the `terraform-provider-<random hash>` bot allowed to issue certificates for the `terraform-provider` role.
   This resource expires by default after 1h.
 - the `terraform-provider-<random hash>` secret random provision token allowing to join as

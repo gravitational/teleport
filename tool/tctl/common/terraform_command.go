@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/gravitational/teleport/api/types/common"
 	"io"
 	"log/slog"
 	"os"
@@ -33,13 +32,14 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -52,42 +52,14 @@ import (
 )
 
 const (
-	terraformHelperDefaultResourcePrefix = "terraform-env-"
+	terraformHelperDefaultResourcePrefix = "tctl-terraform-env-"
 	terraformHelperDefaultTTL            = "1h"
-)
 
-var terraformRoleSpec = types.RoleSpecV6{
-	Allow: types.RoleConditions{
-		AppLabels:      map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-		DatabaseLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-		NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-		Rules: []types.Rule{
-			{
-				Resources: []string{
-					types.KindAccessList,
-					types.KindApp,
-					types.KindClusterAuthPreference,
-					types.KindClusterMaintenanceConfig,
-					types.KindClusterNetworkingConfig,
-					types.KindDatabase,
-					types.KindDevice,
-					types.KindGithub,
-					types.KindLoginRule,
-					types.KindNode,
-					types.KindOIDC,
-					types.KindOktaImportRule,
-					types.KindRole,
-					types.KindSAML,
-					types.KindSessionRecordingConfig,
-					types.KindToken,
-					types.KindTrustedCluster,
-					types.KindUser,
-				},
-				Verbs: []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
-			},
-		},
-	},
-}
+	// importantText is the ANSI escape sequence used to make the terminal text bold.
+	importantText = "\033[1;31m"
+	// resetText is the ANSI escape sequence used to reset the terminal text style.
+	resetText = "\033[0m"
+)
 
 var terraformEnvCommandLabels = map[string]string{
 	common.TeleportNamespace + "/" + "created-by": "tctl-terraform-env",
@@ -107,6 +79,8 @@ type TerraformCommand struct {
 	envOutput io.Writer
 	// envOutput is where we write the progress updates, its value is os.Stderr run via tctl.
 	userOutput io.Writer
+
+	log *slog.Logger
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -158,7 +132,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 	}
 	c.envOutput = envOutput
 	c.userOutput = userOutput
-	log := slog.Default()
+	c.log = slog.Default()
 
 	// Validate that the bot expires
 	if c.botTTL == 0 {
@@ -172,7 +146,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 	addr := addrs[0]
 
 	// Prompt for admin action MFA if required, allowing reuse for UpsertRole, UpsertToken and CreateBot.
-	c.showProgress("Detecting if MFA is required")
+	c.showProgress("🔑 Detecting if MFA is required")
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
 		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
@@ -180,16 +154,25 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		return trace.Wrap(err)
 	}
 
-	// Upsert Terraform role
-	roleName, err := c.createRoleIfNeeded(ctx, client, log)
-	if trace.IsAccessDenied(err) {
-		return trace.Wrap(err, `Failed to create/update the Terraform role.
-You must have the rights to get/create/update roles to rely on automatic role creation.
-If you don't have those rights, you can set the flag --use-existing-role "your-existing-terraform-role".
-If you got a role granted recently, you might have to run "tsh logout" and login again.`)
-	}
+	// Checking Terraform role
+	roleName, err := c.checkIfRoleExists(ctx, client)
 	if err != nil {
-		return trace.Wrap(err)
+		switch {
+		case trace.IsNotFound(err) && c.existingRole == "":
+			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
+This role is included by default in Teleport clusters whose version is higher than v16.1 or v17.
+If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
+yourself and set the flag --use-existing-role <your-terraform-role-name>.`, roleName)
+		case trace.IsNotFound(err) && c.existingRole != "":
+			return trace.Wrap(err, `The Terraform role %q specified with --use-existing-role does not exist in your Teleport cluster.
+Please check that the role exists in the cluster.`, roleName)
+		case trace.IsAccessDenied(err):
+			return trace.Wrap(err, `Failed to validate if the role %q exists.
+To use the "tctl terraform env" command you must have rights to list and read Teleport roles.
+If you got a role granted recently, you might have to run "tsh logout" and login again.`, roleName)
+		default:
+			return trace.Wrap(err, "Unexpected error while trying to validate if the role %q exists.", roleName)
+		}
 	}
 
 	// Create temporary bot and token
@@ -204,8 +187,8 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 	}
 
 	// Now run tbot
-	c.showProgress("Using the temporary bot to obtain certificates 🤖")
-	id, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client, log)
+	c.showProgress("🤖 Using the temporary bot to obtain certificates")
+	id, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client)
 	if err != nil {
 		return trace.Wrap(err, "The temporary bot failed to connect to Teleport.")
 	}
@@ -216,11 +199,12 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 	}
 
 	// Export environment variables
-	c.showProgress("Certificates obtained, you can now use Terraform in this terminal 🚀")
+	c.showProgress(fmt.Sprintf("🚀 Certificates obtained, you can now use Terraform in this terminal for %s", c.botTTL.String()))
 	for env, value := range envVars {
 		fmt.Fprintf(c.envOutput, "export %s=%q\n", env, value)
 	}
-	fmt.Fprintln(c.envOutput, "# You must invoke this command in an eval: eval $(tctl terraform env)")
+	fmt.Fprintln(c.envOutput, "#")
+	fmt.Fprintf(c.envOutput, "# %sYou must invoke this command in an eval: eval $(tctl terraform env)%s\n", importantText, resetText)
 	return nil
 }
 
@@ -235,9 +219,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	}
 
 	botName := c.resourcePrefix + suffix
-	c.showProgress(fmt.Sprintf("Creating temporary bot %q and its token", botName))
-
-	var token types.ProvisionToken
+	c.showProgress(fmt.Sprintf("⚙️ Creating temporary bot %q and its token", botName))
 
 	// Generate a token
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -251,7 +233,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	}
 	// Token should be consumed on bot join in a few seconds. If the bot fails to join for any reason,
 	// the token should not outlive the bot.
-	token, err = types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(c.botTTL), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(c.botTTL), tokenSpec)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -288,49 +270,24 @@ type roleClient interface {
 	GetRole(context.Context, string) (types.Role, error)
 }
 
-// createRoleIfNeeded upserts the Terraform role, or checks if the role exists.
-// Returns the Terraform role name.
-func (c *TerraformCommand) createRoleIfNeeded(ctx context.Context, client roleClient, log *slog.Logger) (string, error) {
+// createRoleIfNeeded checks if the terraform role exists.
+// Returns the Terraform role name even in case of error, so this can be used to craft nice error messages.
+func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleClient) (string, error) {
 	roleName := c.existingRole
 
-	// If roleName is specified, we don't attempt to create the role but we still check that it exists.
-	if roleName != "" {
-		_, err := client.GetRole(ctx, roleName)
-		if trace.IsNotFound(err) {
-			log.ErrorContext(ctx, "Role not found", "role", roleName)
-			return "", trace.Wrap(err)
-		} else if err != nil {
-			return "", trace.Wrap(err, "getting role")
-		}
-
-		log.InfoContext(ctx, "Using existing Terraform role", "role", roleName)
-		c.showProgress(fmt.Sprintf("Using existing Terraform Provider role: %q", roleName))
-		return roleName, nil
+	if roleName == "" {
+		roleName = teleport.PresetTerraformProviderRoleName
 	}
+	_, err := client.GetRole(ctx, roleName)
 
-	roleName = c.resourcePrefix + "provider"
-	log.InfoContext(ctx, "Creating/Updating the Terraform Provider role", "role", roleName)
-
-	role, err := types.NewRole(roleName, terraformRoleSpec)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	role.SetStaticLabels(terraformEnvCommandLabels)
-
-	_, err = client.UpsertRole(ctx, role)
-	if err != nil {
-		return "", trace.Wrap(err, "upserting role")
-	}
-	c.showProgress(fmt.Sprintf("Created Terraform Provider role: %q", roleName))
-
-	return roleName, nil
+	return roleName, trace.Wrap(err)
 }
 
 // useBotToObtainIdentity takes secret bot token and runs a one-shot in-process tbot to trade the token
 // against valid certificates. Those certs are then serialized into an identity file.
 // The output is a set of environment variables, one of them including the base64-encoded identity file.
 // Later, the Terraform provider will read those environment variables to build its Teleport client.
-func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client, log *slog.Logger) (*identity.Identity, error) {
+func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, error) {
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",
@@ -373,7 +330,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	}
 
 	// Run the bot
-	bot := tbot.New(cfg, log)
+	bot := tbot.New(cfg, c.log)
 	err = bot.Run(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "running the bot")

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -547,6 +548,61 @@ func NewSystemOktaRequesterRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Request: defaultAllowAccessRequestConditions(true)[teleport.SystemOktaRequesterRoleName],
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetTerraformProviderRole returns a new pre-defined role for the Teleport Terraform provider.
+// This role can edit any Terraform-supported resource.
+func NewPresetTerraformProviderRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetTerraformProviderRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default Terraform provider role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				// In Teleport, you can only see what you have access to. To be able to reconcile
+				// Apps, Databases, and Nodes, Terraform must be able to access them all.
+				// For Databases and Nodes, Terraform cannot actually access them because it has no
+				// Login/user set.
+				AppLabels:      map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				// Every resource currently supported by the Terraform provider.
+				Rules: []types.Rule{
+					{
+						Resources: []string{
+							types.KindAccessList,
+							types.KindApp,
+							types.KindClusterAuthPreference,
+							types.KindClusterMaintenanceConfig,
+							types.KindClusterNetworkingConfig,
+							types.KindDatabase,
+							types.KindDevice,
+							types.KindGithub,
+							types.KindLoginRule,
+							types.KindNode,
+							types.KindOIDC,
+							types.KindOktaImportRule,
+							types.KindRole,
+							types.KindSAML,
+							types.KindSessionRecordingConfig,
+							types.KindToken,
+							types.KindTrustedCluster,
+							types.KindUser,
+						},
+						Verbs: RW(),
+					},
+				},
 			},
 		},
 	}
