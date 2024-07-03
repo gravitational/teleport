@@ -83,12 +83,10 @@ jobs:
 
       - name: Set linter versions
         run: |
-          echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
           echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
 
       - name: Print linter versions
         run: |
-          echo "BUF_VERSION=$BUF_VERSION"
           echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
 
       # Run various golangci-lint checks.
