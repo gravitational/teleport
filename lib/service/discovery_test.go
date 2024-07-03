@@ -27,9 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -97,9 +99,10 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			rsp: nil,
 			err: nil,
 			want: discovery.AccessGraphConfig{
-				Enabled:  true,
-				Addr:     "localhost:5000",
-				Insecure: true,
+				Enabled:     true,
+				Addr:        "localhost:5000",
+				ClusterName: "cluster-name",
+				Insecure:    true,
 			},
 			assertErr: require.NoError,
 		},
@@ -115,9 +118,10 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			},
 			err: nil,
 			want: discovery.AccessGraphConfig{
-				Enabled:  true,
-				Addr:     "localhost:5000",
-				Insecure: true,
+				Enabled:     true,
+				Addr:        "localhost:5000",
+				ClusterName: "cluster-name",
+				Insecure:    true,
 			},
 			assertErr: require.NoError,
 		},
@@ -129,7 +133,8 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			rsp: nil,
 			err: trace.NotImplemented("err"),
 			want: discovery.AccessGraphConfig{
-				Enabled: false,
+				Enabled:     false,
+				ClusterName: "cluster-name",
 			},
 			assertErr: require.NoError,
 		},
@@ -176,4 +181,12 @@ func (f *fakeClient) GetClusterAccessGraphConfig(ctx context.Context) (*clusterc
 		return nil, f.err
 	}
 	return f.rsp, nil
+}
+
+func (f *fakeClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+	return &types.ClusterNameV2{
+		Spec: types.ClusterNameSpecV2{
+			ClusterName: "cluster-name",
+		},
+	}, nil
 }
