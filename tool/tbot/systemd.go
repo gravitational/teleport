@@ -94,6 +94,9 @@ func onInstallSystemdCmd(
 		return trace.BadParameter("missing required parameter --name")
 	}
 
+	// TODO: Determine path to executable
+	// TODO: Normalize path to config
+
 	buf := bytes.NewBuffer(nil)
 	err := systemdTemplate.Execute(buf, systemdTemplateParams{
 		UnitName:           unitName,
