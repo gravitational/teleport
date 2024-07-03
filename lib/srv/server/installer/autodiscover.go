@@ -46,10 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	filePermsRepository = 0o644
+	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
 // AutodiscoverNodeInstallerConfig installs and configures a Teleport Server into the current system.
@@ -80,9 +77,6 @@ type AutodiscoverNodeInstallerConfig struct {
 	// TokenName is the token name to be used by the instance to join the cluster.
 	TokenName string
 
-	// packageManagers contains implementation for each supported package manager.
-	packageManagers map[packageManagerKind]packageManager
-
 	// aptPublicKeyEndpoint contains the URL for the APT public key.
 	// Defaults to: https://apt.releases.teleport.dev/gpg
 	aptPublicKeyEndpoint string
@@ -93,63 +87,11 @@ type AutodiscoverNodeInstallerConfig struct {
 
 	// binariesLocation contain the location of each required binary.
 	// Used for testing.
-	binariesLocation binariesLocation
+	binariesLocation packagemanager.BinariesLocation
 
 	// imdsProviders contains the Cloud Instance Metadata providers.
 	// Used for testing.
 	imdsProviders []func(ctx context.Context) (imds.Client, error)
-}
-
-// binariesLocation contains all the required external binaries used install teleport.
-// Used for testing.
-type binariesLocation struct {
-	systemctl string
-
-	aptGet string
-	aptKey string
-
-	rpm              string
-	yum              string
-	yumConfigManager string
-
-	zypper string
-
-	// teleport represents the expected location of the teleport binary after installing
-	teleport string
-}
-
-func (bi *binariesLocation) checkAndSetDefaults() {
-	if bi.systemctl == "" {
-		bi.systemctl = "systemctl"
-	}
-
-	if bi.aptGet == "" {
-		bi.aptGet = "apt-get"
-	}
-
-	if bi.aptKey == "" {
-		bi.aptKey = "apt-key"
-	}
-
-	if bi.rpm == "" {
-		bi.rpm = "rpm"
-	}
-
-	if bi.yum == "" {
-		bi.yum = "yum"
-	}
-
-	if bi.yumConfigManager == "" {
-		bi.yumConfigManager = "yum-config-manager"
-	}
-
-	if bi.zypper == "" {
-		bi.zypper = "zypper"
-	}
-
-	if bi.teleport == "" {
-		bi.teleport = "/usr/local/bin/teleport"
-	}
 }
 
 func (c *AutodiscoverNodeInstallerConfig) checkAndSetDefaults() error {
@@ -185,50 +127,7 @@ func (c *AutodiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 		c.autoUpgradesChannelURL = "https://" + c.ProxyPublicAddr + "/v1/webapi/automaticupgrades/channel/default"
 	}
 
-	c.binariesLocation.checkAndSetDefaults()
-
-	if c.packageManagers == nil {
-		packageManagerAPTLegacy, err := newPackageManagerAPTLegacy(&packageManagerAPTConfig{
-			fsRootPrefix:         c.fsRootPrefix,
-			bins:                 c.binariesLocation,
-			aptPublicKeyEndpoint: c.aptPublicKeyEndpoint,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		packageManagerAPT, err := newPackageManagerAPT(&packageManagerAPTConfig{
-			fsRootPrefix:         c.fsRootPrefix,
-			bins:                 c.binariesLocation,
-			aptPublicKeyEndpoint: c.aptPublicKeyEndpoint,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		packageManagerYUM, err := newPackageManagerYUM(&packageManagerYUMConfig{
-			fsRootPrefix: c.fsRootPrefix,
-			bins:         c.binariesLocation,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		packageManagerZypper, err := newPackageManagerZypper(&packageManagerZypperConfig{
-			fsRootPrefix: c.fsRootPrefix,
-			bins:         c.binariesLocation,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		c.packageManagers = map[packageManagerKind]packageManager{
-			packageManagerKindAPTLegacy: packageManagerAPTLegacy,
-			packageManagerKindAPT:       packageManagerAPT,
-			packageManagerKindYUM:       packageManagerYUM,
-			packageManagerKindZypper:    packageManagerZypper,
-		}
-	}
+	c.binariesLocation.CheckAndSetDefaults()
 
 	if len(c.imdsProviders) == 0 {
 		c.imdsProviders = []func(ctx context.Context) (imds.Client, error){
@@ -252,16 +151,6 @@ func (c *AutodiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-type packageVersion struct {
-	Name    string
-	Version string
-}
-
-type packageManager interface {
-	AddTeleportRepository(ctx context.Context, ldi *linuxDistroInfo, repoChannel string) error
-	InstallPackages(context.Context, []packageVersion) error
 }
 
 // AutodiscoverNodeInstaller will install teleport in the current system.
@@ -314,7 +203,7 @@ func (ani *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
 	}()
 
 	// Check if teleport is already installed.
-	if _, err := os.Stat(ani.binariesLocation.teleport); err == nil {
+	if _, err := os.Stat(ani.binariesLocation.Teleport); err == nil {
 		ani.Logger.InfoContext(ctx, "Teleport is already installed in the system.")
 		return nil
 	}
@@ -340,7 +229,7 @@ func (ani *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 
 	ani.Logger.InfoContext(ctx, "Enabling and starting teleport service")
-	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.systemctl, "enable", "--now", "teleport")
+	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", "--now", "teleport")
 	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
@@ -384,8 +273,8 @@ func (ani *AutodiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(ani.AzureClientID)))
 	}
 
-	ani.Logger.InfoContext(ctx, "Writing teleport configuration", "teleport", ani.binariesLocation.teleport, "args", teleportNodeConfigureArgs)
-	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.teleport, teleportNodeConfigureArgs...)
+	ani.Logger.InfoContext(ctx, "Writing teleport configuration", "teleport", ani.binariesLocation.Teleport, "args", teleportNodeConfigureArgs)
+	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.Teleport, teleportNodeConfigureArgs...)
 	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(teleportNodeConfigureCmdOutput))
@@ -408,14 +297,13 @@ func (ani *AutodiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 		"version_id", linuxInfo.VersionID,
 	)
 
-	// Pick up the correct package manager/repository for the system.
-	packageManager, ok := ani.packageManagers[linuxInfo.packageManagerKind()]
-	if !ok {
-		return trace.BadParameter("package manager for %s (%s) is not yet supported", linuxInfo.ID, linuxInfo.IDLike)
+	packageManager, err := packagemanager.PackageManagerForSystem(linuxInfo, ani.fsRootPrefix, ani.binariesLocation, ani.aptPublicKeyEndpoint)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	targetVersion := ""
-	var packagesToInstall []packageVersion
+	var packagesToInstall []packagemanager.PackageVersion
 	if ani.AutoUpgrades {
 		teleportAutoUpdaterPackage := ani.TeleportPackage + "-updater"
 
@@ -427,9 +315,9 @@ func (ani *AutodiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 			targetVersion = ""
 		}
 		ani.Logger.InfoContext(ctx, "Using teleport version", "version", targetVersion)
-		packagesToInstall = append(packagesToInstall, packageVersion{Name: teleportAutoUpdaterPackage, Version: targetVersion})
+		packagesToInstall = append(packagesToInstall, packagemanager.PackageVersion{Name: teleportAutoUpdaterPackage, Version: targetVersion})
 	}
-	packagesToInstall = append(packagesToInstall, packageVersion{Name: ani.TeleportPackage, Version: targetVersion})
+	packagesToInstall = append(packagesToInstall, packagemanager.PackageVersion{Name: ani.TeleportPackage, Version: targetVersion})
 
 	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, ani.RepositoryChannel); err != nil {
 		return trace.BadParameter("failed to add teleport repository to system: %v", err)
@@ -553,40 +441,10 @@ func (ani *AutodiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) str
 	return path.Join(ani.fsRootPrefix, filepath)
 }
 
-type linuxDistroInfo struct {
-	*linux.OSRelease
-}
-
-func (l *linuxDistroInfo) packageManagerKind() packageManagerKind {
-	aptWellKnownIDs := []string{"debian", "ubuntu"}
-	legacyAPT := []string{"xenial", "trusty"}
-
-	yumWellKnownIDs := []string{"amzn", "rhel", "centos"}
-
-	zypperWellKnownIDs := []string{"sles", "opensuse-tumbleweed", "opensuse-leap"}
-
-	switch {
-	case slices.Contains(aptWellKnownIDs, l.ID):
-		if slices.Contains(legacyAPT, l.VersionCodename) {
-			return packageManagerKindAPTLegacy
-		}
-		return packageManagerKindAPT
-
-	case slices.Contains(yumWellKnownIDs, l.ID):
-		return packageManagerKindYUM
-
-	case slices.Contains(zypperWellKnownIDs, l.ID):
-		return packageManagerKindZypper
-
-	default:
-		return packageManagerKindUnknown
-	}
-}
-
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.
 //
 // https://www.freedesktop.org/software/systemd/man/latest/os-release.html
-func (ani *AutodiscoverNodeInstaller) linuxDistribution() (*linuxDistroInfo, error) {
+func (ani *AutodiscoverNodeInstaller) linuxDistribution() (*linux.OSRelease, error) {
 	f, err := os.Open(ani.buildAbsoluteFilePath(etcOSReleaseFile))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -598,17 +456,5 @@ func (ani *AutodiscoverNodeInstaller) linuxDistribution() (*linuxDistroInfo, err
 		return nil, trace.Wrap(err)
 	}
 
-	return &linuxDistroInfo{
-		OSRelease: osRelease,
-	}, nil
+	return osRelease, nil
 }
-
-type packageManagerKind int
-
-const (
-	packageManagerKindUnknown = iota
-	packageManagerKindAPTLegacy
-	packageManagerKindAPT
-	packageManagerKindYUM
-	packageManagerKindZypper
-)

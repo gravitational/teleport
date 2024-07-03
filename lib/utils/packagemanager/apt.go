@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package installer
+package packagemanager
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,10 +41,14 @@ const (
 
 	aptTeleportSourceListFileRelative = "/etc/apt/sources.list.d/teleport.list"
 	aptTeleportPublicKeyFileRelative  = "/usr/share/keyrings/teleport-archive-keyring.asc"
+
+	aptFilePermsRepository = 0o644
 )
 
-type packageManagerAPT struct {
-	*packageManagerAPTConfig
+// APT is a wrapper for apt package manager.
+// This package manager is used in Debian/Ubuntu and distros based on this distribution.
+type APT struct {
+	*APTConfig
 
 	// legacy indicates that the old method of adding repos must be used.
 	// This is used in Xenial (16.04) and Trusty (14.04) Ubuntu releases.
@@ -52,14 +57,16 @@ type packageManagerAPT struct {
 	httpClient *http.Client
 }
 
-type packageManagerAPTConfig struct {
+// APTConfig contains the configurable fields for setting up the APT package manager.
+type APTConfig struct {
 	logger               *slog.Logger
 	aptPublicKeyEndpoint string
 	fsRootPrefix         string
-	bins                 binariesLocation
+	bins                 BinariesLocation
 }
 
-func (p *packageManagerAPTConfig) checkAndSetDefaults() error {
+// CheckAndSetDefaults checks and sets default config values.
+func (p *APTConfig) CheckAndSetDefaults() error {
 	if p == nil {
 		return trace.BadParameter("config is required")
 	}
@@ -68,7 +75,7 @@ func (p *packageManagerAPTConfig) checkAndSetDefaults() error {
 		p.aptPublicKeyEndpoint = productionAPTPublicKeyEndpoint
 	}
 
-	p.bins.checkAndSetDefaults()
+	p.bins.CheckAndSetDefaults()
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -81,21 +88,21 @@ func (p *packageManagerAPTConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// newPackageManagerAPT creates a new packageManagerAPT.
-func newPackageManagerAPT(cfg *packageManagerAPTConfig) (*packageManagerAPT, error) {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+// NewAPT creates a new APT package manager.
+func NewAPT(cfg *APTConfig) (*APT, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	httpClient, err := defaults.HTTPClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &packageManagerAPT{packageManagerAPTConfig: cfg, httpClient: httpClient}, nil
+	return &APT{APTConfig: cfg, httpClient: httpClient}, nil
 }
 
-// newPackageManagerAPTLegacy creates a new packageManagerAPT for legacy ubuntu versions (Xenial and Trusty).
-func newPackageManagerAPTLegacy(cfg *packageManagerAPTConfig) (*packageManagerAPT, error) {
-	pm, err := newPackageManagerAPT(cfg)
+// NewAPTLegacy creates a new APT for legacy ubuntu versions (Xenial and Trusty).
+func NewAPTLegacy(cfg *APTConfig) (*APT, error) {
+	pm, err := NewAPT(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,7 +112,7 @@ func newPackageManagerAPTLegacy(cfg *packageManagerAPTConfig) (*packageManagerAP
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *packageManagerAPT) AddTeleportRepository(ctx context.Context, linuxInfo *linuxDistroInfo, repoChannel string) error {
+func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
 	pm.logger.InfoContext(ctx, "Fetching Teleport repository key", "endpoint", pm.aptPublicKeyEndpoint)
 
 	resp, err := pm.httpClient.Get(pm.aptPublicKeyEndpoint)
@@ -121,13 +128,13 @@ func (pm *packageManagerAPT) AddTeleportRepository(ctx context.Context, linuxInf
 	aptTeleportSourceListFile := path.Join(pm.fsRootPrefix, aptTeleportSourceListFileRelative)
 	aptTeleportPublicKeyFile := path.Join(pm.fsRootPrefix, aptTeleportPublicKeyFileRelative)
 	// Format for teleport repo entry should look like this:
-	// deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}"
+	// deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} $RepoChannel"
 	teleportRepoMetadata := fmt.Sprintf("deb [signed-by=%s] %s%s %s %s", aptTeleportPublicKeyFile, aptRepoEndpoint, linuxInfo.ID, linuxInfo.VersionCodename, repoChannel)
 
 	switch {
 	case pm.legacy:
 		pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "apt-key add -")
-		aptKeyAddCMD := exec.CommandContext(ctx, pm.bins.aptKey, "add", "-")
+		aptKeyAddCMD := exec.CommandContext(ctx, pm.bins.AptKey, "add", "-")
 		aptKeyAddCMD.Stdin = bytes.NewReader(publicKey)
 		aptKeyAddCMDOutput, err := aptKeyAddCMD.CombinedOutput()
 		if err != nil {
@@ -137,18 +144,18 @@ func (pm *packageManagerAPT) AddTeleportRepository(ctx context.Context, linuxInf
 
 	default:
 		pm.logger.InfoContext(ctx, "Writing Teleport repository key", "destination", aptTeleportPublicKeyFile)
-		if err := os.WriteFile(aptTeleportPublicKeyFile, publicKey, filePermsRepository); err != nil {
+		if err := os.WriteFile(aptTeleportPublicKeyFile, publicKey, aptFilePermsRepository); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	pm.logger.InfoContext(ctx, "Adding repository metadata", "apt_source_file", aptTeleportSourceListFile, "metadata", teleportRepoMetadata)
-	if err := os.WriteFile(aptTeleportSourceListFile, []byte(teleportRepoMetadata), filePermsRepository); err != nil {
+	if err := os.WriteFile(aptTeleportSourceListFile, []byte(teleportRepoMetadata), aptFilePermsRepository); err != nil {
 		return trace.Wrap(err)
 	}
 
 	pm.logger.InfoContext(ctx, "Updating apt sources", "command", "apt-get update")
-	updateReposCMD := exec.CommandContext(ctx, pm.bins.aptGet, "update")
+	updateReposCMD := exec.CommandContext(ctx, pm.bins.AptGet, "update")
 	updateReposCMDOutput, err := updateReposCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(updateReposCMDOutput))
@@ -157,7 +164,7 @@ func (pm *packageManagerAPT) AddTeleportRepository(ctx context.Context, linuxInf
 }
 
 // InstallPackages installs one or multiple packages into the current system.
-func (pm *packageManagerAPT) InstallPackages(ctx context.Context, packageList []packageVersion) error {
+func (pm *APT) InstallPackages(ctx context.Context, packageList []PackageVersion) error {
 	if len(packageList) == 0 {
 		return nil
 	}
@@ -175,7 +182,7 @@ func (pm *packageManagerAPT) InstallPackages(ctx context.Context, packageList []
 
 	pm.logger.InfoContext(ctx, "Installing", "command", "apt-get "+strings.Join(installArgs, " "))
 
-	installPackagesCMD := exec.CommandContext(ctx, pm.bins.aptGet, installArgs...)
+	installPackagesCMD := exec.CommandContext(ctx, pm.bins.AptGet, installArgs...)
 	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))

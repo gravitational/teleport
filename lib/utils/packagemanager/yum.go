@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package installer
+package packagemanager
 
 import (
 	"context"
@@ -23,27 +23,32 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/trace"
 )
 
 const yumRepoEndpoint = "https://yum.releases.teleport.dev/"
 
-type packageManagerYUM struct {
-	*packageManagerYUMConfig
+// YUM is a wrapper for yum package manager.
+// This package manager is used in RedHat/AmazonLinux/Fedora/CentOS and othe distros.
+type YUM struct {
+	*YUMConfig
 }
 
-type packageManagerYUMConfig struct {
+// YUMConfig contains the configurable fields for setting up the YUM package manager.
+type YUMConfig struct {
 	logger       *slog.Logger
-	bins         binariesLocation
+	bins         BinariesLocation
 	fsRootPrefix string
 }
 
-func (p *packageManagerYUMConfig) checkAndSetDefaults() error {
+// CheckAndSetDefaults checks and sets default config values.
+func (p *YUMConfig) CheckAndSetDefaults() error {
 	if p == nil {
 		return trace.BadParameter("config is required")
 	}
 
-	p.bins.checkAndSetDefaults()
+	p.bins.CheckAndSetDefaults()
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -56,21 +61,21 @@ func (p *packageManagerYUMConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// newPackageManagerYUM creates a new packageManagerYUM.
-func newPackageManagerYUM(cfg *packageManagerYUMConfig) (*packageManagerYUM, error) {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+// NewYUM creates a new YUM package manager.
+func NewYUM(cfg *YUMConfig) (*YUM, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &packageManagerYUM{packageManagerYUMConfig: cfg}, nil
+	return &YUM{YUMConfig: cfg}, nil
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *packageManagerYUM) AddTeleportRepository(ctx context.Context, linuxInfo *linuxDistroInfo, repoChannel string) error {
+func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
 	// Teleport repo only targets the major version of the target distros.
 	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
 
 	pm.logger.InfoContext(ctx, "Installing yum-utils", "command", "yum install -y yum-utils")
-	installYumUtilsCMD := exec.CommandContext(ctx, pm.bins.yum, "install", "-y", "yum-utils")
+	installYumUtilsCMD := exec.CommandContext(ctx, pm.bins.Yum, "install", "-y", "yum-utils")
 	installYumUtilsCMDOutput, err := installYumUtilsCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(installYumUtilsCMDOutput))
@@ -80,7 +85,7 @@ func (pm *packageManagerYUM) AddTeleportRepository(ctx context.Context, linuxInf
 	// https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo
 	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", yumRepoEndpoint, linuxInfo.ID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
-	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.rpm, "--eval", repoLocation)
+	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
 	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(rpmEvalTeleportRepoCMDOutput))
@@ -90,7 +95,7 @@ func (pm *packageManagerYUM) AddTeleportRepository(ctx context.Context, linuxInf
 	repoURL := strings.TrimSpace(string(rpmEvalTeleportRepoCMDOutput))
 
 	pm.logger.InfoContext(ctx, "Adding repository metadata", "command", "yum-config-manager --add-repo "+repoURL)
-	yumAddRepoCMD := exec.CommandContext(ctx, pm.bins.yumConfigManager, "--add-repo", repoURL)
+	yumAddRepoCMD := exec.CommandContext(ctx, pm.bins.YumConfigManager, "--add-repo", repoURL)
 	yumAddRepoCMDOutput, err := yumAddRepoCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(yumAddRepoCMDOutput))
@@ -100,7 +105,7 @@ func (pm *packageManagerYUM) AddTeleportRepository(ctx context.Context, linuxInf
 }
 
 // InstallPackages installs one or multiple packages into the current system.
-func (pm *packageManagerYUM) InstallPackages(ctx context.Context, packageList []packageVersion) error {
+func (pm *YUM) InstallPackages(ctx context.Context, packageList []PackageVersion) error {
 	if len(packageList) == 0 {
 		return nil
 	}
@@ -118,7 +123,7 @@ func (pm *packageManagerYUM) InstallPackages(ctx context.Context, packageList []
 
 	pm.logger.InfoContext(ctx, "Installing", "command", "yum "+strings.Join(installArgs, " "))
 
-	installPackagesCMD := exec.CommandContext(ctx, pm.bins.yum, installArgs...)
+	installPackagesCMD := exec.CommandContext(ctx, pm.bins.Yum, installArgs...)
 	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package installer
+package packagemanager
 
 import (
 	"context"
@@ -23,30 +23,37 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/trace"
 )
 
 const (
-	zypperPublicKeyEndpoint = "https://zypper.releases.teleport.dev/gpg"
-	zypperRepoEndpoint      = "https://zypper.releases.teleport.dev/"
+	// ZypperPublicKeyEndpoint is the endpoint that contains the Teleport's GPG production Key.
+	ZypperPublicKeyEndpoint = "https://zypper.releases.teleport.dev/gpg"
+	// zypperRepoEndpoint is the repo endpoint for Zypper based distros.
+	zypperRepoEndpoint = "https://zypper.releases.teleport.dev/"
 )
 
-type packageManagerZypper struct {
-	*packageManagerZypperConfig
+// Zypper is a wrapper for apt package manager.
+// This package manager is used in OpenSUSE/SLES and distros based on this distribution.
+type Zypper struct {
+	*ZypperConfig
 }
 
-type packageManagerZypperConfig struct {
+// ZypperConfig contains the configurable fields for setting up the Zypper package manager.
+type ZypperConfig struct {
 	logger       *slog.Logger
-	bins         binariesLocation
+	bins         BinariesLocation
 	fsRootPrefix string
 }
 
-func (p *packageManagerZypperConfig) checkAndSetDefaults() error {
+// CheckAndSetDefaults checks and sets default config values.
+func (p *ZypperConfig) CheckAndSetDefaults() error {
 	if p == nil {
 		return trace.BadParameter("config is required")
 	}
 
-	p.bins.checkAndSetDefaults()
+	p.bins.CheckAndSetDefaults()
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -59,16 +66,16 @@ func (p *packageManagerZypperConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// newPackageManagerZypper creates a new packageManagerZypper.
-func newPackageManagerZypper(cfg *packageManagerZypperConfig) (*packageManagerZypper, error) {
-	if err := cfg.checkAndSetDefaults(); err != nil {
+// NewZypper creates a new Zypper package manager.
+func NewZypper(cfg *ZypperConfig) (*Zypper, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &packageManagerZypper{packageManagerZypperConfig: cfg}, nil
+	return &Zypper{ZypperConfig: cfg}, nil
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *packageManagerZypper) AddTeleportRepository(ctx context.Context, linuxInfo *linuxDistroInfo, repoChannel string) error {
+func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
 	// Teleport repo only targets the major version of the target distros.
 	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
 
@@ -76,8 +83,8 @@ func (pm *packageManagerZypper) AddTeleportRepository(ctx context.Context, linux
 		versionID = "15" // tumbleweed uses dated VERSION_IDs like 20230702
 	}
 
-	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+zypperPublicKeyEndpoint)
-	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.rpm, "--import", zypperPublicKeyEndpoint)
+	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+ZypperPublicKeyEndpoint)
+	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", ZypperPublicKeyEndpoint)
 	importPublicKeyCMDOutput, err := importPublicKeyCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(importPublicKeyCMDOutput))
@@ -87,7 +94,7 @@ func (pm *packageManagerZypper) AddTeleportRepository(ctx context.Context, linux
 	// https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo
 	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", zypperRepoEndpoint, linuxInfo.ID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
-	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.rpm, "--eval", repoLocation)
+	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
 	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(rpmEvalTeleportRepoCMDOutput))
@@ -96,14 +103,14 @@ func (pm *packageManagerZypper) AddTeleportRepository(ctx context.Context, linux
 	// output from the command above might have a `\n` at the end.
 	repoURL := strings.TrimSpace(string(rpmEvalTeleportRepoCMDOutput))
 	pm.logger.InfoContext(ctx, "Adding repository metadata", "command", "zypper --non-interactive addrepo "+repoURL)
-	zypperAddRepoCMD := exec.CommandContext(ctx, pm.bins.zypper, "--non-interactive", "addrepo", repoURL)
+	zypperAddRepoCMD := exec.CommandContext(ctx, pm.bins.Zypper, "--non-interactive", "addrepo", repoURL)
 	zypperAddRepoCMDOutput, err := zypperAddRepoCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(zypperAddRepoCMDOutput))
 	}
 
 	pm.logger.InfoContext(ctx, "Refresh public keys", "command", "zypper --gpg-auto-import-keys refresh")
-	zypperRefreshKeysCMD := exec.CommandContext(ctx, pm.bins.zypper, "--gpg-auto-import-keys", "refresh")
+	zypperRefreshKeysCMD := exec.CommandContext(ctx, pm.bins.Zypper, "--gpg-auto-import-keys", "refresh")
 	zypperRefreshKeysCMDOutput, err := zypperRefreshKeysCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(zypperRefreshKeysCMDOutput))
@@ -113,7 +120,7 @@ func (pm *packageManagerZypper) AddTeleportRepository(ctx context.Context, linux
 }
 
 // InstallPackages installs one or multiple packages into the current system.
-func (pm *packageManagerZypper) InstallPackages(ctx context.Context, packageList []packageVersion) error {
+func (pm *Zypper) InstallPackages(ctx context.Context, packageList []PackageVersion) error {
 	if len(packageList) == 0 {
 		return nil
 	}
@@ -130,7 +137,7 @@ func (pm *packageManagerZypper) InstallPackages(ctx context.Context, packageList
 	}
 
 	pm.logger.InfoContext(ctx, "Installing", "command", "zypper "+strings.Join(installArgs, " "))
-	installPackagesCMD := exec.CommandContext(ctx, pm.bins.zypper, installArgs...)
+	installPackagesCMD := exec.CommandContext(ctx, pm.bins.Zypper, installArgs...)
 	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))
