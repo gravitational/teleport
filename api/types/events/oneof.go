@@ -663,6 +663,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SpannerRPC{
 			SpannerRPC: e,
 		}
+	case *DiscoveryConfigCreate:
+		out.Event = &OneOf_DiscoveryConfigCreate{
+			DiscoveryConfigCreate: e,
+		}
+	case *DiscoveryConfigUpdate:
+		out.Event = &OneOf_DiscoveryConfigUpdate{
+			DiscoveryConfigUpdate: e,
+		}
+	case *DiscoveryConfigDelete:
+		out.Event = &OneOf_DiscoveryConfigDelete{
+			DiscoveryConfigDelete: e,
+		}
+	case *DiscoveryConfigDeleteAll:
+		out.Event = &OneOf_DiscoveryConfigDeleteAll{
+			DiscoveryConfigDeleteAll: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
