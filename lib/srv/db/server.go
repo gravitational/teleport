@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
@@ -82,6 +83,8 @@ func init() {
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
 	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
+
+	objects.RegisterObjectFetcher(postgres.NewObjectFetcher, defaults.ProtocolPostgres)
 }
 
 // Config is the configuration for a database proxy server.
@@ -141,6 +144,8 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// DatabaseObjects manages database object importers.
+	DatabaseObjects objects.Objects
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
@@ -247,6 +252,17 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.CloudUsers, err = users.NewUsers(users.Config{
 			Clients:    c.CloudClients,
 			UpdateMeta: c.CloudMeta.Update,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.DatabaseObjects == nil {
+		c.DatabaseObjects, err = objects.NewObjects(objects.Config{
+			AuthClient:   c.AuthClient,
+			Auth:         c.Auth,
+			CloudClients: c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -465,6 +481,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to setup users.", "database", database.GetName(), "error", err)
 	}
+	// Start database object importer.
+	if err := s.cfg.DatabaseObjects.StartImporter(ctx, database); err != nil {
+		s.log.WarnContext(ctx, "Failed to start database object importer for %v.", database.GetName(), "error", err)
+	}
 
 	s.log.DebugContext(ctx, "Started database.", "db", database)
 	return nil
@@ -570,6 +590,10 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	// Deconfigure IAM for the cloud database.
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to teardown IAM.", "db", database.GetName(), "error", err)
+	}
+	// Stop database object importer.
+	if err := s.cfg.DatabaseObjects.StopImporter(database); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop database object importer.", "db", database.GetName(), "error", err)
 	}
 	// Stop heartbeat, labels, etc.
 	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {

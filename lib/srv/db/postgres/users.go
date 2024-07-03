@@ -43,16 +43,8 @@ import (
 )
 
 // connectAsAdmin connect to the database from db route as admin user.
-// If useDefaultDatabase is true and a default database is configured for the admin user, it will be used instead.
 func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultDatabase bool) (*pgx.Conn, error) {
-	loginDatabase := sessionCtx.DatabaseName
-	if useDefaultDatabase && sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
-		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
-	} else {
-		e.Log.InfoContext(ctx, "Connecting to session database", "database", loginDatabase)
-	}
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
-	return conn, trace.Wrap(err)
+	return e.newConnector(sessionCtx).connectAsAdmin(ctx, useDefaultDatabase)
 }
 
 // ActivateUser creates or enables the database user.
@@ -217,7 +209,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	}
 	defer conn.Close(ctx)
 
-	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx, conn)
+	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx.Database, sessionCtx.DatabaseName, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -422,21 +414,6 @@ func (e *Engine) initAutoUsers(ctx context.Context, sessionCtx *common.Session, 
 		e.Log.DebugContext(ctx, "Installed PostgreSQL stored procedure.", "procedure", name)
 	}
 	return nil
-}
-
-// pgxConnect connects to the database using pgx driver which is higher-level
-// than pgconn and is easier to use for executing queries.
-func (e *Engine) pgxConnect(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
-	config, err := e.getConnectConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf, err := pgx.ParseConfig("")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pgxConf.Config = *config
-	return pgx.ConnectConfig(ctx, pgxConf)
 }
 
 func prepareRoles(sessionCtx *common.Session) (any, error) {
