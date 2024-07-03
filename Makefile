@@ -1554,12 +1554,12 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/build/index.ejs webassets/teleport/index.html; \
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/teleport/index.html webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/build/index.ejs webassets/e/teleport/index.html; \
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
 .PHONY: init-submodules-e
