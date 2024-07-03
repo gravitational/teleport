@@ -385,6 +385,7 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,
+		ServerName:         config.ClusterName,
 	}
 	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }

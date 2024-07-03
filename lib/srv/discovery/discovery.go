@@ -173,6 +173,9 @@ type AccessGraphConfig struct {
 	// CA is the CA in PEM format used by the Access Graph service.
 	CA []byte
 
+	// ClusterName if the name of Teleport cluster.
+	ClusterName string
+
 	// Insecure is true if the connection to the Access Graph service should be insecure.
 	Insecure bool
 }

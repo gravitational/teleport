@@ -165,11 +165,18 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 			return discovery.AccessGraphConfig{}, trace.Wrap(err, "failed to read access graph CA file")
 		}
 	}
+
+	clusterName, err := client.GetClusterName()
+	if err != nil {
+		return discovery.AccessGraphConfig{}, trace.Wrap(err)
+	}
+
 	accessGraphCfg := discovery.AccessGraphConfig{
-		Enabled:  config.AccessGraph.Enabled,
-		Addr:     config.AccessGraph.Addr,
-		Insecure: config.AccessGraph.Insecure,
-		CA:       accessGraphCAData,
+		Enabled:     config.AccessGraph.Enabled,
+		Addr:        config.AccessGraph.Addr,
+		Insecure:    config.AccessGraph.Insecure,
+		CA:          accessGraphCAData,
+		ClusterName: clusterName.GetClusterName(),
 	}
 	if !accessGraphCfg.Enabled {
 		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
