@@ -565,7 +565,7 @@ func NewPresetTerraformProviderRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Default Terraform provider role",
 			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.SystemResource,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -653,10 +653,16 @@ func defaultAllowRules() map[string][]types.Rule {
 // - DatabaseServiceLabels (db_service_labels)
 // - GroupLabels
 func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
+	wildcardLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
 	conditions := map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
-			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: wildcardLabels,
 			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
+		},
+		teleport.PresetTerraformProviderRoleName: {
+			AppLabels:      wildcardLabels,
+			DatabaseLabels: wildcardLabels,
+			NodeLabels:     wildcardLabels,
 		},
 	}
 
@@ -785,15 +791,21 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	if ok {
 		for _, kind := range []string{
 			types.KindApp,
+			types.KindDatabase,
 			types.KindDatabaseService,
+			types.KindNode,
 			types.KindUserGroup,
 		} {
 			var labels types.Labels
 			switch kind {
 			case types.KindApp:
 				labels = defaultLabels.AppLabels
+			case types.KindDatabase:
+				labels = defaultLabels.DatabaseLabels
 			case types.KindDatabaseService:
 				labels = defaultLabels.DatabaseServiceLabels
+			case types.KindNode:
+				labels = defaultLabels.NodeLabels
 			case types.KindUserGroup:
 				labels = defaultLabels.GroupLabels
 			}

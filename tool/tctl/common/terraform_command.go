@@ -160,7 +160,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		switch {
 		case trace.IsNotFound(err) && c.existingRole == "":
 			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
-This default role is included by default in Teleport clusters whose version is higher than v16.1 or v17.
+This default role is included in Teleport clusters whose version is higher than v16.1 or v17.
 If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
 yourself and set the flag --role <your-terraform-role-name>.`, roleName)
 		case trace.IsNotFound(err) && c.existingRole != "":
@@ -178,8 +178,8 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 	// Create temporary bot and token
 	tokenName, err := c.createTransientBotAndToken(ctx, client, roleName)
 	if trace.IsAccessDenied(err) {
-		return trace.Wrap(err, `Failed to create the temporary Terraform bot.
-To use the "tctl terraform env" command you must have rights to create Teleport bot resources.
+		return trace.Wrap(err, `Failed to create the temporary Terraform bot or its token.
+To use the "tctl terraform env" command you must have rights to create Teleport bot  and token resources.
 If you got a role granted recently, you might have to run "tsh logout" and login again.`)
 	}
 	if err != nil {
