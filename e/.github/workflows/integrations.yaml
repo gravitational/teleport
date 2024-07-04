@@ -49,7 +49,8 @@ jobs:
           - {image: "ubuntu:24.04", package-manager: "apt"}
           - {image: "ubuntu:22.04", package-manager: "apt"}
           - {image: "ubuntu:20.04", package-manager: "apt"}
-          - {image: "ubuntu:18.04", package-manager: "apt"}
+          # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "ubuntu:18.04", package-manager: "apt"}
           - {image: "debian:10", package-manager: "apt"}
           - {image: "debian:11", package-manager: "apt"}
           - {image: "debian:12", package-manager: "apt"}
@@ -89,15 +90,18 @@ jobs:
       fail-fast: false
       matrix:
         container:
-          - {image: "centos:7", package-manager: "yum"}
+          # centos:7 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "centos:7", package-manager: "yum"}
           # These are the closest we can easily get to rhel 7/8/9
-          - {image: "registry.access.redhat.com/ubi7:7.9", package-manager: "yum"}
+          # ubi7:7.9 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "registry.access.redhat.com/ubi7:7.9", package-manager: "yum"}
           - {image: "registry.access.redhat.com/ubi8:8.7", package-manager: "yum"}
           - {image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum"}
 
           # The other tags are too specific so latest is used instead
-          - {image: "registry.suse.com/suse/sles12sp5:latest", package-manager: "zypper", is-sles: true}
-          - {image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper"}
+          # sles12sp5 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "registry.suse.com/suse/sles12sp5:latest", package-manager: "zypper", is-sles: true}
+          - {image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper", is-sles: false}
     container:
       image: ${{ matrix.container.image }}
     defaults:
