@@ -19,6 +19,7 @@
 package mysql
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -180,7 +181,7 @@ func Test_checkMySQLSupportedVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			test.checkError(t, checkMySQLSupportedVersion(slog.Default(), test.input))
+			test.checkError(t, checkMySQLSupportedVersion(context.Background(), slog.Default(), test.input))
 		})
 	}
 }
@@ -229,7 +230,7 @@ func Test_checkMariaDBSupportedVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			test.checkError(t, checkMariaDBSupportedVersion(slog.Default(), test.input))
+			test.checkError(t, checkMariaDBSupportedVersion(context.Background(), slog.Default(), test.input))
 		})
 	}
 }
