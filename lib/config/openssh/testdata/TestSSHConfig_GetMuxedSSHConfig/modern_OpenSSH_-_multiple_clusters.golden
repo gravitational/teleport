@@ -6,7 +6,7 @@ Host *.example.com
     HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
     IdentityFile none
     IdentityAgent '/opt/machine-id/agent.sock'    
-    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p'
+    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p|example.com'
     ProxyUseFDPass yes
 Host *.example.org
     Port 3022
@@ -14,6 +14,6 @@ Host *.example.org
     HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
     IdentityFile none
     IdentityAgent '/opt/machine-id/agent.sock'    
-    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p'
+    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p|example.org'
     ProxyUseFDPass yes
 # End generated Teleport configuration

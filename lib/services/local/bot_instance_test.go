@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -59,13 +59,6 @@ func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *mach
 	return bi
 }
 
-// withBotInstanceTTL apples a TTL to the bot instance
-func withBotInstanceTTL(d time.Duration) func(*machineidv1.BotInstance) {
-	return func(bi *machineidv1.BotInstance) {
-		bi.Spec.Ttl = durationpb.New(d)
-	}
-}
-
 // withBotInstanceInvalidMetadata modifies a BotInstance such that it should
 // raise an error during an insert attempt.
 func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
@@ -73,6 +66,18 @@ func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 		bi.Metadata = &headerv1.Metadata{
 			Name: "invalid",
 		}
+	}
+}
+
+// withBotInstanceExpiry sets the .Metadata.Expires field of a bot instance to
+// the given timestamp.
+func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if bi.Metadata == nil {
+			bi.Metadata = &headerv1.Metadata{}
+		}
+
+		bi.Metadata.Expires = timestamppb.New(expiry)
 	}
 }
 
@@ -132,11 +137,18 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 		{
 			name:        "non-nil metadata",
 			instance:    newBotInstance("foo", withBotInstanceInvalidMetadata()),
-			assertError: require.Error,
-			assertValue: require.Nil,
+			assertError: require.NoError,
+			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				bi, ok := i.(*machineidv1.BotInstance)
+				require.True(t, ok)
+
+				// .Metadata.Name should be overwritten with the correct value
+				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
+				require.Nil(t, bi.Metadata.Expires)
+			},
 		},
 		{
-			name:        "valid without ttl",
+			name:        "valid without expiry",
 			instance:    newBotInstance("foo"),
 			assertError: require.NoError,
 			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
@@ -148,8 +160,8 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 			},
 		},
 		{
-			name:        "valid with ttl",
-			instance:    newBotInstance("foo", withBotInstanceTTL(time.Hour)),
+			name:        "valid with expiry",
+			instance:    newBotInstance("foo", withBotInstanceExpiry(clock.Now().Add(time.Hour))),
 			assertError: require.NoError,
 			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				bi, ok := i.(*machineidv1.BotInstance)

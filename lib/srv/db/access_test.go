@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -1076,7 +1077,9 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 func TestAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			DB: false,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB: {Enabled: false},
+			},
 		},
 	})
 
@@ -2404,6 +2407,8 @@ type agentParams struct {
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
+	// Recorder is the recorder used on sessions.
+	Recorder libevents.SessionRecorder
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2499,6 +2504,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	})
 	require.NoError(t, err)
 
+	if p.Recorder == nil {
+		p.Recorder = libevents.NewDiscardRecorder()
+	}
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
@@ -2524,7 +2533,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
-				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Recorder: libevents.WithNoOpPreparer(p.Recorder),
 				Database: cfg.Database,
 			})
 		},

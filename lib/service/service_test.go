@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -369,7 +370,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 	defer tlsServer.Close()
 
 	testConnector := &Connector{
-		ServerIdentity: tlsServer.Identity,
+		serverIdentity: tlsServer.Identity,
 	}
 
 	tests := []struct {
@@ -477,8 +478,10 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -887,7 +890,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
-				ServerIdentity: &state.Identity{
+				clientIdentity: &state.Identity{},
+				serverIdentity: &state.Identity{
 					Cert: &ssh.Certificate{
 						Permissions: ssh.Permissions{
 							Extensions: map[string]string{},
@@ -1236,7 +1240,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	require.NoError(t, err)
 
 	testConnector := &Connector{
-		ServerIdentity: serverIdentity,
+		clientIdentity: serverIdentity,
+		serverIdentity: serverIdentity,
 		Client:         client,
 	}
 
@@ -1355,7 +1360,7 @@ func TestProxyGRPCServers(t *testing.T) {
 			name: "secure client to secure server",
 			credentials: func() credentials.TransportCredentials {
 				// Create a new client using the server identity.
-				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
+				creds, err := testConnector.ServerTLSConfig(nil)
 				require.NoError(t, err)
 				return credentials.NewTLS(creds)
 			}(),

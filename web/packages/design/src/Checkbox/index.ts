@@ -16,8 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  CheckboxInput,
-  CheckboxInput as StyledCheckbox, // Temporary alias for compatibility with Enterprise
-  type CheckboxSize,
-} from './Checkbox';
+export { CheckboxInput, type CheckboxSize } from './Checkbox';

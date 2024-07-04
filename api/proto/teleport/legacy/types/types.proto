@@ -1545,13 +1545,13 @@ message ProvisionTokenSpecV2GCP {
   // Rule is a set of properties the GCP-ussued token might have to be allowed
   // to use this ProvisionToken.
   message Rule {
-    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    // ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
     repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
     // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
     // "us-west1-b").
     repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
     // ServiceAccounts is a list of service account emails (e.g.
-    // "<project-number>-compute@developer.gserviceaccount.com").
+    // `<project-number>-compute@developer.gserviceaccount.com`).
     repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
@@ -4498,7 +4498,7 @@ message SAMLConnectorSpecV2 {
   // SSO is the URL of the identity provider's SSO service.
   string SSO = 2 [(gogoproto.jsontag) = "sso"];
   // Cert is the identity provider certificate PEM.
-  // IDP signs <Response> responses using this certificate.
+  // IDP signs `<Response>` responses using this certificate.
   string Cert = 3 [(gogoproto.jsontag) = "cert"];
   // Display controls how this connector is displayed.
   string Display = 4 [(gogoproto.jsontag) = "display"];
@@ -4967,10 +4967,10 @@ message TrustedClusterSpecV2 {
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-  // it is derived from <metadata.name>:<default web proxy server port>.
+  // it is derived from `<metadata.name>:<default web proxy server port>`.
   string ProxyAddress = 4 [(gogoproto.jsontag) = "web_proxy_addr"];
   // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-  // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+  // not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
   string ReverseTunnelAddress = 5 [(gogoproto.jsontag) = "tunnel_addr"];
   // RoleMap specifies role mappings to remote roles.
   repeated RoleMapping RoleMap = 6 [

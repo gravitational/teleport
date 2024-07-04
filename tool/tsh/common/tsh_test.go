@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -227,9 +228,11 @@ func (p *cliModules) PrintVersion() {
 // Features returns supported features
 func (p *cliModules) Features() modules.Features {
 	return modules.Features{
-		Kubernetes:              true,
-		DB:                      true,
-		App:                     true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s: {Enabled: true},
+			entitlements.DB:  {Enabled: true},
+			entitlements.App: {Enabled: true},
+		},
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
 	}
