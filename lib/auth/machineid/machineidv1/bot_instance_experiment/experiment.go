@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,29 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package experiment
 
-import { ButtonPrimary } from '../Button';
+import (
+	"os"
+	"sync/atomic"
+)
 
-import DialogConfirmation, {
-  DialogHeader,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-} from './index';
+var enabled = atomic.Bool{}
 
-export default {
-  title: 'Design/Dialog/Confirmation',
-};
+func init() {
+	enabled.Store(os.Getenv("BOT_INSTANCE_EXPERIMENT") == "1")
+}
 
-export const Confirmation = () => (
-  <DialogConfirmation open={true}>
-    <DialogHeader>
-      <DialogTitle>Confirmation Dialog Header</DialogTitle>
-    </DialogHeader>
-    <DialogContent>Simplified dialog for use with confirmations</DialogContent>
-    <DialogFooter>
-      <ButtonPrimary>Save and Close</ButtonPrimary>
-    </DialogFooter>
-  </DialogConfirmation>
-);
+// Enabled returns true if the bot instance experiment is enabled.
+func Enabled() bool {
+	return enabled.Load()
+}
+
+// SetEnabled sets the bot instance experiment flag to the given value.
+func SetEnabled(value bool) {
+	enabled.Store(value)
+}
