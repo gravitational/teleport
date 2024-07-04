@@ -20,6 +20,7 @@ package mongodb
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -106,7 +107,7 @@ type shareableAdminClientConfig struct {
 	adminUser    string
 	databaseName string
 	clock        clockwork.Clock
-	log          logrus.FieldLogger
+	log          *slog.Logger
 	cleanupTTL   time.Duration
 }
 
@@ -125,7 +126,7 @@ func (c *shareableAdminClientConfig) checkAndSetDefaults() error {
 		c.clock = clockwork.NewRealClock()
 	}
 	if c.log == nil {
-		c.log = logrus.StandardLogger()
+		c.log = slog.Default()
 	}
 	if c.cleanupTTL <= 0 {
 		c.cleanupTTL = adminClientCleanupTTL
@@ -156,7 +157,7 @@ func newShareableAdminClient(cfg shareableAdminClientConfig) (*shareableAdminCli
 }
 
 func (c *shareableAdminClient) waitAndCleanup() {
-	c.log.Debugf("Created new MongoDB connection as admin user %q on %q.", c.adminUser, c.databaseName)
+	c.log.Debug("Created new MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
 
 	// Wait until TTL.
 	<-c.timer.Chan()
@@ -167,9 +168,9 @@ func (c *shareableAdminClient) waitAndCleanup() {
 	// Disconnect connection. This happens after cache item expired to ensure
 	// that shared client won't be reused when wrapped client was disconnected.
 	if err := c.adminClient.Disconnect(context.Background()); err != nil {
-		c.log.Warnf("Failed to disconnect MongoDB connection as admin user %q on %q: %v.", c.adminUser, c.databaseName, err)
+		c.log.Warn("Failed to disconnect MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName, "error", err)
 	} else {
-		c.log.Debugf("Terminated a MongoDB connection as admin user %q on %q.", c.adminUser, c.databaseName)
+		c.log.Debug("Terminated a MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
 	}
 }
 
