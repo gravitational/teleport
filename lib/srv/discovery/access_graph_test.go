@@ -152,8 +152,9 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 					AccessPoint: accessPoint,
 					clock:       clock,
 				},
+				awsSyncStatus: newAWSSyncStatus(),
 			}
-			s.updateDiscoveryConfigStatus(tt.args.fetchers, tt.args.pushErr, tt.args.preRun)
+			s.updateAWSSyncDiscoveryConfigStatus(tt.args.fetchers, tt.args.pushErr, tt.args.preRun)
 			require.Equal(t, tt.want, accessPoint.reports)
 		})
 	}

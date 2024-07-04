@@ -327,6 +327,8 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
+	awsSyncStatus awsSyncStatus
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -358,6 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
+		awsSyncStatus:              newAWSSyncStatus(),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
