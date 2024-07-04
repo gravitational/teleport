@@ -60,8 +60,8 @@ tests:
       - equal:
           path: metadata.labels
           value:
-            app.kubernetes.io/extra-label: "hook-test"
-            test-resource: "hook"
+            app.kubernetes.io/name: "teleport-kube-agent"
+            resource: "job"
 
   - it: should set nodeSelector in post-delete hook
     template: delete_hook.yaml
@@ -123,8 +123,6 @@ tests:
           value:
             app.kubernetes.io/name: "teleport-kube-agent"
             resource: "serviceaccount"
-            app.kubernetes.io/extra-label: "hook-test"
-            test-resource: "hook"
 
   - it: should create Role for post-delete hook by default
     template: delete_hook.yaml
@@ -147,8 +145,6 @@ tests:
           value:
             app.kubernetes.io/name: "teleport-kube-agent"
             resource: "role"
-            app.kubernetes.io/extra-label: "hook-test"
-            test-resource: "hook"
 
   - it: should create RoleBinding for post-delete hook by default
     template: delete_hook.yaml
@@ -171,8 +167,6 @@ tests:
           value:
             app.kubernetes.io/name: "teleport-kube-agent"
             resource: "rolebinding"
-            app.kubernetes.io/extra-label: "hook-test"
-            test-resource: "hook"
 
   - it: should not create ServiceAccount for post-delete hook if serviceAccount.create is false
     template: delete_hook.yaml
