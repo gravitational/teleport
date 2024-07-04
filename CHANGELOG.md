@@ -1,5 +1,20 @@
 # Changelog
 
+## 16.0.4 (07/03/24)
+
+* Omit control plane services from the inventory list output for Cloud-Hosted instances. [#43779](https://github.com/gravitational/teleport/pull/43779)
+* Updated Go toolchain to v1.22.5. [#43768](https://github.com/gravitational/teleport/pull/43768)
+* Reduced CPU usage in auth servers experiencing very high concurrent request load. [#43755](https://github.com/gravitational/teleport/pull/43755)
+* Machine ID defaults to disabling the use of the Kubernetes exec plugin when writing a Kubeconfig to a directory destination. This removes the need to manually configure `disable_exec_plugin`. [#43655](https://github.com/gravitational/teleport/pull/43655)
+* Fixed startup crash of Teleport Connect on Ubuntu 24.04 by adding an AppArmor profile. [#43653](https://github.com/gravitational/teleport/pull/43653)
+* Added support for dialling leaf clusters to the tbot SSH multiplexer. [#43634](https://github.com/gravitational/teleport/pull/43634)
+* Extend Teleport ability to use non-default cluster domains in Kubernetes, avoiding the assumption of `cluster.local`. [#43631](https://github.com/gravitational/teleport/pull/43631)
+* Wait for user MFA input when reissuing expired certificates for a kube proxy. [#43612](https://github.com/gravitational/teleport/pull/43612)
+* Improved error diagnostics when using Machine ID's SSH multiplexer. [#43586](https://github.com/gravitational/teleport/pull/43586)
+
+Enterprise:
+* Teleport Enterprise now supports the `TELEPORT_REPORTING_HTTP(S)_PROXY` environment variable to specify the URL of the HTTP(S) proxy used for connections to our usage reporting ingest service.
+
 ## 16.0.3 (06/27/24)
 
 This release of Teleport contains a fix for medium-level security issue impacting
