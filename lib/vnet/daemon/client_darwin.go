@@ -43,6 +43,7 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
 
 // Taken from manual for codesign.
 const codesignExitCodeVerificationFailed = 1
+const waitingForEnablementTimeout = time.Minute
 
 func IsSigned(ctx context.Context) (bool, error) {
 	var result C.BundlePathResult
@@ -99,8 +100,12 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err := startByCalling(ctx, config); err != nil {
-		return trace.Wrap(err, "starting the daemon")
+	// C.StartVnet might hang if the daemon cannot be successfully spawned.
+	startCtx, cancelStartCtx := context.WithTimeoutCause(ctx, daemonStartTimeout,
+		fmt.Errorf("could not connect to VNet daemon within the timeout"))
+	defer cancelStartCtx()
+	if err := startByCalling(startCtx, config); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -141,8 +146,6 @@ func register(ctx context.Context) (serviceStatus, error) {
 
 	return serviceStatus(result.service_status), nil
 }
-
-const waitingForEnablementTimeout = time.Minute
 
 var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
 
@@ -204,6 +207,8 @@ func (s serviceStatus) String() string {
 	}
 }
 
+const daemonStartTimeout = 20 * time.Second
+
 func startByCalling(ctx context.Context, config Config) error {
 	var pinner runtime.Pinner
 	defer pinner.Unpin()
@@ -239,7 +244,11 @@ func startByCalling(ctx context.Context, config Config) error {
 	C.StartVnet(&req, &res)
 
 	if !res.ok {
-		return trace.Errorf("%v: %v", C.GoString(res.error_domain), C.GoString(res.error_description))
+		if ctx.Err() != nil {
+			// Context got canceled and C.StartVnet got interrupted by invalidating the daemon client.
+			return context.Cause(ctx)
+		}
+		return trace.Errorf("could not start VNet daemon: %v (%v)", C.GoString(res.error_description), C.GoString(res.error_domain))
 	}
 
 	return nil
