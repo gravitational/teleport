@@ -27,6 +27,9 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 - HA Auto-Scaling Teleport Cluster
   - [Get Started](ha-autoscale-cluster/README.md)
 
+- Setup AWS databases for Database Access
+  - [DocumentDB](database-access/docdb/README.md)
+
 ## How to get help
 
 If you're having trouble, check out our [GitHub Discussions](https://github.com/gravitational/teleport/discussions).
