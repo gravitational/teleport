@@ -101,7 +101,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			want: discovery.AccessGraphConfig{
 				Enabled:     true,
 				Addr:        "localhost:5000",
-				ClusterName: "cluster-name",
+				ClusterName: "access-graph.cluster.cluster-name",
 				Insecure:    true,
 			},
 			assertErr: require.NoError,
@@ -120,7 +120,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			want: discovery.AccessGraphConfig{
 				Enabled:     true,
 				Addr:        "localhost:5000",
-				ClusterName: "cluster-name",
+				ClusterName: "access-graph.cluster.cluster-name",
 				Insecure:    true,
 			},
 			assertErr: require.NoError,
@@ -134,7 +134,7 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			err: trace.NotImplemented("err"),
 			want: discovery.AccessGraphConfig{
 				Enabled:     false,
-				ClusterName: "cluster-name",
+				ClusterName: "access-graph.cluster.cluster-name",
 			},
 			assertErr: require.NoError,
 		},

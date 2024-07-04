@@ -149,6 +149,10 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 	return process.Config.Auth.Enabled && modules.GetModules().Features().Cloud
 }
 
+// accessGraphClusterSNI is a constant representing the SNI (Server Name Indication) prefix value
+// used when connecting to Access Graph.
+const accessGraphClusterSNI = "access-graph.cluster."
+
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
 func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client authclient.ClientI, logger *slog.Logger) (discovery.AccessGraphConfig, error) {
@@ -176,7 +180,7 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		Addr:        config.AccessGraph.Addr,
 		Insecure:    config.AccessGraph.Insecure,
 		CA:          accessGraphCAData,
-		ClusterName: clusterName.GetClusterName(),
+		ClusterName: accessGraphClusterSNI + clusterName.GetClusterName(),
 	}
 	if !accessGraphCfg.Enabled {
 		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
