@@ -1139,6 +1139,15 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 // conn to communicate with the process and a close func to close the process
 // when finished.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+	// The networking process runs with the user's local credentials.
+	// Ensure that the user has been created first.
+	if err := s.termHandlers.SessionRegistry.TryCreateHostUser(scx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(scx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
@@ -1713,12 +1722,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 	switch req.Type {
 	case sshutils.ExecRequest:
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
@@ -1755,14 +1758,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			s.Logger.Warn(err)
-			return nil
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			s.Logger.Warn(err)
-			return nil
-		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
