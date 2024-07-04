@@ -22,11 +22,11 @@
  * https://github.com/vitejs/vite/issues/5370
  */
 
-import { resolve } from 'node:path';
+import path from 'node:path';
 
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-const rootDirectory = resolve(import.meta.dirname, '../../../..');
+const rootDirectory = path.resolve(import.meta.dirname, '../../../..');
 
 export function tsconfigPathsPlugin() {
   return tsconfigPaths({
@@ -37,6 +37,6 @@ export function tsconfigPathsPlugin() {
     //
     // on a Debian GNU/Linux 10 (buster) (buildbox-node) Docker image running on an arm64 Macbook macOS 14.1.2. It's not clear why
     // this happens, however, defining the tsconfig file directly works around the issue.
-    projects: [resolve(rootDirectory, 'tsconfig.json')],
+    projects: [path.resolve(rootDirectory, 'tsconfig.json')],
   });
 }
