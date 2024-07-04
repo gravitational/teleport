@@ -74,7 +74,7 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 		}
 
 	default:
-		log.WarnContext(e.Context, "Unknown or missing 'Content-Type',, assuming 'application/json'.")
+		log.WarnContext(e.Context, "Unknown or missing 'Content-Type', assuming 'application/json'.")
 		if len(body) == 0 {
 			log.InfoContext(e.Context, "Empty request body.")
 			return ""
