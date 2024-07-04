@@ -126,12 +126,7 @@ func (a *App) run(ctx context.Context) error {
 
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
-	}
-
-	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-		log.WithError(err).Errorf("initialising Access Monitoring Rule cache")
-	} else {
-		watchKinds = append(watchKinds, types.WatchKind{Kind: types.KindAccessMonitoringRule})
+		{Kind: types.KindAccessMonitoringRule},
 	}
 
 	job, err := watcherjob.NewJob(
@@ -153,6 +148,10 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+		log.WithError(err).Errorf("initialising Access Monitoring Rule cache")
+	}
+
 	a.job.SetReady(ok)
 	if !ok {
 		return trace.BadParameter("job not ready")
@@ -160,16 +159,6 @@ func (a *App) run(ctx context.Context) error {
 
 	<-job.Done()
 	return nil
-}
-
-func (a *App) accessMonitoringEnabled(ctx context.Context) (bool, error) {
-	pong, err := a.apiClient.Ping(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return pong.ServerFeatures.AdvancedAccessWorkflows &&
-		pong.ServerFeatures.AccessMonitoring != nil &&
-		pong.ServerFeatures.AccessMonitoring.Enabled, nil
 }
 
 func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
