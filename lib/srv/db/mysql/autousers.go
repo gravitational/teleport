@@ -126,7 +126,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	defer conn.Close()
 
 	// Ensure version is supported.
-	if err := checkSupportedVersion(e.Log, conn); err != nil {
+	if err := checkSupportedVersion(ctx, e.Log, conn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -360,18 +360,18 @@ func checkRoles(conn *clientConn, roles []string) error {
 	return nil
 }
 
-func checkSupportedVersion(log *slog.Logger, conn *clientConn) error {
+func checkSupportedVersion(ctx context.Context, log *slog.Logger, conn *clientConn) error {
 	if conn.isMariaDB() {
-		return trace.Wrap(checkMariaDBSupportedVersion(log, conn.GetServerVersion()))
+		return trace.Wrap(checkMariaDBSupportedVersion(ctx, log, conn.GetServerVersion()))
 	}
-	return trace.Wrap(checkMySQLSupportedVersion(log, conn.GetServerVersion()))
+	return trace.Wrap(checkMySQLSupportedVersion(ctx, log, conn.GetServerVersion()))
 }
 
-func checkMySQLSupportedVersion(log *slog.Logger, serverVersion string) error {
+func checkMySQLSupportedVersion(ctx context.Context, log *slog.Logger, serverVersion string) error {
 	ver, err := semver.NewVersion(serverVersion)
 	switch {
 	case err != nil:
-		log.Debug("Invalid MySQL server version. Assuming role management is supported.", "server_version", serverVersion)
+		log.DebugContext(ctx, "Invalid MySQL server version. Assuming role management is supported.", "server_version", serverVersion)
 		return nil
 
 	// Reference:
@@ -384,7 +384,7 @@ func checkMySQLSupportedVersion(log *slog.Logger, serverVersion string) error {
 	}
 }
 
-func checkMariaDBSupportedVersion(log *slog.Logger, serverVersion string) error {
+func checkMariaDBSupportedVersion(ctx context.Context, log *slog.Logger, serverVersion string) error {
 	// serverVersion may look like these:
 	// 5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004
 	// 5.5.5-10.11.5-MariaDB
@@ -401,7 +401,7 @@ func checkMariaDBSupportedVersion(log *slog.Logger, serverVersion string) error 
 	ver, err := semver.NewVersion(serverVersion)
 	switch {
 	case err != nil:
-		log.Debug("Invalid MariaDB server version. Assuming role management is supported.", "server_version", serverVersion)
+		log.DebugContext(ctx, "Invalid MariaDB server version. Assuming role management is supported.", "server_version", serverVersion)
 		return nil
 
 	case ver.Major > 10:

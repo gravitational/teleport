@@ -120,7 +120,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	case err := <-serverErrCh:
 		e.Log.DebugContext(e.Context, "Server done.", "error", err)
 	case <-ctx.Done():
-		e.Log.Debug("Context canceled.")
+		e.Log.DebugContext(e.Context, "Context canceled.")
 	}
 
 	return nil

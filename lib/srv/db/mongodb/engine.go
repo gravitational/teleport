@@ -20,7 +20,6 @@ package mongodb
 
 import (
 	"context"
-	"fmt"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // NewEngine create new MongoDB engine.
@@ -207,7 +207,7 @@ func (e *Engine) processHandshakeResponse(ctx context.Context, respMessage proto
 	case *protocol.MessageOpMsg:
 		rawMessage = bson.Raw(resp.BodySection.Document)
 	default:
-		e.Log.WarnContext(ctx, "Unable to process MongoDB handshake response. Unexpected message type.", "message_type", fmt.Sprintf("%T", respMessage))
+		e.Log.WarnContext(ctx, "Unable to process MongoDB handshake response. Unexpected message type.", "message_type", log.TypeAttr(respMessage))
 		return
 	}
 

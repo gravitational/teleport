@@ -17,6 +17,7 @@
 package databaseobjectimportrule
 
 import (
+	"context"
 	"log/slog"
 	"regexp"
 	"sort"
@@ -41,7 +42,7 @@ import (
 // The modification consists of application of extra labels, per matching mappings.
 // If there are any errors due to invalid label template, the corresponding objects will be dropped.
 // Final error count is returned.
-func ApplyDatabaseObjectImportRules(logger *slog.Logger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
+func ApplyDatabaseObjectImportRules(ctx context.Context, logger *slog.Logger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
 	// sort: rules with higher priorities are applied last.
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Spec.Priority < rules[j].Spec.Priority
@@ -82,7 +83,7 @@ func ApplyDatabaseObjectImportRules(logger *slog.Logger, rules []*dbobjectimport
 		for _, mapping := range mappings {
 			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.Metadata.Labels)
 			if err != nil {
-				logger.Debug("failed to apply label due to template error", "name", obj.GetMetadata().GetName(), "error", err)
+				logger.DebugContext(ctx, "failed to apply label due to template error", "name", obj.GetMetadata().GetName(), "error", err)
 				errCount++
 				hadError = true
 				break

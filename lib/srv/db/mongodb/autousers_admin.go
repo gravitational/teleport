@@ -28,7 +28,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -63,7 +62,7 @@ func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session)
 	// handles reconnection in case of network issues.
 	//
 	// During a CA rotation, the cached client may have the wrong TLS config,
-	// but the cache should expires shortly so a new shared client will be
+	// but the cache should expire shortly so a new shared client will be
 	// created.
 	shareableClient, err := getShareableAdminClient(ctx, adminClientFnCache, sessionCtx, e, makeBasicAdminClient)
 	return shareableClient, trace.Wrap(err)
@@ -93,6 +92,7 @@ func getShareableAdminClient(ctx context.Context, cache *utils.FnCache, sessionC
 			databaseName: sessionCtx.Database.GetName(),
 			log:          e.Log,
 			clock:        e.Clock,
+			context:      ctx,
 		})
 		return shareableClient, trace.Wrap(err)
 	})
@@ -109,6 +109,7 @@ type shareableAdminClientConfig struct {
 	clock        clockwork.Clock
 	log          *slog.Logger
 	cleanupTTL   time.Duration
+	context      context.Context
 }
 
 // checkAndSetDefaults validates config and sets defaults.
@@ -157,7 +158,7 @@ func newShareableAdminClient(cfg shareableAdminClientConfig) (*shareableAdminCli
 }
 
 func (c *shareableAdminClient) waitAndCleanup() {
-	c.log.Debug("Created new MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
+	c.log.DebugContext(c.context, "Created new MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
 
 	// Wait until TTL.
 	<-c.timer.Chan()
@@ -168,9 +169,9 @@ func (c *shareableAdminClient) waitAndCleanup() {
 	// Disconnect connection. This happens after cache item expired to ensure
 	// that shared client won't be reused when wrapped client was disconnected.
 	if err := c.adminClient.Disconnect(context.Background()); err != nil {
-		c.log.Warn("Failed to disconnect MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName, "error", err)
+		c.log.WarnContext(c.context, "Failed to disconnect MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName, "error", err)
 	} else {
-		c.log.Debug("Terminated a MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
+		c.log.DebugContext(c.context, "Terminated a MongoDB admin connection.", "user", c.adminUser, "database", c.databaseName)
 	}
 }
 
@@ -274,6 +275,6 @@ func init() {
 	// This should never fail. There is also an unit test to verify it's always
 	// created. Logging error just in case.
 	if err != nil {
-		logrus.Warnf("Failed to create MongoDB admin connection cache: %v.", err)
+		slog.WarnContext(context.Background(), "Failed to create MongoDB admin connection cache: %v.", err)
 	}
 }
