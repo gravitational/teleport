@@ -224,7 +224,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	counts, _ := permissions.CountObjectKinds(objsFetched)
 	e.Log.InfoContext(ctx, "Database objects fetched from the database.", "counts", counts, "total", len(objsFetched))
 
-	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(e.Log, rules, sessionCtx.Database, objsFetched)
+	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, e.Log, rules, sessionCtx.Database, objsFetched)
 	counts, _ = permissions.CountObjectKinds(objsImported)
 	e.Log.InfoContext(ctx, "Database objects imported.", "counts", counts, "err_count", errCount, "total", len(objsFetched))
 
@@ -293,7 +293,7 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 
 	_, err = conn.Exec(ctx, removePermissionsQuery, sessionCtx.DatabaseUser)
 	if err != nil {
-		logger.Error("Removing permissions from user failed.", "error", err)
+		logger.ErrorContext(ctx, "Removing permissions from user failed.", "error", err)
 		return trace.Wrap(err)
 	}
 	return nil

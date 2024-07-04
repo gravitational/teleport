@@ -164,7 +164,7 @@ func (e *Engine) unaryServerInterceptors() []grpc.UnaryServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.UnaryServerInterceptor{
 		interceptors.GRPCServerUnaryErrorInterceptor,
-		unaryServerLoggingInterceptor(e.Log),
+		unaryServerLoggingInterceptor(e.Context, e.Log),
 	}
 }
 
@@ -172,6 +172,6 @@ func (e *Engine) streamServerInterceptors() []grpc.StreamServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.StreamServerInterceptor{
 		interceptors.GRPCServerStreamErrorInterceptor,
-		streamServerLoggingInterceptor(e.Log),
+		streamServerLoggingInterceptor(e.Context, e.Log),
 	}
 }

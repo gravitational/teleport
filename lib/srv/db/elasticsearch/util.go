@@ -37,7 +37,7 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 		Knn   any `json:"knn" yaml:"knn"`
 	}
 
-	log := e.Log.With("content-type", contentType)
+	log := e.Log.With("content_type", contentType)
 
 	switch contentType {
 	// CBOR and Smile are officially supported by Elasticsearch:
@@ -64,12 +64,12 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 
 	case "application/json":
 		if len(body) == 0 {
-			e.Log.InfoContext(e.Context, "Empty request body.")
+			log.InfoContext(e.Context, "Empty request body.")
 			return ""
 		}
 		err := json.Unmarshal(body, &q)
 		if err != nil {
-			e.Log.WarnContext(e.Context, "Error decoding request body.", "error", err)
+			log.WarnContext(e.Context, "Error decoding request body.", "error", err)
 			return ""
 		}
 
@@ -102,7 +102,7 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 	default:
 		marshal, err := json.Marshal(result)
 		if err != nil {
-			e.Log.WarnContext(e.Context, "Error encoding query to json.", "body", body, "content_type", contentType, "error", err)
+			log.WarnContext(e.Context, "Error encoding query to json.", "body", body, "error", err)
 			return ""
 		}
 		return string(marshal)
