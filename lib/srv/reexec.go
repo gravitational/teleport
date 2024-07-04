@@ -618,20 +618,20 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		go func() {
 			var req networking.Request
 			if err := json.Unmarshal(buf[:n], &req); err != nil {
-				slog.With("error", err).Error("Error parsing networking request.")
+				slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
 				return
 			}
 			log := slog.With("request", req)
 
 			if fn == 0 {
-				log.Error("Networking request requires a control file.")
+				log.ErrorContext(ctx, "Networking request requires a control file.")
 				return
 			}
 
 			controlConn, err := uds.FromFile(fbuf[0])
 			_ = fbuf[0].Close()
 			if err != nil {
-				log.Error("Failed to get a connection from control file.")
+				log.ErrorContext(ctx, "Failed to get a connection from control file.")
 				return
 			}
 			defer controlConn.Close()
@@ -639,15 +639,15 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			log.Debug("Handling networking request")
 			netFile, err := handleNetworkingRequest(ctx, req)
 			if err != nil {
-				log.With("error", err).Error("Error handling networking request.")
+				log.With("error", err).ErrorContext(ctx, "Error handling networking request.")
 				if _, err2 := controlConn.Write([]byte(err.Error())); err2 != nil {
-					log.With("error", err2.Error()).Error("Failed to write error to control conn.")
+					log.With("error", err2.Error()).ErrorContext(ctx, "Failed to write error to control conn.")
 				}
 			}
 			defer netFile.Close()
 
 			if _, _, err := uds.WriteWithFDs(controlConn, nil, []*os.File{netFile}); err != nil {
-				log.With("error", err.Error()).Error("Failed to write networking file to control conn.")
+				log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
 			}
 		}()
 	}
