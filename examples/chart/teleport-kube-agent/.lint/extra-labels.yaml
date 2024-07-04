@@ -20,9 +20,9 @@ extraLabels:
   deployment:
     app.kubernetes.io/name: "teleport-kube-agent"
     resource: "deployment"
-  hooks:
-    app.kubernetes.io/extra-label: "hook-test"
-    test-resource: "hook"
+  job:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "job"
   pod:
     app.kubernetes.io/name: "teleport-kube-agent"
     resource: "pod"

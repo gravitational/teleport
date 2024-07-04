@@ -8,14 +8,9 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-{{- if or .Values.extraLabels.hooks .Values.extraLabels.serviceAccount }}
+{{- if .Values.extraLabels.serviceAccount }}
   labels:
-  {{- if .Values.extraLabels.hooks }}
-  {{- toYaml .Values.extraLabels.hooks | nindent 4 }}
-  {{- end }}
-  {{- if .Values.extraLabels.serviceAccount }}
   {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
-  {{- end }}
 {{- end }}
 ---
 {{- end }}
@@ -29,14 +24,9 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-3"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-{{- if or .Values.extraLabels.hooks .Values.extraLabels.role }}
+{{- if .Values.extraLabels.role }}
   labels:
-  {{- if .Values.extraLabels.hooks }}
-  {{- toYaml .Values.extraLabels.hooks | nindent 4 }}
-  {{- end }}
-  {{- if .Values.extraLabels.role }}
   {{- toYaml .Values.extraLabels.role | nindent 4 }}
-  {{- end }}
 {{- end }}
 rules:
   - apiGroups: [""]
@@ -52,14 +42,9 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-2"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-{{- if or .Values.extraLabels.hooks .Values.extraLabels.roleBinding }}
+{{- if .Values.extraLabels.roleBinding }}
   labels:
-  {{- if .Values.extraLabels.hooks }}
-  {{- toYaml .Values.extraLabels.hooks | nindent 4 }}
-  {{- end }}
-  {{- if .Values.extraLabels.roleBinding }}
   {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
-  {{- end }}
 {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -80,9 +65,9 @@ metadata:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-{{- if .Values.extraLabels.hooks }}
+{{- if .Values.extraLabels.job }}
   labels:
-  {{- toYaml .Values.extraLabels.hooks | nindent 4 }}
+  {{- toYaml .Values.extraLabels.job | nindent 4 }}
 {{- end }}
 spec:
   template:

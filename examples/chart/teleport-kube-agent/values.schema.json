@@ -558,8 +558,8 @@
                     "type": "object",
                     "default": {}
                 },
-                "hooks": {
-                    "$id": "#/properties/extraLabels/properties/hooks",
+                "job": {
+                    "$id": "#/properties/extraLabels/properties/job",
                     "type": "object",
                     "default": {}
                 },

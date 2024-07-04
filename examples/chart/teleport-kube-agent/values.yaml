@@ -1116,6 +1116,8 @@ extraLabels:
   config: {}
   # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
   deployment: {}
+  # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
+  job: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment or StatefulSet.
   pod: {}
@@ -1127,8 +1129,6 @@ extraLabels:
   secret: {}
   # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
   serviceAccount: {}
-  # extraLabels.hooks(object) -- are labels to set on the post-delete Job and other hooks managed by the chart.
-  hooks: {}
 
 # annotations -- contains annotations to apply to the different Kubernetes
 # objects created by the chart. See [the Kubernetes annotation
