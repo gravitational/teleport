@@ -218,7 +218,7 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 			}
 		}
 	case *pgproto3.CancelRequest:
-		e.Log.DebugContext(e.Context, "Received cancel request.", "PID", m.ProcessID)
+		e.Log.DebugContext(e.Context, "Received cancel request.", "pid", m.ProcessID)
 		e.cancelReq = m
 	default:
 		return trace.BadParameter("unexpected startup message type: %T", startupMessageI)
@@ -289,7 +289,7 @@ func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.
 	}
 	// BackendKeyData provides secret-key data that the frontend must save
 	// if it wants to be able to issue cancel requests later.
-	e.Log.DebugContext(e.Context, "Sending BackendKeyData.", "PID", hijackedConn.PID)
+	e.Log.DebugContext(e.Context, "Sending BackendKeyData.", "pid", hijackedConn.PID)
 	if err := client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey}); err != nil {
 		return trace.Wrap(err)
 	}
