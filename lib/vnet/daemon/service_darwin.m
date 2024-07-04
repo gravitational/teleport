@@ -110,7 +110,7 @@ void DaemonStart(void) {
 }
 
 void DaemonStop(void) {
-    if (daemonService) {
+    if (daemonService && [daemonService started]) {
         [daemonService stop];
     }
 }

@@ -26,6 +26,7 @@ import "C"
 
 import (
 	"context"
+	"sync"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -34,10 +35,24 @@ import (
 func Start(ctx context.Context, workFn func(Config) error) error {
 	log.InfoContext(ctx, "Starting daemon")
 	C.DaemonStart()
-	defer func() {
+
+	// We want to stop the daemon either when the context gets cancelled (which is going to unblock
+	// the call to C.WaitForVnetConfig) or before exiting this function, hence sync.Once).
+	var once sync.Once
+	stopDaemon := func() {
 		log.InfoContext(ctx, "Stopping daemon")
 		C.DaemonStop()
+	}
+	// Use a separate function to make sure the goroutine exits after Start returns, even if the
+	// parent context wasn't canceled yet.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		// Handles C.WaitForVnetConfig being stuck while context was canceled.
+		<-ctx.Done()
+		once.Do(stopDaemon)
 	}()
+	defer once.Do(stopDaemon)
 
 	var result C.VnetConfigResult
 	defer func() {
