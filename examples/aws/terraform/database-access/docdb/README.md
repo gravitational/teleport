@@ -33,38 +33,14 @@ module "steve-docdb" {
 ```
 
 In this sample, a DocumentDB cluster is created with two instances. An IAM role
-is created for the database user that will access the DocumentDB cluster. In
-addition, several dynamic resources representing the endpoints are added to the
-Teleport cluster.
+is created for the database user that will access the DocumentDB cluster and a
+AWS Lambda function is executed to provision the database user with IAM
+authentication in the created DocumentDB cluster. In addition, several dynamic
+resources representing the endpoints are added to the Teleport cluster.
 
 See `variables.tf` for more details.
 
-### Step 2. Setup the IAM authentication user for the DocumentDB cluster.
-
-`output.create_iam_user_instruction` gives a sample instruction to setup the
-IAM auth user:
-```
-# Run the following from a machine that can access DocumentDB.
-
-$ wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
-
-$ mongosh --tls --host steve-docdb.cluster-aaaaaaaaaaaa.ca-central-1.docdb.amazonaws.com:27017 --tlsCAFile global-bundle.pem  --username teleport --password
-Enter password: ****************
-...
-
-# Once in mongosh. Create an MongoDB user with IAM auth enabled. This example
-# gives the user root permissions so adjust accordingly.
-use $external;
-db.createUser(
-    {
-        user: "arn:aws:iam::123456789012:role/steve-docdb-teleport-user",
-        mechanisms: ["MONGODB-AWS"],
-        roles: [ { role: "root", db: "admin" },  ]
-    }
-);
-```
-
-### Step3. Connect through `tsh`
+### Step2. Connect through `tsh`
 
 Once above steps are successful:
 ```
@@ -76,6 +52,6 @@ steve-docdb-instance-0 Instance endpoint for DocumentDB steve-docdb instance 0 [
 steve-docdb-instance-1 Instance endpoint for DocumentDB steve-docdb instance 1 [*]           Env=dev,Owner=STeve         
 steve-docdb-reader     Reader endpoint for DocumentDB steve-docdb              [*]           Env=dev,Owner=STeve   
 
-$ tsh db connect steve-docdb-cluster --db-user role/steve-docdb-teleport-user --db-name test
+$ tsh db connect steve-docdb-cluster --db-user role/steve-docdb-teleport-admin-user --db-name test
 ...
 ```

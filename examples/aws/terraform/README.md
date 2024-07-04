@@ -27,7 +27,7 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 - HA Auto-Scaling Teleport Cluster
   - [Get Started](ha-autoscale-cluster/README.md)
 
-- Setup AWS databases for Database Access
+- Setup AWS databases for Teleport database access
   - [DocumentDB](database-access/docdb/README.md)
 
 ## How to get help

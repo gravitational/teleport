@@ -60,20 +60,3 @@ resource "aws_iam_role_policy" "iam_access" {
   })
 }
 
-module "iam_database_user" {
-  count                   = var.create_database_user_iam_role ? 1 : 0
-  source                  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role"
-  create_role             = true
-  create_instance_profile = true
-  role_requires_mfa       = false
-  role_name               = "${var.identifier}-teleport-user"
-  trusted_role_services   = ["ec2.amazonaws.com"]
-  trusted_role_arns = concat(
-    var.databaase_user_iam_role_trusted_role_arns,
-    module.iam_access.*.iam_role_arn,
-  )
-}
-
-locals {
-  iam_database_user_arn_or_sample = try(module.iam_database_user[0].iam_role_arn, "arn:aws:iam::123456789012:role/your-database-user-iam-role")
-}

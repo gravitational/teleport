@@ -59,8 +59,9 @@ variable "master_username" {
 }
 
 variable "master_password" {
-  description = "Master username"
+  description = "Master password"
   type        = string
+  sensitive   = true
   default     = "MYsecretpassw0rd"
 }
 
