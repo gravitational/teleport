@@ -644,7 +644,7 @@ const ViewModeSwitchContainer = styled.div`
   .selected {
     background-color: ${props => props.theme.colors.spotBackground[1]};
 
-    :hover {
+    &:hover {
       background-color: ${props => props.theme.colors.spotBackground[1]};
     }
   }
@@ -662,7 +662,7 @@ const ViewModeSwitchButton = styled.button`
 
   background-color: transparent;
 
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

@@ -19,8 +19,10 @@
 import PropTypes from 'prop-types';
 
 import { ResponsiveValue } from 'styled-system';
+import { WebTarget } from 'styled-components';
 
 import { SharedStyles, Theme } from 'design/theme/themes/types';
+import { shouldForwardProp } from 'design/ThemeProvider';
 
 export interface TypographyProps {
   caps?: boolean;
@@ -44,6 +46,26 @@ function getTypography(props: TypographyPropsWithTheme) {
     ...bold(props),
     ...mono(props),
   };
+}
+
+const typographyProps: Required<{ [k in keyof TypographyProps]: boolean }> = {
+  caps: true,
+  bold: true,
+  italic: true,
+  mono: true,
+  breakAll: true,
+  typography: true,
+};
+
+/**
+ * Determines whether a property with a given name should be forwarded down as
+ * an attribute to an underlying HTML tag. To be used along with styled-components
+ */
+export function shouldForwardTypographyProp(
+  propName: string,
+  target: WebTarget
+) {
+  return !typographyProps[propName] && shouldForwardProp(propName, target);
 }
 
 function caps(props: TypographyProps) {

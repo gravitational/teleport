@@ -281,7 +281,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               theme.colors.buttons.trashButton.default};
                             border-radius: 2px;
 
-                            :hover {
+                            &:hover {
                               background-color: ${({ theme }) =>
                                 theme.colors.buttons.trashButton.hover};
                             }
@@ -570,12 +570,12 @@ const RoleRowContainer = styled.div<{ checked?: boolean }>`
 
   // TODO(bl-nero): That's the third place where we're copying these
   // definitions. We need to make them reusable.
-  :hover {
+  &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
       position: absolute;
@@ -638,7 +638,7 @@ function TextBox({
           outline: none;
           background: transparent;
 
-          ::placeholder {
+          &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
