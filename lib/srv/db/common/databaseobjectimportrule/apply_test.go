@@ -17,10 +17,10 @@
 package databaseobjectimportrule
 
 import (
+	"log/slog"
 	"maps"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -252,7 +252,7 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, errCount := ApplyDatabaseObjectImportRules(logrus.StandardLogger(), tt.rules, tt.database, tt.objs)
+			out, errCount := ApplyDatabaseObjectImportRules(slog.Default(), tt.rules, tt.database, tt.objs)
 			require.Len(t, out, len(tt.want))
 			for i, obj := range out {
 				require.Equal(t, tt.want[i].String(), obj.String())

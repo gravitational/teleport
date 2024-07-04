@@ -109,7 +109,7 @@ func (e *Engine) SendError(err error) {
 	}
 	// the grpc server handles sending all errors, if an error is sent outside
 	// of that, just log it here.
-	e.Log.WithError(err).Debug("GCP Spanner connection error")
+	e.Log.DebugContext(e.Context, "GCP Spanner connection error", "error", err)
 }
 
 // HandleConnection processes the connection from the proxy coming over reverse

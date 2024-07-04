@@ -20,13 +20,13 @@ package spanner
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
 // unaryServerLoggingInterceptor is gRPC middleware that logs some debug info.
-func unaryServerLoggingInterceptor(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
+func unaryServerLoggingInterceptor(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -40,7 +40,7 @@ func unaryServerLoggingInterceptor(log logrus.FieldLogger) grpc.UnaryServerInter
 }
 
 // streamServerLoggingInterceptor is gRPC middleware that logs some debug info.
-func streamServerLoggingInterceptor(log logrus.FieldLogger) grpc.StreamServerInterceptor {
+func streamServerLoggingInterceptor(log *slog.Logger) grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
 		stream grpc.ServerStream,
@@ -53,14 +53,9 @@ func streamServerLoggingInterceptor(log logrus.FieldLogger) grpc.StreamServerInt
 	}
 }
 
-func logRPC(log logrus.FieldLogger, fullMethod string, handlerErr error) {
+func logRPC(log *slog.Logger, fullMethod string, handlerErr error) {
 	if handlerErr != nil {
-		log.WithError(handlerErr).
-			WithField("full_method", fullMethod).
-			Debug("failed to handle Spanner RPC")
+		log.Debug("failed to handle Spanner RPC", "full_method", fullMethod, "error", handlerErr)
 		return
 	}
-
-	log.WithField("full_method", fullMethod).
-		Trace("handled Spanner RPC")
 }

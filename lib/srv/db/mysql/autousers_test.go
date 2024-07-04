@@ -20,6 +20,7 @@ package mysql
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -179,7 +180,7 @@ func Test_checkMySQLSupportedVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			test.checkError(t, checkMySQLSupportedVersion(test.input))
+			test.checkError(t, checkMySQLSupportedVersion(slog.Default(), test.input))
 		})
 	}
 }
@@ -228,7 +229,7 @@ func Test_checkMariaDBSupportedVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			test.checkError(t, checkMariaDBSupportedVersion(test.input))
+			test.checkError(t, checkMariaDBSupportedVersion(slog.Default(), test.input))
 		})
 	}
 }
