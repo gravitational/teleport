@@ -117,7 +117,7 @@ func TestValidateListenerSocket(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conn, listenerFD := newSocketFiles(t)
 			if tc.mutateFiles != nil {
-				conn, listenerFD = tc.mutateFiles(t, conn, listenerFD)
+				_, listenerFD = tc.mutateFiles(t, conn, listenerFD)
 			}
 			if tc.mutateConn != nil {
 				tc.mutateConn(t, listenerFD)

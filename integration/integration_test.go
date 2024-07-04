@@ -4685,7 +4685,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 	}
 	displayAddr, err := clientDisplay.GetNetAddr()
 	require.NoError(t, err)
-	clientXServer, err := net.Listen(displayAddr.Network(),displayAddr.String())
+	clientXServer, err := net.Listen(displayAddr.Network(), displayAddr.String())
 	require.NoError(t, err)
 	go func() {
 		for {
