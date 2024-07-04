@@ -4679,7 +4679,13 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// Create a fake client XServer listener.
-	clientXServer, clientDisplay, err := x11.OpenNewXServerListener(x11.DefaultDisplayOffset, x11.DefaultMaxDisplays, 0)
+	clientDisplay := x11.Display{
+		HostName:      "localhost",
+		DisplayNumber: 0,
+	}
+	displayAddr, err := clientDisplay.GetNetAddr()
+	require.NoError(t, err)
+	clientXServer, err := net.Listen(displayAddr.Network(),displayAddr.String())
 	require.NoError(t, err)
 	go func() {
 		for {

@@ -905,7 +905,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 					}
 				}()
 
-				if err := x11.Forward(ctx, xconn, xchan); err != nil {
+				if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
 					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
 				}
 			}()

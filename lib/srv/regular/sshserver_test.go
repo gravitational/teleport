@@ -1139,7 +1139,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			}
 		}()
 
-		err = x11.Forward(ctx, clientXConn, sch)
+		err = utils.ProxyConn(ctx, clientXConn, sch)
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
@@ -1202,7 +1202,7 @@ func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 	msg := "msg"
 	_, err = conn.Write([]byte(msg))
 	require.NoError(t, err)
-	err = conn.CloseWrite()
+	err = conn.Close()
 	require.NoError(t, err)
 
 	echo, err := io.ReadAll(conn)
