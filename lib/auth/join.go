@@ -367,6 +367,13 @@ func (a *Server) generateCertsBot(
 		},
 	}
 
+	// req.PublicSSHKey is in SSH Authorized Keys format. For consistency, we
+	// only store public keys in PEM wrapped PKIX, DER format within
+	// BotInstances.
+	pkixPEM, err := sshPublicKeyToPKIXPEM(req.PublicSSHKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting key")
+	}
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
@@ -374,7 +381,7 @@ func (a *Server) generateCertsBot(
 		// secrets. Should we hash it?
 		JoinToken:  provisionToken.GetSafeName(),
 		JoinMethod: string(provisionToken.GetJoinMethod()),
-		PublicKey:  req.PublicTLSKey,
+		PublicKey:  pkixPEM,
 
 		// Note: Generation will be set during `generateInitialBotCerts()` as
 		// needed.

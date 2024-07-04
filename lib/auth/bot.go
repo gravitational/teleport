@@ -20,6 +20,8 @@ package auth
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strconv"
 	"time"
@@ -35,12 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // validateGenerationLabel validates and updates a generation label.
@@ -174,6 +178,21 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	return nil
 }
 
+func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pkix, err := x509.MarshalPKIXPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  keys.PKIXPublicKeyType,
+		Bytes: pkix,
+	}), nil
+}
+
 // updateBotInstance updates the bot instance associated with the context
 // identity, if any.
 func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certRequest) error {
@@ -189,9 +208,17 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 		return nil
 	}
 
+	// req.PublicKey is in SSH Authorized Keys format. For consistency, we
+	// only store public keys in PEM wrapped PKIX, DER format within
+	// BotInstances.
+	pkixPEM, err := sshPublicKeyToPKIXPEM(req.publicKey)
+	if err != nil {
+		return trace.Wrap(err, "converting key")
+	}
+
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.authServer.GetClock().Now()),
-		PublicKey:       req.publicKey,
+		PublicKey:       pkixPEM,
 
 		// TODO: for now, this copy of the certificate generation only is
 		// informational. Future changes will transition to trusting (and
@@ -234,7 +261,7 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 		return nil
 	}
 
-	_, err := a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err = a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
