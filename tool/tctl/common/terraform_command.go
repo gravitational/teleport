@@ -254,7 +254,7 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 		},
 	}
 
-	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	_, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: bot,
 	})
 	if err != nil {
