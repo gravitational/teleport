@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"cmp"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -159,10 +160,6 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 // Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
-	samlAppPreset := "unspecified"
-	if app.GetPreset() != "" {
-		samlAppPreset = app.GetPreset()
-	}
 	resultApp := App{
 		Kind:            types.KindApp,
 		Name:            app.GetName(),
@@ -172,7 +169,7 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 		ClusterID:       c.AppClusterName,
 		FriendlyName:    types.FriendlyName(app),
 		SAMLApp:         true,
-		SAMLAppPreset:   samlAppPreset,
+		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
 		RequiresRequest: c.RequiresRequest,
 	}
 
