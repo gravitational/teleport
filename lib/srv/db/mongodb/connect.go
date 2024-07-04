@@ -140,7 +140,6 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return []topology.ConnectionOption{
 		topology.WithTLSConfig(func(*tls.Config) *tls.Config {
 			return tlsConfig
@@ -177,7 +176,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
 		return e.getAWSAuthenticator(ctx, sessionCtx)
 	case dbType == types.DatabaseTypeDocumentDB:
-		// DocumentDB uses same the IAM authenticator as MongoDB atlas.
+		// DocumentDB uses the same the IAM authenticator as MongoDB Atlas.
 		return e.getAWSAuthenticator(ctx, sessionCtx)
 	default:
 		e.Log.Debug("Authenticating to database using certificates.")
