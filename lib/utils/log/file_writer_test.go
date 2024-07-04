@@ -33,8 +33,6 @@ import (
 // TestFileSharedWriterNotify checks that if we create the file with shared writer and enable
 // watcher functionality, we should expect the file to be reopened after renaming the original one.
 func TestFileSharedWriterNotify(t *testing.T) {
-	t.Parallel()
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	logDir := t.TempDir()

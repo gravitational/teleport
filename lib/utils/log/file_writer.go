@@ -38,8 +38,8 @@ var (
 	// notification subscription on the changes.
 	fileSharedWriter *FileSharedWriter
 
-	// mu protects global init of the file shared writer.
-	mu sync.Mutex
+	// initLock protects global init of the file shared writer.
+	initLock sync.Mutex
 )
 
 // FileSharedWriter is similar to SharedWriter except that it requires a `os.File` instead of a `io.Writer`.
@@ -48,13 +48,15 @@ type FileSharedWriter struct {
 	logFile  atomic.Pointer[os.File]
 	fileFlag int
 	fileMode fs.FileMode
+
+	lock sync.Mutex
 }
 
 // InitFileSharedWriter wraps the provided [os.File] in a writer that is thread safe,
 // with ability to enable filesystem notification watch and reopen file on specific events.
 func InitFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (io.Writer, error) {
-	mu.Lock()
-	defer mu.Unlock()
+	initLock.Lock()
+	defer initLock.Unlock()
 
 	if fileSharedWriter != nil {
 		return nil, trace.BadParameter("file shared writer already initialized")
@@ -67,19 +69,25 @@ func InitFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (io.Writ
 
 // GetFileSharedWriter returns instance of the file shared writer.
 func GetFileSharedWriter() *FileSharedWriter {
-	mu.Lock()
-	defer mu.Unlock()
+	initLock.Lock()
+	defer initLock.Unlock()
 
 	return fileSharedWriter
 }
 
 // Write writes len(b) bytes from b to the File.
 func (s *FileSharedWriter) Write(b []byte) (int, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	return s.logFile.Load().Write(b)
 }
 
 // Reopen closes the file and opens it again using APPEND mode.
 func (s *FileSharedWriter) Reopen() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	logFile, err := os.OpenFile(s.logFile.Load().Name(), s.fileFlag, s.fileMode)
 	if err != nil {
 		return trace.Wrap(err)
