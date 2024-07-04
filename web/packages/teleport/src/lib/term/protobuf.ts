@@ -216,10 +216,3 @@ export class Protobuf {
     return new TextDecoder('utf-8').decode(uintArray);
   }
 }
-
-// Polyfill for Uint8Array.slice for IE and Safari
-if (!Uint8Array.prototype.slice) {
-  Object.defineProperty(Uint8Array.prototype, 'slice', {
-    value: Array.prototype.slice,
-  });
-}
