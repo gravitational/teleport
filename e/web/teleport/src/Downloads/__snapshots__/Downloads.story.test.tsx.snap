@@ -65,7 +65,8 @@ exports[`renders loaded linux 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -74,30 +75,50 @@ exports[`renders loaded linux 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -544,7 +565,7 @@ exports[`renders loaded linux 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -1100,7 +1121,8 @@ exports[`renders loaded macOS 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1109,30 +1131,50 @@ exports[`renders loaded macOS 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1579,7 +1621,7 @@ exports[`renders loaded macOS 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -2035,7 +2077,8 @@ exports[`renders loaded windows 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2044,30 +2087,50 @@ exports[`renders loaded windows 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2545,7 +2608,7 @@ exports[`renders loaded windows 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -3012,7 +3075,8 @@ exports[`renders when generating license 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3021,30 +3085,50 @@ exports[`renders when generating license 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3492,7 +3576,7 @@ exports[`renders when generating license 1`] = `
       <button
         class="c13"
         disabled=""
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -4070,7 +4154,8 @@ exports[`renders when license failed 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -4079,30 +4164,50 @@ exports[`renders when license failed 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c14:hover,
-.c14:focus {
-  background: #B29DFF;
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c14:active {
-  background: #C5B6FF;
+.c14:hover,
+.teleport-button__force-hover .c14 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c14:active,
+.teleport-button__force-active .c14 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c14:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -4555,7 +4660,7 @@ exports[`renders when license failed 1`] = `
     >
       <button
         class="c14"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -5111,7 +5216,8 @@ exports[`renders when license generated 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -5120,30 +5226,50 @@ exports[`renders when license generated 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -5590,7 +5716,7 @@ exports[`renders when license generated 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -6120,7 +6246,8 @@ exports[`renders when releases are loading 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -6129,30 +6256,50 @@ exports[`renders when releases are loading 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -6293,7 +6440,7 @@ exports[`renders when releases are loading 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >
@@ -6393,7 +6540,8 @@ exports[`renders when releases failed 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -6402,30 +6550,50 @@ exports[`renders when releases failed 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-right: 24px;
   width: 240px;
 }
 
-.c13:hover,
-.c13:focus {
-  background: #B29DFF;
+.c13:focus-visible,
+.teleport-button__force-focus-visible .c13 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c13:active {
-  background: #C5B6FF;
+.c13:hover,
+.teleport-button__force-hover .c13 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c13:active,
+.teleport-button__force-active .c13 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c13:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -6566,7 +6734,7 @@ exports[`renders when releases failed 1`] = `
     >
       <button
         class="c13"
-        kind="primary"
+        fill="filled"
         title="Generate license"
         width="240px"
       >

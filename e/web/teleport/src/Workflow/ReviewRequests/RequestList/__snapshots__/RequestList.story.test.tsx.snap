@@ -22,7 +22,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -31,30 +32,49 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-left: 16px;
 }
 
-.c22:hover,
-.c22:focus {
-  background: rgba(255,255,255,0.07);
+.c22:focus-visible,
+.teleport-button__force-focus-visible .c22 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c22:active {
-  background: rgba(255,255,255,0.13);
+.c22:hover,
+.teleport-button__force-hover .c22 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c22:active,
+.teleport-button__force-active .c22 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c22:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -65,7 +85,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -74,29 +95,49 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  font-size: 10px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 108px;
 }
 
-.c25:hover,
-.c25:focus {
-  background: #B29DFF;
+.c25:focus-visible,
+.teleport-button__force-focus-visible .c25 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c25:active {
-  background: #C5B6FF;
+.c25:hover,
+.teleport-button__force-hover .c25 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c25:active,
+.teleport-button__force-active .c25 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c25:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -107,7 +148,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -116,28 +158,48 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
-  font-size: 10px;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c29:focus-visible,
+.teleport-button__force-focus-visible .c29 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c29:hover,
-.c29:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c29 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
 }
 
-.c29:active {
-  background: #C5B6FF;
+.c29:active,
+.teleport-button__force-active .c29 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c29:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -780,8 +842,9 @@ exports[`loaded state 1`] = `
           >
             <a
               class="c22"
+              fill="border"
               href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -852,8 +915,9 @@ exports[`loaded state 1`] = `
           >
             <a
               class="c22"
+              fill="border"
               href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -929,8 +993,9 @@ exports[`loaded state 1`] = `
           >
             <a
               class="c22"
+              fill="border"
               href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -1013,15 +1078,16 @@ exports[`loaded state 1`] = `
           >
             <button
               class="c25"
-              kind="primary"
+              fill="filled"
               width="108px"
             >
               assume roles
             </button>
             <a
               class="c22"
+              fill="border"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -1105,15 +1171,16 @@ exports[`loaded state 1`] = `
             <button
               class="c25"
               disabled=""
-              kind="primary"
+              fill="filled"
               width="108px"
             >
               assumed
             </button>
             <a
               class="c22"
+              fill="border"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -1240,8 +1307,9 @@ exports[`loaded state 1`] = `
             </div>
             <a
               class="c22"
+              fill="border"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -1368,8 +1436,9 @@ exports[`loaded state 1`] = `
             </div>
             <a
               class="c22"
+              fill="border"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View
@@ -1458,15 +1527,16 @@ exports[`loaded state 1`] = `
               <button
                 class="c29"
                 disabled=""
-                kind="primary"
+                fill="filled"
               >
                 Assume Roles
               </button>
             </div>
             <a
               class="c22"
+              fill="border"
               href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
-              kind="border"
+              intent="neutral"
               ml="3"
             >
               View

@@ -45,7 +45,8 @@ exports[`loaded with denied reason 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -54,28 +55,48 @@ exports[`loaded with denied reason 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c12:hover,
-.c12:focus {
-  background: rgba(255,255,255,0.13);
+.teleport-button__force-hover .c12 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c12:active {
-  background: rgba(255,255,255,0.18);
+.c12:active,
+.teleport-button__force-active .c12 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c12:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -202,7 +223,7 @@ exports[`loaded with denied reason 1`] = `
       >
         <button
           class="c12"
-          kind="secondary"
+          fill="filled"
         >
           Logout
         </button>
@@ -236,7 +257,8 @@ exports[`loaded without denied reason 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -245,28 +267,48 @@ exports[`loaded without denied reason 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c11:hover,
-.c11:focus {
-  background: rgba(255,255,255,0.13);
+.teleport-button__force-hover .c11 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c11:active {
-  background: rgba(255,255,255,0.18);
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -387,7 +429,7 @@ exports[`loaded without denied reason 1`] = `
       >
         <button
           class="c11"
-          kind="secondary"
+          fill="filled"
         >
           Logout
         </button>

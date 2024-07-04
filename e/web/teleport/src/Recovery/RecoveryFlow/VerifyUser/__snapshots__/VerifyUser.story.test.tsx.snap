@@ -63,7 +63,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -72,29 +73,49 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c15:hover,
-.c15:focus {
-  background: #B29DFF;
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c15:active {
-  background: #C5B6FF;
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c15:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -478,7 +499,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   </div>
   <button
     class="c15"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -542,7 +563,8 @@ exports[`render failed state form for authenticating with password 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -551,29 +573,49 @@ exports[`render failed state form for authenticating with password 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c11:hover,
-.c11:focus {
-  background: #B29DFF;
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c11:active {
-  background: #C5B6FF;
+.c11:hover,
+.teleport-button__force-hover .c11 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -733,7 +775,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   </div>
   <button
     class="c11"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -811,7 +853,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -820,29 +863,49 @@ exports[`render failed state form for authenticating with totp 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c16:hover,
-.c16:focus {
-  background: #B29DFF;
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c16:active {
-  background: #C5B6FF;
+.c16:hover,
+.teleport-button__force-hover .c16 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c16:active,
+.teleport-button__force-active .c16 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c16:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1244,7 +1307,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   </div>
   <button
     class="c16"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -1316,7 +1379,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1325,29 +1389,49 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c15:hover,
-.c15:focus {
-  background: #B29DFF;
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c15:active {
-  background: #C5B6FF;
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c15:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1731,7 +1815,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   </div>
   <button
     class="c15"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -1778,7 +1862,8 @@ exports[`render form for authenticating with multi option 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1787,29 +1872,49 @@ exports[`render form for authenticating with multi option 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c14:hover,
-.c14:focus {
-  background: #B29DFF;
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c14:active {
-  background: #C5B6FF;
+.c14:hover,
+.teleport-button__force-hover .c14 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c14:active,
+.teleport-button__force-active .c14 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c14:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2186,7 +2291,7 @@ exports[`render form for authenticating with multi option 1`] = `
   </div>
   <button
     class="c14"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -2225,7 +2330,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2234,29 +2340,49 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c10:active {
-  background: #C5B6FF;
+.c10:hover,
+.teleport-button__force-hover .c10 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c10:active,
+.teleport-button__force-active .c10 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c10:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2409,7 +2535,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   </div>
   <button
     class="c10"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -2462,7 +2588,8 @@ exports[`render form for authenticating with totp 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2471,29 +2598,49 @@ exports[`render form for authenticating with totp 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c15:hover,
-.c15:focus {
-  background: #B29DFF;
+.c15:focus-visible,
+.teleport-button__force-focus-visible .c15 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c15:active {
-  background: #C5B6FF;
+.c15:hover,
+.teleport-button__force-hover .c15 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c15:active,
+.teleport-button__force-active .c15 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c15:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2888,7 +3035,7 @@ exports[`render form for authenticating with totp 1`] = `
   </div>
   <button
     class="c15"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -2935,7 +3082,8 @@ exports[`render form for authenticating with webauthn 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -2944,29 +3092,49 @@ exports[`render form for authenticating with webauthn 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c14:hover,
-.c14:focus {
-  background: #B29DFF;
+.c14:focus-visible,
+.teleport-button__force-focus-visible .c14 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c14:active {
-  background: #C5B6FF;
+.c14:hover,
+.teleport-button__force-hover .c14 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c14:active,
+.teleport-button__force-active .c14 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c14:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3343,7 +3511,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   </div>
   <button
     class="c14"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >

@@ -25,7 +25,8 @@ exports[`render device list 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -34,29 +35,49 @@ exports[`render device list 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c12:hover,
-.c12:focus {
-  background: #B29DFF;
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c12:active {
-  background: #C5B6FF;
+.c12:hover,
+.teleport-button__force-hover .c12 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c12:active,
+.teleport-button__force-active .c12 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c12:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -67,7 +88,8 @@ exports[`render device list 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -76,29 +98,48 @@ exports[`render device list 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c11:hover,
-.c11:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c11 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c11:active {
-  background: rgba(255,255,255,0.13);
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -415,7 +456,7 @@ exports[`render device list 1`] = `
           >
             <button
               class="c11"
-              kind="border"
+              fill="border"
               title=""
             >
               Remove
@@ -447,7 +488,7 @@ exports[`render device list 1`] = `
           >
             <button
               class="c11"
-              kind="border"
+              fill="border"
               title=""
             >
               Remove
@@ -479,7 +520,7 @@ exports[`render device list 1`] = `
           >
             <button
               class="c11"
-              kind="border"
+              fill="border"
               title=""
             >
               Remove
@@ -491,7 +532,7 @@ exports[`render device list 1`] = `
   </div>
   <button
     class="c12"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >
@@ -519,7 +560,8 @@ exports[`render device removal dialog 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -528,29 +570,49 @@ exports[`render device removal dialog 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #FF6257;
   color: #000000;
-  background: #FF6257;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-right: 16px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: #FF8179;
+.c10:focus-visible,
+.teleport-button__force-focus-visible .c10 {
+  background-color: #FF6257;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #FF6257;
 }
 
-.c10:active {
-  background: #FFA19A;
+.c10:hover,
+.teleport-button__force-hover .c10 {
+  background-color: #FF8179;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c10:active,
+.teleport-button__force-active .c10 {
+  background-color: #FFA19A;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c10:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -561,7 +623,8 @@ exports[`render device removal dialog 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -570,28 +633,48 @@ exports[`render device removal dialog 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c11:hover,
-.c11:focus {
-  background: rgba(255,255,255,0.13);
+.teleport-button__force-hover .c11 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c11:active {
-  background: rgba(255,255,255,0.18);
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -720,13 +803,13 @@ exports[`render device removal dialog 1`] = `
       >
         <button
           class="c10"
-          kind="warning"
+          fill="filled"
         >
           Remove
         </button>
         <button
           class="c11"
-          kind="secondary"
+          fill="filled"
         >
           Cancel
         </button>
@@ -786,7 +869,8 @@ exports[`render failed state for device list 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -795,29 +879,49 @@ exports[`render failed state for device list 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c8:hover,
-.c8:focus {
-  background: #B29DFF;
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c8:active {
-  background: #C5B6FF;
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -902,7 +1006,7 @@ exports[`render failed state for device list 1`] = `
   </div>
   <button
     class="c8"
-    kind="primary"
+    fill="filled"
     type="submit"
     width="100%"
   >

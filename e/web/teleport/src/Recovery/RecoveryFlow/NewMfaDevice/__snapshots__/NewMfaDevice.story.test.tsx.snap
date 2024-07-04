@@ -46,7 +46,8 @@ exports[`render correct form to add TOTP device 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -55,29 +56,49 @@ exports[`render correct form to add TOTP device 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c25:hover,
-.c25:focus {
-  background: #B29DFF;
+.c25:focus-visible,
+.teleport-button__force-focus-visible .c25 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c25:active {
-  background: #C5B6FF;
+.c25:hover,
+.teleport-button__force-hover .c25 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c25:active,
+.teleport-button__force-active .c25 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c25:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -368,7 +389,7 @@ exports[`render correct form to add TOTP device 1`] = `
   </div>
   <button
     class="c25"
-    kind="primary"
+    fill="filled"
     width="100%"
   >
     Continue
@@ -412,7 +433,8 @@ exports[`render correct form to add Webauthn device 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -421,29 +443,49 @@ exports[`render correct form to add Webauthn device 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #B29DFF;
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c19:active {
-  background: #C5B6FF;
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -753,7 +795,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   </div>
   <button
     class="c19"
-    kind="primary"
+    fill="filled"
     width="100%"
   >
     Create an MFA method
@@ -797,7 +839,8 @@ exports[`render correct form to add with multi option 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -806,29 +849,49 @@ exports[`render correct form to add with multi option 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c19:hover,
-.c19:focus {
-  background: #B29DFF;
+.c19:focus-visible,
+.teleport-button__force-focus-visible .c19 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c19:active {
-  background: #C5B6FF;
+.c19:hover,
+.teleport-button__force-hover .c19 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c19:active,
+.teleport-button__force-active .c19 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c19:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1153,7 +1216,7 @@ exports[`render correct form to add with multi option 1`] = `
   </div>
   <button
     class="c19"
-    kind="primary"
+    fill="filled"
     width="100%"
   >
     Create an MFA method
@@ -1218,7 +1281,8 @@ exports[`render failed state for form to add with multi option 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1227,29 +1291,49 @@ exports[`render failed state for form to add with multi option 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
 }
 
-.c20:hover,
-.c20:focus {
-  background: #B29DFF;
+.c20:focus-visible,
+.teleport-button__force-focus-visible .c20 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c20:active {
-  background: #C5B6FF;
+.c20:hover,
+.teleport-button__force-hover .c20 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c20:active,
+.teleport-button__force-active .c20 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c20:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1580,7 +1664,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   </div>
   <button
     class="c20"
-    kind="primary"
+    fill="filled"
     width="100%"
   >
     Create an MFA method
