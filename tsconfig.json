@@ -19,7 +19,7 @@
     "skipLibCheck": true,
     "sourceMap": false,
     "target": "esnext",
-    "types": ["node", "@emotion/core", "@types/wicg-file-system-access"],
+    "types": ["node", "@types/wicg-file-system-access"],
     "paths": {
       "//": [
         "generator still uses 'grpc' package that has been deprecated in favor of '@grpc/grpc-js'"
