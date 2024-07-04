@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -169,11 +170,19 @@ func (a *Server) newWebSession(
 		}
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := req.PrivateKey.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(req.PrivateKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certReq := certRequest{
 		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
-		publicKey:      req.PrivateKey.MarshalSSHPublicKey(),
+		sshPublicKey:   sshPublicKey,
+		tlsPublicKey:   tlsPublicKey,
 		checker:        checker,
 		traits:         req.Traits,
 		activeRequests: services.RequestIDs{AccessRequests: req.AccessRequests},
@@ -385,10 +394,18 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		}
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := priv.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(priv.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
 		loginIP:        req.LoginIP,
-		publicKey:      priv.MarshalSSHPublicKey(),
+		sshPublicKey:   sshPublicKey,
+		tlsPublicKey:   tlsPublicKey,
 		checker:        checker,
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
@@ -499,17 +516,32 @@ func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := publicKey
+	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshPublicKeyAttestationStatement := attestationReq
+	tlsPublicKeyAttestationStatement := attestationReq
+
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                 userState,
-		ttl:                  sessionTTL,
-		publicKey:            publicKey,
-		compatibility:        compatibility,
-		checker:              checker,
-		traits:               userState.GetTraits(),
-		routeToCluster:       routeToCluster,
-		kubernetesCluster:    kubernetesCluster,
-		attestationStatement: attestationReq,
-		loginIP:              loginIP,
+		user:                             userState,
+		ttl:                              sessionTTL,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		compatibility:                    compatibility,
+		checker:                          checker,
+		traits:                           userState.GetTraits(),
+		routeToCluster:                   routeToCluster,
+		kubernetesCluster:                kubernetesCluster,
+		loginIP:                          loginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
