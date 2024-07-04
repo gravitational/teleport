@@ -20,11 +20,10 @@ import { resolve } from 'path';
 
 import { existsSync, readFileSync } from 'fs';
 
-import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 
-import { getStyledComponentsConfig } from '../build/vite/styled';
+import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
 import { getConnectCsp } from './csp';
 
@@ -114,14 +113,7 @@ const config = defineConfig(env => {
         },
       },
       plugins: [
-        react({
-          plugins: [
-            [
-              '@swc/plugin-styled-components',
-              getStyledComponentsConfig(env.mode),
-            ],
-          ],
-        }),
+        reactPlugin(env.mode),
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
       ],
