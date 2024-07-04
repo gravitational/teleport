@@ -80,7 +80,7 @@ exports[`approved role escalation 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c19:active,
@@ -92,7 +92,7 @@ exports[`approved role escalation 1`] = `
 
 .c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -143,7 +143,7 @@ exports[`approved role escalation 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c20:active,
@@ -155,7 +155,7 @@ exports[`approved role escalation 1`] = `
 
 .c20:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -181,7 +181,7 @@ exports[`approved role escalation 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -194,8 +194,8 @@ exports[`approved role escalation 1`] = `
 .c21:focus-visible,
 .teleport-button__force-focus-visible .c21 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -217,7 +217,7 @@ exports[`approved role escalation 1`] = `
 
 .c21:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -303,7 +303,7 @@ exports[`approved role escalation 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -533,7 +533,7 @@ exports[`failed state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -545,7 +545,7 @@ exports[`failed state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -571,7 +571,7 @@ exports[`failed state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -584,8 +584,8 @@ exports[`failed state 1`] = `
 .c15:focus-visible,
 .teleport-button__force-focus-visible .c15 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -607,7 +607,7 @@ exports[`failed state 1`] = `
 
 .c15:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -672,7 +672,7 @@ exports[`failed state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -856,7 +856,7 @@ exports[`loaded state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -868,7 +868,7 @@ exports[`loaded state 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -894,7 +894,7 @@ exports[`loaded state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -907,8 +907,8 @@ exports[`loaded state 1`] = `
 .c14:focus-visible,
 .teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -930,7 +930,7 @@ exports[`loaded state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -995,7 +995,7 @@ exports[`loaded state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }
@@ -1173,7 +1173,7 @@ exports[`processing state 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -1185,7 +1185,7 @@ exports[`processing state 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1211,7 +1211,7 @@ exports[`processing state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1224,8 +1224,8 @@ exports[`processing state 1`] = `
 .c14:focus-visible,
 .teleport-button__force-focus-visible .c14 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1247,7 +1247,7 @@ exports[`processing state 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1312,7 +1312,7 @@ exports[`processing state 1`] = `
   bottom: 0;
   top: 0;
   left: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   opacity: 1;
   touch-action: none;
 }

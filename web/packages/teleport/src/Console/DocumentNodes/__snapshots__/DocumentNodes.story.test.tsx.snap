@@ -70,7 +70,7 @@ exports[`render DocumentNodes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 6.5px;
@@ -86,8 +86,8 @@ exports[`render DocumentNodes 1`] = `
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -109,7 +109,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -135,8 +135,8 @@ exports[`render DocumentNodes 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -149,8 +149,8 @@ exports[`render DocumentNodes 1`] = `
 .c40:focus-visible,
 .teleport-button__force-focus-visible .c40 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -172,7 +172,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c40:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -201,7 +201,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c33:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -236,7 +236,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c35:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -253,7 +253,7 @@ exports[`render DocumentNodes 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
 }
 
@@ -267,7 +267,7 @@ exports[`render DocumentNodes 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
   margin-right: -8px;
 }
@@ -373,10 +373,10 @@ exports[`render DocumentNodes 1`] = `
   top: 50%;
   width: 12px;
   height: 12px;
-  transform: translate(2px,-50%);
+  transform: translate(2px, -50%);
   border-radius: 14px;
   background: #FFFFFF;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   transition: transform 0.05s ease-in;
 }
 
@@ -387,33 +387,33 @@ exports[`render DocumentNodes 1`] = `
   z-index: -1;
 }
 
-.c22:checked + .c23:before {
-  transform: translate(18px,-50%);
+.c22:checked+.c23:before {
+  transform: translate(18px, -50%);
 }
 
-.c22:enabled:checked + .c23 {
+.c22:enabled:checked+.c23 {
   background: #00BFA6;
 }
 
-.c22:enabled:checked + .c23:hover {
+.c22:enabled:checked+.c23:hover {
   background: #33CCB8;
 }
 
-.c22:enabled:checked + .c23:active {
+.c22:enabled:checked+.c23:active {
   background: #66D9CA;
 }
 
-.c22:disabled + .c23 {
+.c22:disabled+.c23 {
   background: rgba(255,255,255,0.07);
 }
 
-.c22:disabled + .c23:before {
+.c22:disabled+.c23:before {
   opacity: 0.36;
   box-shadow: none;
 }
 
-.c22:disabled:checked + .c23 {
-  background: rgba(0,191,166,0.25);
+.c22:disabled:checked+.c23 {
+  background: rgba(0, 191, 166, 0.25);
 }
 
 .c28 {
@@ -444,39 +444,39 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c36 > thead > tr > th,
-.c36 > tbody > tr > th,
-.c36 > tfoot > tr > th,
-.c36 > thead > tr > td,
-.c36 > tbody > tr > td,
-.c36 > tfoot > tr > td {
+.c36>thead>tr>th,
+.c36>tbody>tr>th,
+.c36>tfoot>tr>th,
+.c36>thead>tr>td,
+.c36>tbody>tr>td,
+.c36>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c36 > thead > tr > th:first-child,
-.c36 > tbody > tr > th:first-child,
-.c36 > tfoot > tr > th:first-child,
-.c36 > thead > tr > td:first-child,
-.c36 > tbody > tr > td:first-child,
-.c36 > tfoot > tr > td:first-child {
+.c36>thead>tr>th:first-child,
+.c36>tbody>tr>th:first-child,
+.c36>tfoot>tr>th:first-child,
+.c36>thead>tr>td:first-child,
+.c36>tbody>tr>td:first-child,
+.c36>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c36 > thead > tr > th:last-child,
-.c36 > tbody > tr > th:last-child,
-.c36 > tfoot > tr > th:last-child,
-.c36 > thead > tr > td:last-child,
-.c36 > tbody > tr > td:last-child,
-.c36 > tfoot > tr > td:last-child {
+.c36>thead>tr>th:last-child,
+.c36>tbody>tr>th:last-child,
+.c36>tfoot>tr>th:last-child,
+.c36>thead>tr>td:last-child,
+.c36>tbody>tr>td:last-child,
+.c36>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c36 > tbody > tr > td {
+.c36>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c36 > thead > tr > th {
+.c36>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -488,11 +488,11 @@ exports[`render DocumentNodes 1`] = `
   white-space: nowrap;
 }
 
-.c36 > thead > tr > th svg {
+.c36>thead>tr>th svg {
   height: 12px;
 }
 
-.c36 > tbody > tr > td {
+.c36>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -512,7 +512,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c36 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -522,7 +522,7 @@ exports[`render DocumentNodes 1`] = `
   height: 100%;
 }
 
-.c36 tbody tr:hover + tr {
+.c36 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
