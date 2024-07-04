@@ -51,7 +51,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sess *common.Session)
 func (e *Engine) SendError(err error) {
 	// TODO: Investigate way to propagate Oracle error message.
 	if err != nil && !utils.IsOKNetworkError(err) {
-		e.Log.WithError(err).Error("Oracle connection error")
+		e.Log.ErrorContext(e.Context, "Oracle connection error", "error", err)
 	}
 }
 
@@ -169,7 +169,7 @@ func (e *Engine) handleServerConn(session *common.Session, clientConn, serverCon
 			switch t := packet.(type) {
 			case *protocol.RefusePacket:
 				// Debug connection errors before accepted phase in order to troubleshoot misconfiguration issues.
-				e.Log.WithField("message", t.Message).Warn("Received Refuse Packet from server.")
+				e.Log.WarnContext(e.Context, "Received Refuse Packet from server.", "message", t.Message)
 			case *protocol.AcceptPacket:
 				if !e.serverNameReceived {
 					return trace.BadParameter("server name package not received")
@@ -207,7 +207,7 @@ func (e *Engine) startAuditPuller(ctx context.Context, data *protocol.DataPacket
 	}
 	go func() {
 		if err := e.auditPuller.Run(ctx); err != nil {
-			e.Log.Error("Closing connections due to active audit log fetcher error: %v", err)
+			e.Log.ErrorContext(e.Context, "Closing connections due to active audit log fetcher error.", "error", err)
 			_ = serverConn.Close()
 			_ = clientConn.Close()
 		}

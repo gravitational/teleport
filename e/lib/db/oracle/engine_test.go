@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -74,7 +75,7 @@ func TestOracleEngine(t *testing.T) {
 	engine := Engine{
 		EngineConfig: common.EngineConfig{
 			Context: context.Background(),
-			Log:     logrus.New(),
+			Log:     slog.Default(),
 			Auth:    &authMock{},
 			Audit:   &auditMock{},
 		},
