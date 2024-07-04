@@ -181,7 +181,7 @@ func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *cli
 		return trace.Wrap(err)
 	}
 
-	e.Log.DebugContext(e.Context, "Updated MySQL server version.", "server-version", serverVersion)
+	e.Log.DebugContext(e.Context, "Updated MySQL server version.", "version", serverVersion)
 	return nil
 }
 

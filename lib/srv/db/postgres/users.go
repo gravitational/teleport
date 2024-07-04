@@ -196,7 +196,7 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	if len(allow) == 0 {
-		e.Log.Info("Skipping applying fine-grained permissions: none to apply.")
+		e.Log.InfoContext(e.Context, "Skipping applying fine-grained permissions: none to apply.")
 		return nil
 	}
 

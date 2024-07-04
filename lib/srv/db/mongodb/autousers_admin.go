@@ -275,6 +275,6 @@ func init() {
 	// This should never fail. There is also an unit test to verify it's always
 	// created. Logging error just in case.
 	if err != nil {
-		slog.WarnContext(context.Background(), "Failed to create MongoDB admin connection cache: %v.", err)
+		slog.WarnContext(context.Background(), "Failed to create MongoDB admin connection cache.", "error", err)
 	}
 }
