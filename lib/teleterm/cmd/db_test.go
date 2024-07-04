@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -27,10 +28,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/trace"
 )
 
 type fakeExec struct{}
@@ -67,6 +72,15 @@ func (m fakeDatabaseGateway) LocalPortInt() int             { return 8888 }
 func (m fakeDatabaseGateway) LocalPort() string             { return "8888" }
 
 func TestNewDBCLICommand(t *testing.T) {
+	// TODO mock other types
+	authClient := &mockAuthClient{
+		database: &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				Protocol: types.DatabaseProtocolMongoDB,
+			},
+		},
+	}
+
 	testCases := []struct {
 		name                  string
 		targetSubresourceName string
@@ -112,12 +126,35 @@ func TestNewDBCLICommand(t *testing.T) {
 				protocol:        tc.protocol,
 			}
 
-			cmds, err := newDBCLICommandWithExecer(&cluster, mockGateway, fakeExec{})
+			cmds, err := newDBCLICommandWithExecer(context.Background(), &cluster, mockGateway, fakeExec{}, authClient)
 			require.NoError(t, err)
 
 			tc.checkCmds(t, mockGateway, cmds)
 		})
 	}
+}
+
+type mockAuthClient struct {
+	authclient.ClientI
+	database *types.DatabaseV3
+}
+
+func (m *mockAuthClient) GetResources(_ context.Context, _ *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	if m.database == nil {
+		return nil, trace.NotFound("not found")
+	}
+	return &proto.ListResourcesResponse{
+		Resources: []*proto.PaginatedResource{{
+			Resource: &proto.PaginatedResource_DatabaseServer{
+				DatabaseServer: &types.DatabaseServerV3{
+					Spec: types.DatabaseServerSpecV3{
+						Database: m.database,
+					},
+				},
+			},
+		}},
+		TotalCount: 1,
+	}, nil
 }
 
 func checkMongoCmds(t *testing.T, gw fakeDatabaseGateway, cmds Cmds) {

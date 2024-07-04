@@ -584,6 +584,9 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	if aws.RDSProxy.Name != "" || aws.RDSProxy.CustomEndpointName != "" {
 		return DatabaseTypeRDSProxy, true
 	}
+	if aws.DocumentDB.ClusterID != "" || aws.DocumentDB.InstanceID != "" {
+		return DatabaseTypeDocumentDB, true
+	}
 	if aws.Region != "" || aws.RDS.InstanceID != "" || aws.RDS.ResourceID != "" || aws.RDS.ClusterID != "" {
 		return DatabaseTypeRDS, true
 	}
@@ -810,6 +813,23 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
+
+	case awsutils.IsDocumentDBEndpoint(d.Spec.URI):
+		endpointInfo, err := awsutils.ParseDocumentDBEndpoint(d.Spec.URI)
+		if err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse DocumentDB endpoint.", "uri", d.Spec.URI, "error", err)
+			break
+		}
+		if d.Spec.AWS.DocumentDB.ClusterID == "" {
+			d.Spec.AWS.DocumentDB.ClusterID = endpointInfo.ClusterID
+		}
+		if d.Spec.AWS.DocumentDB.InstanceID == "" {
+			d.Spec.AWS.DocumentDB.InstanceID = endpointInfo.InstanceID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = endpointInfo.Region
+		}
+		d.Spec.AWS.DocumentDB.EndpointType = endpointInfo.EndpointType
 
 	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
 		// For Azure MySQL and PostgresSQL.
@@ -1046,7 +1066,8 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	case DatabaseTypeAWSKeyspaces,
 		DatabaseTypeDynamoDB,
 		DatabaseTypeOpenSearch,
-		DatabaseTypeRedshiftServerless:
+		DatabaseTypeRedshiftServerless,
+		DatabaseTypeDocumentDB:
 		return true
 	default:
 		return false
@@ -1093,6 +1114,8 @@ func (d *DatabaseV3) GetEndpointType() string {
 		if details, err := awsutils.ParseRDSEndpoint(d.GetURI()); err == nil {
 			return details.EndpointType
 		}
+	case DatabaseTypeDocumentDB:
+		return d.GetAWS().DocumentDB.EndpointType
 	}
 	return ""
 }
@@ -1149,6 +1172,8 @@ const (
 	DatabaseTypeOpenSearch = "opensearch"
 	// DatabaseTypeMongoAtlas
 	DatabaseTypeMongoAtlas = "mongo-atlas"
+	// DatabaseTypeDocumentDB is the database type for AWS-hosted DocumentDB.
+	DatabaseTypeDocumentDB = "docdb"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

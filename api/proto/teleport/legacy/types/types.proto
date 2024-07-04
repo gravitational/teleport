@@ -466,6 +466,12 @@ message AWS {
   IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
+
+  // DocumentDB contains AWS DocumentDB specific metadata.
+  DocumentDB DocumentDB = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "docdb,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -548,6 +554,16 @@ message OpenSearch {
   string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
   // DomainID is the ID of the domain.
   string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// DocumentDB contains AWS DocumentDB specific metadata.
+message DocumentDB {
+  // ClusterID is the cluster identifier.
+  string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
+  // InstanceID is the instance identifier.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
