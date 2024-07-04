@@ -97,8 +97,8 @@ func (c *TerraformCommand) Initialize(app *kingpin.Application, cfg *servicecfg.
 		fmt.Sprintf("Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to [%s]", terraformHelperDefaultTTL),
 	).Default(terraformHelperDefaultTTL).DurationVar(&c.botTTL)
 	c.envCmd.Flag(
-		"use-existing-role",
-		"Existing Terraform role to use instead of creating a new one.",
+		"role",
+		fmt.Sprintf("Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role %q", teleport.PresetTerraformProviderRoleName),
 	).StringVar(&c.existingRole)
 
 	// Save a pointer to the config to be able to recover the Debug config later
@@ -160,11 +160,11 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		switch {
 		case trace.IsNotFound(err) && c.existingRole == "":
 			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
-This role is included by default in Teleport clusters whose version is higher than v16.1 or v17.
+This default role is included by default in Teleport clusters whose version is higher than v16.1 or v17.
 If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
-yourself and set the flag --use-existing-role <your-terraform-role-name>.`, roleName)
+yourself and set the flag --role <your-terraform-role-name>.`, roleName)
 		case trace.IsNotFound(err) && c.existingRole != "":
-			return trace.Wrap(err, `The Terraform role %q specified with --use-existing-role does not exist in your Teleport cluster.
+			return trace.Wrap(err, `The Terraform role %q specified with --role does not exist in your Teleport cluster.
 Please check that the role exists in the cluster.`, roleName)
 		case trace.IsAccessDenied(err):
 			return trace.Wrap(err, `Failed to validate if the role %q exists.
@@ -188,12 +188,12 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 
 	// Now run tbot
 	c.showProgress("🤖 Using the temporary bot to obtain certificates")
-	id, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client)
+	id, sshHostCACerts, err := c.useBotToObtainIdentity(ctx, addr, tokenName, client)
 	if err != nil {
 		return trace.Wrap(err, "The temporary bot failed to connect to Teleport.")
 	}
 
-	envVars, err := identityToTerraformEnvVars(addr.String(), id)
+	envVars, err := identityToTerraformEnvVars(addr.String(), id, sshHostCACerts)
 	if err != nil {
 		return trace.Wrap(err, "exporting identity into environment variables")
 	}
@@ -287,7 +287,9 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // against valid certificates. Those certs are then serialized into an identity file.
 // The output is a set of environment variables, one of them including the base64-encoded identity file.
 // Later, the Terraform provider will read those environment variables to build its Teleport client.
-func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, error) {
+// Note: the function also returns the SSH Host CA cert encoded in the known host format.
+// The identity.Identity uses a different format (authorized keys).
+func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
 	credential := &config.UnstableClientCredentialOutput{}
 	cfg := &config.BotConfig{
 		Version: "",
@@ -315,49 +317,46 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 		// (no man in the middle possible between when we build the auth client and when we run tbot).
 		localCAResponse, err := clt.GetClusterCACert(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err, "getting cluster CA certificate")
+			return nil, nil, trace.Wrap(err, "getting cluster CA certificate")
 		}
 		caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 		if err != nil {
-			return nil, trace.Wrap(err, "calculating CA pins")
+			return nil, nil, trace.Wrap(err, "calculating CA pins")
 		}
 		cfg.Onboarding.CAPins = caPins
 	}
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
-		return nil, trace.Wrap(err, "checking the bot's configuration")
+		return nil, nil, trace.Wrap(err, "checking the bot's configuration")
 	}
 
 	// Run the bot
 	bot := tbot.New(cfg, c.log)
 	err = bot.Run(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "running the bot")
+		return nil, nil, trace.Wrap(err, "running the bot")
 	}
 
 	// Retrieve the credentials obtained by tbot.
 	facade, err := credential.Facade()
 	if err != nil {
-		return nil, trace.Wrap(err, "accessing credentials")
+		return nil, nil, trace.Wrap(err, "accessing credentials")
 	}
 
 	id := facade.Get()
 
 	clusterName, err := clt.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err, "retrieving cluster name")
+		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}
 	knownHosts, err := ssh.GenerateKnownHosts(ctx, clt, []string{clusterName.GetClusterName()}, addr.Host())
 	if err != nil {
-		return nil, trace.Wrap(err, "retrieving SSH Host CA")
+		return nil, nil, trace.Wrap(err, "retrieving SSH Host CA")
 	}
-	id.SSHCACertBytes = [][]byte{
-		[]byte(knownHosts),
-	}
-	// End of workaround
+	sshHostCACerts := [][]byte{[]byte(knownHosts)}
 
-	return id, nil
+	return id, sshHostCACerts, nil
 }
 
 // showProgress sends status update messages ot the user.
@@ -367,7 +366,8 @@ func (c *TerraformCommand) showProgress(update string) {
 
 // identityToTerraformEnvVars takes an identity and builds environment variables
 // configuring the Terraform provider to use this identity.
-func identityToTerraformEnvVars(addr string, id *identity.Identity) (map[string]string, error) {
+// The sshHostCACerts must be in the "known hosts" format.
+func identityToTerraformEnvVars(addr string, id *identity.Identity, sshHostCACerts [][]byte) (map[string]string, error) {
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: id.PrivateKeyBytes,
 		Certs: identityfile.Certs{
@@ -375,7 +375,7 @@ func identityToTerraformEnvVars(addr string, id *identity.Identity) (map[string]
 			TLS: id.TLSCertBytes,
 		},
 		CACerts: identityfile.CACerts{
-			SSH: id.SSHCACertBytes,
+			SSH: sshHostCACerts,
 			TLS: id.TLSCACertsBytes,
 		},
 	}
