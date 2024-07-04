@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
@@ -179,17 +179,19 @@ const AppLaunch = ({ app }: { app: App }) => {
   }
   if (samlApp) {
     return (
-      <ButtonBorder
-        as="a"
+      <ButtonWithMenu
+        text="Log In"
         width="123px"
         size="small"
         target="_blank"
         href={samlAppSsoUrl}
         rel="noreferrer"
         textTransform="none"
+        forwardedAs="a"
+        title="Log in to this SAML application"
       >
-        Login
-      </ButtonBorder>
+        <MenuItem onClick={() => null}>Edit</MenuItem>
+      </ButtonWithMenu>
     );
   }
   return (
