@@ -94,7 +94,7 @@ func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount,
 		Claims: jwt.Claims{
 			Subject:  fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount),
 			Audience: jwt.Audience{clusterName},
-			// To protect against time skep issues, we sign 1 min in the past.
+			// To protect against time skew issues, we sign 1 min in the past.
 			IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 			NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 			// The Kubernetes JWKS join method rejects tokens valid more than 30 minutes.
