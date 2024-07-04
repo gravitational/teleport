@@ -1326,7 +1326,7 @@ func (c *remoteClientCache) Close() error {
 type sessionIDStatus int
 
 const (
-	// sessionIDReceived indicates the the session ID was received
+	// sessionIDReceived indicates the session ID was received
 	sessionIDReceived sessionIDStatus = iota + 1
 	// sessionIDNotSent indicates that the server set the session ID
 	// but didn't send it to us
