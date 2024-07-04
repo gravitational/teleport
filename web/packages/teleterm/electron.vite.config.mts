@@ -17,8 +17,8 @@
  */
 
 import { resolve } from 'node:path';
-
 import { existsSync, readFileSync } from 'node:fs';
+
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
