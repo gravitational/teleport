@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, Dispatch, SetStateAction } from 'react';
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
@@ -35,16 +35,34 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
 
+import { ResourceKind } from 'teleport/Discover/Shared';
+
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
 type Props = {
   resource: UnifiedResource;
+  setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
+  setResourceSpec?: (resourceSpec: ResourceSpec) => void;
 };
 
-export const ResourceActionButton = ({ resource }: Props) => {
+export const ResourceActionButton = ({
+  resource,
+  setUpdateDialogOpen,
+  setResourceSpec,
+}: Props) => {
   switch (resource.kind) {
     case 'node':
       return <NodeConnect node={resource} />;
     case 'app':
-      return <AppLaunch app={resource} />;
+      return (
+        <AppLaunch
+          app={resource}
+          setUpdateDialogOpen={setUpdateDialogOpen}
+          setResourceSpec={setResourceSpec}
+        />
+      );
     case 'db':
       return <DatabaseConnect database={resource} />;
     case 'kube_cluster':
@@ -136,8 +154,18 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   );
 };
 
-const AppLaunch = ({ app }: { app: App }) => {
+type AppLaunchProps = {
+  app: App;
+  setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
+  setResourceSpec?: (resourceSpec: ResourceSpec) => void;
+};
+const AppLaunch = ({
+  app,
+  setUpdateDialogOpen,
+  setResourceSpec,
+}: AppLaunchProps) => {
   const {
+    name,
     launchUrl,
     awsConsole,
     awsRoles,
@@ -147,6 +175,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     isCloudOrTcpEndpoint,
     samlApp,
     samlAppSsoUrl,
+    samlAppPreset,
   } = app;
   if (awsConsole) {
     return (
@@ -177,6 +206,15 @@ const AppLaunch = ({ app }: { app: App }) => {
       </ButtonBorder>
     );
   }
+  function handleSamlAppEditButtonClick() {
+    setUpdateDialogOpen(true);
+    setResourceSpec({
+      name: name,
+      event: DiscoverEventResource.SamlApplication,
+      kind: ResourceKind.SamlApplication,
+      samlMeta: { preset: samlAppPreset },
+    } as ResourceSpec);
+  }
   if (samlApp) {
     return (
       <ButtonWithMenu
@@ -190,7 +228,7 @@ const AppLaunch = ({ app }: { app: App }) => {
         forwardedAs="a"
         title="Log in to this SAML application"
       >
-        <MenuItem onClick={() => null}>Edit</MenuItem>
+        <MenuItem onClick={() => handleSamlAppEditButtonClick()}>Edit</MenuItem>
       </ButtonWithMenu>
     );
   }
