@@ -16,6 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * This needs to be an .mjs file,
+ * because Vite can't import .ts files from a workspace out of the box.
+ * https://github.com/vitejs/vite/issues/5370
+ */
+
 import { resolve } from 'node:path';
 
 import tsconfigPaths from 'vite-tsconfig-paths';
