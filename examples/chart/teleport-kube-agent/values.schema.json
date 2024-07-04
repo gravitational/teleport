@@ -558,6 +558,11 @@
                     "type": "object",
                     "default": {}
                 },
+                "hooks": {
+                    "$id": "#/properties/extraLabels/properties/hooks",
+                    "type": "object",
+                    "default": {}
+                },
                 "pod": {
                     "$id": "#/properties/extraLabels/properties/pod",
                     "type": "object",
