@@ -116,6 +116,7 @@ type PluginStatus interface {
 	GetErrorMessage() string
 	GetLastSyncTime() time.Time
 	GetGitlab() *PluginGitlabStatusV1
+	GetEntraId() *PluginEntraIDStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
