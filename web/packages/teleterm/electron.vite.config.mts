@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 
-import { existsSync, readFileSync } from 'fs';
-
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
+import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
 
@@ -37,9 +36,7 @@ const outputDirectory = resolve(__dirname, 'build', 'app');
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
 const config = defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPaths({
-    projects: [resolve(rootDirectory, 'tsconfig.json')],
-  });
+  const tsConfigPathsPlugin = tsconfigPathsPlugin();
 
   const commonPlugins = [
     externalizeDepsPlugin({ exclude: externalizeDeps }),
