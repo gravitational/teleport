@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/jonboulle/clockwork"
 	"os"
 	"sync"
 
@@ -562,4 +563,38 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		User: "-teleport-internal-join",
 	}
 	return cfg, nil
+}
+
+// GetExpiredCredentialsBestEffort returns the list of credentials we know are expired.
+// This is a best-effort approach so this must only be used to send warnings to the user.
+// This must not be used for any security/validation purposes.
+func GetExpiredCredentialsBestEffort(creds []Credentials) []Credentials {
+	expiredCreds := make([]Credentials, 0, len(creds))
+	for _, cred := range creds {
+		if credentialsAreExpiredBestEffort(cred, clockwork.NewRealClock()) {
+			expiredCreds = append(expiredCreds, cred)
+		}
+	}
+	return expiredCreds
+}
+
+func credentialsAreExpiredBestEffort(cred Credentials, clock clockwork.Clock) bool {
+	tlsConf, err := cred.TLSConfig()
+	if err != nil {
+		// If we fail to get the TLS configuration, this is very weird and something is likely broken
+		// But we cannot say if the credentials are expired
+		return false
+	}
+
+	// A tls.Config can contain multiple certificates (although the current Teleport code creates only single-cert
+	// tls configs). If the Leaf is set we know when the cert expires. Teleport and its client use the utils/keys
+	// package which sets the Leaf. If it is not set, we don't parse it again and just consider that the certificate
+	// is not expired.
+	availableCerts := len(tlsConf.Certificates)
+	for _, cert := range tlsConf.Certificates {
+		if cert.Leaf != nil && cert.Leaf.NotAfter.Before(clock.Now()) {
+			availableCerts--
+		}
+	}
+	return availableCerts == 0
 }

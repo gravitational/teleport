@@ -97,7 +97,7 @@ func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error
 	return TLSCertificateForSigner(k.Signer, certPEMBlock)
 }
 
-// TLSCertificate parses the given TLS certificate(s) paired with the given
+// TLSCertificateForSigner parses the given TLS certificate(s) paired with the given
 // signer to return a tls.Certificate, ready to be used in a TLS handshake.
 func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Certificate, error) {
 	cert := tls.Certificate{
@@ -136,6 +136,10 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 	} else if !keyPub.Equal(x509Cert.PublicKey) {
 		return tls.Certificate{}, trace.BadParameter("private key does not match certificate's public key")
 	}
+
+	// Setting the leaf will allow the tls.Certificate object to not parse a second time the leaf certificate
+	// It also allows us to check quickly the leaf of the tls.Certificate is expired.
+	cert.Leaf = x509Cert
 
 	return cert, nil
 }
