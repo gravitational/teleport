@@ -802,6 +802,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			logFile.Close()
 			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
+		cfg.WatchLogFile = loggerConfig.WatchLogFile
 	}
 
 	level := new(slog.LevelVar)

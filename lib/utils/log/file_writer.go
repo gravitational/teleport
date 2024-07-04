@@ -100,9 +100,9 @@ func (s *FileSharedWriter) Reopen() error {
 	return nil
 }
 
-// RunReopenWatcher spawns goroutine with the watcher loop to consume events of moving
-// or removing the log file to re-open it for log rotation purposes.
-func (s *FileSharedWriter) RunReopenWatcher(ctx context.Context) error {
+// RunWatcherFunc spawns goroutine with the watcher loop to consume events of renaming
+// or removing the log file to trigger the action function when event appeared.
+func (s *FileSharedWriter) RunWatcherFunc(ctx context.Context, action func() error) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return trace.Wrap(err)
@@ -117,7 +117,7 @@ func (s *FileSharedWriter) RunReopenWatcher(ctx context.Context) error {
 				}
 				if s.logFile.Load().Name() == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
 					slog.DebugContext(ctx, "Log file was moved/removed, reopen new one", "file", event.Name)
-					if err := s.Reopen(); err != nil {
+					if err := action(); err != nil {
 						slog.ErrorContext(ctx, "Failed to reopen new file", "error", err, "file", event.Name)
 						continue
 					}

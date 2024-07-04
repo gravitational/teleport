@@ -1357,7 +1357,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// Enable shared log file watcher if configuration is set, to react on rename event.
 	sharedWriter := logutils.GetFileSharedWriter()
 	if cfg.WatchLogFile && sharedWriter != nil {
-		if err := sharedWriter.RunReopenWatcher(process.GracefulExitContext()); err != nil {
+		if err := sharedWriter.RunWatcherFunc(process.GracefulExitContext(), sharedWriter.Reopen); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

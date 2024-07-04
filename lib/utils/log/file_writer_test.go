@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,15 +40,8 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	logFile, err := os.OpenFile(filepath.Join(logDir, "test.log"), testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to open log file")
 
-	// We need to use the watcher in tests as well to react only when the log file is recreated.
-	watcher, err := fsnotify.NewWatcher()
-	require.NoError(t, err)
-	err = watcher.Add(logDir)
-	require.NoError(t, err, "failed to apply watcher to temporary log directory")
-
 	t.Cleanup(func() {
 		cancel()
-		watcher.Close()
 		logFile.Close()
 		fileSharedWriter = nil
 	})
@@ -57,7 +49,12 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	logWriter, err := InitFileSharedWriter(logFile, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
-	err = GetFileSharedWriter().RunReopenWatcher(ctx)
+	signal := make(chan struct{})
+	err = GetFileSharedWriter().RunWatcherFunc(ctx, func() error {
+		err := GetFileSharedWriter().Reopen()
+		signal <- struct{}{}
+		return err
+	})
 	require.NoError(t, err, "failed to run reopen watcher")
 
 	// Write a custom phrase to ensure that the original file was written to before the rotation.
@@ -74,14 +71,10 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	err = os.Rename(logFile.Name(), fmt.Sprintf("%s.1", logFile.Name()))
 	require.NoError(t, err, "can't rename log file")
 
-	timeout := time.After(5 * time.Second)
-	var event fsnotify.Event
-	for !event.Has(fsnotify.Create) || event.Name != logFile.Name() {
-		select {
-		case <-timeout:
-			require.Fail(t, "timed out waiting for file to change")
-		case event = <-watcher.Events:
-		}
+	select {
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for file reopen")
+	case <-signal:
 	}
 
 	// Write a second custom phrase to ensure the previous one is not in the file.

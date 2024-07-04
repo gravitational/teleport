@@ -361,6 +361,7 @@ matches snapshot for log-extra.yaml:
             - caller
             output: json
           output: /var/lib/teleport/test.log
+          watch_log_file: true
           severity: DEBUG
       version: v3
 matches snapshot for proxy-listener-mode-multiplex.yaml:
