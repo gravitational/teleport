@@ -100,7 +100,21 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 		mock.StoreAlert(alert)
 		mock.newAlerts <- alert
 
-		err = json.NewEncoder(rw).Encode(opsgenie.AlertResult{Alert: alert})
+		err = json.NewEncoder(rw).Encode(opsgenie.CreateAlertResult{RequestID: alert.ID})
+		panicIf(err)
+	})
+	router.GET("/v2/alerts/requests/:requestID", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusCreated)
+
+		requestID := ps.ByName("requestID")
+		err := json.NewEncoder(rw).Encode(opsgenie.GetAlertRequestResult{
+			Data: struct {
+				AlertID string `json:"alertId"`
+			}{
+				AlertID: requestID,
+			},
+		})
 		panicIf(err)
 	})
 	router.POST("/v2/alerts/:alertID/close", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -142,6 +156,38 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 		err = json.NewEncoder(rw).Encode(note)
 		panicIf(err)
 
+	})
+	router.GET("/v2/schedules/:scheduleName/on-calls", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+		scheduleName := ps.ByName("scheduleName")
+
+		// Check if exists
+		_, ok := mock.GetSchedule(scheduleName)
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		emails := mock.GetOnCallEmailsForSchedule(scheduleName)
+
+		response := opsgenie.RespondersResult{
+			Data: struct {
+				OnCallRecipients []string `json:"onCallRecipients,omitempty"`
+			}(
+				struct {
+					OnCallRecipients []string
+				}{
+					OnCallRecipients: emails,
+				},
+			),
+		}
+
+		rw.WriteHeader(http.StatusOK)
+		err := json.NewEncoder(rw).Encode(response)
+		panicIf(err)
+	})
+	router.GET("/v2/heartbeats/teleport-access-heartbeat/ping", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.WriteHeader(http.StatusOK)
 	})
 	return mock
 }
@@ -235,8 +281,62 @@ func (s *FakeOpsgenie) CheckNewAlertNote(ctx context.Context) (FakeAlertNote, er
 	}
 }
 
+// StoreSchedule upserts a schedule. To simplify the implementation, the schedule
+// is not given a UUID, we use its name. This is possible because we get the on-call
+// list in Client.GetOnCall() by passing the param "scheduleIdentifierType": "name".
+// The function also creates a responder for the schedule and returns it.
+// The schedule can then be directly notified as a responder, or queried for
+// on-call users as a schedule.
+func (s *FakeOpsgenie) StoreSchedule(scheduleName string, responders ...opsgenie.Responder) opsgenie.Responder {
+	key := fmt.Sprintf("schedule-%s", scheduleName)
+	s.objects.Store(key, responders)
+	responder := opsgenie.Responder{
+		Name: scheduleName,
+		Type: opsgenie.ResponderTypeSchedule,
+	}
+	responder = s.StoreResponder(responder)
+	return responder
+}
+
+// GetSchedule gets a schedule.
+func (s *FakeOpsgenie) GetSchedule(scheduleName string) ([]opsgenie.Responder, bool) {
+	key := fmt.Sprintf("schedule-%s", scheduleName)
+	value, ok := s.objects.Load(key)
+	if !ok {
+		return nil, false
+	}
+	responders, ok := value.([]opsgenie.Responder)
+	if !ok {
+		panic("cannot cast schedule object as a responder slice")
+	}
+	return responders, true
+}
+
 func panicIf(err error) {
 	if err != nil {
 		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
+}
+
+func (s *FakeOpsgenie) GetOnCallEmailsForSchedule(scheduleName string) []string {
+	var emails []string
+	responders, ok := s.GetSchedule(scheduleName)
+	if !ok {
+		return nil
+	}
+	for _, responder := range responders {
+		switch responder.Type {
+		case opsgenie.ResponderTypeSchedule:
+			emails = append(emails, s.GetOnCallEmailsForSchedule(responder.Name)...)
+		case opsgenie.ResponderTypeUser:
+			// If the responder is a user, we return its email
+			emails = append(emails, responder.Name)
+		default:
+			// We don't implement "team" and "escalation" responder types because
+			// we don't test those yet.
+		}
+
+	}
+
+	return emails
 }

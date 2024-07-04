@@ -41,7 +41,7 @@ test('primary username and password with mfa off', () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
 });
@@ -64,7 +64,7 @@ test('auth2faType: otp', () => {
   fireEvent.change(screen.getByPlaceholderText(/123 456/i), {
     target: { value: '456' },
   });
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
@@ -91,7 +91,7 @@ test('auth2faType: webauthn', async () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
   expect(onLoginWithWebauthn).toHaveBeenCalledWith({
     username: 'username',
     password: '123',
@@ -113,7 +113,7 @@ test('input validation error handling', async () => {
     />
   );
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithSso).not.toHaveBeenCalled();

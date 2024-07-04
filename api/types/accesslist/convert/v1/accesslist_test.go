@@ -159,27 +159,25 @@ func TestFromProtoNils(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("membership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Membership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
-	})
-
-	t.Run("ownership", func(t *testing.T) {
-		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.Ownership = ""
-
-		uut, err := FromProto(msg)
-		require.NoError(t, err)
-		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
-	})
-
 	t.Run("owner_grants", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
 		msg.Spec.OwnerGrants = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+
+	t.Run("status", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+
+	t.Run("member_count", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Status.MemberCount = nil
 
 		_, err := FromProto(msg)
 		require.NoError(t, err)
@@ -189,6 +187,7 @@ func TestFromProtoNils(t *testing.T) {
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	t.Helper()
 
+	memberCount := uint32(10)
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
@@ -240,6 +239,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 		},
 	)
 	require.NoError(t, err)
+
+	accessList.Status = accesslist.Status{
+		MemberCount: &memberCount,
+	}
+
 	return accessList
 }
 

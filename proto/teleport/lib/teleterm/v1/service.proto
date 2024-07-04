@@ -20,7 +20,9 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/app.proto";
@@ -233,9 +235,23 @@ message DeleteAccessRequestRequest {
 message CreateAccessRequestRequest {
   string root_cluster_uri = 1;
   string reason = 2;
+  // a list of roles requested
   repeated string roles = 3;
+  // suggested_reviewers is a suggested list of reviewers that can review a request.
   repeated string suggested_reviewers = 4;
+  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
+  // a list of resourceIDs requested in the AccessRequest
   repeated ResourceID resource_ids = 5;
+  // assume_start_time is the time after which the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 6;
+  // dry_run is a flag that indicates whether the request is a dry run to check and set defaults,
+  // and return before actually creating the request in the backend.
+  bool dry_run = 7;
+  // max_duration is the maximum duration for which the request is valid.
+  google.protobuf.Timestamp max_duration = 8;
+  // request_ttl is the expiration time of the request (how long it will await
+  // approval).
+  google.protobuf.Timestamp request_ttl = 9;
 }
 
 message CreateAccessRequestResponse {
@@ -264,6 +280,8 @@ message ReviewAccessRequestRequest {
   string reason = 3;
   repeated string roles = 4;
   string access_request_id = 5;
+  // Overwrites the requested start time (optional).
+  google.protobuf.Timestamp assume_start_time = 6;
 }
 
 message ReviewAccessRequestResponse {
@@ -584,6 +602,8 @@ message ListUnifiedResourcesRequest {
   bool search_as_roles = 8;
   // Only the pinned resources will be returned for the requesting user.
   bool pinned_only = 9;
+  // include_requestable indicates that the response should include resources that the user must request access to.
+  bool include_requestable = 10;
 }
 
 message SortBy {
@@ -607,6 +627,7 @@ message PaginatedResource {
     Kube kube = 3;
     App app = 4;
   }
+  bool requires_request = 5;
 }
 
 message GetUserPreferencesRequest {
@@ -638,7 +659,12 @@ message AuthenticateWebDeviceRequest {
   // Device web token to be spent in exchange for the device authentication
   // attempt.
   teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
+  string root_cluster_uri = 2;
 }
 
 // Response for AuthenticateWebDevice.
-message AuthenticateWebDeviceResponse {}
+message AuthenticateWebDeviceResponse {
+  // Device confirmation token to be sent to the browser that originated the
+  // authentication attempt.
+  teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}

@@ -18,20 +18,43 @@ package types
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+)
+
+var (
+	// ErrPasswordlessRequiresWebauthn is issued if a passwordless challenge is
+	// requested but WebAuthn isn't enabled.
+	ErrPasswordlessRequiresWebauthn = &trace.BadParameterError{
+		Message: "passwordless requires WebAuthn",
+	}
+
+	// ErrPasswordlessDisabledBySettings is issued if a passwordless challenge is
+	// requested but passwordless is disabled by cluster settings.
+	// See AuthPreferenceV2.AuthPreferenceV2.
+	ErrPasswordlessDisabledBySettings = &trace.BadParameterError{
+		Message: "passwordless disabled by cluster settings",
+	}
+
+	// ErrPassswordlessLoginBySSOUser is issued if an SSO user tries to login
+	// using passwordless.
+	ErrPassswordlessLoginBySSOUser = &trace.AccessDeniedError{
+		Message: "SSO user cannot login using passwordless",
+	}
 )
 
 // AuthPreference defines the authentication preferences for a specific
@@ -148,8 +171,16 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+	// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+	SetSignatureAlgorithmSuite(SignatureAlgorithmSuite)
+
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// Clone makes a deep copy of the AuthPreference.
+	Clone() AuthPreference
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -216,16 +247,6 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 // GetMetadata returns object metadata.
 func (c *AuthPreferenceV2) GetMetadata() Metadata {
 	return c.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (c *AuthPreferenceV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *AuthPreferenceV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -298,7 +319,7 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 		}
 		return constants.SecondFactorOTP
 	default:
-		log.Warnf("Unexpected second_factor setting: %v", sf)
+		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
 		return "" // Unsure, say nothing.
 	}
 }
@@ -323,7 +344,7 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	case trace.IsNotFound(err): // OK, expected to happen in some cases.
 		return false
 	case err != nil:
-		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
+		slog.WarnContext(context.Background(), "Got unexpected error when reading Webauthn config", "error", err)
 		return false
 	}
 
@@ -528,6 +549,16 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Metadata.Name = MetaNameClusterAuthPreference
 }
 
+// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
+}
+
+// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+func (c *AuthPreferenceV2) SetSignatureAlgorithmSuite(suite SignatureAlgorithmSuite) {
+	c.Spec.SignatureAlgorithmSuite = suite
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -568,10 +599,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if c.Spec.SecondFactor == constants.SecondFactorU2F {
-		log.Warnf(`` +
+		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
@@ -738,6 +770,11 @@ func (c *AuthPreferenceV2) String() string {
 	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
 }
 
+// Clone returns a copy of the AuthPreference resource.
+func (c *AuthPreferenceV2) Clone() AuthPreference {
+	return utils.CloneProtoMsg(c)
+}
+
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
@@ -775,7 +812,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		default:
 			return trace.BadParameter("failed to infer webauthn RPID from U2F App ID (%q)", u.AppID)
 		}
-		log.Infof("WebAuthn: RPID inferred from U2F configuration: %q", rpID)
+		slog.InfoContext(context.Background(), "WebAuthn: RPID inferred from U2F configuration", "rpid", rpID)
 		w.RPID = rpID
 	default:
 		return trace.BadParameter("webauthn configuration missing rp_id")
@@ -784,7 +821,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	// AttestationAllowedCAs.
 	switch {
 	case u != nil && len(u.DeviceAttestationCAs) > 0 && len(w.AttestationAllowedCAs) == 0 && len(w.AttestationDeniedCAs) == 0:
-		log.Infof("WebAuthn: using U2F device attestation CAs as allowed CAs")
+		slog.InfoContext(context.Background(), "WebAuthn: using U2F device attestation CAs as allowed CAs")
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
@@ -888,8 +925,6 @@ func (d *MFADevice) GetVersion() string      { return d.Version }
 func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
 func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
 func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetResourceID() int64    { return d.Metadata.GetID() }
-func (d *MFADevice) SetResourceID(id int64)  { d.Metadata.SetID(id) }
 func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
 func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
 func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }

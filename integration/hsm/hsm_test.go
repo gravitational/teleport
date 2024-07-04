@@ -36,8 +36,11 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -54,7 +57,9 @@ func TestMain(m *testing.M) {
 	modules.SetModules(&modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			HSM: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.HSM: {Enabled: true},
+			},
 		},
 	})
 
@@ -65,6 +70,7 @@ func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log utils.Log
 	config := newAuthConfig(t, log)
 	config.Auth.StorageConfig = *storageConfig
 	config.Auth.KeyStore = keystore.HSMTestConfig(t)
+	config.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
 	return config
 }
 
@@ -75,9 +81,9 @@ func etcdBackendConfig(t *testing.T) *backend.Config {
 		Params: backend.Params{
 			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        prefix,
-			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
-			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
-			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
+			"tls_key_file":  "../../fixtures/etcdcerts/client-key.pem",
+			"tls_cert_file": "../../fixtures/etcdcerts/client-cert.pem",
+			"tls_ca_file":   "../../fixtures/etcdcerts/ca-cert.pem",
 		},
 	}
 	t.Cleanup(func() {
@@ -179,10 +185,10 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 }
 
-func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
-	identity, err := auth.ReadLocalIdentity(
+func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		auth.IdentityID{Role: types.RoleAdmin})
+		state.IdentityID{Role: types.RoleAdmin})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,7 +198,7 @@ func getAdminClient(authDataDir string, authAddr string) (*auth.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewClient(client.Config{
+	clt, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -447,10 +453,10 @@ func TestHSMMigrate(t *testing.T) {
 	// start a dual auth non-hsm cluster
 	log.Debug("TestHSMMigrate: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(t, storageConfig, log)
-	auth1Config.Auth.KeyStore = keystore.Config{}
+	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1 := newTeleportService(t, auth1Config, "auth1")
 	auth2Config := newHSMAuthConfig(t, storageConfig, log)
-	auth2Config.Auth.KeyStore = keystore.Config{}
+	auth2Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth1.start(ctx))
 	require.NoError(t, auth2.start(ctx))
@@ -606,7 +612,7 @@ func TestHSMRevert(t *testing.T) {
 	// Switch config back to default (software) and restart.
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = keystore.Config{}
+	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1 = newTeleportService(t, auth1Config, "auth1")
 	require.NoError(t, auth1.start(ctx))
 

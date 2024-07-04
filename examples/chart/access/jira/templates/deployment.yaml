@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "jira.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "jira.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "jira.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "jira.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - "--config"
+            - "/etc/teleport-jira.toml"
+          env:
+            - name: "TELEPORT_PLUGIN_FAIL_FAST"
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8443
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport-jira.toml
+              subPath: teleport-jira.toml
+            - name: teleport-identity
+              mountPath: /var/lib/teleport/plugins/jira/teleport-identity
+            - name: {{ .Values.secretVolumeName }}
+              mountPath: "/var/lib/teleport/plugins/jira/jira_api_token"
+              subPath: {{ .Values.jira.apiTokenSecretPath }}
+            - name: {{ .Values.tlsSecretVolumeName }}
+              mountPath: "/var/lib/teleport/plugins/jira/tls/tls.key"
+              subPath: {{ .Values.http.tlsKeySecretPath }}
+            - name: {{ .Values.tlsSecretVolumeName }}
+              mountPath: "/var/lib/teleport/plugins/jira/tls/tls.crt"
+              subPath: {{ .Values.http.tlsCertSecretPath }}
+            {{- with .Values.volumeMounts -}}
+              {{- toYaml . | nindent 12 }}
+            {{- end}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "jira.fullname" . }}
+            defaultMode: 0600
+        - name: teleport-identity
+          secret:
+            secretName: "{{ .Values.teleport.identityFromSecret }}"
+            defaultMode: 0600
+        - name: {{ .Values.secretVolumeName }}
+          secret:
+            secretName: "{{ coalesce .Values.jira.apiTokenFromSecret (printf "%s-secret" (include "jira.fullname" .)) }}"
+            defaultMode: 0600
+        - name: {{ .Values.tlsSecretVolumeName }}
+          secret:
+            secretName: "{{ .Values.http.tlsFromSecret }}"
+            defaultMode: 0600
+        {{- with .Values.volumes -}}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}

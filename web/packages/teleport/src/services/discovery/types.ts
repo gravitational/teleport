@@ -27,20 +27,50 @@ export type DiscoveryConfig = {
   aws: AwsMatcher[];
 };
 
-type AwsMatcherDatabaseTypes = 'ec2' | 'rds';
+type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
-// AWSMatcher matches AWS EC2 instances and AWS Databases
+export enum InstallParamEnrollMode {
+  Script = 1,
+  Eice = 2,
+}
+
+// AWSMatcher matches AWS EC2 instances, AWS EKS clusters and AWS Databases
 export type AwsMatcher = {
-  // types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+  // types are AWS types to match, "ec2", "eks", "rds", "redshift", "elasticache",
   // or "memorydb".
-  types: AwsMatcherDatabaseTypes[];
-  // regions are AWS regions to query for databases.
+  types: AwsMatcherTypes[];
+  // regions are AWS regions to query for resources.
   regions: Regions[];
   // tags are AWS resource tags to match.
   tags: Labels;
   // integration is the integration name used to generate credentials to interact with AWS APIs.
   // Environment credentials will not be used when this value is set.
   integration: string;
+  // kubeAppDiscovery specifies if Kubernetes App Discovery should be enabled for a discovered cluster.
+  kubeAppDiscovery?: boolean;
+  /**
+   * install sets the join method when installing on
+   * discovered EC2 nodes
+   */
+  install?: {
+    /**
+     * enrollMode indicates the mode used to enroll the node into Teleport.
+     */
+    enrollMode: InstallParamEnrollMode;
+    /**
+     * installTeleport disables agentless discovery
+     */
+    installTeleport: boolean;
+    /**
+     * joinToken is the token to use when joining the cluster
+     */
+    joinToken: string;
+  };
+  /**
+   * ssm provides options to use when sending a document command to
+   * an EC2 node
+   */
+  ssm?: { documentName: string };
 };
 
 type Labels = Record<string, string[]>;

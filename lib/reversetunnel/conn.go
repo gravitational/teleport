@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -109,7 +110,7 @@ type connConfig struct {
 func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "discovery",
+			teleport.ComponentKey: "discovery",
 		}),
 		connConfig:  cfg,
 		clock:       clockwork.NewRealClock(),

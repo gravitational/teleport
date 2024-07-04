@@ -24,21 +24,20 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Reconciled holds the common information required by any subject of the Reconciler.
-type Reconciled interface {
-	GetName() string
-}
-
 // ReconcilerConfig is the resource reconciler configuration.
-type ReconcilerConfig[T Reconciled] struct {
+type ReconcilerConfig[T any] struct {
 	// Matcher is used to match resources.
 	Matcher Matcher[T]
-	// GetCurrentResources returns currently registered resources.
+	// GetCurrentResources returns currently registered resources. Note that the
+	// map keys must be consistent across the current and new resources.
 	GetCurrentResources func() map[string]T
 	// GetNewResources returns resources to compare current resources against.
+	// Note that the map keys must be consistent across the current and new
+	// resources.
 	GetNewResources func() map[string]T
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, T) error
@@ -74,13 +73,13 @@ func (c *ReconcilerConfig[T]) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing reconciler OnDelete")
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "reconciler")
+		c.Log = logrus.WithField(teleport.ComponentKey, "reconciler")
 	}
 	return nil
 }
 
 // NewReconciler creates a new reconciler with provided configuration.
-func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
+func NewReconciler[T any](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,7 +99,7 @@ func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error
 //
 // It's used in combination with watchers by agents (app, database, desktop)
 // to enable dynamically registered resources.
-type Reconciler[T Reconciled] struct {
+type Reconciler[T any] struct {
 	cfg ReconcilerConfig[T]
 	log *logrus.Entry
 }
@@ -117,15 +116,15 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
 	var errs []error
 
 	// Process already registered resources to see if any of them were removed.
-	for _, current := range currentResources {
-		if err := r.processRegisteredResource(ctx, newResources, current); err != nil {
+	for key, current := range currentResources {
+		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
 	// Add new resources if there are any or refresh those that were updated.
-	for _, newResource := range newResources {
-		if err := r.processNewResource(ctx, currentResources, newResource); err != nil {
+	for key, newResource := range newResources {
+		if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -135,8 +134,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
 
 // processRegisteredResource checks the specified registered resource against the
 // new list of resources.
-func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResources map[string]T, registered T) error {
-	name := registered.GetName()
+func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResources map[string]T, name string, registered T) error {
 	// See if this registered resource is still present among "new" resources.
 	if _, ok := newResources[name]; ok {
 		return nil
@@ -156,8 +154,7 @@ func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResour
 
 // processNewResource checks the provided new resource agsinst currently
 // registered resources.
-func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources map[string]T, newT T) error {
-	name := newT.GetName()
+func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources map[string]T, name string, newT T) error {
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
 	registered, ok := currentResources[name]

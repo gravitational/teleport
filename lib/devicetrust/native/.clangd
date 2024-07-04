@@ -1,2 +1,2 @@
-lib/devicetrust/native/.clangdCompileFlags:
+CompileFlags:
   Add: [-Wall, -xobjective-c, -fblocks, -fobjc-arc]

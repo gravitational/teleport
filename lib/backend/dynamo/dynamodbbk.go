@@ -44,6 +44,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -167,7 +168,6 @@ type record struct {
 	Value     []byte
 	Timestamp int64
 	Expires   *int64 `json:"Expires,omitempty"`
-	ID        int64
 	Revision  string
 }
 
@@ -220,7 +220,7 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 
 	var cfg *Config
 	err := utils.ObjectToStruct(params, &cfg)
@@ -252,9 +252,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
 
-	awsConfig := aws.Config{
-		EC2MetadataEnableFallback: aws.Bool(false),
-	}
+	awsConfig := aws.Config{}
 	if cfg.Region != "" {
 		awsConfig.Region = aws.String(cfg.Region)
 	}
@@ -429,7 +427,6 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		values[i] = backend.Item{
 			Key:      trimPrefix(r.FullPath),
 			Value:    r.Value,
-			ID:       r.ID,
 			Revision: r.Revision,
 		}
 		if r.Expires != nil {
@@ -467,6 +464,14 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 	return nil, trace.BadParameter("backend entered endless loop")
 }
 
+const (
+	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+	// consisting of up to 25 item put or delete operations.
+	batchOperationItemsLimit = 25
+)
+
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
@@ -479,7 +484,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 	// keep the very large limit, just in case if someone else
 	// keeps adding records
 	for i := 0; i < backend.DefaultRangeLimit/100; i++ {
-		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), 100, nil)
+		result, err := b.getRecords(ctx, prependPrefix(startKey), prependPrefix(endKey), batchOperationItemsLimit, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -524,7 +529,6 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	item := &backend.Item{
 		Key:      trimPrefix(r.FullPath),
 		Value:    r.Value,
-		ID:       r.ID,
 		Revision: r.Revision,
 	}
 	if r.Expires != nil {
@@ -557,7 +561,6 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		FullPath:  prependPrefix(replaceWith.Key),
 		Value:     replaceWith.Value,
 		Timestamp: time.Now().UTC().Unix(),
-		ID:        time.Now().UTC().UnixNano(),
 		Revision:  replaceWith.Revision,
 	}
 	if !replaceWith.Expires.IsZero() {
@@ -932,7 +935,6 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		FullPath:  prependPrefix(item.Key),
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
-		ID:        time.Now().UTC().UnixNano(),
 		Revision:  backend.CreateRevision(),
 	}
 	if !item.Expires.IsZero() {

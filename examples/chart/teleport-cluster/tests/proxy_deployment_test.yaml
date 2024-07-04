@@ -164,6 +164,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set podSecurityContext when set in values
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/pod-security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 99
+
+  - it: should not set podSecurityContext when is empty object (default value)
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/pod-security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.securityContext
+
   - it: should set securityContext when set in values
     template: proxy/deployment.yaml
     values:
@@ -958,3 +987,58 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: proxy-serviceaccount-token
             readOnly: true
+
+  - it: sets extraLabels on Deployment
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        deployment:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          deployment:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: sets extraLabels on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        pod:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          pod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
+  - it: sets clusterDomain on Deployment Pods
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[3]
+          pattern: ".svc.test.com$"

@@ -39,6 +39,7 @@ service IntegrationService {
   rpc DeleteIntegration(DeleteIntegrationRequest) returns (google.protobuf.Empty);
 
   // DeleteAllIntegrations removes all Integrations.
+  // DEPRECATED: Can't delete all integrations over gRPC.
   rpc DeleteAllIntegrations(DeleteAllIntegrationsRequest) returns (google.protobuf.Empty);
 
   // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
@@ -88,6 +89,7 @@ message DeleteIntegrationRequest {
 }
 
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
+// DEPRECATED: Can't delete all integrations over gRPC.
 message DeleteAllIntegrationsRequest {}
 
 // GenerateAWSOIDCTokenRequest are the parameters used to request an AWS OIDC
@@ -98,6 +100,11 @@ message GenerateAWSOIDCTokenRequest {
   //
   // Deprecated: Ignored because value is calculated server side.
   string issuer = 1 [deprecated = true];
+
+  // Integration is the AWS OIDC Integration name.
+  // If not provided, it will use the Teleport's Proxy Public URL as issuer.
+  // Optional.
+  string integration = 2;
 }
 
 // GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.

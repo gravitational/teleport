@@ -48,6 +48,21 @@ const (
 	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
+// Match checks if the given role matches this filter.
+func (f *RoleFilter) Match(role *RoleV6) bool {
+	if f.SkipSystemRoles && IsSystemResource(role) {
+		return false
+	}
+
+	if len(f.SearchKeywords) != 0 {
+		if !role.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Role contains a set of permissions or settings
 type Role interface {
 	// Resource provides common resource methods.
@@ -310,16 +325,6 @@ func (r *RoleV6) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (r *RoleV6) SetSubKind(s string) {
 	r.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (r *RoleV6) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *RoleV6) SetResourceID(id int64) {
-	r.Metadata.ID = id
 }
 
 // GetRevision returns the revision

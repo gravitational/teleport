@@ -21,3 +21,23 @@ tests:
       - equal:
           path: spec.minAvailable
           value: 2
+
+  - it: sets extraLabels on PodDisruptionBudget
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      extraLabels:
+        podDisruptionBudget:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          podDisruptionBudget:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden

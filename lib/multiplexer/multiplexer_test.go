@@ -47,8 +47,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -123,6 +123,48 @@ func TestMux(t *testing.T) {
 
 		// use new client to use new connection pool
 		client = testClient(backend1)
+		re, err = client.Get(backend1.URL)
+		if err == nil {
+			re.Body.Close()
+		}
+		require.Error(t, err)
+	})
+	t.Run("HTTP", func(t *testing.T) {
+		t.Parallel()
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		mux, err := New(Config{
+			Listener: listener,
+		})
+		require.NoError(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.HTTP(),
+			Config: &http.Server{
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					fmt.Fprintf(w, "backend 1")
+				}),
+			},
+		}
+		backend1.Start()
+		defer backend1.Close()
+
+		re, err := http.Get(backend1.URL)
+		require.NoError(t, err)
+		defer re.Body.Close()
+		bytes, err := io.ReadAll(re.Body)
+		require.NoError(t, err)
+		require.Equal(t, "backend 1", string(bytes))
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+
+		// Use new client to use new connection pool
+		client := &http.Client{Transport: &http.Transport{}}
 		re, err = client.Get(backend1.URL)
 		if err == nil {
 			re.Body.Close()
@@ -703,7 +745,9 @@ func TestMux(t *testing.T) {
 			DNSNames:  []string{"127.0.0.1"},
 		})
 		require.NoError(t, err)
-		serverCert, err := tls.X509KeyPair(serverPEM, tlsca.MarshalPrivateKeyPEM(serverRSAKey))
+		serverKeyPEM, err := keys.MarshalPrivateKey(serverRSAKey)
+		require.NoError(t, err)
+		serverCert, err := tls.X509KeyPair(serverPEM, serverKeyPEM)
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
@@ -723,7 +767,9 @@ func TestMux(t *testing.T) {
 			NotAfter:  time.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		clientCert, err := tls.X509KeyPair(clientPEM, tlsca.MarshalPrivateKeyPEM(clientRSAKey))
+		clientKeyPEM, err := keys.MarshalPrivateKey(clientRSAKey)
+		require.NoError(t, err)
+		clientCert, err := tls.X509KeyPair(clientPEM, clientKeyPEM)
 		require.NoError(t, err)
 
 		webLis, err := NewWebListener(WebListenerConfig{
@@ -1178,7 +1224,6 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	clock := clockwork.NewFakeClockAt(time.Now())
 	jwtSigner, err := jwt.New(&jwt.Config{
 		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  proxyPriv,
 	})
@@ -1282,7 +1327,6 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 			jwtVerifier, err := jwt.New(&jwt.Config{
 				Clock:       clock,
 				PublicKey:   cert.PublicKey,
-				Algorithm:   defaults.ApplicationTokenAlgorithm,
 				ClusterName: clusterName,
 			})
 			require.NoError(b, err, "Could not create JWT verifier")

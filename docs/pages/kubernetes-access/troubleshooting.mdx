@@ -221,3 +221,54 @@ spec:
 
 Once the roles are created, you can assign them to users as usual, but
 to be effective immediately, they must logout and login again.
+
+## Unable to exec into a Pod with kubectl 1.30+
+
+```text
+pods "<pod_name>" is forbidden: User "<user>" cannot get resource "pods/exec" in API group "" in the namespace "<namespace>"
+```
+
+### Symptoms
+
+After upgrading `kubectl` to version 1.30 or later, attempts to exec into a Pod
+fail with an error similar to:
+
+```text
+pods "<pod_name>" is forbidden: User "<user>" cannot get resource "pods/exec" in API group "" in the namespace "<namespace>"
+```
+
+### Explanation
+
+Starting with Kubernetes 1.30, the `kubectl exec` command switched from using
+the SPDY protocol to the WebSocket protocol for communicating with the Kubernetes
+API server. This change was made to enhance the performance and reliability of
+the `kubectl exec` command, as the SPDY protocol was deprecated.
+
+Although WebSocket was intended to be a drop-in replacement for SPDY, it introduced
+a breaking change for Kubernetes clusters where RBAC was configured to restrict
+access to the `pods/exec` resource using only the `create` verb. Previously,
+the SPDY protocol allowed creating a connection using either
+`GET` (mapped to `get` in Kubernetes RBAC) or
+`POST` (mapped to `create` in Kubernetes RBAC).
+
+With the WebSocket protocol, the `kubectl exec` command always uses the `GET`
+method to create a connection. This means that if the RBAC policy permits only
+the `create` verb, the connection will be denied.
+
+### Resolution
+
+To resolve this issue, update the RBAC policy to allow the `get` verb for
+the `pods/exec` (sub)resource. This can be done by modifying the `ClusterRole`
+or `Role` that grants access to the user.
+
+For example, if you have a `ClusterRole` that grants access to the `pods/exec`
+resource with the `create` verb, update it to allow the `get` verb as well:
+
+```yaml
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create", "get"]
+```
+
+Once the `ClusterRole` is updated, you should be able to exec into Pods using
+`kubectl` version 1.30 or later.

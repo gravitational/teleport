@@ -69,7 +69,7 @@ export default function getSsoIcon(kind: AuthProviderType) {
           </MultiIconContainer>
         ),
         desc,
-        info: 'Okta, OneLogin, Azure Active Directory, etc.',
+        info: 'Okta, OneLogin, Microsoft Entra ID, etc.',
       };
     case 'oidc':
     default:

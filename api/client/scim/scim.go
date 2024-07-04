@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 )
@@ -64,12 +65,21 @@ func (c *Client) CreateSCIMResource(ctx context.Context, req *scimpb.CreateSCIMR
 	return resp, nil
 }
 
-// UpdateResource handles a request to update a resource, returning a
+// UpdateSCIMResource handles a request to update a resource, returning a
 // representation of the updated resource
 func (c *Client) UpdateSCIMResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
 	res, err := c.grpcClient.UpdateSCIMResource(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "handling SCIM update request")
+	}
+	return res, nil
+}
+
+// DeleteSCIMResource handles a request to delete a resource.
+func (c *Client) DeleteSCIMResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) (*emptypb.Empty, error) {
+	res, err := c.grpcClient.DeleteSCIMResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "handling SCIM delete request")
 	}
 	return res, nil
 }

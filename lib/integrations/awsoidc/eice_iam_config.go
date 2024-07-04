@@ -20,11 +20,11 @@ package awsoidc
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -142,6 +142,9 @@ func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEI
 		return trace.Wrap(err)
 	}
 
-	logrus.Infof("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleEICEPolicy, req.IntegrationRole)
+	slog.InfoContext(ctx, "IAM Policy added to Integration Role",
+		"role", req.IntegrationRole,
+		"policy", req.IntegrationRoleEICEPolicy,
+	)
 	return nil
 }

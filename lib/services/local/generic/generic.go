@@ -51,6 +51,10 @@ type ServiceConfig[T Resource] struct {
 	BackendPrefix string
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -80,12 +84,13 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 
 // Service is a generic service for interacting with resources in the backend.
 type Service[T Resource] struct {
-	backend       backend.Backend
-	resourceKind  string
-	pageLimit     uint
-	backendPrefix string
-	marshalFunc   MarshalFunc[T]
-	unmarshalFunc UnmarshalFunc[T]
+	backend                     backend.Backend
+	resourceKind                string
+	pageLimit                   uint
+	backendPrefix               string
+	marshalFunc                 MarshalFunc[T]
+	unmarshalFunc               UnmarshalFunc[T]
+	runWhileLockedRetryInterval time.Duration
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -96,12 +101,13 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		backend:       cfg.Backend,
-		resourceKind:  cfg.ResourceKind,
-		pageLimit:     cfg.PageLimit,
-		backendPrefix: cfg.BackendPrefix,
-		marshalFunc:   cfg.MarshalFunc,
-		unmarshalFunc: cfg.UnmarshalFunc,
+		backend:                     cfg.Backend,
+		resourceKind:                cfg.ResourceKind,
+		pageLimit:                   cfg.PageLimit,
+		backendPrefix:               cfg.BackendPrefix,
+		marshalFunc:                 cfg.MarshalFunc,
+		unmarshalFunc:               cfg.UnmarshalFunc,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -121,6 +127,21 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 	}
 }
 
+// CountResources will return a count of all resources in the prefix range.
+func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
+	rangeStart := backend.ExactKey(s.backendPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+
+	count := uint(0)
+	err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, int(s.pageLimit),
+		func(items []backend.Item) (stop bool, err error) {
+			count += uint(len(items))
+			return false, nil
+		})
+
+	return count, trace.Wrap(err)
+}
+
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	rangeStart := backend.ExactKey(s.backendPrefix)
@@ -134,7 +155,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -175,7 +196,7 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -192,6 +213,54 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return out, next, nil
 }
 
+// ListResourcesWithFilter returns a paginated list of resources that match the given filter.
+func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > int(s.pageLimit) {
+		pageSize = int(s.pageLimit)
+	}
+
+	limit := pageSize + 1
+
+	var resources []T
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		limit,
+		func(items []backend.Item) (stop bool, err error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				if matcher(resource) {
+					resources = append(resources, resource)
+				}
+				if len(resources) == pageSize {
+					break
+				}
+			}
+			return limit == len(resources), nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var nextKey string
+	if len(resources) > pageSize {
+		nextKey = backend.GetPaginationKey(resources[pageSize])
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:pageSize]
+	}
+
+	return resources, nextKey, nil
+
+}
+
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
 	item, err := s.backend.Get(ctx, s.MakeKey(name))
@@ -202,7 +271,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -235,6 +304,26 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	}
 
 	lease, err := s.backend.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	types.SetRevision(resource, lease.Revision)
+	return resource, trace.Wrap(err)
+}
+
+// ConditionalUpdateResource updates an existing resource if revision matches.
+func (s *Service[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	var t T
+	item, err := s.MakeBackendItem(resource, resource.GetName())
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
 	if trace.IsNotFound(err) {
 		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
 	}
@@ -293,7 +382,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
+		services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -343,12 +432,6 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	//nolint:staticcheck // SA1019. Added for backward compatibility.
-	item.ID, err = types.GetResourceID(resource)
-	if err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
 	return item, nil
 }
 
@@ -362,9 +445,10 @@ func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl ti
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  s.backend,
-				LockName: lockName,
-				TTL:      ttl,
+				Backend:       s.backend,
+				LockName:      lockName,
+				TTL:           ttl,
+				RetryInterval: s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)

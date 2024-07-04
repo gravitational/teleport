@@ -27,9 +27,11 @@ import (
 )
 
 func TestDiscordPluginOSS(t *testing.T) {
-	discordSuite := &DiscordSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	discordSuite := &DiscordSuiteOSS{
+		DiscordBaseSuite: DiscordBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, discordSuite)

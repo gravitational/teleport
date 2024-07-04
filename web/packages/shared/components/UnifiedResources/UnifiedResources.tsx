@@ -47,6 +47,7 @@ import {
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
@@ -69,6 +70,7 @@ import {
   PinningSupport,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
+  IncludedResourceMode,
 } from './types';
 
 import { ResourceTab } from './ResourceTab';
@@ -104,7 +106,7 @@ const tabs: { label: string; value: DefaultTab }[] = [
  * BulkAction describes a component that allows you to perform an action
  * on multiple selected resources
  */
-type BulkAction = {
+export type BulkAction = {
   /*
    * key is an arbitrary name of what the bulk action is, as well
    * as the key used when mapping our action components
@@ -130,6 +132,16 @@ export type FilterKind = {
   kind: SharedUnifiedResource['resource']['kind'];
   disabled: boolean;
 };
+
+export type ResourceAvailabilityFilter =
+  | {
+      canRequestAll: true;
+      mode: IncludedResourceMode;
+    }
+  | {
+      canRequestAll: false;
+      mode: Exclude<IncludedResourceMode, 'all'>;
+    };
 
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
@@ -164,6 +176,7 @@ export interface UnifiedResourcesProps {
    * while the unified resources component is visible.
    */
   unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
+  availabilityFilter?: ResourceAvailabilityFilter;
   unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
@@ -177,6 +190,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourcesFetchAttempt,
     resources,
     fetchResources,
+    availabilityFilter,
     availableKinds,
     pinning,
     unifiedResourcePreferencesAttempt,
@@ -333,6 +347,33 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
   };
 
+  const changeAvailableResourceMode = (
+    includedResourceMode: IncludedResourceMode
+  ) => {
+    let mode = AvailableResourceMode.UNSPECIFIED;
+    switch (includedResourceMode) {
+      case 'none':
+        mode = AvailableResourceMode.NONE;
+        break;
+      case 'accessible':
+        mode = AvailableResourceMode.ACCESSIBLE;
+        break;
+      case 'requestable':
+        mode = AvailableResourceMode.REQUESTABLE;
+        break;
+      case 'all':
+        mode = AvailableResourceMode.ALL;
+        break;
+      default:
+        includedResourceMode satisfies never;
+    }
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      availableResourceMode: mode,
+    });
+    setParams({ ...params, includedResourceMode });
+  };
+
   const getSelectedResources = () => {
     return resources
       .filter(({ resource }) =>
@@ -355,13 +396,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         key: 'pin_resource',
         text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
         Icon: PushPin,
-        tooltip:
-          pinning.kind === 'not-supported'
-            ? PINNING_NOT_SUPPORTED_MESSAGE
-            : null,
-        disabled:
-          pinning.kind === 'not-supported' ||
-          updatePinnedResourcesAttempt.status === 'processing',
+        disabled: updatePinnedResourcesAttempt.status === 'processing',
         action: () => handlePinSelected(shouldUnpin),
       },
     ];
@@ -447,6 +482,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
       {props.Header}
       <FilterPanel
+        availabilityFilter={availabilityFilter}
+        changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
         setParams={setParams}
         availableKinds={availableKinds}
@@ -484,7 +521,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                         `}
                       >
                         <Icon size="small" color="brand" mr={2} />
-                        {text}
+                        <Text className="BulkActionText">{text}</Text>
                       </ButtonBorder>
                     );
                     return (
@@ -505,10 +542,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             <ResourceTab
               key={tab.value}
               onClick={() => selectTab(tab.value)}
-              disabled={
-                tab.value === DefaultTab.PINNED &&
-                pinning.kind === 'not-supported'
-              }
+              disabled={false}
               title={tab.label}
               isSelected={
                 params.pinnedOnly
@@ -519,71 +553,69 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           ))}
         </Flex>
       )}
-      {pinning.kind === 'not-supported' && params.pinnedOnly ? (
-        <PinningNotSupported />
-      ) : (
-        <>
-          <ViewComponent
-            onLabelClick={label =>
-              setParams({
-                ...params,
-                search: '',
-                query: makeAdvancedSearchQueryForLabel(label, params),
-              })
-            }
-            pinnedResources={pinnedResources}
-            selectedResources={selectedResources}
-            onSelectResource={handleSelectResource}
-            onPinResource={handlePinResource}
-            pinningSupport={getResourcePinningSupport(
-              pinning.kind,
-              updatePinnedResourcesAttempt
-            )}
-            isProcessing={
-              // we don't check for '' in resourcesFetchAttempt because
-              // `keyBasedPagination` returns to that status on abort errors.
-              resourcesFetchAttempt.status === 'processing' ||
-              getPinnedResourcesAttempt.status === '' ||
-              getPinnedResourcesAttempt.status === 'processing' ||
-              unifiedResourcePreferencesAttempt?.status === '' ||
-              unifiedResourcePreferencesAttempt?.status === 'processing'
-            }
-            mappedResources={
-              // Hide the resources until the preferences are fetched.
-              // ViewComponent supports infinite scroll, so it shows both already loaded resources
-              // and a loading indicator if needed.
-              !unifiedResourcePreferencesAttempt ||
-              hasFinished(unifiedResourcePreferencesAttempt)
-                ? resources.map(unifiedResource => ({
-                    item: mapResourceToViewItem(unifiedResource),
-                    key: generateUnifiedResourceKey(unifiedResource.resource),
-                  }))
-                : []
-            }
-            expandAllLabels={expandAllLabels}
+      <ViewComponent
+        onLabelClick={label =>
+          setParams({
+            ...params,
+            search: '',
+            query: makeAdvancedSearchQueryForLabel(label, params),
+          })
+        }
+        pinnedResources={pinnedResources}
+        selectedResources={selectedResources}
+        onSelectResource={handleSelectResource}
+        onPinResource={handlePinResource}
+        pinningSupport={getResourcePinningSupport(
+          pinning.kind,
+          updatePinnedResourcesAttempt
+        )}
+        isProcessing={
+          // we don't check for '' in resourcesFetchAttempt because
+          // `keyBasedPagination` returns to that status on abort errors.
+          resourcesFetchAttempt.status === 'processing' ||
+          getPinnedResourcesAttempt.status === '' ||
+          getPinnedResourcesAttempt.status === 'processing' ||
+          unifiedResourcePreferencesAttempt?.status === '' ||
+          unifiedResourcePreferencesAttempt?.status === 'processing'
+        }
+        mappedResources={
+          // Hide the resources until the preferences are fetched.
+          // ViewComponent supports infinite scroll, so it shows both already loaded resources
+          // and a loading indicator if needed.
+          !unifiedResourcePreferencesAttempt ||
+          hasFinished(unifiedResourcePreferencesAttempt)
+            ? resources.map(({ ui, resource }) => ({
+                item: mapResourceToViewItem({
+                  ui,
+                  resource: {
+                    ...resource,
+                    // if we are in 'requestable' only mode, then all resources returned
+                    // require a request and should be displayed that way
+                    requiresRequest:
+                      resource.requiresRequest ||
+                      availabilityFilter?.mode === 'requestable',
+                  },
+                }),
+                key: generateUnifiedResourceKey(resource),
+              }))
+            : []
+        }
+        expandAllLabels={expandAllLabels}
+      />
+      <div ref={setTrigger} />
+      <ListFooter>
+        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
+          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
+        )}
+        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
+        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
+        {noResults && !isSearchEmpty && (
+          <NoResults
+            isPinnedTab={params.pinnedOnly}
+            query={params?.query || params?.search}
           />
-          <div ref={setTrigger} />
-          <ListFooter>
-            {resourcesFetchAttempt.status === 'failed' &&
-              resources.length > 0 && (
-                <ButtonSecondary onClick={onRetryClicked}>
-                  Load more
-                </ButtonSecondary>
-              )}
-            {noResults &&
-              isSearchEmpty &&
-              !params.pinnedOnly &&
-              props.NoResources}
-            {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-            {noResults && !isSearchEmpty && (
-              <NoResults
-                isPinnedTab={params.pinnedOnly}
-                query={params?.query || params?.search}
-              />
-            )}
-          </ListFooter>
-        </>
-      )}
+        )}
+      </ListFooter>
     </div>
   );
 }
@@ -605,10 +637,6 @@ function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
   updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {
-  if (pinning === 'not-supported') {
-    return PinningSupport.NotSupported;
-  }
-
   if (pinning === 'hidden') {
     return PinningSupport.Hidden;
   }
@@ -633,14 +661,6 @@ function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" textAlign="center">
       <Text typography="h3">You have not pinned any resources</Text>
-    </Box>
-  );
-}
-
-function PinningNotSupported() {
-  return (
-    <Box p={8} mt={3} mx="auto" maxWidth="720px" textAlign="center">
-      <Text typography="h3">{PINNING_NOT_SUPPORTED_MESSAGE}</Text>
     </Box>
   );
 }
@@ -716,3 +736,35 @@ const ListFooter = styled.div`
   min-height: ${INDICATOR_SIZE};
   text-align: center;
 `;
+
+/**
+ * Returns an intersection of `availableResourceMode` and `canRequestAllResources`.
+ * Since the cluster admin can change the `showResources`
+ * setting, we shouldn't blindly follow the user preferences.
+ *
+ * Instead, if the user can't see all resources, we should default to accessible ones.
+ */
+export function getResourceAvailabilityFilter(
+  availableResourceMode: AvailableResourceMode,
+  canRequestAllResources: boolean
+): ResourceAvailabilityFilter {
+  switch (availableResourceMode) {
+    case AvailableResourceMode.NONE:
+      if (!canRequestAllResources) {
+        return { mode: 'accessible', canRequestAll: false };
+      }
+      return { mode: 'none', canRequestAll: true };
+    case AvailableResourceMode.ALL:
+      if (!canRequestAllResources) {
+        return { mode: 'accessible', canRequestAll: false };
+      }
+      return { mode: 'all', canRequestAll: true };
+    case AvailableResourceMode.UNSPECIFIED:
+    case AvailableResourceMode.ACCESSIBLE:
+      return { mode: 'accessible', canRequestAll: canRequestAllResources };
+    case AvailableResourceMode.REQUESTABLE:
+      return { mode: 'requestable', canRequestAll: canRequestAllResources };
+    default:
+      availableResourceMode satisfies never;
+  }
+}

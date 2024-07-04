@@ -20,6 +20,7 @@ package accesslist
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -40,6 +42,7 @@ import (
 type mockMessagingBot struct {
 	lastReminderRecipients []common.Recipient
 	recipients             map[string]*common.Recipient
+	mutex                  sync.Mutex
 }
 
 func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
@@ -47,11 +50,27 @@ func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 }
 
 func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
 	return nil
 }
 
+func (m *mockMessagingBot) getLastRecipients() []common.Recipient {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.lastReminderRecipients
+}
+
+func (m *mockMessagingBot) resetLastRecipients() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.lastReminderRecipients = make([]common.Recipient, 0)
+}
+
 func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	fetchedRecipient, ok := m.recipients[recipient]
 	if !ok {
 		return nil, trace.NotFound("recipient %s not found", recipient)
@@ -92,13 +111,8 @@ func TestAccessListReminders(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClock(),
-		},
-	})
-	require.NoError(t, err)
+	server := newTestAuth(t)
+
 	as := server.Auth()
 	t.Cleanup(func() {
 		require.NoError(t, as.Close())
@@ -199,13 +213,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClock(),
-		},
-	})
-	require.NoError(t, err)
+	server := newTestAuth(t)
 	as := server.Auth()
 	t.Cleanup(func() {
 		require.NoError(t, as.Close())
@@ -255,14 +263,13 @@ func advanceAndLookForRecipients(t *testing.T,
 	advance time.Duration,
 	accessList *accesslist.AccessList,
 	recipients ...string) {
-	t.Helper()
 
 	ctx := context.Background()
 
 	_, err := alSvc.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
-	bot.lastReminderRecipients = nil
+	bot.resetLastRecipients()
 
 	var expectedRecipients []common.Recipient
 	if len(recipients) > 0 {
@@ -274,5 +281,22 @@ func advanceAndLookForRecipients(t *testing.T,
 	clock.Advance(advance)
 	clock.BlockUntil(1)
 
-	require.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
+	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
+}
+
+func newTestAuth(t *testing.T) *auth.TestServer {
+	server, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return server
 }

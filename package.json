@@ -10,24 +10,25 @@
     "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
     "build-term": "yarn workspace @gravitational/teleterm build",
     "start-term": "yarn workspace @gravitational/teleterm start",
-    "start-term-skip-native-deps": "yarn workspace @gravitational/teleterm start-skip-native-deps",
     "package-term": "yarn workspace @gravitational/teleterm package",
     "storybook": "start-storybook -p 9002 -c web/.storybook -s web/.storybook/public",
     "storybook-smoke-test": "yarn storybook --ci --smoke-test",
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
-    "test-update-snapshot": "yarn test -- --updateSnapshot",
+    "test-update-snapshot": "yarn test --updateSnapshot",
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
+    "lint-fix": "yarn prettier-write && yarn eslint --fix",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
+    "prettier-write": "yarn prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
   "resolutions": {
+    "esbuild": "^0.20.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "**/d3-color": "^3.1.0",
@@ -39,8 +40,8 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "typescript": "^5.3.2"
+    "prettier": "^3.3.2",
+    "typescript": "^5.4.5"
   },
   "workspaces": {
     "packages": [

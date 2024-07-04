@@ -23,11 +23,21 @@ import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import {
+  ExcludeUserField,
+  type User,
+  type UserTraits,
+} from 'teleport/services/user';
 
 import { ResourceKind } from '../ResourceKind';
 
-import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
-import type { User, UserTraits } from 'teleport/services/user';
+import type {
+  AppMeta,
+  DbMeta,
+  KubeMeta,
+  NodeMeta,
+} from 'teleport/Discover/useDiscover';
 
 // useUserTraits handles:
 //  - retrieving the latest user (for the dynamic traits) from the backend
@@ -61,20 +71,27 @@ export function useUserTraits() {
   let staticTraits = initUserTraits();
   switch (resourceSpec.kind) {
     case ResourceKind.Kubernetes:
-      const kube = (agentMeta as KubeMeta).kube;
-      staticTraits.kubeUsers = arrayStrDiff(
-        kube.users,
-        dynamicTraits.kubeUsers
-      );
-      staticTraits.kubeGroups = arrayStrDiff(
-        kube.groups,
-        dynamicTraits.kubeGroups
-      );
+      if (!wantAutoDiscover) {
+        const kube = (agentMeta as KubeMeta).kube;
+        staticTraits.kubeUsers = arrayStrDiff(
+          kube.users,
+          dynamicTraits.kubeUsers
+        );
+        staticTraits.kubeGroups = arrayStrDiff(
+          kube.groups,
+          dynamicTraits.kubeGroups
+        );
+      }
       break;
 
     case ResourceKind.Server:
-      const node = (agentMeta as NodeMeta).node;
-      staticTraits.logins = arrayStrDiff(node.sshLogins, dynamicTraits.logins);
+      if (!wantAutoDiscover) {
+        const node = (agentMeta as NodeMeta).node;
+        staticTraits.logins = arrayStrDiff(
+          node.sshLogins,
+          dynamicTraits.logins
+        );
+      }
       break;
 
     case ResourceKind.Database:
@@ -91,10 +108,22 @@ export function useUserTraits() {
       }
       break;
 
-    default:
+    // Note: specific to AWS CLI access
+    case ResourceKind.Application:
+      if (resourceSpec.appMeta?.awsConsole) {
+        const { awsRoles } = (agentMeta as AppMeta).app;
+        staticTraits.awsRoleArns = arrayStrDiff(
+          awsRoles.map(r => r.arn),
+          dynamicTraits.awsRoleArns
+        );
+        break;
+      }
       throw new Error(
-        `useUserTraits.ts:statiTraits: resource kind ${resourceSpec.kind} is not handled`
+        `resource kind is application, but there is no handler defined`
       );
+
+    default:
+      throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
   }
 
   useEffect(() => {
@@ -121,24 +150,27 @@ export function useUserTraits() {
   ) {
     switch (resourceSpec.kind) {
       case ResourceKind.Kubernetes:
-        const newDynamicKubeUsers = new Set<string>();
+        let newDynamicKubeUsers = new Set<string>();
         traitOpts.kubeUsers.forEach(o => {
           if (!staticTraits.kubeUsers.includes(o.value)) {
             newDynamicKubeUsers.add(o.value);
           }
         });
 
-        const newDynamicKubeGroups = new Set<string>();
+        let newDynamicKubeGroups = new Set<string>();
         traitOpts.kubeGroups.forEach(o => {
           if (!staticTraits.kubeGroups.includes(o.value)) {
             newDynamicKubeGroups.add(o.value);
           }
         });
 
-        nextStep({
-          kubeUsers: [...newDynamicKubeUsers],
-          kubeGroups: [...newDynamicKubeGroups],
-        });
+        nextStep(
+          {
+            kubeUsers: [...newDynamicKubeUsers],
+            kubeGroups: [...newDynamicKubeGroups],
+          },
+          numStepsToIncrement
+        );
         break;
 
       case ResourceKind.Server:
@@ -149,14 +181,11 @@ export function useUserTraits() {
           }
         });
 
-        nextStep({ logins: [...newDynamicLogins] });
+        nextStep({ logins: [...newDynamicLogins] }, numStepsToIncrement);
         break;
 
       case ResourceKind.Database:
         let newDynamicDbUsers = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbUsers = new Set(dynamicTraits.databaseUsers);
-        }
         traitOpts.databaseUsers.forEach(o => {
           if (!staticTraits.databaseUsers.includes(o.value)) {
             newDynamicDbUsers.add(o.value);
@@ -164,9 +193,6 @@ export function useUserTraits() {
         });
 
         let newDynamicDbNames = new Set<string>();
-        if (wantAutoDiscover) {
-          newDynamicDbNames = new Set(dynamicTraits.databaseNames);
-        }
         traitOpts.databaseNames.forEach(o => {
           if (!staticTraits.databaseNames.includes(o.value)) {
             newDynamicDbNames.add(o.value);
@@ -182,10 +208,28 @@ export function useUserTraits() {
         );
         break;
 
-      default:
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta?.awsConsole) {
+          let newDynamicArns = new Set<string>();
+          traitOpts.awsRoleArns.forEach(o => {
+            if (!staticTraits.awsRoleArns.includes(o.value)) {
+              newDynamicArns.add(o.value);
+            }
+          });
+
+          nextStep(
+            {
+              awsRoleArns: [...newDynamicArns],
+            },
+            numStepsToIncrement
+          );
+          break;
+        }
         throw new Error(
-          `useUserTrait.ts:onProceed: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 
@@ -240,10 +284,37 @@ export function useUserTraits() {
         });
         break;
 
-      default:
+      case ResourceKind.Application:
+        if (resourceSpec.appMeta?.awsConsole) {
+          const app = (meta as AppMeta).app;
+          const arns = [
+            ...staticTraits.awsRoleArns,
+            ...newDynamicTraits.awsRoleArns,
+          ];
+          const awsRoles = arns.map(arn => {
+            const { arnResourceName, awsAccountId } = splitAwsIamArn(arn);
+            return {
+              name: arnResourceName,
+              arn,
+              display: arnResourceName,
+              accountId: awsAccountId,
+            };
+          });
+          updateAgentMeta({
+            ...meta,
+            app: {
+              ...app,
+              awsRoles,
+            },
+          });
+          break;
+        }
         throw new Error(
-          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${resourceSpec.kind} is not handled`
+          `resource kind is application, but there is no handler defined`
         );
+
+      default:
+        throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
   }
 
@@ -252,7 +323,7 @@ export function useUserTraits() {
     numStepsToSkip?: number
   ) {
     if (isSsoUser || !canEditUser) {
-      next();
+      next(numStepsToSkip);
       return;
     }
 
@@ -261,13 +332,16 @@ export function useUserTraits() {
     setAttempt({ status: 'processing' });
     try {
       await ctx.userService
-        .updateUser({
-          ...user,
-          traits: {
-            ...user.traits,
-            ...newDynamicTraits,
+        .updateUser(
+          {
+            ...user,
+            traits: {
+              ...user.traits,
+              ...newDynamicTraits,
+            },
           },
-        })
+          ExcludeUserField.AllTraits
+        )
         .catch((error: Error) => {
           emitErrorEvent(`error updating user traits: ${error.message}`);
           throw error;

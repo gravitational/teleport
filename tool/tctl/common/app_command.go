@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,7 +68,7 @@ func (c *AppsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "apps ls".
-func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.appsList.FullCommand():
 		err = c.ListApps(ctx, client)
@@ -80,7 +80,7 @@ func (c *AppsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
-func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
+func (c *AppsCommand) ListApps(ctx context.Context, clt *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

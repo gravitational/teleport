@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+
 import { routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 
-import { App } from 'teleterm/services/tshd/types';
 import {
   getWebAppLaunchUrl,
   isWebApp,
@@ -29,12 +30,25 @@ import {
 
 import { DocumentOrigin } from './types';
 
+/**
+ * connectToApp launches an app in the browser, with the exception of TCP apps, for which it either
+ * sets up an app gateway or launches VNet if supported.
+ *
+ * Unlike other connectTo* functions, connectToApp is oriented towards the search bar. In other
+ * contexts outside of the search bar, you typically want to open apps in the browser. In that case,
+ * you don't need connectToApp – you can just use a regular link instead. In the search bar you
+ * select a div, so there's no href you can add.
+ */
 export async function connectToApp(
   ctx: IAppContext,
+  /**
+   * launchVnet is supposed to be provided if VNet is supported. If so, connectToApp is going to use
+   * this function when targeting a TCP app. Otherwise it'll create an app gateway.
+   */
+  launchVnet: null | (() => Promise<[void, Error]>),
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
-    launchInBrowserIfWebApp?: boolean;
     arnForAwsApp?: string;
   }
 ): Promise<void> {
@@ -75,7 +89,7 @@ export async function connectToApp(
     return;
   }
 
-  if (isWebApp(target) && options?.launchInBrowserIfWebApp) {
+  if (isWebApp(target)) {
     launchAppInBrowser(
       ctx,
       target,
@@ -88,6 +102,22 @@ export async function connectToApp(
     );
     return;
   }
+
+  // TCP app
+  if (launchVnet) {
+    await connectToAppWithVnet(ctx, launchVnet, target);
+    return;
+  }
+
+  await setUpAppGateway(ctx, target, telemetry);
+}
+
+export async function setUpAppGateway(
+  ctx: IAppContext,
+  target: App,
+  telemetry: { origin: DocumentOrigin }
+) {
+  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
 
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
@@ -111,6 +141,36 @@ export async function connectToApp(
   }
 }
 
+export async function connectToAppWithVnet(
+  ctx: IAppContext,
+  launchVnet: () => Promise<[void, Error]>,
+  target: App
+) {
+  const [, err] = await launchVnet();
+  if (err) {
+    return;
+  }
+
+  const addrToCopy = target.publicAddr;
+  try {
+    await navigator.clipboard.writeText(addrToCopy);
+  } catch (error) {
+    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
+    // prompt, the Electron app throws an error about clipboard write permission being denied.
+    if (error['name'] === 'NotAllowedError') {
+      console.error(error);
+      ctx.notificationsService.notifyInfo(
+        `Connect via VNet by using ${addrToCopy}.`
+      );
+      return;
+    }
+    throw error;
+  }
+  ctx.notificationsService.notifyInfo(
+    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
+  );
+}
+
 /**
  * When the app is opened outside Connect,
  * the usage event has to be captured manually.
@@ -120,7 +180,12 @@ export function captureAppLaunchInBrowser(
   target: Pick<App, 'uri'>,
   telemetry: { origin: DocumentOrigin }
 ) {
-  ctx.usageService.captureProtocolUse(target.uri, 'app', telemetry.origin);
+  ctx.usageService.captureProtocolUse({
+    uri: target.uri,
+    protocol: 'app',
+    origin: telemetry.origin,
+    accessThrough: 'proxy_service',
+  });
 }
 
 function launchAppInBrowser(

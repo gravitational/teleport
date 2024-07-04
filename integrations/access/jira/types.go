@@ -18,11 +18,86 @@
 
 package jira
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/gravitational/trace"
+)
+
 // Jira REST API resources
 
+// ErrorResult is used to parse the errors from Jira.
+// The JSON Schema is specified here:
+// https://docs.atlassian.com/software/jira/docs/api/REST/1000.1223.0/#error-responses
+// However JIRA does not consistently respect the schema (especially for old instances).
+// We need to support legacy errors as well (array of strings).
 type ErrorResult struct {
-	ErrorMessages []string `url:"errorMessages"`
-	Errors        []string `url:"errors"`
+	ErrorMessages []string     `url:"errorMessages" json:"errorMessages"`
+	Details       ErrorDetails `url:"errors" json:"errors"`
+}
+
+// Error implements the error interface and returns a string describing the
+// error returned by Jira.
+func (e ErrorResult) Error() string {
+	sb := strings.Builder{}
+	if len(e.ErrorMessages) > 0 {
+		sb.WriteString(fmt.Sprintf("error messages: %s ", strings.Join(e.ErrorMessages, ";")))
+	}
+	if details := e.Details.String(); details != "" {
+		sb.WriteString(fmt.Sprintf("error details: %s", details))
+	}
+	result := sb.String()
+	if result == "" {
+		return "Unknown Jira error"
+	}
+	return result
+}
+
+// ErrorDetails are used to unmarshall inconsistently formatted Jira errors
+// details.
+type ErrorDetails struct {
+	// Errors contain object-formatted Jira Errors. Usually Jira returns
+	// errors in an object where keys are single word representing what is
+	// broken, and values containing text description of the issue.
+	// This is the official return format, according to Jira's docs.
+	Errors map[string]string
+	// LegacyErrors ensures backward compatibility with Jira errors returned as
+	// a list. It's unclear which Jira version and which part of Jira can return
+	// such errors, but they existed at some point, and we might still get them.
+	LegacyErrors []string
+}
+
+func (e *ErrorDetails) UnmarshalJSON(data []byte) error {
+	// Try to parse as a new error
+	var errors map[string]string
+	if err := json.Unmarshal(data, &errors); err == nil {
+		e.Errors = errors
+		return nil
+	}
+
+	// Try to parse as a legacy error
+	var legacyErrors []string
+	if err := json.Unmarshal(data, &legacyErrors); err == nil {
+		e.LegacyErrors = legacyErrors
+		return nil
+	}
+
+	// Everything failed, we return an unrmarshalling error that contains the data.
+	// This way, even if everything failed, the user still has the original response in the logs.
+	return trace.Errorf("Failed to unmarshal Jira error: %q", string(data))
+}
+
+func (e ErrorDetails) String() string {
+	switch {
+	case len(e.Errors) > 0:
+		return fmt.Sprintf("%s", e.Errors)
+	case len(e.LegacyErrors) > 0:
+		return fmt.Sprintf("%s", e.LegacyErrors)
+	default:
+		return ""
+	}
 }
 
 type GetMyPermissionsQueryOptions struct {

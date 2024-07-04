@@ -28,11 +28,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,10 +64,12 @@ func fakeGetExecutablePath() (string, error) {
 
 // mockProvider is a minimal Bot impl that can be used in tests
 type mockProvider struct {
-	cfg               *BotConfig
-	proxyAddr         string
-	remoteClusterName string
-	clusterName       string
+	cfg                   *BotConfig
+	proxyAddr             string
+	remoteClusterName     string
+	clusterName           string
+	isTLSRouting          bool
+	isALPNUpgradeRequired bool
 }
 
 func newMockProvider(cfg *BotConfig) *mockProvider {
@@ -72,10 +78,17 @@ func newMockProvider(cfg *BotConfig) *mockProvider {
 		proxyAddr:         mockProxyAddr,
 		clusterName:       mockClusterName,
 		remoteClusterName: mockRemoteClusterName,
+		isTLSRouting:      true,
 	}
 }
 
-func (p *mockProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (p *mockProvider) IsALPNConnUpgradeRequired(
+	ctx context.Context, addr string, insecure bool,
+) (bool, error) {
+	return p.isALPNUpgradeRequired, nil
+}
+
+func (p *mockProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	rc, err := types.NewRemoteCluster(p.remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,23 +155,29 @@ func (p *mockProvider) AuthPing(_ context.Context) (*proto.PingResponse, error) 
 	}, nil
 }
 
-func (p *mockProvider) GenerateHostCert(
+func (p *mockProvider) SignX509SVIDs(
 	ctx context.Context,
-	key []byte, hostID, nodeName string, principals []string,
-	clusterName string, role types.SystemRole, ttl time.Duration,
-) ([]byte, error) {
+	in *machineidv1pb.SignX509SVIDsRequest,
+	opts ...grpc.CallOption,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return nil, nil
+}
+
+func (p *mockProvider) GenerateHostCert(
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
 	// We could generate a cert easily enough here, but the template generates a
 	// random key each run so the resulting cert will change too.
 	// The CA fixture isn't even a cert but we never examine it, so it'll do the
 	// job.
-	return []byte(fixtures.SSHCAPublicKey), nil
+	return &trustpb.GenerateHostCertResponse{SshCertificate: []byte(fixtures.SSHCAPublicKey)}, nil
 }
 
 func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
 	return &webclient.PingResponse{
 		ClusterName: p.clusterName,
 		Proxy: webclient.ProxySettings{
-			TLSRoutingEnabled: true,
+			TLSRoutingEnabled: p.isTLSRouting,
 			SSH: webclient.SSHProxySettings{
 				PublicAddr: p.proxyAddr,
 			},
@@ -173,13 +192,6 @@ func (p *mockProvider) Config() *BotConfig {
 // identRequest is a function used to add additional requests to an identity in
 // getTestIdent.
 type identRequest func(id *tlsca.Identity)
-
-// kubernetesRequest requests a Kubernetes cluster.
-func kubernetesRequest(k8sCluster string) identRequest {
-	return func(id *tlsca.Identity) {
-		id.KubernetesCluster = k8sCluster
-	}
-}
 
 // getTestIdent returns a mostly-valid bot Identity without starting up an
 // entire Teleport server instance.
@@ -196,7 +208,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	tlsPublicKeyPEM, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
-	tlsPublicKey, err := tlsca.ParsePublicKeyPEM(tlsPublicKeyPEM)
+	tlsPublicKey, err := keys.ParsePublicKey(tlsPublicKeyPEM)
 	require.NoError(t, err)
 
 	// Note: it'd be nice to make this more universally useful in our tests at

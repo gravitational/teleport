@@ -36,8 +36,6 @@ higher.
 
 - A Google Cloud account.
 
-<VarList/>
-
 ## Step 1/5. Create a key ring in GCP
 
 Each Teleport Auth Server will need to be configured to use a GCP key ring
@@ -122,6 +120,13 @@ $ gcloud kms keyrings add-iam-policy-binding <Var name="teleport-keyring"/> \
     --member "serviceAccount:${SERVICE_ACCOUNT}" \
     --role "${IAM_ROLE}"
 ```
+
+<Admonition type="warning">
+Be aware that anyone with access to this service account will be able to create
+signatures as if they are the Teleport CA.
+It should be considered highly privileged and access should be restricted as
+much as possible.
+</Admonition>
 
 ## Step 3/5. Provide the service account credentials to your Auth Server
 

@@ -1,14 +1,14 @@
 ---
-title: AWS Redshift Automatic User Provisioning 
-description: Configure automatic user provisioning for AWS Redshift.
+title: Amazon Redshift Automatic User Provisioning
+description: Configure automatic user provisioning for Amazon Redshift.
 ---
 
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
 ## Prerequisites
 
-- Teleport cluster v14.1.3 or higher with a configured [AWS
-  Redshift](../guides/postgres-redshift.mdx) database.
+- Teleport cluster v14.1.3 or higher with a configured [Amazon
+  Redshift](../enroll-aws-databases/postgres-redshift.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
@@ -55,6 +55,10 @@ Users created within the database will:
 ### Use your mapped remote username error
 
 (!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
+
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT pid,starttime,duration,trim(user_name) AS user,trim(query) AS query FROM stv_recents WHERE status = 'Running';"!)
+
+(!docs/pages/includes/database-access/psql-ssl-syscall-error.mdx!)
 
 ## Next steps
 

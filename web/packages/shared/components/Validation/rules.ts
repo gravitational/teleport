@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { IAM_ROLE_NAME_REGEX } from 'teleport/services/integrations/aws';
+
 /**
  * The result of validating a field.
  */
@@ -95,13 +97,6 @@ const requiredConfirmedPassword =
     };
   };
 
-/**
- * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
- *
- * The regex checks for alphanumerics and select few characters.
- */
-const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
 const isIamRoleNameValid = roleName => {
   return (
     roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
@@ -199,6 +194,34 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
   };
 };
 
+/**
+ * A rule function that combines multiple inner rule functions. All rules must
+ * return `valid`, otherwise it returns a comma separated string containing all
+ * invalid rule messages.
+ * @param rules a list of rule functions to apply
+ * @returns a rule function that ANDs all input rules
+ */
+const requiredAll =
+  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  (value: T) =>
+  () => {
+    let messages = [];
+    for (let r of rules) {
+      let result = r(value)();
+      if (!result.valid) {
+        messages.push(result.message);
+      }
+    }
+
+    if (messages.length > 0) {
+      return {
+        valid: false,
+        message: messages.join('. '),
+      };
+    }
+    return { valid: true };
+  };
+
 export {
   requiredToken,
   requiredPassword,
@@ -207,4 +230,5 @@ export {
   requiredRoleArn,
   requiredIamRoleName,
   requiredEmailLike,
+  requiredAll,
 };

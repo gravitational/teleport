@@ -47,6 +47,7 @@ export default class TtyTerminal {
   _scrollBack: number;
   _fontFamily: string;
   _fontSize: number;
+  _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
   _webLinksAddon = new WebLinksAddon();
@@ -57,13 +58,14 @@ export default class TtyTerminal {
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize } = options;
+    const { el, scrollBack, fontFamily, fontSize, convertEol } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
     // Passing scrollback will overwrite the default config. This is to support ttyplayer.
     // Default to the config when not passed anything, which is the normal usecase
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
+    this._convertEol = convertEol || false;
     this.tty = tty;
     this.term = null;
 
@@ -78,6 +80,7 @@ export default class TtyTerminal {
       fontFamily: this._fontFamily,
       fontSize: this._fontSize,
       scrollback: this._scrollBack,
+      convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: this.options.theme,
@@ -233,4 +236,5 @@ type Options = {
   scrollBack?: number;
   fontFamily?: string;
   fontSize?: number;
+  convertEol?: boolean;
 };

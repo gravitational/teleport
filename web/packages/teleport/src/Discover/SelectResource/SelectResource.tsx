@@ -38,12 +38,13 @@ import {
   ResourceKind,
 } from 'teleport/Discover/Shared';
 import {
+  BASE_RESOURCES,
   getResourcePretitle,
-  RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
 import { storageService } from 'teleport/services/storageService';
+import cfg from 'teleport/config';
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
@@ -51,6 +52,7 @@ import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
 
 import { PrioritizedResources, SearchResource } from './types';
+import { SAML_APPLICATIONS } from './resourcesE';
 
 import type { ResourceSpec } from './types';
 
@@ -73,6 +75,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const [resources, setResources] = useState<ResourceSpec[]>([]);
   const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
   const [showApp, setShowApp] = useState(false);
+  const RESOURCES = !cfg.isEnterprise
+    ? BASE_RESOURCES
+    : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
@@ -151,7 +156,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         Search for what resource you want to add.
       </HeaderSubtitle>
       <Box height="90px" width="600px">
-        <InputWrapper mb={2}>
+        <InputWrapper>
           <StyledInput
             placeholder="Search for a resource"
             autoFocus
@@ -170,7 +175,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
               const pretitle = getResourcePretitle(r);
 
               let resourceCardProps;
-              if (r.kind === ResourceKind.Application) {
+              if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
                   onClick: () => {
                     if (r.hasAccess) {
@@ -592,7 +597,7 @@ const Grid = styled.div`
   row-gap: 15px;
 `;
 
-const ResourceCard = styled.div`
+const ResourceCard = styled.div<{ hasAccess?: boolean }>`
   display: flex;
   position: relative;
   align-items: center;

@@ -173,41 +173,54 @@ func TestClose(t *testing.T) {
 }
 
 func TestSeekForward(t *testing.T) {
+	clk := clockwork.NewRealClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 1, delay: 6000},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.Close() })
+	require.NoError(t, p.Play())
+
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(5900 * time.Millisecond)
+
+	select {
+	case <-p.C():
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "event not emitted on time")
+	}
+}
+
+// TestInterruptsDelay tests that the player responds to playback
+// controls even when it is waiting to emit an event.
+func TestInterruptsDelay(t *testing.T) {
 	clk := clockwork.NewFakeClock()
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
-		Streamer:  &simpleStreamer{count: 10, delay: 1000},
+		Streamer:  &simpleStreamer{count: 3, delay: 5000},
 	})
 	require.NoError(t, err)
 	require.NoError(t, p.Play())
 
+	t.Cleanup(func() { p.Close() })
+
 	clk.BlockUntil(1) // player is now waiting to emit event 0
 
-	// advance playback until right before the last event
-	p.SetPos(9001 * time.Millisecond)
+	// emulate the user seeking forward while the player is waiting..
+	p.SetPos(10_001 * time.Millisecond)
 
-	// advance the clock to unblock the player
-	// (it should now spit out all but the last event in rapid succession)
-	clk.Advance(1001 * time.Millisecond)
+	// expect event 0 and event 1 to be emitted right away
+	// even without advancing the clock
+	evt0 := <-p.C()
+	evt1 := <-p.C()
 
-	ch := make(chan struct{})
-	go func() {
-		defer close(ch)
-		for evt := range p.C() {
-			t.Logf("got event %v (delay=%v)", evt.GetID(), evt.GetCode())
-		}
-	}()
-
-	clk.BlockUntil(1)
-	require.Equal(t, int64(9000), p.LastPlayed())
-
-	clk.Advance(999 * time.Millisecond)
-	select {
-	case <-ch:
-	case <-time.After(3 * time.Second):
-		require.FailNow(t, "player hasn't closed in time")
-	}
+	require.Equal(t, int64(0), evt0.GetIndex())
+	require.Equal(t, int64(1), evt1.GetIndex())
 }
 
 func TestRewind(t *testing.T) {
@@ -270,7 +283,10 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 					Type:  events.SessionPrintEvent,
 					Index: i,
 					ID:    strconv.Itoa(int(i)),
-					Code:  strconv.FormatInt((i+1)*s.delay, 10),
+
+					// stuff the event delay in the code field so that it's easy
+					// to access without a type assertion
+					Code: strconv.FormatInt((i+1)*s.delay, 10),
 				},
 				Data:              []byte(fmt.Sprintf("event %d\n", i)),
 				ChunkIndex:        i, // TODO(zmb3) deprecate this

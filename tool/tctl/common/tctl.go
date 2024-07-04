@@ -27,10 +27,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -40,8 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -94,7 +95,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -148,11 +149,11 @@ func TryRun(commands []CLICommand, args []string) error {
 	app.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v]. Can also be set via the %v environment variable.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
+	app.Flag("config", fmt.Sprintf("Path to a configuration file [%v] for an Auth Service instance. Can also be set via the %v environment variable. Ignored if the auth_service is disabled.", defaults.ConfigFilePath, defaults.ConfigFileEnvar)).
 		Short('c').
 		ExistingFileVar(&ccf.ConfigFile)
 	app.Flag("config-string",
-		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
+		"Base64 encoded configuration string. Ignored if the config auth_service is disabled.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
 		Envar(authAddrEnvVar).
@@ -203,7 +204,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
-	clientConfig.Resolver, err = reversetunnelclient.CachingResolver(
+	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   ctx,
@@ -215,6 +216,19 @@ func TryRun(commands []CLICommand, args []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          clientConfig.SSH,
+		Log:                   clientConfig.Log,
+		InsecureSkipTLSVerify: clientConfig.Insecure,
+		ClusterCAs:            clientConfig.TLS.RootCAs,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientConfig.ProxyDialer = dialer
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
@@ -298,8 +312,17 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 	}
 
-	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
-		return nil, trace.Wrap(err)
+	// It only makes sense to use file config when tctl is run on the same
+	// host as the auth server.
+	// If this is any other host, then it's remote tctl usage.
+	// Remote tctl usage will require ~/.tsh or an identity file.
+	// ~/.tsh which will provide credentials AND config to reach auth server.
+	// Identity file requires --auth-server flag.
+	localAuthSvcConf := fileConf != nil && fileConf.Auth.Enabled()
+	if localAuthSvcConf {
+		if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// --auth-server flag(-s)
@@ -314,10 +337,14 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 	}
 
-	// Config file should take precedence, if available.
-	if fileConf == nil {
-		// No config file. Try profile or identity file.
-		log.Debug("No config file or identity file, loading auth config via extension.")
+	// Config file (for an auth_service) should take precedence.
+	if !localAuthSvcConf {
+		// Try profile or identity file.
+		if fileConf == nil {
+			log.Debug("no config file, loading auth config via extension")
+		} else {
+			log.Debug("auth_service disabled in config file, loading auth config via extension")
+		}
 		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
 			return authConfig, nil
@@ -353,21 +380,21 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
-				"Please make sure that Teleport is up and running prior to using tctl.",
+				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
 				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
 		} else if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
-				"Ensure that you are running as a user with appropriate permissions.",
+				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
 				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
 		}
 		return nil, trace.Wrap(err)
 	}
-	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := storage.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("tctl must be either used on the auth server or provided with the identity file via --identity flag")
+			return nil, trace.AccessDenied("tctl must be used on an Auth Service host or provided with credentials by logging in with tsh first.")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -404,7 +431,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if profile.IsExpired(clockwork.NewRealClock()) {
+	if profile.IsExpired(time.Now()) {
 		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 

@@ -33,7 +33,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentSOCKS,
+	teleport.ComponentKey: teleport.ComponentSOCKS,
 })
 
 const (

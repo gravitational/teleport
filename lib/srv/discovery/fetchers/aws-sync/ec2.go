@@ -61,10 +61,10 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 		errs    []error
 	)
 	eG, ctx := errgroup.WithContext(ctx)
-	// Set the limit to 10 to avoid too many concurrent requests.
+	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
 	// number of concurrent requests.
-	eG.SetLimit(10)
+	eG.SetLimit(5)
 	collectHosts := func(lHosts []*accessgraphv1alpha.AWSInstanceV1, err error) {
 		hostsMu.Lock()
 		defer hostsMu.Unlock()

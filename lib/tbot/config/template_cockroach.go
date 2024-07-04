@@ -90,7 +90,7 @@ func (t *templateCockroach) render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote CockroachDB files: %+v", files)
+	log.DebugContext(ctx, "Wrote CockroachDB files", "files", files)
 
 	return nil
 }

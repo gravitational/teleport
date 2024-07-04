@@ -20,20 +20,23 @@ package servicecfg
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -180,189 +183,45 @@ func TestCheckApp(t *testing.T) {
 	}
 }
 
-func TestCheckDatabase(t *testing.T) {
-	tests := []struct {
-		desc       string
-		inDatabase Database
-		outErr     bool
+// TestDatabaseStaticLabels ensures the static labels are set.
+func TestDatabaseStaticLabels(t *testing.T) {
+	db := Database{
+		Name:     "example",
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	}
+	require.NoError(t, db.CheckAndSetDefaults())
+	require.Equal(t, types.OriginConfigFile, db.StaticLabels[types.OriginLabel])
+}
+
+func TestDatabaseAWSAccountID(t *testing.T) {
+	for _, test := range []struct {
+		desc              string
+		assumeRoleARN     string
+		expectedAccountID string
 	}{
 		{
-			desc: "ok",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-			},
-			outErr: false,
+			desc:              "valid role arn",
+			assumeRoleARN:     "arn:aws:iam::123456789012:role/test-role",
+			expectedAccountID: "123456789012",
 		},
 		{
-			desc: "empty database name",
-			inDatabase: Database{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-			},
-			outErr: true,
+			desc:              "invalid role arn",
+			assumeRoleARN:     "foobar",
+			expectedAccountID: "",
 		},
-		{
-			desc: "fails services.ValidateDatabase",
-			inDatabase: Database{
-				Name:     "??--++",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-			},
-			outErr: true,
-		},
-		{
-			desc: "GCP valid configuration",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				GCP: DatabaseGCP{
-					ProjectID:  "project-1",
-					InstanceID: "instance-1",
-				},
-				TLS: DatabaseTLS{
-					CACert: fixtures.LocalhostCert,
-				},
-			},
-			outErr: false,
-		},
-		{
-			desc: "GCP project ID specified without instance ID",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				GCP: DatabaseGCP{
-					ProjectID: "project-1",
-				},
-				TLS: DatabaseTLS{
-					CACert: fixtures.LocalhostCert,
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "GCP instance ID specified without project ID",
-			inDatabase: Database{
-				Name:     "example",
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-				GCP: DatabaseGCP{
-					InstanceID: "instance-1",
-				},
-				TLS: DatabaseTLS{
-					CACert: fixtures.LocalhostCert,
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "SQL Server correct configuration",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "sqlserver.example.com:1433",
-				AD: DatabaseAD{
-					KeytabFile: "/etc/keytab",
-					Domain:     "test-domain",
-					SPN:        "test-spn",
-				},
-			},
-			outErr: false,
-		},
-		{
-			desc: "SQL Server missing keytab",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
-				AD: DatabaseAD{
-					Domain: "test-domain",
-					SPN:    "test-spn",
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "SQL Server missing AD domain",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
-				AD: DatabaseAD{
-					KeytabFile: "/etc/keytab",
-					SPN:        "test-spn",
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "SQL Server missing SPN",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
-				AD: DatabaseAD{
-					KeytabFile: "/etc/keytab",
-					Domain:     "test-domain",
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "SQL Server missing LDAP Cert",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
-				AD: DatabaseAD{
-					Domain:      "test-domain",
-					SPN:         "test-spn",
-					KDCHostName: "test-domain",
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "SQL Server missing KDC Hostname",
-			inDatabase: Database{
-				Name:     "sqlserver",
-				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
-				AD: DatabaseAD{
-					Domain:   "test-domain",
-					SPN:      "test-spn",
-					LDAPCert: "random-content",
-				},
-			},
-			outErr: true,
-		},
-		{
-			desc: "MySQL with server version",
-			inDatabase: Database{
-				Name:     "mysql-foo",
-				Protocol: defaults.ProtocolMySQL,
-				URI:      "localhost:3306",
-				MySQL: MySQLOptions{
-					ServerVersion: "8.0.31",
-				},
-			},
-			outErr: false,
-		},
-	}
-	for _, test := range tests {
-		test := test
+	} {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
-
-			err := test.inDatabase.CheckAndSetDefaults()
-			if test.outErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			db := Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				AWS: DatabaseAWS{
+					AssumeRoleARN: test.assumeRoleARN,
+				},
 			}
+			require.NoError(t, db.CheckAndSetDefaults())
+			require.Equal(t, test.expectedAccountID, db.AWS.AccountID)
 		})
 	}
 }
@@ -691,6 +550,50 @@ func TestWebPublicAddr(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, test.expected, out)
+		})
+	}
+}
+
+func TestSetLogLevel(t *testing.T) {
+	for _, test := range []struct {
+		logLevel            slog.Level
+		expectedLogrusLevel logrus.Level
+	}{
+		{
+			logLevel:            logutils.TraceLevel,
+			expectedLogrusLevel: logrus.TraceLevel,
+		},
+		{
+			logLevel:            slog.LevelDebug,
+			expectedLogrusLevel: logrus.DebugLevel,
+		},
+		{
+			logLevel:            slog.LevelInfo,
+			expectedLogrusLevel: logrus.InfoLevel,
+		},
+		{
+			logLevel:            slog.LevelWarn,
+			expectedLogrusLevel: logrus.WarnLevel,
+		},
+		{
+			logLevel:            slog.LevelError,
+			expectedLogrusLevel: logrus.ErrorLevel,
+		},
+	} {
+		t.Run(test.logLevel.String(), func(t *testing.T) {
+			// Create a configuration with local loggers to avoid modifying the
+			// global instances.
+			c := &Config{
+				Log:    logrus.New(),
+				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			}
+			ApplyDefaults(c)
+
+			c.SetLogLevel(test.logLevel)
+			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
+			require.IsType(t, &logrus.Logger{}, c.Log)
+			l, _ := c.Log.(*logrus.Logger)
+			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
 	}
 }

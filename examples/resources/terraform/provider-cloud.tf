@@ -10,7 +10,7 @@ terraform {
 provider "teleport" {
   # Update addr to point to your Teleport Cloud tenant URL's host:port
   addr               = "mytenant.teleport.sh:443"
-  identity_file_path = "terraform-identity"
+  identity_file_path = "terraform-identity/identity"
 }
 
 # creates a test role, if we don't declare resources, Terraform won't try to

@@ -312,28 +312,16 @@ exports[`connected settings false 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -354,6 +342,14 @@ exports[`connected settings false 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -633,28 +629,16 @@ exports[`connected settings true 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -675,6 +659,14 @@ exports[`connected settings true 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -1157,28 +1149,16 @@ exports[`disconnected 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -1199,6 +1179,14 @@ exports[`disconnected 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -1687,28 +1675,16 @@ exports[`fetch processing 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -1729,6 +1705,14 @@ exports[`fetch processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -2017,28 +2001,16 @@ exports[`processing 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -2059,6 +2031,14 @@ exports[`processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {
@@ -2347,28 +2327,16 @@ exports[`tdp processing 1`] = `
 
 .c14:disabled {
   color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c14:not(:disabled):hover,
+.c14:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c14:not(:disabled):active {
   background: rgba(255,255,255,0.18);
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  padding-left: 16px;
-  padding-right: 16px;
 }
 
 .c8 {
@@ -2389,6 +2357,14 @@ exports[`tdp processing 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .c1 {

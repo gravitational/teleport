@@ -17,6 +17,9 @@
  */
 
 import { FC, useState } from 'react';
+
+import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -42,7 +45,6 @@ import { Option } from 'shared/components/Select';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { PromptMfaRequest } from 'teleterm/services/tshdEvents';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
@@ -51,7 +53,7 @@ import { routing } from 'teleterm/ui/uri';
 type MfaType = 'webauthn' | 'totp';
 
 export const ReAuthenticate: FC<{
-  promptMfaRequest: PromptMfaRequest;
+  promptMfaRequest: PromptMFARequest;
   onCancel: () => void;
   onSuccess: (otp: string) => void;
 }> = props => {
@@ -83,13 +85,18 @@ export const ReAuthenticate: FC<{
   const [selectedMfaType, setSelectedMfaType] = useState(availableMfaTypes[0]);
   const [otpToken, setOtpToken] = useState('');
 
-  const { rootClusterUri } = req;
+  const { clusterUri } = req;
   const { clustersService } = useAppContext();
   // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
   // clustersService. https://github.com/gravitational/teleport/issues/33733
-  const clusterName =
-    clustersService.findCluster(rootClusterUri)?.name ||
+  const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+  const rootClusterName =
+    clustersService.findRootClusterByResource(rootClusterUri)?.name ||
     routing.parseClusterName(rootClusterUri);
+  const clusterName =
+    clustersService.findCluster(clusterUri)?.name ||
+    routing.parseClusterName(clusterUri);
+  const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   return (
     <DialogConfirmation
@@ -114,7 +121,7 @@ export const ReAuthenticate: FC<{
               alignItems="baseline"
             >
               <Text typography="h4">
-                Verify your identity on <strong>{clusterName}</strong>
+                Verify your identity on <strong>{rootClusterName}</strong>
               </Text>
               <ButtonIcon
                 type="button"
@@ -129,6 +136,7 @@ export const ReAuthenticate: FC<{
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
                 <Text typography="body1" color="text.slightlyMuted">
                   {req.reason}
+                  {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>
 
                 <Flex width="100%" gap={3} flex-wrap="no-wrap">

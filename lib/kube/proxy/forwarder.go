@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -50,8 +52,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
+	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
@@ -64,6 +68,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -108,9 +113,9 @@ type ForwarderConfig struct {
 	// Authz authenticates user
 	Authz authz.Authorizer
 	// AuthClient is a auth server client.
-	AuthClient auth.ClientI
+	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
-	CachingAuthClient auth.ReadKubernetesAccessPoint
+	CachingAuthClient authclient.ReadKubernetesAccessPoint
 	// Emitter is used to emit audit events
 	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
@@ -282,7 +287,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	router := httprouter.New()
-
 	router.UseRawPath = true
 
 	router.GET("/version", fwd.withAuth(
@@ -303,6 +307,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
 	router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
+
+	router.PATCH("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
+	router.PUT("/api/:ver/namespaces/:podNamespace/pods/:podName/ephemeralcontainers", fwd.withAuth(fwd.ephemeralContainers))
 
 	router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
 
@@ -784,7 +791,7 @@ func (f *Forwarder) setupContext(
 		recordingConfig:       recordingConfig,
 		kubeClusterName:       kubeCluster,
 		certExpires:           identity.Expires,
-		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, &identity),
+		disconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -865,10 +872,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 			LocalAddr:  sess.kubeAddress,
 			Protocol:   events.EventProtocolKube,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.HostID,
-			ServerNamespace: f.cfg.Namespace,
-		},
+		ServerMetadata:            sess.getServerMetadata(),
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
@@ -957,7 +961,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
 		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
-		// whose role satisfy the the desired Kubernetes Resource.
+		// whose role satisfy the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
 		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
@@ -1417,19 +1421,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 
 // execNonInteractive handles all exec sessions without a TTY.
 func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
-	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
-
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
-	canStart, _, err := authorizer.FulfilledFor(nil)
+	canStart, err := f.canStartSessionAlone(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1441,12 +1433,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 
 	sessionStart := f.cfg.Clock.Now().UTC()
 
-	serverMetadata := apievents.ServerMetadata{
-		ServerID:        f.cfg.HostID,
-		ServerNamespace: f.cfg.Namespace,
-		ServerHostname:  sess.teleportCluster.name,
-		ServerAddr:      sess.kubeAddress,
-	}
+	serverMetadata := sess.getServerMetadata()
 
 	sessionMetadata := ctx.Identity.GetIdentity().GetSessionMetadata(uuid.NewString())
 
@@ -1545,6 +1532,19 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	execEvent.Code = events.ExecCode
 
 	return nil
+}
+
+// canStartSessionAlone returns true if the user associated with authCtx
+// is allowed to start a session without moderation.
+func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
+	policySets := authCtx.Checker.SessionPolicySets()
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
+	canStart, _, err := authorizer.FulfilledFor(nil)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return canStart, nil
 }
 
 func exitCode(err error) (errMsg, code string) {
@@ -2035,7 +2035,83 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
+func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
+
+	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upgradeRoundTripper := NewWebsocketRoundTripperWithDialer(roundTripperConfig{
+		ctx:                   req.Context(),
+		log:                   f.log,
+		sess:                  sess,
+		dialWithContext:       sess.DialWithContext(),
+		tlsConfig:             tlsConfig,
+		originalHeaders:       req.Header,
+		useIdentityForwarding: useImpersonation,
+		proxier:               sess.getProxier(),
+	})
+	rt := http.RoundTripper(upgradeRoundTripper)
+	if sess.kubeAPICreds != nil {
+		var err error
+		rt, err = sess.kubeAPICreds.wrapTransport(rt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	rt = tracehttp.NewTransport(rt)
+
+	cfg := &rest.Config{
+		// WrapTransport will replace default roundTripper created for the WebsocketExecutor
+		// and on successfully established connection we will set upgrader's websocket connection.
+		WrapTransport: func(baseRt http.RoundTripper) http.RoundTripper {
+			if wrt, ok := baseRt.(*kwebsocket.RoundTripper); ok {
+				upgradeRoundTripper.onConnected = func(wsConn *gwebsocket.Conn) {
+					wrt.Conn = wsConn
+				}
+			}
+
+			return rt
+		},
+	}
+
+	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
+}
+
+func isRelevantWebsocketError(err error) bool {
+	return err != nil && !strings.Contains(err.Error(), "next reader: EOF")
+}
+
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+	isWSSupported := false
+	if sess.noAuditEvents {
+		// We're forwarding it to another kube_service, check if it supports new protocol.
+		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
+	} else {
+		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
+		f.rwMutexDetails.RLock()
+		if details, ok := f.clusterDetails[sess.kubeClusterName]; ok {
+			details.rwMu.RLock()
+			isWSSupported = kubernetesSupportsExecSubprotocolV5(details.kubeClusterVersion)
+			details.rwMu.RUnlock()
+		}
+		f.rwMutexDetails.RUnlock()
+	}
+
+	if isWSSupported {
+		wsExec, err := f.getWebsocketExecutor(sess, req)
+		return wsExec, trace.Wrap(err)
+	}
+
+	spdyExec, err := f.getSPDYExecutor(sess, req)
+	return spdyExec, trace.Wrap(err)
+}
+
+func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+	f.log.Debugf("Creating SPDY remote executor for request %s %s", req.Method, req.RequestURI)
+
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2178,6 +2254,17 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	return tc, nil
 }
 
+func (s *clusterSession) getServerMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerID:        s.parent.cfg.HostID,
+		ServerNamespace: s.parent.cfg.Namespace,
+		ServerHostname:  s.teleportCluster.name,
+		ServerAddr:      s.kubeAddress,
+		ServerLabels:    maps.Clone(s.kubeClusterLabels),
+		ServerVersion:   teleport.Version,
+	}
+}
+
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.dial(s.requestContext, network, addr))
 }
@@ -2279,7 +2366,6 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	connCtx, cancel := context.WithCancelCause(ctx)
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{

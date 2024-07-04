@@ -178,6 +178,7 @@ export default class Modal extends React.Component {
       modalCss,
       hideBackdrop,
       open,
+      className,
     } = this.props;
 
     const childProps = {};
@@ -198,6 +199,7 @@ export default class Modal extends React.Component {
           modalCss={modalCss}
           data-testid="Modal"
           ref={this.handleModalRef}
+          className={className}
         >
           {!hideBackdrop && (
             <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
@@ -291,6 +293,7 @@ Modal.propTypes = {
    * If `true`, the modal is open.
    */
   open: PropTypes.bool.isRequired,
+  className: PropTypes.string,
 };
 
 Modal.defaultProps = {

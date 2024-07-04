@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
 	"testing"
@@ -29,12 +30,11 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid
@@ -151,14 +151,10 @@ func TestLabelsDomainControllers(t *testing.T) {
 // TestDNSErrors verifies that errors are handled quickly
 // and do not block discovery for too long.
 func TestDNSErrors(t *testing.T) {
-	logger := utils.NewLoggerForTests()
-	logger.SetLevel(logrus.PanicLevel)
-	logger.SetOutput(io.Discard)
-
 	s := &WindowsService{
 		cfg: WindowsServiceConfig{
-			Log:   logger,
-			Clock: clockwork.NewRealClock(),
+			Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			Clock:  clockwork.NewRealClock(),
 		},
 		dnsResolver: &net.Resolver{
 			PreferGo: true,

@@ -18,6 +18,7 @@ package generic
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -62,6 +63,24 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 	service *Service[resourceMetadataAdapter[T]]
 }
 
+// WithPrefix will return a service wrapper with the given parts appended to the backend prefix.
+func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
+	if len(parts) == 0 {
+		return &s
+	}
+
+	return &ServiceWrapper[T]{
+		service: &Service[resourceMetadataAdapter[T]]{
+			backend:       s.service.backend,
+			resourceKind:  s.service.resourceKind,
+			pageLimit:     s.service.pageLimit,
+			backendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			marshalFunc:   s.service.marshalFunc,
+			unmarshalFunc: s.service.unmarshalFunc,
+		},
+	}
+}
+
 // UpsertResource upserts a resource.
 func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))
@@ -71,6 +90,13 @@ func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, e
 // UpdateResource updates an existing resource.
 func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource))
+	return adapter.resource, trace.Wrap(err)
+}
+
+// ConditionalUpdateResource updates an existing resource if the provided
+// resource and the existing resource have matching revisions.
+func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
 }
 
@@ -91,9 +117,32 @@ func (s ServiceWrapper[T]) DeleteResource(ctx context.Context, name string) erro
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
+// DeleteAllResources removes all resources.
+func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
+	startKey := backend.ExactKey(s.service.backendPrefix)
+	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
 // ListResources returns a paginated list of resources.
 func (s ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	adapters, nextToken, err := s.service.ListResources(ctx, pageSize, pageToken)
+	out := make([]T, 0, len(adapters))
+	for _, adapter := range adapters {
+		out = append(out, adapter.resource)
+	}
+	return out, nextToken, trace.Wrap(err)
+}
+
+// ListResourcesWithFilter returns a paginated list of resources that match the provided filter.
+func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	adapters, nextToken, err := s.service.ListResourcesWithFilter(
+		ctx,
+		pageSize,
+		pageToken,
+		func(rma resourceMetadataAdapter[T]) bool {
+			return matcher(rma.resource)
+		})
+
 	out := make([]T, 0, len(adapters))
 	for _, adapter := range adapters {
 		out = append(out, adapter.resource)

@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { ButtonBorder, MenuItem, Flex } from 'design';
-import * as icons from 'design/Icon';
-import Menu from 'design/Menu';
+import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
 
 import {
   connectToServer,
   connectToDatabase,
   connectToKube,
-  connectToApp,
+  connectToAppWithVnet,
   captureAppLaunchInBrowser,
+  setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -49,6 +48,7 @@ import {
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
+import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -110,9 +110,15 @@ export function ConnectKubeActionButton(props: {
 
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const launchVnet = useVnetLauncher();
 
-  function connect(): void {
-    connectToApp(appContext, props.app, { origin: 'resource_table' });
+  function connectWithVnet(): void {
+    connectToAppWithVnet(appContext, launchVnet, props.app);
+  }
+
+  function setUpGateway(): void {
+    setUpAppGateway(appContext, props.app, { origin: 'resource_table' });
   }
 
   const rootCluster = appContext.clustersService.findCluster(
@@ -124,10 +130,12 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
 
   return (
     <AppButton
-      connect={connect}
+      connectWithVnet={connectWithVnet}
+      setUpGateway={setUpGateway}
       app={props.app}
       cluster={cluster}
       rootCluster={rootCluster}
+      isVnetSupported={isVnetSupported}
       onLaunchUrl={() => {
         captureAppLaunchInBrowser(appContext, props.app, {
           origin: 'resource_table',
@@ -212,12 +220,11 @@ function AppButton(props: {
   app: App;
   cluster: Cluster;
   rootCluster: Cluster;
-  connect(): void;
+  connectWithVnet(): void;
+  setUpGateway(): void;
   onLaunchUrl(): void;
+  isVnetSupported: boolean;
 }) {
-  const ref = useRef<HTMLButtonElement>();
-  const [isOpen, setIsOpen] = useState(false);
-
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
@@ -256,74 +263,73 @@ function AppButton(props: {
 
   if (isWebApp(props.app)) {
     return (
-      <Flex>
-        <ButtonBorder
-          textTransform="none"
-          size="small"
-          forwardedAs="a"
-          href={getWebAppLaunchUrl({
-            app: props.app,
-            rootCluster: props.rootCluster,
-            cluster: props.cluster,
-          })}
-          onClick={props.onLaunchUrl}
-          target="_blank"
-          title="Launch the app in the browser"
-          css={`
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-          `}
-        >
-          Launch
-        </ButtonBorder>
-        <ButtonBorder
-          css={`
-            border-left: none;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-          `}
-          setRef={ref}
-          px={1}
-          size="small"
-          onClick={() => setIsOpen(true)}
-        >
-          {/*
-            Using MoreVert instead of ChevronDown to make this button visually distinct from the
-            button that launches an AWS app.
-          */}
-          <icons.MoreVert size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
-        <Menu
-          anchorEl={ref.current}
-          open={isOpen}
-          onClose={() => setIsOpen(false)}
-          // hack to properly position the menu
-          getContentAnchorEl={null}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-        >
-          <MenuItem
-            onClick={() => {
-              setIsOpen(false);
-              props.connect();
-            }}
-          >
-            Set up connection
-          </MenuItem>
-        </Menu>
-      </Flex>
+      <ButtonWithMenu
+        text="Launch"
+        textTransform="none"
+        size="small"
+        forwardedAs="a"
+        href={getWebAppLaunchUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+          cluster: props.cluster,
+        })}
+        onClick={props.onLaunchUrl}
+        target="_blank"
+        title="Launch the app in the browser"
+      >
+        <MenuItem onClick={props.setUpGateway}>Set up connection</MenuItem>
+      </ButtonWithMenu>
     );
   }
 
+  // TCP app with VNet.
+  if (props.isVnetSupported) {
+    return (
+      <ButtonWithMenu
+        text="Connect"
+        textTransform="none"
+        size="small"
+        onClick={props.connectWithVnet}
+      >
+        <MenuItem onClick={props.setUpGateway}>Connect to local port</MenuItem>
+      </ButtonWithMenu>
+    );
+  }
+
+  // TCP app without VNet.
   return (
-    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
+    <ButtonBorder
+      size="small"
+      onClick={props.setUpGateway}
+      textTransform="none"
+    >
       Connect
+    </ButtonBorder>
+  );
+}
+
+export function AccessRequestButton(props: {
+  isResourceAdded: boolean;
+  requestStarted: boolean;
+  onClick(): void;
+}) {
+  return props.isResourceAdded ? (
+    <ButtonPrimary
+      textTransform="none"
+      width="124px"
+      size="small"
+      onClick={props.onClick}
+    >
+      Remove
+    </ButtonPrimary>
+  ) : (
+    <ButtonBorder
+      textTransform="none"
+      width="124px"
+      size="small"
+      onClick={props.onClick}
+    >
+      {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
   );
 }

@@ -21,11 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // Retry is an interface that provides retry logic
@@ -190,7 +190,7 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		if errors.As(trace.Unwrap(err), &permanentRetryError) {
 			return trace.Wrap(err)
 		}
-		log.Debugf("Will retry in %v: %v.", r.Duration(), err)
+		slog.DebugContext(ctx, "Waiting to retry operation again", "wait", r.Duration(), "error", err)
 		select {
 		case <-r.After():
 			r.Inc()

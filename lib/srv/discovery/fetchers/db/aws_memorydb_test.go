@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -106,9 +105,9 @@ func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*m
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
-	extraLabels := services.ExtraMemoryDBLabels(cluster, tags, nil)
+	extraLabels := common.ExtraMemoryDBLabels(cluster, tags, nil)
 
-	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	database, err := common.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherMemoryDB)
 	return cluster, database, tags

@@ -41,12 +41,12 @@ export type FlowProps = {
 };
 
 export function GuidedFlow({ name, title, views, icon }: FlowProps) {
-  if (views.length < 1) {
-    return null;
-  }
-
   const steps = views.length;
   let [currentStep, setCurrentStep] = useState(0);
+
+  if (steps < 1) {
+    return null;
+  }
 
   function handleNextStep() {
     if (currentStep < steps - 1) {

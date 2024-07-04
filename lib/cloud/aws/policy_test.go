@@ -88,6 +88,123 @@ func TestSliceOrString(t *testing.T) {
 	})
 }
 
+func TestStringOrMap(t *testing.T) {
+	t.Run("marshal", func(t *testing.T) {
+		t.Run("nil input", func(t *testing.T) {
+			var empty StringOrMap
+			bytes, err := json.Marshal(empty)
+			require.NoError(t, err)
+			require.Equal(t, "{}", string(bytes))
+		})
+
+		t.Run("single entity with single entry", func(t *testing.T) {
+			in := StringOrMap{"AWS": SliceOrString{"x"}}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"AWS":"x"}`, string(bytes))
+		})
+		t.Run("single entity with multiple entries", func(t *testing.T) {
+			in := StringOrMap{"AWS": SliceOrString{"x", "y"}}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"AWS":["x","y"]}`, string(bytes))
+		})
+		t.Run("multiple entities with multiple entries", func(t *testing.T) {
+			in := StringOrMap{
+				"AWS":       SliceOrString{"x", "y"},
+				"Principal": SliceOrString{"x", "y"},
+			}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"AWS":["x","y"],"Principal":["x","y"]}`, string(bytes))
+		})
+		t.Run("single entity without entries", func(t *testing.T) {
+			in := StringOrMap{"AWS": SliceOrString{}}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"AWS":[]}`, string(bytes))
+		})
+		t.Run("single entity without entries but is wildcard", func(t *testing.T) {
+			in := StringOrMap{"*": SliceOrString{}}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `"*"`, string(bytes))
+		})
+		t.Run("wildcard but at least one entry", func(t *testing.T) {
+			in := StringOrMap{"*": SliceOrString{"x"}}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"*":"x"}`, string(bytes))
+		})
+		t.Run("multiple entities but only one of them is wildcard", func(t *testing.T) {
+			in := StringOrMap{
+				"*":         SliceOrString{"x"},
+				"Principal": SliceOrString{"x"},
+			}
+			bytes, err := json.Marshal(in)
+			require.NoError(t, err)
+			require.Equal(t, `{"*":"x","Principal":"x"}`, string(bytes))
+		})
+	})
+
+	t.Run("unmarshal", func(t *testing.T) {
+		t.Run("empty map", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{}, single)
+		})
+		t.Run("single entity with single entry", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"AWS":"x"}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{"AWS": SliceOrString{"x"}}, single)
+		})
+		t.Run("single entity with multiple entries", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"AWS":["x","y"]}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{"AWS": SliceOrString{"x", "y"}}, single)
+		})
+		t.Run("multiple entities with multiple entries", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"AWS":["x","y"],"Principal":["x","y"]}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{
+				"AWS":       SliceOrString{"x", "y"},
+				"Principal": SliceOrString{"x", "y"},
+			}, single)
+		})
+		t.Run("single entity without entries", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"AWS":[]}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{"AWS": SliceOrString{}}, single)
+		})
+		t.Run("single entity without entries but is wildcard", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`"*"`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{"*": SliceOrString{}}, single)
+		})
+		t.Run("wildcard but at least one entry", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"*":"x"}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{"*": SliceOrString{"x"}}, single)
+		})
+		t.Run("multiple entities but only one of them is wildcard", func(t *testing.T) {
+			var single StringOrMap
+			err := json.Unmarshal([]byte(`{"*":"x","Principal":"x"}`), &single)
+			require.NoError(t, err)
+			require.Equal(t, StringOrMap{
+				"*":         SliceOrString{"x"},
+				"Principal": SliceOrString{"x"},
+			}, single)
+		})
+	})
+}
+
 func TestParsePolicyDocument(t *testing.T) {
 	t.Run("parse without principals", func(t *testing.T) {
 		policyDoc, err := ParsePolicyDocument(`{
@@ -810,4 +927,156 @@ func (m *iamMock) PutRolePermissionsBoundaryWithContext(context.Context, *iam.Pu
 	}
 
 	return &iam.PutRolePermissionsBoundaryOutput{}, nil
+}
+
+func TestEqualStatement(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		statementA *Statement
+		statementB *Statement
+		expected   bool
+	}{
+		{
+			name:       "empty statement",
+			statementA: &Statement{},
+			statementB: &Statement{},
+			expected:   true,
+		},
+		{
+			name: "statement id is ignored",
+			statementA: &Statement{
+				StatementID: "x",
+			},
+			statementB: &Statement{
+				StatementID: "y",
+			},
+			expected: true,
+		},
+		{
+			name: "different number of actions",
+			statementA: &Statement{
+				Actions: SliceOrString{"x", "y"},
+			},
+			statementB: &Statement{
+				Actions: SliceOrString{"y"},
+			},
+			expected: false,
+		},
+		{
+			name: "different actions",
+			statementA: &Statement{
+				Actions: SliceOrString{"x"},
+			},
+			statementB: &Statement{
+				Actions: SliceOrString{"y"},
+			},
+			expected: false,
+		},
+		{
+			name: "different number of principals",
+			statementA: &Statement{
+				Principals: StringOrMap{"AWS": []string{"123456789012", "123456789013"}},
+			},
+			statementB: &Statement{
+				Principals: StringOrMap{
+					"AWS":            []string{"123456789012", "123456789014"},
+					"OtherPrincipal": []string{"x"},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different principals",
+			statementA: &Statement{
+				Principals: StringOrMap{"AWS": []string{"*"}},
+			},
+			statementB: &Statement{
+				Principals: StringOrMap{"*": []string{}},
+			},
+			expected: false,
+		},
+		{
+			name: "different number of conditions",
+			statementA: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
+					"StringLike":            {"s3:prefix": []string{"janedoe/*"}},
+				},
+			},
+			statementB: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3601"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different conditions",
+			statementA: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
+				},
+			},
+			statementB: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3601"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different condition values",
+			statementA: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600", "3601"}},
+				},
+			},
+			statementB: &Statement{
+				Conditions: map[string]map[string]SliceOrString{
+					"NumericLessThanEquals": {"aws:MultiFactorAuthAge": []string{"3600"}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different resource values",
+			statementA: &Statement{
+				Resources: SliceOrString{"arn:aws:s3:::bucket-2/prefix-2/*"},
+			},
+			statementB: &Statement{
+				Resources: SliceOrString{"arn:aws:s3:::bucket-1/*"},
+			},
+			expected: false,
+		},
+		{
+			name: "equal statements",
+			statementA: &Statement{
+				Effect: EffectAllow,
+				Principals: StringOrMap{
+					wildcard: []string{},
+				},
+				Actions:   []string{"s3:GetObject"},
+				Resources: []string{"arn:aws:s3:::my-bucket/my-prefix/*"},
+				Conditions: map[string]map[string]SliceOrString{
+					"StringLike": {"s3:prefix": []string{"my-prefix/*"}},
+				},
+			},
+			statementB: &Statement{
+				Effect: EffectAllow,
+				Principals: StringOrMap{
+					wildcard: []string{},
+				},
+				Actions:   []string{"s3:GetObject"},
+				Resources: []string{"arn:aws:s3:::my-bucket/my-prefix/*"},
+				Conditions: map[string]map[string]SliceOrString{
+					"StringLike": {"s3:prefix": []string{"my-prefix/*"}},
+				},
+			},
+			expected: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.statementA.EqualStatement(tt.statementB))
+		})
+	}
 }

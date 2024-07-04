@@ -6,27 +6,36 @@ description: How to complete Teleport Database CA migrations.
 In Teleport, self-hosted databases must be configured with certificates to
 enable mTLS authentication via the Teleport Database Service.
 
-Teleport 15 introduced a new `db_client` certificate authority (CA) to split the
-responsibilities of the Teleport `db` CA, which was acting as both host and 
-client CA for Teleport self-hosted database access.
+Teleport (= db_ca.released_version =) introduced the `db` certificate
+authority (CA) to decouple CA rotation for self-hosted databases from the rest of
+the Teleport cluster.
+
+Teleport (= db_client_ca.released_version.v15 =) introduced the `db_client` CA
+to split the responsibilities of the Teleport `db` CA, which was acting as both
+host and client CA for Teleport self-hosted database access.
+The `db_client` CA was also added as a patch in Teleport
+(= db_client_ca.released_version.v13 =) and
+(= db_client_ca.released_version.v14 =).
+
+The `db` and `db_client` CAs were both introduced as an automatic migration
+that occurs after upgrading Teleport.
 
 Teleport's host/client database CA split is intended to limit the potential for
 lateral movement to other resources in the event that a database instance's
 private key is compromised.
 
-The `db` and `db_client` CAs were both introduced as an automatic migration
-after upgrading to Teleport 10 and Teleport 15, respectively.
-
-This guide will explain why these CAs were created and how to determine if your
-CA(s) should be rotated to complete the migration process.
+This guide will provide information about why these CAs were added to Teleport
+and how to complete any pending migrations for your Teleport cluster.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A Teleport cluster that was created prior to Teleport 15.
-  If your Teleport cluster was created with Teleport 15+, then this guide does
+- A Teleport cluster that was upgraded from a version that predates either the
+  `db` or `db_client` CA.
+  If your Teleport cluster was created in Teleport
+  (= db_client_ca.released_version.v15 =) or later, then this guide does
   not apply to your cluster, because your `db` and `db_client` CAs were not
   migrated.
 
@@ -53,22 +62,22 @@ For examples and more information, consult the
 [Database Access Configuration Reference](../../database-access/reference/configuration.mdx).
 </Details>
 
-Prior to Teleport 10, the Teleport `host` CA was used to issue certificates to
-self-hosted databases (via `tctl auth sign`).
-The Teleport `db` CA was introduced to decouple self-hosted database CA rotation
+Prior to Teleport (= db_ca.released_version =), the Teleport `host` CA was used
+to issue certificates to self-hosted databases (via `tctl auth sign`).
+The `db` CA was introduced to decouple self-hosted database CA rotation
 from the rest of your Teleport cluster.
 The idea is that you should be able to rotate the CA used for self-hosted
 databases without affecting other resources connected to your cluster.
 Likewise, when you rotate your cluster's `host` CA, you should not have to worry
 about affecting self-hosted databases.
 
-To avoid breaking database access after upgrading to Teleport 10, Teleport
-clusters are automatically migrated to create the `db` CA as a copy of
-the `host` CA.
+To avoid breaking database access after upgrading to Teleport
+(= db_ca.released_version =), Teleport clusters are automatically migrated to
+create the `db` CA as a copy of the `host` CA.
 
-If your cluster was upgraded to Teleport 10 and you use Teleport to issue 
-certificates to your self-hosted databases, then you should ensure that you have
-completed the `db` CA migration.
+If your cluster was upgraded to Teleport (= db_ca.released_version =) and you
+use Teleport to issue certificates to your self-hosted databases, then you
+should ensure that you have completed the `db` CA migration.
 Otherwise, if you later rotate just one CA for any reason, a copy of the old CA
 will still exist.
 While this does not necessarily lead to a vulnerability in your cluster, it is
@@ -83,8 +92,8 @@ To complete the `db` CA migration:
 The Teleport Database Service needs to authenticate itself to self-hosted
 database(s) using a client certificate, which requires that you configure your
 database(s) to trust Teleport's `db_client` CA.
-Prior to the introduction of the `db_client` CA in Teleport 15, self-hosted
-had to be configured to trust the Teleport `db` CA for client authentication.
+Prior to the introduction of the `db_client` CA, self-hosted databases had to be
+configured to trust the Teleport `db` CA for client authentication.
 
 With the old approach - trusting the `db` CA for client connections - if a
 database's private key is compromised, and a `db` certificate was issued for
@@ -103,8 +112,11 @@ after a successful mTLS handshake.
 However, for defense in depth, these databases should only mTLS handshake with
 a client that presents a `db_client` CA-issued certificate.
 
-If your Teleport cluster was upgraded to Teleport 15, then you should ensure
-that you have completed the `db_client` migration.
+If your Teleport cluster was upgraded to Teleport
+\>=(= db_client_ca.released_version.v13 =),
+\>=(= db_client_ca.released_version.v14 =), or
+\>=(= db_client_ca.released_version.v15 =),
+then you should ensure that you have completed the `db_client` migration.
 To complete the `db_client` CA migration:
 - we recommend rotating your `db` CA
 - we **strongly recommend** rotating your `db_client` CA.
@@ -126,11 +138,18 @@ To complete the `db_client` CA migration:
 
 ## 1/2. Check for Teleport CA migrations
 
-If you upgraded your cluster to Teleport 10 and you have never rotated your
-`host` or `db` CAs, then you should complete the `db` CA migration.
+If you upgraded an existing cluster to Teleport
+\>=(= db_ca.released_version =)
+and you have not rotated *both* your `host` and `db` CAs at least once since
+upgrading, then you should complete the `db` CA migration.
 
-If you upgraded your cluster to Teleport 15 and you have never rotated your
-`db` or `db_client` CAs, then you should complete the `db_client` CA migration.
+If you upgraded an existing cluster to Teleport
+\>=(= db_client_ca.released_version.v13 =),
+\>=(= db_client_ca.released_version.v14 =), or
+\>=(= db_client_ca.released_version.v15 =)
+and you have not rotated *both* your
+`db` and `db_client` CAs at least once since upgrading, then you should complete
+the `db_client` CA migration.
 
 If you are unsure whether you need to complete the migration for either the `db`
 or `db_client` CAs, you can check for duplicated CAs.
@@ -173,4 +192,4 @@ For details on rotating the `db` or `db_client` CA, refer to the
 ## Further reading
 
 - How the [Teleport Certificate Authority](../../architecture/authentication.mdx) works.
-- How [Teleport Database Access](../../database-access/architecture.mdx) works.
+- How [Teleport Agents](../../architecture/agents.mdx) work.

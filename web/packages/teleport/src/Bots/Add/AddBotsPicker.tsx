@@ -210,7 +210,10 @@ function GuidedTile({
   return (
     <IntegrationTile
       as={Link}
-      to={hasCreateBotPermission ? integration.link : null}
+      to={{
+        pathname: hasCreateBotPermission ? integration.link : null,
+        state: { previousPathname: location.pathname },
+      }}
       onClick={() => {
         if (!hasCreateBotPermission) {
           return;

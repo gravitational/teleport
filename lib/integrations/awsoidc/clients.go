@@ -31,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // AWSClientRequest contains the required fields to set up an AWS service client.
@@ -65,8 +67,10 @@ func (req *AWSClientRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("role arn is required")
 	}
 
-	if req.Region == "" {
-		return trace.BadParameter("region is required")
+	if req.Region != "" {
+		if err := awsutils.IsValidRegion(req.Region); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

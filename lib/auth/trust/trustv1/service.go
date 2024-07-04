@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -50,7 +51,7 @@ type authServer interface {
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.AuthorityGetter
-	Backend    services.Trust
+	Backend    services.TrustInternal
 	Logger     *logrus.Entry
 	AuthServer authServer
 }
@@ -60,7 +61,7 @@ type Service struct {
 	trustpb.UnimplementedTrustServiceServer
 	authorizer authz.Authorizer
 	cache      services.AuthorityGetter
-	backend    services.Trust
+	backend    services.TrustInternal
 	authServer authServer
 	logger     *logrus.Entry
 }
@@ -77,7 +78,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{
@@ -91,6 +92,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
@@ -108,13 +114,15 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
+	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authzCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
-		return nil, trace.Wrap(err)
+	// Require admin MFA to read secrets.
+	if req.IncludeKey {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Retrieve the requested CA and perform RBAC on it to ensure that
@@ -124,7 +132,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authzCtx.CheckAccessToResource(ca, readVerb); err != nil {
+	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -138,15 +146,20 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
-	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		// Require admin MFA to read secrets.
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
@@ -336,7 +349,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// use compare and swap to protect from concurrent updates
 	// by trusted cluster API
-	if err := s.backend.CompareAndSwapCertAuthority(updated, existing); err != nil {
+	if _, err := s.backend.UpdateCertAuthority(ctx, updated); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

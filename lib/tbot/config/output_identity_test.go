@@ -28,9 +28,10 @@ func TestIdentityOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: IdentityOutput{
-				Destination: dest,
-				Roles:       []string{"access"},
-				Cluster:     "leaf.example.com",
+				Destination:   dest,
+				Roles:         []string{"access"},
+				Cluster:       "leaf.example.com",
+				SSHConfigMode: SSHConfigModeOff,
 			},
 		},
 		{
@@ -49,9 +50,22 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *IdentityOutput {
 				return &IdentityOutput{
-					Destination: memoryDestForTest(),
-					Roles:       []string{"access"},
+					Destination:   memoryDestForTest(),
+					Roles:         []string{"access"},
+					SSHConfigMode: SSHConfigModeOn,
 				}
+			},
+		},
+		{
+			name: "ssh config mode defaults",
+			in: func() *IdentityOutput {
+				return &IdentityOutput{
+					Destination: memoryDestForTest(),
+				}
+			},
+			want: &IdentityOutput{
+				Destination:   memoryDestForTest(),
+				SSHConfigMode: SSHConfigModeOn,
 			},
 		},
 		{
@@ -62,6 +76,16 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "no destination configured for output",
+		},
+		{
+			name: "invalid ssh config mode",
+			in: func() *IdentityOutput {
+				return &IdentityOutput{
+					Destination:   memoryDestForTest(),
+					SSHConfigMode: "invalid",
+				}
+			},
+			wantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

@@ -25,7 +25,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -51,7 +51,7 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Con
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
 	if selectedCommand == cmd.exportCmd.FullCommand() {
 		return true, trace.Wrap(cmd.export(ctx, c))
 	}
@@ -59,7 +59,7 @@ func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, c au
 }
 
 // export executes 'tctl saml export <connector_name>'
-func (cmd *SAMLCommand) export(ctx context.Context, c auth.ClientI) error {
+func (cmd *SAMLCommand) export(ctx context.Context, c *authclient.Client) error {
 	sc, err := c.GetSAMLConnector(ctx, cmd.connectorName, false)
 	if err != nil {
 		return trace.Wrap(err)

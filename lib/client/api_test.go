@@ -37,8 +37,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,6 +49,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -449,6 +453,11 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		{
 			name:          "ipv4 unspecified, API domain should be used ",
 			kubeProxyAddr: "0.0.0.0",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+		{
+			name:          "localhost, API domain should be used ",
+			kubeProxyAddr: "localhost",
 			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
@@ -887,7 +896,7 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 			}
 
 			if tt.wantUserMessage != "" {
-				require.NotNil(t, traceErr)
+				require.Error(t, traceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})
@@ -1213,4 +1222,33 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	clusterClient, err := clt.ConnectToCluster(ctx)
 	require.Nil(t, clusterClient)
 	require.Error(t, err)
+}
+
+func TestIsErrorResolvableWithRelogin(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              error
+		expectResolvable bool
+	}{
+		{
+			name:             "private key policy error should be resolvable",
+			err:              keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			expectResolvable: true,
+		}, {
+			name: "wrapped private key policy error should be resolvable",
+			err: &interceptors.RemoteError{
+				Err: keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			},
+			expectResolvable: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resolvable := IsErrorResolvableWithRelogin(tt.err)
+			if tt.expectResolvable {
+				require.True(t, resolvable, "Expected error to be resolvable with relogin")
+			} else {
+				require.False(t, resolvable, "Expected error to be unresolvable with relogin")
+			}
+		})
+	}
 }

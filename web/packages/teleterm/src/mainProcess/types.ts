@@ -67,7 +67,6 @@ export type RuntimeSettings = {
     requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
-    flags: string[];
   };
   sharedProcess: {
     requestedNetworkAddress: string;

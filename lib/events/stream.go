@@ -629,6 +629,7 @@ func (b *bufferCloser) Close() error {
 
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
+	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
@@ -636,6 +637,8 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
+		// Return the unused buffer to the pool.
+		w.proto.cfg.BufferPool.Put(buffer)
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
@@ -735,6 +738,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
+			log := log.WithField("attempt", i)
+
 			reader, err := slice.reader()
 			if err != nil {
 				activeUpload.setError(err)
@@ -775,7 +780,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			}
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Part upload failed, retrying after backoff.")
+				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
 			case <-w.proto.cancelCtx.Done():
 				return
 			}
@@ -841,9 +846,10 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 	// non last slices should be at least min upload bytes (as limited by S3 API spec)
 	if !s.isLast && wroteBytes < s.proto.cfg.MinUploadBytes {
 		paddingBytes = s.proto.cfg.MinUploadBytes - wroteBytes
-		if _, err := s.buffer.ReadFrom(utils.NewRepeatReader(byte(0), int(paddingBytes))); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		s.buffer.Grow(int(paddingBytes))
+		padding := s.buffer.AvailableBuffer()[:paddingBytes]
+		clear(padding)
+		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
 	// when the slice was created, the first bytes were reserved

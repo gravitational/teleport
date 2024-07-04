@@ -32,6 +32,8 @@ import { assertUnreachable } from '../utils';
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
 import { ReAuthenticate } from './modals/ReAuthenticate';
+import { AuthenticateWebDevice } from './modals/AuthenticateWebDevice/AuthenticateWebDevice';
+import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
@@ -51,6 +53,19 @@ export default function ModalsHost() {
 
 function renderDialog(dialog: Dialog, handleClose: () => void) {
   switch (dialog.kind) {
+    case 'device-trust-authorize': {
+      return (
+        <AuthenticateWebDevice
+          rootClusterUri={dialog.rootClusterUri}
+          onAuthorize={dialog.onAuthorize}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+          onClose={handleClose}
+        />
+      );
+    }
     case 'cluster-connect': {
       return (
         <ClusterConnect
@@ -165,6 +180,20 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           onSuccess={totpCode => {
             handleClose();
             dialog.onSuccess(totpCode);
+          }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'change-access-request-kind': {
+      return (
+        <ChangeAccessRequestKind
+          onConfirm={() => {
+            handleClose();
+            dialog.onConfirm();
           }}
           onCancel={() => {
             handleClose();

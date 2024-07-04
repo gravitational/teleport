@@ -46,7 +46,7 @@ func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, colle
 		// These goroutines are fetching inline and attached policies for each group.
 		// We also have other goroutines fetching inline and attached policies for users
 		// and roles.
-		eG.SetLimit(10)
+		eG.SetLimit(5)
 		groupsMu := sync.Mutex{}
 		for _, group := range result.Groups {
 			group := group

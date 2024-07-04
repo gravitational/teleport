@@ -28,10 +28,12 @@ import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
+import { generateAppHashFile } from './apphash';
 
 import type { UserConfig } from 'vite';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
   rootDirectory: string,
@@ -69,6 +71,17 @@ export function createViteConfig(
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
+        rollupOptions: {
+          output: {
+            // removes hashing from our entry point file.
+            entryFileNames: ENTRY_FILE_NAME,
+            // the telemetry bundle breaks any websocket connections if included in the bundle. We will leave this file out of the bundle but without hashing so it is still discoverable.
+            // TODO (avatus): find out why this breaks websocket connectivity and unchunk
+            chunkFileNames: 'app/[name].js',
+            // this will remove hashing from asset (non-js) files.
+            assetFileNames: `app/[name].[ext]`,
+          },
+        },
       },
       plugins: [
         react({
@@ -87,6 +100,7 @@ export function createViteConfig(
           projects: [resolve(rootDirectory, 'tsconfig.json')],
         }),
         transformPlugin(),
+        generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
       define: {
@@ -122,6 +136,13 @@ export function createViteConfig(
             secure: false,
             ws: true,
           },
+        // /webapi/sites/:site/kube/exec
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         // /webapi/sites/:site/desktopplayback/:sid
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,

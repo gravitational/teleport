@@ -1,16 +1,15 @@
-.version: &version "16.0.0-dev"
+.version: &version "17.0.0-dev"
 
 name: teleport-cluster
 apiVersion: v2
 version: *version
 appVersion: *version
 description: Teleport is an access platform for your infrastructure
-icon: https://goteleport.com/images/logos/logo-teleport-square.svg
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
 keywords:
   - Teleport
 
 dependencies:
   - name: teleport-operator
     version: *version
-    condition: installCRDs,operator.enabled
     alias: operator

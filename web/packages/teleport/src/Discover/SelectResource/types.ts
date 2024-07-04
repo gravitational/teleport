@@ -24,7 +24,10 @@ import { AuthType } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
-import type { DiscoverEventResource } from 'teleport/services/userEvent';
+import type {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import type { ResourceIconName } from 'design/ResourceIcon';
 
@@ -66,10 +69,24 @@ export enum KubeLocation {
   Aws,
 }
 
+/** SamlServiceProviderPreset defines SAML service provider preset types.
+ * Used to define custom or pre-defined configuration flow.
+ */
+export enum SamlServiceProviderPreset {
+  Unspecified = 'unspecified',
+  Grafana = 'grafana',
+  GcpWorkforce = 'gcp-workforce',
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
-  nodeMeta?: { location: ServerLocation };
+  appMeta?: { awsConsole?: boolean };
+  nodeMeta?: {
+    location: ServerLocation;
+    discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+  };
   kubeMeta?: { location: KubeLocation };
+  samlMeta?: { preset: SamlServiceProviderPreset };
   name: string;
   popular?: boolean;
   kind: ResourceKind;

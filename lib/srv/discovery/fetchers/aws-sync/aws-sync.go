@@ -20,9 +20,12 @@ package aws_sync
 
 import (
 	"context"
+	"reflect"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -47,6 +50,8 @@ type Config struct {
 	AssumeRole *AssumeRole
 	// Integration is the name of the AWS integration to use when fetching resources.
 	Integration string
+	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
+	DiscoveryConfigName string
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -60,12 +65,20 @@ type AssumeRole struct {
 // awsFetcher is a fetcher that fetches AWS resources.
 type awsFetcher struct {
 	Config
+	lastError               error
+	lastDiscoveredResources uint64
 }
 
 // AWSSync is the interface for fetching AWS resources.
 type AWSSync interface {
 	// Poll polls all AWS resources and returns the result.
-	Poll(ctx context.Context) (*Resources, error)
+	Poll(context.Context, Features) (*Resources, error)
+	// Status reports the last known status of the fetcher.
+	Status() (uint64, error)
+	// DiscoveryConfigName returns the name of the Discovery Config.
+	DiscoveryConfigName() string
+	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
+	IsFromDiscoveryConfig() bool
 }
 
 // Resources is a collection of polled AWS resources.
@@ -102,6 +115,37 @@ type Resources struct {
 	RoleAttachedPolicies []*accessgraphv1alpha.AWSRoleAttachedPolicies
 	// InstanceProfiles is the list of AWS IAM instance profiles.
 	InstanceProfiles []*accessgraphv1alpha.AWSInstanceProfileV1
+	// EKSClusters is the list of EKS clusters
+	EKSClusters []*accessgraphv1alpha.AWSEKSClusterV1
+	// AssociatedAccessPolicies is the list of Associated Access policies
+	AssociatedAccessPolicies []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1
+	// AccessEntries is the list of Access Entries.
+	AccessEntries []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1
+	// RDSDatabases is a list of RDS instances and clusters.
+	RDSDatabases []*accessgraphv1alpha.AWSRDSDatabaseV1
+	// SAMLProviders is a list of SAML providers.
+	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
+	// OIDCProviders is a list of OIDC providers.
+	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+}
+
+func (r *Resources) count() int {
+	if r == nil {
+		return 0
+	}
+
+	elem := reflect.ValueOf(r).Elem()
+	sum := 0
+	for i := 0; i < elem.NumField(); i++ {
+		field := elem.Field(i)
+		if field.IsValid() {
+			switch field.Kind() {
+			case reflect.Slice:
+				sum += field.Len()
+			}
+		}
+	}
+	return sum
 }
 
 // NewAWSFetcher creates a new AWS fetcher.
@@ -121,12 +165,21 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // Poll is a blocking call and will return when all resources have been fetched.
 // It's possible that the call returns Resources and an error at the same time
 // if some resources were fetched successfully and some were not.
-func (a *awsFetcher) Poll(ctx context.Context) (*Resources, error) {
-	result, err := a.poll(ctx)
+func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
+	result, err := a.poll(ctx, features)
+	a.storeReport(result, err)
 	return result, trace.Wrap(err)
 }
 
-func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
+func (a *awsFetcher) storeReport(rec *Resources, err error) {
+	a.lastError = err
+	if rec == nil {
+		return
+	}
+	a.lastDiscoveredResources = uint64(rec.count())
+}
+
+func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {
 	eGroup, ctx := errgroup.WithContext(ctx)
 	// Set the limit for the number of concurrent pollers running in parallel.
 	// This is to prevent the number of concurrent pollers from growing too large
@@ -150,27 +203,54 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 	// - inline policies
 	// - attached policies
 	// - user groups they are members of
-	eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+	if features.Users {
+		eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+	}
 
 	// fetch AWS groups and their associated resources.
 	// - inline policies
 	// - attached policies
-	eGroup.Go(a.pollAWSRoles(ctx, result, collectErr))
+	if features.Roles {
+		eGroup.Go(a.pollAWSRoles(ctx, result, collectErr))
+	}
 
 	// fetch AWS groups and their associated resources.
 	// - inline policies
 	// - attached policies
-	eGroup.Go(a.pollAWSGroups(ctx, result, collectErr))
+	if features.Groups {
+		eGroup.Go(a.pollAWSGroups(ctx, result, collectErr))
+	}
 
 	// fetch AWS EC2 instances and their associated resources.
 	// - instance profiles
-	eGroup.Go(a.pollAWSEC2Instances(ctx, result, collectErr))
+	if features.EC2 {
+		eGroup.Go(a.pollAWSEC2Instances(ctx, result, collectErr))
+	}
 
 	// fetch AWS IAM policies and their policy documents.
-	eGroup.Go(a.pollAWSPolicies(ctx, result, collectErr))
+	if features.Users || features.Roles {
+		eGroup.Go(a.pollAWSPolicies(ctx, result, collectErr))
+	}
 
 	// fetch AWS S3 buckets.
-	eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+	if features.S3 {
+		eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+	}
+
+	// fetch AWS EKS clusters
+	if features.EKS {
+		eGroup.Go(a.pollAWSEKSClusters(ctx, result, collectErr))
+	}
+
+	// fetch AWS RDS instances and clusters
+	if features.RDS {
+		eGroup.Go(a.pollAWSRDSDatabases(ctx, result, collectErr))
+	}
+
+	if features.IDP {
+		eGroup.Go(a.pollAWSSAMLProviders(ctx, result, collectErr))
+		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
+	}
 
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
@@ -180,14 +260,28 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 
 // getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
 // creating AWS clients.
-func (a *awsFetcher) getAWSOptions() []cloud.AWSAssumeRoleOptionFn {
-	opts := []cloud.AWSAssumeRoleOptionFn{
+func (a *awsFetcher) getAWSOptions() []cloud.AWSOptionsFn {
+	opts := []cloud.AWSOptionsFn{
 		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
 
 	if a.Config.AssumeRole != nil {
 		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
+	const maxRetries = 10
+	opts = append(opts,
+		cloud.WithMaxRetries(maxRetries),
+		cloud.WithRetryer(
+			client.DefaultRetryer{
+				NumMaxRetries:    maxRetries,
+				MinRetryDelay:    time.Second,
+				MinThrottleDelay: time.Second,
+				MaxRetryDelay:    300 * time.Second,
+				MaxThrottleDelay: 300 * time.Second,
+			},
+		),
+	)
+
 	return opts
 }
 
@@ -208,4 +302,16 @@ func (a *awsFetcher) getAccountId(ctx context.Context) (string, error) {
 	}
 
 	return aws.StringValue(req.Account), nil
+}
+
+func (a *awsFetcher) DiscoveryConfigName() string {
+	return a.Config.DiscoveryConfigName
+}
+
+func (a *awsFetcher) IsFromDiscoveryConfig() bool {
+	return a.Config.DiscoveryConfigName != ""
+}
+
+func (a *awsFetcher) Status() (uint64, error) {
+	return a.lastDiscoveredResources, a.lastError
 }

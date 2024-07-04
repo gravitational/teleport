@@ -203,7 +203,7 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 
 		reloadContext: reloadContext,
 		signalReload:  signalReload,
-		log:           parentLog.WithField(trace.Component, teleport.Component(teleport.ComponentProcess, id)),
+		log:           parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
 	}
 	go srv.fanOut()
 	return srv

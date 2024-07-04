@@ -14,8 +14,17 @@ configuration file. The public address can take an IP or a DNS name. It can also
 be a list of values:
 
 ```yaml
-public_addr: ["proxy-one.example.com", "proxy-two.example.com"]
+public_addr: ["service1.example.com", "service2.example.com"]
 ```
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+  Only a single Proxy Service `public_addr` should be configured. Attempting
+  to have multiple addresses can result in redirects to the first listed address
+  that may not be available to the client.
+</Admonition>
 
 Specifying a public address for a Teleport service may be useful in the
 following use cases:
@@ -60,8 +69,12 @@ environment variables when running Teleport. You can also optionally set the
 specified hosts/netmasks/ports.
 
 By default, Teleport installations based on package managers (such as `apt` and
-`yum`) configure The `teleport` systemd unit to read environment variables from
-the file `/etc/default/teleport`. 
+`yum`) configure the `teleport` systemd unit to read environment variables from
+the file `/etc/default/teleport` by using the `EnvironmentFile` field:
+
+```ini
+(!/examples/systemd/teleport.service!)
+```
 
 To configure HTTP CONNECT tunneling, you can assign these environment variables
 within `/etc/default/teleport` on machines that run Teleport binaries. Use the
@@ -100,7 +113,7 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   type="warning"
   title="Note"
 >
-  The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
+  The Proxy Service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local Kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
 </Admonition>
 
 ## Ports
@@ -229,21 +242,16 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-Some Teleport services listen for traffic to one of their proxied resources,
-meaning that you can expose ports on that service's host directly to clients.
-This is useful when you need to connect to resources directly if the Proxy
-Service becomes unavailable. 
+<Details title="Direct connections to agents">
 
-<Admonition
-  type="tip"
-  title="Note"
->
-  In Teleport Cloud, the Auth and Proxy Services run in Teleport-owned infrastructure.
-For this reason, Teleport Cloud customers must connect their resources via reverse tunnels.
-Exposing ports for direct dial is only supported in self-hosted deployments.
-</Admonition>
+If you run a self-hosted Teleport cluster, you can join an agent [directly to
+the Teleport Auth
+Service](../agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+In this setup, certain Teleport services open their own listeners rather than
+accepting connections via reverse tunnel. The Proxy Service connects to these
+agent services by dialing them directly.
 
-The table below describes the ports that each Teleport Service opens for proxied
+The table below describes the ports that each Teleport service opens for proxied
 traffic:
 
 | Port | Service | Traffic Type |
@@ -252,6 +260,9 @@ traffic:
 | 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
 | 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
 
-You can only access enrolled applications and databases through the Teleport Proxy Service.
-The Teleport Application Service and Teleport Database Service use reverse tunnel
-connections through the Teleport Proxy Service and cannot expose ports directly.
+You can only access enrolled applications and desktops through the Teleport
+Proxy Service. The Teleport Application Service and Teleport Database Service
+use reverse tunnel connections through the Teleport Proxy Service and cannot
+expose ports directly.
+
+</Details>

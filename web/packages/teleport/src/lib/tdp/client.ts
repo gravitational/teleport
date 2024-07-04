@@ -55,6 +55,7 @@ import type {
   SharedDirectoryDeleteResponse,
   FileSystemObject,
   SyncKeys,
+  SharedDirectoryTruncateResponse,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -172,7 +173,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     spec: ClientScreenSpec
   ) {
     this.logger.debug(
-      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
     this.fastPathProcessor = new FastPathProcessor(
@@ -195,11 +196,11 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
           break;
-        case MessageType.RDP_CONNECTION_INITIALIZED:
-          this.handleRDPConnectionInitialized(buffer);
+        case MessageType.RDP_CONNECTION_ACTIVATED:
+          this.handleRdpConnectionActivated(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
-          this.handleRDPFastPathPDU(buffer);
+          this.handleRdpFastPathPDU(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -253,6 +254,9 @@ export default class Client extends EventEmitterWebAuthnSender {
           break;
         case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
           this.handleSharedDirectoryListRequest(buffer);
+          break;
+        case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+          this.handleSharedDirectoryTruncateRequest(buffer);
           break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
@@ -321,12 +325,12 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+  handleRdpConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      this.codec.decodeRDPConnectionInitialied(buffer);
+      this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `setting screen spec received from server ${spec.width} x ${spec.height}`
+      `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -339,8 +343,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRDPFastPathPDU(buffer: ArrayBuffer) {
-    let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
+  handleRdpFastPathPDU(buffer: ArrayBuffer) {
+    let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor)
@@ -357,7 +361,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
         },
         (responseFrame: ArrayBuffer) => {
-          this.sendRDPResponsePDU(responseFrame);
+          this.sendRdpResponsePDU(responseFrame);
         },
         (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
           this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
@@ -563,6 +567,19 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
+  async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
+    try {
+      await this.sdManager.truncateFile(req.path, req.endOfFile);
+      this.sendSharedDirectoryTruncateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+      });
+    } catch (e) {
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    }
+  }
+
   private toFso(info: FileOrDirInfo): FileSystemObject {
     return {
       lastModified: BigInt(info.lastModified),
@@ -585,10 +602,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       return;
     }
 
-    this.handleError(
-      new Error('websocket unavailable'),
-      TdpClientEvent.CLIENT_ERROR
-    );
+    this.logger.warn('websocket is not open');
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -611,9 +625,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    // Only send message if key is recognized, otherwise do nothing.
-    const msg = this.codec.encodeKeyboardInput(code, state);
-    if (msg) this.send(msg);
+    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
   }
 
   sendSyncKeys(syncKeys: SyncKeys) {
@@ -686,12 +698,18 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeSharedDirectoryDeleteResponse(response));
   }
 
-  resize(spec: ClientScreenSpec) {
-    this.send(this.codec.encodeClientScreenSpec(spec));
+  sendSharedDirectoryTruncateResponse(
+    response: SharedDirectoryTruncateResponse
+  ) {
+    this.send(this.codec.encodeSharedDirectoryTruncateResponse(response));
   }
 
-  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
-    this.send(this.codec.encodeRDPResponsePDU(responseFrame));
+  resize(spec: ClientScreenSpec) {
+    this.sendClientScreenSpec(spec);
+  }
+
+  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
   // Emits an errType event, closing the socket if the error was fatal.

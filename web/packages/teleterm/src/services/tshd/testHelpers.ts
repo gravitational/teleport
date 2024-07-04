@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as tsh from './types';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import type { App } from 'teleterm/ui/services/clusters';
+import * as tsh from './types';
+import { TshdRpcError } from './cloneableClient';
 
 export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
@@ -59,7 +60,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<App> = {}): App => ({
+export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
@@ -70,7 +71,6 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   fqdn: 'local-app.example.com:3000',
   samlApp: false,
   uri: appUri,
-  addrWithProtocol: 'tcp://local-app.example.com:3000',
   awsRoles: [],
   ...props,
 });
@@ -89,6 +89,7 @@ export const makeRootCluster = (
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
+  showResources: ShowResources.REQUESTABLE,
   ...props,
 });
 
@@ -103,6 +104,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  showResources: ShowResources.UNSPECIFIED,
   ...props,
 });
 
@@ -110,7 +112,6 @@ export const makeLoggedInUser = (
   props: Partial<tsh.LoggedInUser> = {}
 ): tsh.LoggedInUser => ({
   activeRequests: [],
-  assumedRequests: {},
   name: 'alice',
   acl: {
     recordedSessions: {
@@ -222,7 +223,7 @@ export const makeLoggedInUser = (
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],
-  userType: tsh.UserType.LOCAL,
+  userType: tsh.LoggedInUser_UserType.LOCAL,
   ...props,
 });
 
@@ -284,4 +285,11 @@ export const makeAppGateway = (
   targetUser: '',
   protocol: 'HTTP',
   ...props,
+});
+
+export const makeRetryableError = (): TshdRpcError => ({
+  name: 'TshdRpcError',
+  isResolvableWithRelogin: true,
+  code: 'UNKNOWN',
+  message: 'ssh: handshake failed',
 });

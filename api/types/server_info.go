@@ -93,16 +93,6 @@ func (s *ServerInfoV1) GetMetadata() Metadata {
 	return s.Metadata
 }
 
-// GetResourceID returns resource ID
-func (s *ServerInfoV1) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (s *ServerInfoV1) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (s *ServerInfoV1) GetRevision() string {
 	return s.Metadata.GetRevision()
@@ -218,4 +208,26 @@ func ServerInfoNameFromAWS(accountID, instanceID string) string {
 // node with the given name.
 func ServerInfoNameFromNodeName(name string) string {
 	return fmt.Sprintf("si-%v", name)
+}
+
+// ServerInfoForServer returns a ServerInfo from a Server
+func ServerInfoForServer(server Server) (ServerInfo, error) {
+	return NewServerInfo(
+		Metadata{
+			Name: serverInfoNameFromServer(server),
+		},
+		ServerInfoSpecV1{},
+	)
+}
+
+// serverInfoNameFromServer returns the ServerInfo name for this Server.
+func serverInfoNameFromServer(s Server) string {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		return ServerInfoNameFromAWS(awsAccountID, awsInstanceID)
+	}
+
+	return ServerInfoNameFromNodeName(s.GetName())
 }

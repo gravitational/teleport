@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // pollAWSS3Buckets is a function that returns a function that fetches
@@ -50,10 +51,10 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 	var errs []error
 	var mu sync.Mutex
 	eG, ctx := errgroup.WithContext(ctx)
-	// Set the limit to 10 to avoid too many concurrent requests.
+	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
 	// number of concurrent requests.
-	eG.SetLimit(10)
+	eG.SetLimit(5)
 	collect := func(s3 *accessgraphv1alpha.AWSS3BucketV1, err error) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -65,8 +66,14 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		}
 	}
 
+	region := awsutil.GetKnownRegions()[0]
+	if len(a.Regions) > 0 {
+		region = a.Regions[0]
+	}
+
 	s3Client, err := a.CloudClients.GetAWSS3Client(
 		ctx,
+		region,
 		a.getAWSOptions()...,
 	)
 	if err != nil {

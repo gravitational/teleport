@@ -44,6 +44,7 @@ import (
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -576,7 +577,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &Config{
-		LogEntry: log.WithField(trace.Component, "test"),
+		LogEntry: log.WithField(teleport.ComponentKey, "test"),
 		metrics:  metrics,
 	}
 

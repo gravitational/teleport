@@ -75,6 +75,8 @@ const mocKIntegration: Integration = {
   resourceType: 'integration',
   spec: {
     roleArn: `doncare/${awsoidcRoleArn}`,
+    issuerS3Bucket: '',
+    issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
 };

@@ -18,7 +18,7 @@
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+import { DeviceType } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -34,7 +34,11 @@ import {
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
+  ChangePasswordReq,
+  CreateNewHardwareDeviceRequest,
+  DeviceUsage,
 } from './types';
+import { CreateAuthenticateChallengeRequest } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -48,7 +52,9 @@ const auth = {
       )
     );
   },
+
   checkMfaRequired: checkMfaRequired,
+
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -60,6 +66,29 @@ const auth = {
         deviceUsage,
       })
       .then(makeMfaRegistrationChallenge);
+  },
+
+  /**
+   * Creates an MFA registration challenge and a corresponding client-side
+   * WebAuthn credential.
+   */
+  createNewWebAuthnDevice(
+    req: CreateNewHardwareDeviceRequest
+  ): Promise<Credential> {
+    return auth
+      .checkWebauthnSupport()
+      .then(() =>
+        auth.createMfaRegistrationChallenge(
+          req.tokenId,
+          'webauthn',
+          req.deviceUsage
+        )
+      )
+      .then(res =>
+        navigator.credentials.create({
+          publicKey: res.webauthnPublicKey,
+        })
+      );
   },
 
   createMfaAuthnChallengeWithToken(tokenId: string) {
@@ -78,15 +107,6 @@ const auth = {
         user: creds?.username,
         pass: creds?.password,
       })
-      .then(makeMfaAuthenticateChallenge);
-  },
-
-  // changePasswordBegin retrieves users mfa challenges for their
-  // registered devices after verifying given password from an
-  // authenticated user.
-  mfaChangePasswordBegin(oldPass: string) {
-    return api
-      .post(cfg.api.mfaChangePasswordBegin, { pass: oldPass })
       .then(makeMfaAuthenticateChallenge);
   },
 
@@ -129,28 +149,16 @@ const auth = {
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
   resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
-    const { req, eventMeta } = props;
+    const { req, credential, eventMeta } = props;
     const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
 
     return auth
       .checkWebauthnSupport()
-      .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          deviceUsage
-        )
-      )
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
+      .then(() => {
         const request = {
           token: req.tokenId,
           password: req.password ? base64EncodeUnicode(req.password) : null,
-          webauthnCreationResponse: makeWebauthnCreationResponse(res),
+          webauthnCreationResponse: makeWebauthnCreationResponse(credential),
           deviceName: req.deviceName,
         };
 
@@ -195,34 +203,21 @@ const auth = {
     });
   },
 
-  changePassword(oldPass: string, newPass: string, token: string) {
+  changePassword({
+    oldPassword,
+    newPassword,
+    secondFactorToken,
+    credential,
+  }: ChangePasswordReq) {
     const data = {
-      old_password: base64EncodeUnicode(oldPass),
-      new_password: base64EncodeUnicode(newPass),
-      second_factor_token: token,
+      old_password: base64EncodeUnicode(oldPassword),
+      new_password: base64EncodeUnicode(newPassword),
+      second_factor_token: secondFactorToken,
+      webauthnAssertionResponse:
+        credential && makeWebauthnAssertionResponse(credential),
     };
 
     return api.put(cfg.api.changeUserPasswordPath, data);
-  },
-
-  changePasswordWithWebauthn(oldPass: string, newPass: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaChangePasswordBegin, { pass: oldPass }))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          old_password: base64EncodeUnicode(oldPass),
-          new_password: base64EncodeUnicode(newPass),
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        };
-
-        return api.put(cfg.api.changeUserPasswordPath, request);
-      });
   },
 
   headlessSSOGet(transactionId: string) {
@@ -240,7 +235,7 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .fetchWebauthnChallenge(MfaChallengeScope.HEADLESS_LOGIN)
+      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
       .then(res => {
         const request = {
           action: 'accept',
@@ -263,20 +258,24 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async fetchWebauthnChallenge(
-    scope: MfaChallengeScope,
-    allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest
+  async fetchWebAuthnChallenge(
+    req: CreateAuthenticateChallengeRequest,
+    abortSignal?: AbortSignal
   ) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath, {
-            is_mfa_required_req: isMfaRequiredRequest,
-            challenge_scope: scope,
-            challenge_allow_reuse: allowReuse,
-          })
+          .post(
+            cfg.api.mfaAuthnChallengePath,
+            {
+              is_mfa_required_req: req.isMfaRequiredRequest,
+              challenge_scope: req.scope,
+              challenge_allow_reuse: req.allowReuse,
+              user_verification_requirement: req.userVerificationRequirement,
+            },
+            abortSignal
+          )
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -286,12 +285,15 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn(scope: MfaChallengeScope) {
-    return auth.fetchWebauthnChallenge(scope).then(res =>
-      api.post(cfg.api.createPrivilegeTokenPath, {
-        webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-      })
-    );
+  createPrivilegeTokenWithWebauthn() {
+    // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
+    return auth
+      .fetchWebAuthnChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
+      .then(res =>
+        api.post(cfg.api.createPrivilegeTokenPath, {
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        })
+      );
   },
 
   createRestrictedPrivilegeToken() {
@@ -301,14 +303,18 @@ const auth = {
   async getWebauthnResponse(
     scope: MfaChallengeScope,
     allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest
+    isMfaRequiredRequest?: IsMfaRequiredRequest,
+    abortSignal?: AbortSignal
   ) {
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
     if (isMfaRequiredRequest) {
       try {
-        const isMFARequired = await checkMfaRequired(isMfaRequiredRequest);
+        const isMFARequired = await checkMfaRequired(
+          isMfaRequiredRequest,
+          abortSignal
+        );
         if (!isMFARequired.required) {
           return;
         }
@@ -328,7 +334,10 @@ const auth = {
     }
 
     return auth
-      .fetchWebauthnChallenge(scope, allowReuse, isMfaRequiredRequest)
+      .fetchWebAuthnChallenge(
+        { scope, allowReuse, isMfaRequiredRequest },
+        abortSignal
+      )
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
@@ -350,9 +359,10 @@ const auth = {
 };
 
 function checkMfaRequired(
-  params: IsMfaRequiredRequest
+  params: IsMfaRequiredRequest,
+  abortSignal?
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params);
+  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {
@@ -371,6 +381,7 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
+  | IsMfaRequiredApp
   | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
@@ -415,6 +426,17 @@ export type IsMfaRequiredKube = {
   };
 };
 
+export type IsMfaRequiredApp = {
+  app: {
+    // fqdn indicates (tentatively) the fully qualified domain name of the application.
+    fqdn: string;
+    // public_addr is the public address of the application.
+    public_addr: string;
+    // cluster_name is the cluster within which this application is running.
+    cluster_name: string;
+  };
+};
+
 export type IsMfaRequiredAdminAction = {
   // empty object.
   admin_action: Record<string, never>;
@@ -430,4 +452,5 @@ export enum MfaChallengeScope {
   ACCOUNT_RECOVERY = 5,
   USER_SESSION = 6,
   ADMIN_ACTION = 7,
+  CHANGE_PASSWORD = 8,
 }

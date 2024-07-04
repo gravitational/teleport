@@ -19,6 +19,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -29,10 +30,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -45,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
+	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
@@ -570,8 +576,8 @@ func (c *uiConfigCollection) resources() (r []types.Resource) {
 }
 
 func (c *uiConfigCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Scrollback Lines"})
-	t.AddRow([]string{string(c.uiconfig.GetScrollbackLines())})
+	t := asciitable.MakeTable([]string{"Scrollback Lines", "Show Resources"})
+	t.AddRow([]string{strconv.FormatInt(int64(c.uiconfig.GetScrollbackLines()), 10), string(c.uiconfig.GetShowResources())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -913,6 +919,39 @@ func (c *kubeServerCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, c.servers)
 }
 
+type crownJewelCollection struct {
+	items []*crownjewelv1.CrownJewel
+}
+
+func (c *crownJewelCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+// writeText formats the crown jewels into a table and writes them into w.
+// If verbose is disabled, labels column can be truncated to fit into the console.
+func (c *crownJewelCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
+	}
+	headers := []string{"Name", "Spec", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type kubeClusterCollection struct {
 	clusters []types.KubeCluster
 }
@@ -1172,7 +1211,7 @@ type databaseObjectImportRuleCollection struct {
 func (c *databaseObjectImportRuleCollection) resources() []types.Resource {
 	resources := make([]types.Resource, len(c.rules))
 	for i, b := range c.rules {
-		resources[i] = types.Resource153ToLegacy(b)
+		resources[i] = databaseobjectimportrule.ProtoToResource(b)
 	}
 	return resources
 }
@@ -1185,6 +1224,32 @@ func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool
 			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
 			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
 			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type databaseObjectCollection struct {
+	objects []*dbobjectv1.DatabaseObject
+}
+
+func (c *databaseObjectCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.objects))
+	for i, b := range c.objects {
+		resources[i] = databaseobject.ProtoToResource(b)
+	}
+	return resources
+}
+
+func (c *databaseObjectCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Kind", "DB Service", "Protocol"})
+	for _, b := range c.objects {
+		t.AddRow([]string{
+			b.GetMetadata().GetName(),
+			fmt.Sprintf("%v", b.GetSpec().GetObjectKind()),
+			fmt.Sprintf("%v", b.GetSpec().GetDatabaseServiceName()),
+			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -1398,6 +1463,220 @@ func (c *accessListCollection) writeText(w io.Writer, verbose bool) error {
 			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
 		})
 	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type vnetConfigCollection struct {
+	vnetConfig *vnet.VnetConfig
+}
+
+func (c *vnetConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
+}
+
+func (c *vnetConfigCollection) writeText(w io.Writer, verbose bool) error {
+	var dnsZoneSuffixes []string
+	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
+		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
+	}
+	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
+	t.AddRow([]string{
+		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
+		strings.Join(dnsZoneSuffixes, ", "),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type accessRequestCollection struct {
+	accessRequests []types.AccessRequest
+}
+
+func (c *accessRequestCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.accessRequests))
+	for i, resource := range c.accessRequests {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *accessRequestCollection) writeText(w io.Writer, verbose bool) error {
+	var t asciitable.Table
+	var rows [][]string
+	for _, al := range c.accessRequests {
+		var annotations []string
+		for k, v := range al.GetSystemAnnotations() {
+			annotations = append(annotations, fmt.Sprintf("%s/%s", k, strings.Join(v, ",")))
+		}
+		rows = append(rows, []string{
+			al.GetName(),
+			al.GetUser(),
+			strings.Join(al.GetRoles(), ", "),
+			strings.Join(annotations, ", "),
+		})
+	}
+	if verbose {
+		t = asciitable.MakeTable([]string{"Name", "User", "Roles", "Annotations"}, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
+	}
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type pluginCollection struct {
+	plugins []types.Plugin
+}
+
+type pluginResourceWrapper struct {
+	types.PluginV1
+}
+
+func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
+
+	const (
+		credOauth2AccessToken     = "oauth2_access_token"
+		credBearerToken           = "bearer_token"
+		credIdSecret              = "id_secret"
+		credStaticCredentialsRef  = "static_credentials_ref"
+		settingsSlackAccessPlugin = "slack_access_plugin"
+		settingsOpsgenie          = "opsgenie"
+		settingsOpenAI            = "openai"
+		settingsOkta              = "okta"
+		settingsJamf              = "jamf"
+		settingsPagerDuty         = "pager_duty"
+		settingsMattermost        = "mattermost"
+		settingsJira              = "jira"
+		settingsDiscord           = "discord"
+		settingsServiceNow        = "serviceNow"
+		settingsGitlab            = "gitlab"
+		settingsEntraID           = "entra_id"
+	)
+	type unknownPluginType struct {
+		Spec struct {
+			Settings map[string]json.RawMessage `json:"Settings"`
+		} `json:"spec"`
+		Credentials struct {
+			Credentials map[string]json.RawMessage `json:"Credentials"`
+		} `json:"credentials"`
+	}
+
+	var unknownPlugin unknownPluginType
+	if err := json.Unmarshal(data, &unknownPlugin); err != nil {
+		return err
+	}
+
+	if unknownPlugin.Spec.Settings == nil {
+		return trace.BadParameter("plugin settings are missing")
+	}
+	if len(unknownPlugin.Spec.Settings) != 1 {
+		return trace.BadParameter("unknown plugin settings count")
+	}
+
+	if len(unknownPlugin.Credentials.Credentials) == 1 {
+		p.PluginV1.Credentials = &types.PluginCredentialsV1{}
+		for k := range unknownPlugin.Credentials.Credentials {
+			switch k {
+			case credOauth2AccessToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_Oauth2AccessToken{}
+			case credBearerToken:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_BearerToken{}
+			case credIdSecret:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_IdSecret{}
+			case credStaticCredentialsRef:
+				p.PluginV1.Credentials.Credentials = &types.PluginCredentialsV1_StaticCredentialsRef{}
+			default:
+				return trace.BadParameter("unsupported plugin credential type: %v", k)
+			}
+		}
+	}
+
+	for k := range unknownPlugin.Spec.Settings {
+
+		switch k {
+		case settingsSlackAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
+		case settingsOpsgenie:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Opsgenie{}
+		case settingsOpenAI:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Openai{}
+		case settingsOkta:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Okta{}
+		case settingsJamf:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
+		case settingsPagerDuty:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
+		case settingsMattermost:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Mattermost{}
+		case settingsJira:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jira{}
+		case settingsDiscord:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Discord{}
+		case settingsServiceNow:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_ServiceNow{}
+		case settingsGitlab:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
+		case settingsEntraID:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+		default:
+			return trace.BadParameter("unsupported plugin type: %v", k)
+		}
+	}
+
+	if err := json.Unmarshal(data, &p.PluginV1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *pluginCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.plugins))
+	for i, resource := range c.plugins {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *pluginCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Status"})
+	for _, plugin := range c.plugins {
+		t.AddRow([]string{
+			plugin.GetName(),
+			plugin.GetStatus().GetCode().String(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type botInstanceCollection struct {
+	items []*machineidv1pb.BotInstance
+}
+
+func (c *botInstanceCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Bot Name", "Instance ID"}
+
+	// TODO: consider adding additional (possibly verbose) fields showing
+	// last heartbeat, last auth, etc.
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

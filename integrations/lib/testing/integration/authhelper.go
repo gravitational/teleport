@@ -37,24 +37,41 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/plugin"
 )
 
-// OSSAuthHelper implements the AuthHelper interface.
-// It starts an OSS Auth server and exposes the functions required for plugin
-// integration tests to build teleport clients for each user/plugin/bot.
-type OSSAuthHelper struct {
+// MinimalAuthHelper implements the AuthHelper interface.
+// It starts an Auth server and a TLS server. This is not a full-featured
+// Teleport process.
+type MinimalAuthHelper struct {
 	server *libauth.TestTLSServer
-	dir    string
+	// dir is where we put identity files, and start the auth server
+	// (unless AuthConfig.Dir is manually set).
+	dir            string
+	AuthConfig     libauth.TestAuthServerConfig
+	PluginRegistry plugin.Registry
 }
 
 // StartServer implements the AuthHelper interface.
 // The function takes care of registering client and server close function
 // on the t.Cleanup() stack.
-func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
+func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 	a.dir = t.TempDir()
-	authServer, err := libauth.NewTestAuthServer(libauth.TestAuthServerConfig{
-		Dir: a.dir,
-	})
+	if a.AuthConfig.Dir == "" {
+		a.AuthConfig.Dir = a.dir
+	}
+
+	// If there's no auth preference spec, we turn 2FA on as it is mandatory since v16.
+	if a.AuthConfig.AuthPreferenceSpec == nil {
+		a.AuthConfig.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		}
+	}
+
+	authServer, err := libauth.NewTestAuthServer(a.AuthConfig)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -63,10 +80,11 @@ func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
 
 	server, err := libauth.NewTestTLSServer(libauth.TestTLSServerConfig{
 		APIConfig: &libauth.APIConfig{
-			AuthServer: authServer.AuthServer,
-			Authorizer: authServer.Authorizer,
-			AuditLog:   authServer.AuditLog,
-			Emitter:    authServer.AuditLog,
+			AuthServer:     authServer.AuthServer,
+			Authorizer:     authServer.Authorizer,
+			AuditLog:       authServer.AuditLog,
+			Emitter:        authServer.AuditLog,
+			PluginRegistry: a.PluginRegistry,
 		},
 		AuthServer:    authServer,
 		AcceptedUsage: authServer.AcceptedUsage,
@@ -90,7 +108,7 @@ func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
 // ServerAddr implements the AuthHelper interface.
 // It returns the server address, including the port.
 // For example, "192.0.2.1:25" or "[2001:db8::1]:80"
-func (a *OSSAuthHelper) ServerAddr() string {
+func (a *MinimalAuthHelper) ServerAddr() string {
 	return a.server.Addr().String()
 }
 
@@ -108,7 +126,7 @@ type userCerts struct {
 // - the PEM-encoded private key
 // - the Authorized-key formatted SSH cert
 // - the PEM-encoded TLS cert
-func (a *OSSAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
+func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	auth := a.server.Auth()
 
 	clusterName, err := auth.GetClusterName()
@@ -141,7 +159,7 @@ func (a *OSSAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 
 // CredentialsForUser implements the AuthHelper interface.
 // It builds TLS client credentials for the given user.
-func (a *OSSAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, user types.User) client.Credentials {
+func (a *MinimalAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, user types.User) client.Credentials {
 	auth := a.server.Auth()
 	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
@@ -172,7 +190,7 @@ func (a *OSSAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, us
 
 // SignIdentityForUser implements the AuthHelper interface.
 // It signs an identity, write it to a temporary directory, and returns its path.
-func (a *OSSAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, user types.User) string {
+func (a *MinimalAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, user types.User) string {
 	auth := a.server.Auth()
 	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
@@ -211,4 +229,8 @@ func (a *OSSAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, u
 	path := fmt.Sprintf("%s/%s-identity.pem", a.dir, user.GetName())
 	require.NoError(t, identityfile.Write(id, path))
 	return path
+}
+
+func (a *MinimalAuthHelper) Auth() *libauth.Server {
+	return a.server.Auth()
 }

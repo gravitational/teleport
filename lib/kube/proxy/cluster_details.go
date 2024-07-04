@@ -21,17 +21,18 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -51,8 +53,10 @@ type kubeDetails struct {
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
+	// kubeClusterVersion is the version of the kube_cluster's related Kubernetes server.
+	kubeClusterVersion *version.Info
 
-	// rwMu is the mutex to protect the kubeCodecs and rbacSupportedTypes.
+	// rwMu is the mutex to protect the kubeCodecs, gvkSupportedResources, and rbacSupportedTypes.
 	rwMu sync.RWMutex
 	// kubeCodecs is the codec factory for the cluster resources.
 	// The codec factory includes the default resources and the namespaced resources
@@ -64,6 +68,9 @@ type kubeDetails struct {
 	// The list is updated periodically to include the latest custom resources
 	// that are added to the cluster.
 	rbacSupportedTypes rbacSupportedResources
+	// gvkSupportedResources is the list of registered API path resources and their
+	// GVK definition.
+	gvkSupportedResources gvkSupportedResources
 	// isClusterOffline is true if the cluster is offline.
 	// An offline cluster will not be able to serve any requests until it comes back online.
 	// The cluster is marked as offline if the cluster schema cannot be created
@@ -111,7 +118,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			ctx,
 			&labels.DynamicConfig{
 				Labels: cfg.cluster.GetDynamicLabels(),
-				Log:    cfg.log,
+				// TODO: pass cfg.log through after it is converted to slog
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -119,9 +126,12 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		dynLabels.Sync()
 		go dynLabels.Start()
 	}
+
+	kubeClient := creds.getKubeClient()
+
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+	codecFactory, rbacSupportedTypes, gvkSupportedRes, err := newClusterSchemaBuilder(cfg.log, kubeClient)
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -131,15 +141,22 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		isClusterOffline = true
 	}
 
+	kubeVersion, err := kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	k := &kubeDetails{
-		kubeCreds:          creds,
-		dynamicLabels:      dynLabels,
-		kubeCluster:        cfg.cluster,
-		kubeCodecs:         codecFactory,
-		rbacSupportedTypes: rbacSupportedTypes,
-		cancelFunc:         cancel,
-		isClusterOffline:   isClusterOffline,
+		kubeCreds:             creds,
+		dynamicLabels:         dynLabels,
+		kubeCluster:           cfg.cluster,
+		kubeClusterVersion:    kubeVersion,
+		kubeCodecs:            codecFactory,
+		rbacSupportedTypes:    rbacSupportedTypes,
+		cancelFunc:            cancel,
+		isClusterOffline:      isClusterOffline,
+		gvkSupportedResources: gvkSupportedRes,
 	}
 
 	k.wg.Add(1)
@@ -153,16 +170,23 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			case <-ctx.Done():
 				return
 			case <-ticker.Chan():
-				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
+				codecFactory, rbacSupportedTypes, gvkSupportedResources, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 				if err != nil {
 					cfg.log.WithError(err).Error("Failed to update cluster schema")
 					continue
 				}
 
+				kubeVersion, err := kubeClient.Discovery().ServerVersion()
+				if err != nil {
+					cfg.log.WithError(err).Warn("Failed to get Kubernetes cluster version. Possibly the cluster is offline.")
+				}
+
 				k.rwMu.Lock()
 				k.kubeCodecs = codecFactory
 				k.rbacSupportedTypes = rbacSupportedTypes
+				k.gvkSupportedResources = gvkSupportedResources
 				k.isClusterOffline = false
+				k.kubeClusterVersion = kubeVersion
 				k.rwMu.Unlock()
 			}
 		}
@@ -191,6 +215,21 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
 	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
+}
+
+// getObjectGVK returns the default GVK (if any) registered for the specified request path.
+func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKind {
+	k.rwMu.RLock()
+	defer k.rwMu.RUnlock()
+	// kube doesn't use core but teleport does.
+	if resource.apiGroup == "core" {
+		resource.apiGroup = ""
+	}
+	return k.gvkSupportedResources[gvkSupportedResourcesKey{
+		name:     strings.Split(resource.resourceKind, "/")[0],
+		apiGroup: resource.apiGroup,
+		version:  resource.apiGroupVersion,
+	}]
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
@@ -270,7 +309,7 @@ func getAWSResourceMatcherToCluster(kubeCluster types.KubeCluster, resourceMatch
 func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, resourceMatchers []services.ResourceMatcher) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
 		region := cluster.GetAWSConfig().Region
-		opts := []cloud.AWSAssumeRoleOptionFn{
+		opts := []cloud.AWSOptionsFn{
 			cloud.WithAmbientCredentials(),
 		}
 		if awsAssume := getAWSResourceMatcherToCluster(cluster, resourceMatchers); awsAssume != nil {
@@ -303,7 +342,7 @@ func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, r
 			return nil, time.Time{}, trace.Wrap(err)
 		}
 
-		token, exp, err := genAWSToken(stsClient, cluster.GetAWSConfig().Name, clock)
+		token, exp, err := kubeutils.GenAWSEKSToken(stsClient, cluster.GetAWSConfig().Name, clock)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}
@@ -316,39 +355,6 @@ func getAWSClientRestConfig(cloudClients cloud.Clients, clock clockwork.Clock, r
 			},
 		}, exp, nil
 	}
-}
-
-// genAWSToken creates an AWS token to access EKS clusters.
-// Logic from https://github.com/aws/aws-cli/blob/6c0d168f0b44136fc6175c57c090d4b115437ad1/awscli/customizations/eks/get_token.py#L211-L229
-func genAWSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork.Clock) (string, time.Time, error) {
-	const (
-		// The sts GetCallerIdentity request is valid for 15 minutes regardless of this parameters value after it has been
-		// signed.
-		requestPresignParam = 60
-		// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in x-amz-date).
-		presignedURLExpiration = 15 * time.Minute
-		v1Prefix               = "k8s-aws-v1."
-		clusterIDHeader        = "x-k8s-aws-id"
-	)
-
-	// generate an sts:GetCallerIdentity request and add our custom cluster ID header
-	request, _ := stsClient.GetCallerIdentityRequest(&sts.GetCallerIdentityInput{})
-	request.HTTPRequest.Header.Add(clusterIDHeader, clusterID)
-
-	// Sign the request.  The expires parameter (sets the x-amz-expires header) is
-	// currently ignored by STS, and the token expires 15 minutes after the x-amz-date
-	// timestamp regardless.  We set it to 60 seconds for backwards compatibility (the
-	// parameter is a required argument to Presign(), and authenticators 0.3.0 and older are expecting a value between
-	// 0 and 60 on the server side).
-	// https://github.com/aws/aws-sdk-go/issues/2167
-	presignedURLString, err := request.Presign(requestPresignParam)
-	if err != nil {
-		return "", time.Time{}, trace.Wrap(err)
-	}
-
-	// Set token expiration to 1 minute before the presigned URL expires for some cushion
-	tokenExpiration := clock.Now().Add(presignedURLExpiration - 1*time.Minute)
-	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(presignedURLString)), tokenExpiration, nil
 }
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.

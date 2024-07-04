@@ -67,7 +67,7 @@ func (d *DefaultConfigureExternalAuditStorageClient) GetCallerIdentity(ctx conte
 func ConfigureExternalAuditStorage(
 	ctx context.Context,
 	clt ConfigureExternalAuditStorageClient,
-	params *easconfig.ExternalAuditStorageConfiguration,
+	params easconfig.ExternalAuditStorageConfiguration,
 ) error {
 	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
 

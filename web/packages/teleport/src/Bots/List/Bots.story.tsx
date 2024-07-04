@@ -35,7 +35,7 @@ export const List = () => {
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
-      roles={[]}
+      fetchRoles={async () => []}
       selectedBot={null}
       selectedRoles={[]}
       setSelectedBot={() => {}}

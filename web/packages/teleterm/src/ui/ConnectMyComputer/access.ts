@@ -52,13 +52,13 @@ export function getConnectMyComputerAccess(
 
   if (
     !loggedInUser ||
-    loggedInUser.userType === tsh.UserType.UNSPECIFIED ||
+    loggedInUser.userType === tsh.LoggedInUser_UserType.UNSPECIFIED ||
     !loggedInUser.acl
   ) {
     return { status: 'unknown' };
   }
 
-  if (loggedInUser.userType === tsh.UserType.SSO) {
+  if (loggedInUser.userType === tsh.LoggedInUser_UserType.SSO) {
     return { status: 'no-access', reason: 'sso-user' };
   }
 

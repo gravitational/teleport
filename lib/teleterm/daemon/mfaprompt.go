@@ -30,29 +30,30 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // mfaPrompt is a tshd implementation of mfa.Prompt that uses the
 // tshdEventsClient to propagate mfa prompts to the Electron App.
 type mfaPrompt struct {
 	cfg          libmfa.PromptConfig
-	clusterURI   string
+	resourceURI  uri.ResourceURI
 	promptAppMFA func(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error)
 }
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
-// for this service and the given cluster.
-func (s *Service) NewMFAPromptConstructor(clusterURI string) func(cfg *libmfa.PromptConfig) mfa.Prompt {
+// for this service and the given resource URI.
+func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg *libmfa.PromptConfig) mfa.Prompt {
 	return func(cfg *libmfa.PromptConfig) mfa.Prompt {
-		return s.NewMFAPrompt(clusterURI, cfg)
+		return s.NewMFAPrompt(resourceURI, cfg)
 	}
 }
 
-// NewMFAPrompt returns a new MFA prompt for this service and the given cluster.
-func (s *Service) NewMFAPrompt(clusterURI string, cfg *libmfa.PromptConfig) *mfaPrompt {
+// NewMFAPrompt returns a new MFA prompt for this service and the given resource URI.
+func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptConfig) *mfaPrompt {
 	return &mfaPrompt{
 		cfg:          *cfg,
-		clusterURI:   clusterURI,
+		resourceURI:  resourceURI,
 		promptAppMFA: s.promptAppMFA,
 	}
 }
@@ -125,10 +126,10 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 
 func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		RootClusterUri: p.clusterURI,
-		Reason:         p.cfg.PromptReason,
-		Totp:           runOpts.PromptTOTP,
-		Webauthn:       runOpts.PromptWebauthn,
+		ClusterUri: p.resourceURI.GetClusterURI().String(),
+		Reason:     p.cfg.PromptReason,
+		Totp:       runOpts.PromptTOTP,
+		Webauthn:   runOpts.PromptWebauthn,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

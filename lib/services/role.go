@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -34,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -73,6 +74,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
+	types.NewRule(types.KindVnetConfig, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -1068,9 +1070,13 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user {
+		if caseFold {
+			if strings.EqualFold(u, user) {
+				return true, "matched"
+			}
+		} else if u == user {
 			return true, "matched"
 		}
 		if matchWildcard && u == types.Wildcard {
@@ -1193,7 +1199,7 @@ func (set RoleSet) PinSourceIP() bool {
 
 // GetAccessState returns the AccessState, setting [AccessState.MFARequired]
 // according to the user's roles and cluster auth preference.
-func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+func (set RoleSet) GetAccessState(authPref readonly.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
 		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
@@ -1519,13 +1525,30 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
+// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
+//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
+	_, debugf := rbacDebugLogger()
+
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
 	}
+
+	var state AccessState
+	if len(states) == 1 {
+		state = states[0]
+	}
+
+	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+
 	for _, role := range set {
 		options := role.GetOptions()
 
@@ -1537,6 +1560,11 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
 		// If any role specifically denies access to the IdP, we'll return AccessDenied.
 		if !options.IDP.SAML.Enabled.Value {
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+
+		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
+			return trace.Wrap(ErrSessionMFARequired)
 		}
 	}
 
@@ -2122,6 +2150,8 @@ type databaseUserMatcher struct {
 	user string
 	// alternativeNames is a list of alternative names for the database user.
 	alternativeNames []string
+	// caseInsensitive specifies if the username is case insensitive.
+	caseInsensitive bool
 }
 
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
@@ -2131,6 +2161,7 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeUsernamesForAWSRoleARN(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
@@ -2138,21 +2169,26 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
-	return &databaseUserMatcher{user: user}
+	return &databaseUserMatcher{
+		user:            user,
+		caseInsensitive: db.IsUsernameCaseInsensitive(),
+	}
 }
 
 // Match matches database account name against provided role and condition.
 func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	selectors := role.GetDatabaseUsers(condition)
-	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+
+	if match, _ := MatchDatabaseUser(selectors, m.user, true /*matchWildcard*/, m.caseInsensitive); match {
 		return true, nil
 	}
 
 	for _, altName := range m.alternativeNames {
-		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+		if match, _ := MatchDatabaseUser(selectors, altName, false /*matchWildcard*/, m.caseInsensitive); match {
 			return true, nil
 		}
 	}
@@ -2266,6 +2302,27 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	logins := role.GetWindowsLogins(typ)
 	for _, login := range logins {
 		if l.login == login {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type awsAppLoginMatcher struct {
+	awsRole string
+}
+
+// NewAppAWSLoginMatcher creates a RoleMatcher that checks whether the role's
+// AWS Role ARN match the specified condition.
+func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
+	return &awsAppLoginMatcher{awsRole: awsRole}
+}
+
+// Match matches an AWS Role ARN login against a role.
+func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	awsRoles := role.GetAWSRoleARNs(typ)
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
 			return true, nil
 		}
 	}
@@ -2422,9 +2479,14 @@ type AccessCheckable interface {
 // It also returns a flag indicating whether debug logging is enabled,
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
-	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Tracef
+	debugEnabled = log.IsLevelEnabled(log.TraceLevel)
+	debugf = func(format string, args ...interface{}) {}
+
+	if debugEnabled {
+		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
+	}
+
+	return
 }
 
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
@@ -2786,6 +2848,14 @@ func (set RoleSet) CanCopyFiles() bool {
 	return true
 }
 
+// CanJoinSessions returns true if at least one role in the role set
+// allows the user to join active sessions.
+func (set RoleSet) CanJoinSessions() bool {
+	return slices.ContainsFunc(set, func(r types.Role) bool {
+		return len(r.GetSessionJoinPolicies()) > 0
+	})
+}
+
 // CertificateFormat returns the most permissive certificate format in a
 // RoleSet.
 func (set RoleSet) CertificateFormat() string {
@@ -3015,7 +3085,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 			}
 			if matched {
 				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
+					teleport.ComponentKey: teleport.ComponentRBAC,
 				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
 					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
@@ -3038,7 +3108,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	}
 
 	log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentRBAC,
+		teleport.ComponentKey: teleport.ComponentRBAC,
 	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 		p.verb, p.resource, p.namespace, set)
 
@@ -3220,9 +3290,8 @@ type AccessState struct {
 type MFARequired string
 
 const (
-	// MFARequiredNever means that MFA is never required for any sessions started by this user. This either
-	// means both the cluster auth preference and all roles have per-session MFA off, or at least one of
-	// those resources has "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	// MFARequiredNever means that MFA is never required for any sessions started by this user.
+	// This means that it is not required by the cluster auth preference or any of the user's roles.
 	MFARequiredNever MFARequired = "never"
 	// MFARequiredAlways means that MFA is required for all sessions started by a user. This either
 	// means that the cluster auth preference requires per-session MFA, or all of the user's roles require
@@ -3233,70 +3302,45 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
-// SortedRoles sorts roles by name
-type SortedRoles []types.Role
-
-// Len returns length of a role list
-func (s SortedRoles) Len() int {
-	return len(s)
-}
-
-// Less compares roles by name
-func (s SortedRoles) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName()
-}
-
-// Swap swaps two roles in a list
-func (s SortedRoles) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
-	var h types.ResourceHeader
-	err := json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	return UnmarshalRoleV6(bytes, opts...)
+}
 
+// UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
+func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch h.Version {
-	case types.V7:
-		fallthrough
-	case types.V6:
-		fallthrough
-	case types.V5:
-		fallthrough
-	case types.V4:
-		// V4 roles are identical to V3 except for their defaults
-		fallthrough
-	case types.V3:
-		var role types.RoleV6
-		if err := utils.FastUnmarshal(bytes, &role); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-
-		if err := ValidateRole(&role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if cfg.ID != 0 {
-			role.SetResourceID(cfg.ID)
-		}
-		if cfg.Revision != "" {
-			role.SetRevision(cfg.Revision)
-		}
-		if !cfg.Expires.IsZero() {
-			role.SetExpiry(cfg.Expires)
-		}
-		return &role, nil
+	version := jsoniter.Get(bytes, "version").ToString()
+	switch version {
+	// these are all backed by the same shape of data, they just have different semantics and defaults
+	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	default:
+		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
 
-	return nil, trace.BadParameter("role version %q is not supported", h.Version)
+	var role types.RoleV6
+	if err := utils.FastUnmarshal(bytes, &role); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if role.Version != version {
+		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
+	}
+
+	if err := ValidateRole(&role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Revision != "" {
+		role.SetRevision(cfg.Revision)
+	}
+	if !cfg.Expires.IsZero() {
+		role.SetExpiry(cfg.Expires)
+	}
+	return &role, nil
 }
 
 // MarshalRole marshals the Role resource to JSON.
@@ -3312,7 +3356,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

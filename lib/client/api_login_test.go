@@ -44,13 +44,13 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -270,7 +270,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			require.NoError(t, err)
 			if pref.GetSecondFactor() != test.secondFactor {
 				pref.SetSecondFactor(test.secondFactor)
-				require.NoError(t, authServer.SetAuthPreference(ctx, pref))
+				_, err = authServer.UpsertAuthPreference(ctx, pref)
+				require.NoError(t, err)
 			}
 
 			tc, err := client.NewClient(cfg)
@@ -311,9 +312,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		SecondFactor: constants.SecondFactorOff,
 	})
 	require.NoError(t, err, "NewAuthPreference failed")
-	require.NoError(t,
-		authServer.SetAuthPreference(ctx, authPref),
-		"SetAuthPreference failed")
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err, "UpsertAuthPreference failed")
 
 	// Prepare client config, it won't change throughout the test.
 	cfg := client.MakeDefaultConfig()
@@ -380,7 +380,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// AttemptDeviceLogin.
 		authenticatedAction := func() error {
 			// Any authenticated action would do.
-			_, err := teleportClient.ListAllNodes(ctx)
+			_, err := teleportClient.ListNodesWithFilters(ctx)
 			return err
 		}
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
@@ -539,7 +539,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
 	authAddr, err := authProcess.AuthAddr()
@@ -553,7 +553,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	// Initialize user's password and MFA.
 	ctx := context.Background()
 	const password = "supersecretpassword"
-	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -606,7 +606,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	proxyProcess := startAndWait(t, cfg, service.ProxyWebServerReady)
 	t.Cleanup(func() { proxyProcess.Close() })
 	proxyWebAddr, err := proxyProcess.ProxyWebAddr()

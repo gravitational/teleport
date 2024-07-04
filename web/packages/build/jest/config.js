@@ -29,7 +29,6 @@ module.exports = {
     '^teleport($|/.*)': '<rootDir>/web/packages/teleport/src/$1',
     '^teleterm($|/.*)': '<rootDir>/web/packages/teleterm/src/$1',
     '^e-teleport/(.*)$': '<rootDir>/e/web/teleport/src/$1',
-    '^e-teleterm/(.*)$': '<rootDir>/e/web/teleterm/src/$1',
     '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
     '^gen-proto-ts/(.*)$': '<rootDir>/gen/proto/ts/$1',
   },

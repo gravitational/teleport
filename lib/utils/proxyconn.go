@@ -21,38 +21,37 @@ package utils
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/gravitational/trace"
 )
 
-// CombinedReadWriteCloser wraps an [io.ReadCloser] and an [io.WriteCloser] to
-// implement [io.ReadWriteCloser]. Reads are performed on the [io.ReadCloser] and
-// writes are performed on the [io.WriteCloser]. Closing will return the
-// aggregated errors of both.
-type CombinedReadWriteCloser struct {
-	r io.ReadCloser
-	w io.WriteCloser
+// CombinedStdio reads from standard input and writes to standard output.
+// Closing a CombinedStdio does nothing, successfully.
+type CombinedStdio struct{}
+
+// Read reads from [os.Stdin].
+func (CombinedStdio) Read(p []byte) (int, error) {
+	return os.Stdin.Read(p)
 }
 
-func (o CombinedReadWriteCloser) Read(p []byte) (int, error) {
-	return o.r.Read(p)
+// Write writes to [os.Stdout].
+func (CombinedStdio) Write(p []byte) (int, error) {
+	return os.Stdout.Write(p)
 }
 
-func (o CombinedReadWriteCloser) Write(p []byte) (int, error) {
-	return o.w.Write(p)
+// ReadFrom copies data from [os.Stdout] to the provided [io.Reader].
+func (CombinedStdio) ReadFrom(r io.Reader) (n int64, err error) {
+	return os.Stdout.ReadFrom(r)
 }
 
-func (o CombinedReadWriteCloser) Close() error {
-	return trace.NewAggregate(o.r.Close(), o.w.Close())
+// WriteTo copies data from [os.Stdin] to the provided [io.Writer].
+func (CombinedStdio) WriteTo(w io.Writer) (n int64, err error) {
+	return os.Stdin.WriteTo(w)
 }
 
-// CombineReadWriteCloser creates a CombinedReadWriteCloser from the provided
-// [io.ReadCloser] and [io.WriteCloser] that implements [io.ReadWriteCloser]
-func CombineReadWriteCloser(r io.ReadCloser, w io.WriteCloser) CombinedReadWriteCloser {
-	return CombinedReadWriteCloser{
-		r: r,
-		w: w,
-	}
+func (CombinedStdio) Close() error {
+	return nil
 }
 
 // ProxyConn launches a double-copy loop that proxies traffic between the

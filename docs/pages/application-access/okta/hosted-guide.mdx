@@ -12,6 +12,24 @@ can be managed by Teleport's RBAC along with access requests.
 This guide will help you set up the Okta Service as a Teleport hosted
 integration.
 
+<Admonition type="warning">
+Enabling the Okta integration will make Teleport take ownership over app and group
+assignments in Okta and can make changes within Okta based on Teleport RBAC
+configuration.
+
+Specifically, access to Okta apps is governed by Teleport roles' [app_labels](../controls.mdx#configuring-application-labels-in-roles)
+so before enabling the integration make sure that your users do not have roles
+with wildcard app labels, which otherwise will result into those users being
+assigned to all Okta applications.
+
+To limit the scope of the integration, you can constrain Okta access token to
+a subset of apps and groups by using an [Okta resource set](https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm).
+
+Teleport manages Okta application group assignments using a declarative state approach.
+If an assignment is created via Teleport and subsequently removed via the Okta UI,
+Teleport will re-evaluate and potentially overwrite Okta UI changes to align with the state defined by Teleport's RBAC configuration.
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -90,6 +108,65 @@ Once the initial enrollment has completed, and if Teleport Identity
 is enabled, the enrollment workflow will guide you through enabling SCIM
 provisioning as well.
 
+## Configure Access List Synchronization
+
+If Teleport Identity is enabled, the enrollment workflow will also guide you to configure syncing of
+user groups and direct application assignments as Access Lists. This will ensure
+that permissions in Okta are modeled properly in Teleport, allowing Teleport users
+to see the same Okta applications that they would when viewing the Okta dashboard.
+
+### Configuring Default Owners
+
+The first step of setting up Okta Access List synchronization is defining default Access List owners. You can select
+any number of default owners or manually enter the owners if they do not yet exist
+in the system. These owners can be later changed and will not be overwritten by the
+Okta Access List synchronization process.
+
+### Importing Okta User Groups as Access Lists
+
+After configuring default owners, you can customize which Okta user groups should
+be imported. By default, all user groups will be imported. If you would like more
+control, you can disable the "Import All User Groups" option at the top right of
+the panel and configure multiple filters which will be matched against the group
+names. For more information on filter syntax, refer to the Import Filters section
+below.
+
+<Admonition type="note">
+Only Okta User Groups with assignments will be imported as an Access List. If an Okta User
+Group has no assignments, it will not be imported until it has assignments. If the last
+user is removed from the Access List, the Access List will be removed from Teleport on the
+next sync.
+</Admonition>
+
+### Importing Okta Application Assignments as Access Lists
+
+In addition to importing Okta User Groups, you can also import direct application
+assignments within Okta as Access Lists as well. This behaves in exactly the same way
+as user groups.
+
+<Admonition type="note">
+Only Okta Applications with assignments will be imported as an Access List. If an Okta
+Application has no assignments, it will not be imported until it has assignments. If the
+last user is removed from the Access List, the Access List will be removed from Teleport
+on the next sync.
+</Admonition>
+
+### Import Filters
+
+Filters are supported as glob syntax and regex syntax. Glob syntax are strings with
+wildcards in them that represent arbitrary values where the wildcards go. For example,
+a glob that matches names with a prefix of "app" and a suffix of "salesforce" would
+look like `app*salesforce`.
+
+You can also use raw regular expressions so long as the filter string is prefixed with `^`
+and ends with `$`. This will support the [Google RE2](https://github.com/google/re2/wiki/Syntax) regular expression syntax.
+
+When filters are added, the results of the user group or application list will update with
+the results of your filter applied. This allows you to see what will be imported at this
+particular time.
+
+![Filtering Okta User Groups](../../../img/enterprise/plugins/okta/okta-access-list-group-filtering.png)
+
 ## Configuring SCIM provisioning
 
 If Teleport Identity is enabled, the enrollment workflow will now show you a
@@ -144,8 +221,7 @@ To recap the enrollment "Set Up SCIM" guide:
 ![Configure SCIM Provisioning](../../../img/enterprise/plugins/okta/scim-provisioning.png)
 
 For more information about how the Okta integration manages Teleport resources,
-see the Okta [Architecture](./architecture.mdx) and [Synchronization with Okta and SCIM](./sync-scim.mdx)
-guides.
+see the [Synchronization with Okta and SCIM](./sync-scim.mdx) guide.
 
 ## Deleting a hosted Okta integration
 
@@ -158,6 +234,25 @@ if the Okta integration is re-enrolled.
 To permanently delete the SAML connector, navigate to the `Auth Connectors`
 page in the Teleport UI and delete it from there.
 
+### Access Lists
+
+<Admonition type="warning">
+If the hosted integration is still active, removing Okta sourced Access Lists
+could revoke Okta access from users in your organization. Please exercise caution
+when cleaning up Access Lists!
+</Admonition>
+
+All Access Lists imported by the hosted integration will remain until they
+are deleted by a Teleport Administrator. That is, they will *not* be deleted
+when the hosted integration is deleted.
+
+The easiest way to clean these up is through the use of `tctl`. A batch command
+like this will remove all Okta sourced access lists in a system:
+
+```
+tctl get access_lists --format json | jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r | xargs -I{} tctl rm "access_list/{}"
+```
+
 ### Users
 
 All Teleport user accounts created by the hosted integration, either via the
@@ -165,7 +260,7 @@ synchronization process or via SCIM, will ***not*** be deleted when the hosted
 integration is deleted.
 
 The easiest way to clean up these users when deleting a hosted integration is to
-un-assign all Okta users from the the Okta SAML Application Teleport uses as 
+un-assign all Okta users from the Okta SAML Application Teleport uses as 
 its identity provider, and wait for the sync process and/or SCIM provisioning
 to delete the corresponding Teleport accounts. Once the Teleport accounts have
 been automatically deleted you can proceed to delete the integration.

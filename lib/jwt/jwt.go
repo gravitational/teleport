@@ -21,7 +21,8 @@ package jwt
 
 import (
 	"crypto"
-	"crypto/rand"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -39,10 +40,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -56,9 +55,6 @@ type Config struct {
 
 	// PrivateKey is used to sign and verify tokens.
 	PrivateKey crypto.Signer
-
-	// Algorithm is algorithm used to sign JWT tokens.
-	Algorithm jose.SignatureAlgorithm
 
 	// ClusterName is the name of the cluster that will be signing the JWT tokens.
 	ClusterName string
@@ -75,9 +71,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.PrivateKey == nil && c.PublicKey == nil {
 		return trace.BadParameter("public or private key is required")
-	}
-	if c.Algorithm == "" {
-		return trace.BadParameter("algorithm is required")
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("cluster name is required")
@@ -145,12 +138,13 @@ func (p *SignParams) Check() error {
 }
 
 // sign will return a signed JWT with the passed in claims embedded within.
-func (k *Key) sign(claims any) (string, error) {
-	return k.signAny(claims)
+// `opts`, when not nil, specifies additional signing options, such as additional JWT headers.
+func (k *Key) sign(claims any, opts *jose.SignerOptions) (string, error) {
+	return k.signAny(claims, opts)
 }
 
 // signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
-func (k *Key) signAny(claims any) (string, error) {
+func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	if k.config.PrivateKey == nil {
 		return "", trace.BadParameter("can not sign token with non-signing key")
 	}
@@ -158,16 +152,27 @@ func (k *Key) signAny(claims any) (string, error) {
 	// Create a signer with configured private key and algorithm.
 	var signer interface{}
 	switch k.config.PrivateKey.(type) {
-	case *rsa.PrivateKey:
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
 		signer = k.config.PrivateKey
 	default:
 		signer = cryptosigner.Opaque(k.config.PrivateKey)
 	}
+
+	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	signingKey := jose.SigningKey{
-		Algorithm: k.config.Algorithm,
+		Algorithm: algorithm,
 		Key:       signer,
 	}
-	sig, err := jose.NewSigner(signingKey, (&jose.SignerOptions{}).WithType("JWT"))
+
+	if opts == nil {
+		opts = &jose.SignerOptions{}
+	}
+	opts = opts.WithType("JWT")
+	sig, err := jose.NewSigner(signingKey, opts)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -177,6 +182,18 @@ func (k *Key) signAny(claims any) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+	switch pub.(type) {
+	case *rsa.PublicKey:
+		return jose.RS256, nil
+	case *ecdsa.PublicKey:
+		return jose.ES256, nil
+	case ed25519.PublicKey:
+		return jose.EdDSA, nil
+	}
+	return "", trace.BadParameter("unsupported public key type %T", pub)
 }
 
 func (k *Key) Sign(p SignParams) (string, error) {
@@ -199,7 +216,7 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims)
+	return k.sign(claims, nil)
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -216,7 +233,7 @@ type awsOIDCCustomClaims struct {
 // - Issuer: stored as Issuer (iss) claim
 // - Subject: stored as Subject (sub) claim
 // - Audience: stored as Audience (aud) claim
-// - Expiries: stored as Expiry (exp) claim
+// - Expires: stored as Expiry (exp) claim
 func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 	// Sign the claims and create a JWT token.
 	claims := awsOIDCCustomClaims{
@@ -232,7 +249,41 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 		},
 	}
 
-	return k.sign(claims)
+	// AWS does not require `kid` claim in the JWT per se,
+	// but it seems to (NB: educated guess) require it if JWKS has multiple JWK-s with different `kid`-s.
+	opts := (&jose.SignerOptions{}).
+		WithHeader(jose.HeaderKey("kid"), "")
+
+	return k.sign(claims, opts)
+}
+
+// SignEntraOIDC signs a JWT for the Entra ID Integration.
+// Required Params:
+// - Issuer: stored as Issuer (iss) claim
+// - Subject: stored as Subject (sub) claim
+// - Audience: stored as Audience (aud) claim
+// - Expires: stored as Expiry (exp) claim
+func (k *Key) SignEntraOIDC(p SignParams) (string, error) {
+	// Sign the claims and create a JWT token.
+	claims := jwt.Claims{
+		Issuer:    p.Issuer,
+		Subject:   p.Subject,
+		Audience:  jwt.Audience{p.Audience},
+		ID:        uuid.NewString(),
+		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		Expiry:    jwt.NewNumericDate(p.Expires),
+		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+	}
+
+	// Azure expect a `kid` header to be present and non-empty,
+	// unlike e.g. AWS which accepts an empty `kid` string value.
+	kid, err := KeyID(k.config.PublicKey)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	opts := (&jose.SignerOptions{}).
+		WithHeader(jose.HeaderKey("kid"), kid)
+	return k.sign(claims, opts)
 }
 
 func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
@@ -247,7 +298,7 @@ func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
 		},
 	}
 
-	return k.sign(claims)
+	return k.sign(claims, nil)
 }
 
 // AzureTokenClaims represent a minimal set of claims that will be encoded as JWT in Azure access token and passed back to az CLI.
@@ -260,7 +311,7 @@ type AzureTokenClaims struct {
 
 // SignAzureToken signs AzureTokenClaims
 func (k *Key) SignAzureToken(claims AzureTokenClaims) (string, error) {
-	return k.signAny(claims)
+	return k.signAny(claims, nil)
 }
 
 type PROXYSignParams struct {
@@ -284,7 +335,7 @@ func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 		},
 	}
 
-	return k.sign(claims)
+	return k.sign(claims, nil)
 }
 
 // VerifyParams are the parameters needed to pass the token and data needed to verify.
@@ -508,22 +559,6 @@ type Claims struct {
 
 	// Traits returns the traits assigned to the user within Teleport.
 	Traits wrappers.Traits `json:"traits"`
-}
-
-// GenerateKeyPair generates and return a PEM encoded private and public
-// key in the format used by this package.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	public, private, err := utils.MarshalPrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return public, private, nil
 }
 
 // CheckNotBefore ensures the token was not issued in the future.

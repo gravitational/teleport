@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// export as default for use with React.lazy
-export { Bots as default } from './List/Bots';
+export { Bots } from './List/Bots';

@@ -52,7 +52,6 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
 		Value:   value,
 		Expires: plugin.Expiry(),
-		ID:      plugin.GetResourceID(),
 	}
 	_, err = s.backend.Create(ctx, item)
 	if err != nil {
@@ -72,6 +71,31 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// UpdatePlugin updates a plugin resource.
+func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := services.CheckAndSetDefaults(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalPlugin(plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:    value,
+		Expires:  plugin.Expiry(),
+		Revision: plugin.GetRevision(),
+	}
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.SetRevision(plugin, lease.Revision); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
 }
 
 // DeleteAllPlugins implements service.Plugins
@@ -95,7 +119,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,6 +154,9 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	if limit <= 0 {
+		limit = apidefaults.DefaultChunkSize
+	}
 	// Get at most limit+1 results to determine if there will be a next key.
 	maxLimit := limit + 1
 
@@ -142,7 +169,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -203,7 +230,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,7 +252,6 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
-		ID:       plugin.GetResourceID(),
 		Revision: rev,
 	})
 

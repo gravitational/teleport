@@ -22,7 +22,7 @@ import { createMemoryHistory } from 'history';
 
 import { ContextProvider, Context } from 'teleport';
 
-import Audit from './Audit';
+import { AuditContainer as Audit } from './Audit';
 import EventList from './EventList';
 import { events, eventsSample } from './fixtures';
 

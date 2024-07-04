@@ -149,12 +149,6 @@ const (
 	// NoLoginPrefix is the prefix used for nologin certificate principals.
 	NoLoginPrefix = "-teleport-nologin-"
 
-	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
-	DatabaseCAMinVersion = "10.0.0"
-
-	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
-	OpenSSHCAMinVersion = "12.0.0"
-
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 
@@ -201,7 +195,7 @@ type SecondFactorType string
 
 const (
 	// SecondFactorOff means no second factor.
-	SecondFactorOff = SecondFactorType("off")
+	SecondFactorOff = SecondFactorType("off") // todo(lxea): DELETE IN 17
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
@@ -218,7 +212,7 @@ const (
 	SecondFactorOn = SecondFactorType("on")
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.
-	SecondFactorOptional = SecondFactorType("optional")
+	SecondFactorOptional = SecondFactorType("optional") // todo(lxea): DELETE IN 17
 )
 
 // UnmarshalYAML supports parsing off|on into string on SecondFactorType.
@@ -344,6 +338,19 @@ const (
 	// SessionRecordingModeBestEffort allows the session to keep going even when
 	// session recording fails.
 	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
+)
+
+// ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+// which means resources the user has access to and resources they can request will be shown in the
+// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+type ShowResources string
+
+const (
+	// ShowResourcesaccessibleOnly will only show resources the user currently has access to.
+	ShowResourcesaccessibleOnly = ShowResources("accessible_only")
+
+	// ShowResourcesRequestable will allow resources that the user can request into resources page.
+	ShowResourcesRequestable = ShowResources("requestable")
 )
 
 // Constants for Traits

@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import { Box, Text } from 'design';
 
-const Container = styled(Box)`
+export const Container = styled(Box)`
   max-width: 1000px;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};

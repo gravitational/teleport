@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -63,7 +64,7 @@ type UsersService interface {
 	// GetUsers returns a list of users registered with the local auth server
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers(ctx context.Context) error
 }
@@ -97,9 +98,6 @@ type Identity interface {
 	// GetUserByGithubIdentity returns a user by its specified Github identity
 	GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error)
 
-	// UpsertPasswordHash upserts user password hash
-	UpsertPasswordHash(user string, hash []byte) error
-
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
 
@@ -110,8 +108,14 @@ type Identity interface {
 	// GetUsedTOTPToken returns the last successfully used TOTP token.
 	GetUsedTOTPToken(user string) (string, error)
 
-	// UpsertPassword upserts new password and OTP token
+	// UpsertPassword upserts a new password. It also sets the user's
+	// `PasswordState` status flag accordingly. Returns an error if the user
+	// doesn't exist.
 	UpsertPassword(user string, password []byte) error
+
+	// DeletePassword deletes user's password and sets the `PasswordState` status
+	// flag accordingly.
+	DeletePassword(ctx context.Context, username string) error
 
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.

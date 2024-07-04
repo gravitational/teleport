@@ -34,12 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/embeddedtbot"
 )
 
 var (
-	scheme   = resources.Scheme
+	scheme   = controllers.Scheme
 	setupLog = ctrl.Log.WithName("setup")
 )
 

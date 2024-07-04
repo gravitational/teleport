@@ -52,23 +52,24 @@ and [Architecture](./architecture.mdx) to plan your deployment.
 Read the following guides for how to deploy Machine ID on your cloud platform or
 on-prem infrastructure.
 
-|Platform|Installation method|Join method|
-|---|---|---|
-|[Linux](./deployment/linux.mdx)|Package manager or TAR archive|Static join token|
-|[GCP](./deployment/gcp.mdx)|Package manager, TAR archive, or Kubernetes pod|Identity document signed by GCP|
-|[AWS](./deployment/aws.mdx)|Package manager, TAR archive, or Kubernetes pod|Identity document signed by AWS|
-|[Azure](./deployment/azure.mdx)|Package manager or TAR archive|Identity document signed by Azure|
-|[Kubernetes](./deployment/kubernetes.mdx)|Kubernetes pod|Identity document signed by your Kubernetes cluster|
+| Platform                                  | Installation method                             | Join method                                         |
+|-------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
+| [Linux](./deployment/linux.mdx)           | Package manager or TAR archive                  | Static join token                                   |
+| [Linux (TPM)](./deployment/linux-tpm.mdx) | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
+| [GCP](./deployment/gcp.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
+| [AWS](./deployment/aws.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
+| [Azure](./deployment/azure.mdx)           | Package manager or TAR archive                  | Identity document signed by Azure                   |
+| [Kubernetes](./deployment/kubernetes.mdx) | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
 
 ### CI/CD
 
 Read the following guides for how to deploy Machine ID on a continuous
 integration and continuous deployment platform
 
-|Platform|Installation method|Join method|
-|---|---|---|
-|[CircleCI](./deployment/circleci.mdx)|TAR archive|CircleCI-signed identity document|
-|[GitLab](./deployment/gitlab.mdx)|TAR archive|GitLab-signed identity document|
-|[GitHub Actions](./deployment/github-actions.mdx)|Teleport job available through the GitHub Actions marketplace|GitHub-signed identity document.|
-|[Jenkins](./deployment/jenkins.mdx)|Package manager or TAR archive|Static join token|
-|[Spacelift](./deployment/spacelift.mdx)|Docker Image|Spacelift-signed identity document|
+| Platform                                          | Installation method                                           | Join method                        |
+|---------------------------------------------------|---------------------------------------------------------------|------------------------------------|
+| [CircleCI](./deployment/circleci.mdx)             | TAR archive                                                   | CircleCI-signed identity document  |
+| [GitLab](./deployment/gitlab.mdx)                 | TAR archive                                                   | GitLab-signed identity document    |
+| [GitHub Actions](./deployment/github-actions.mdx) | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.   |
+| [Jenkins](./deployment/jenkins.mdx)               | Package manager or TAR archive                                | Static join token                  |
+| [Spacelift](./deployment/spacelift.mdx)           | Docker Image                                                  | Spacelift-signed identity document |

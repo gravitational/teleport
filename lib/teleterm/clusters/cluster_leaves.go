@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -41,22 +42,14 @@ type LeafCluster struct {
 }
 
 // GetLeafClusters returns leaf clusters
-func (c *Cluster) GetLeafClusters(ctx context.Context) ([]LeafCluster, error) {
-	var remoteClusters []types.RemoteCluster
-	err := AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		remoteClusters, err = proxyClient.GetLeafClusters(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+func (c *Cluster) GetLeafClusters(ctx context.Context, rootClient *client.ClusterClient) ([]LeafCluster, error) {
+	var (
+		remoteClusters []types.RemoteCluster
+		err            error
+	)
+	err = AddMetadataToRetryableError(ctx, func() error {
+		remoteClusters, err = rootClient.AuthClient.GetRemoteClusters(ctx)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

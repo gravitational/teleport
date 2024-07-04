@@ -29,30 +29,45 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ServerHandler implements an interface which can handle a connection
+// (perform a handshake then process).
+type ServerHandler interface {
+	// HandleConnection performs a handshake then process the connection.
+	HandleConnection(conn net.Conn)
+}
+
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
 	proxyClient  reversetunnelclient.Tunnel
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	servers      []types.AppServer
 	ws           types.WebSession
 	clusterName  string
 	log          logrus.FieldLogger
+	clock        clockwork.Clock
+
+	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
+	// Instead of proxying the connection to an AppService, the app is immediately proxied from the Proxy.
+	integrationAppHandler ServerHandler
 }
 
 // Check validates configuration.
@@ -77,6 +92,15 @@ func (c *transportConfig) Check() error {
 	}
 	if c.clusterName == "" {
 		return trace.BadParameter("cluster name missing")
+	}
+	if c.integrationAppHandler == nil {
+		return trace.BadParameter("integration app handler missing")
+	}
+	if c.log == nil {
+		c.log = logrus.New()
+	}
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
 	}
 
 	return nil
@@ -137,6 +161,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// cookies are lost and the error handler will not be able to find the
 	// session based on cookies.
 	r = r.Clone(r.Context())
+
 	// Perform any request rewriting needed before forwarding the request.
 	if err := t.rewriteRequest(r); err != nil {
 		return nil, trace.Wrap(err)
@@ -226,7 +251,100 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 		}
 	}
 
+	// If this looks like a Azure CLI request and at least once app server is
+	// an Azure app, parse the JWT cookie using the client's public key and
+	// resign it with the web session private key.
+	if HasClientCert(r) && t.c.identity.RouteToApp.AzureIdentity != "" {
+		for _, server := range t.c.servers {
+			if !server.GetApp().IsAzureCloud() {
+				continue
+			}
+
+			if err := t.resignAzureJWTCookie(r); err != nil {
+				// If we failed to resign the JWT, treat it as a noop. The App
+				// Service should fail to parse the JWT and reject the request,
+				// but rejecting here could cause forward compatibility issues,
+				// if for example we add new types of JWT tokens.
+				t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
+			}
+
+			break
+		}
+	}
+
 	return nil
+}
+
+// resignAzureJWTCookie checks the auth header bearer token for a JWT
+// token containing Azure claims signed by the client's private key. If
+// found, the token is resigned using the app session's private key so
+// that the App Service can validate it using the app session's public key.
+func (t *transport) resignAzureJWTCookie(r *http.Request) error {
+	token, err := parseBearerToken(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create a new jwt key using the client public key to verify and parse the token.
+	clientJWTKey, err := jwt.New(&jwt.Config{
+		Clock:       t.c.clock,
+		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
+		ClusterName: types.TeleportAzureMSIEndpoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create a new jwt key using the web session private key to sign a new token.
+	wsPrivateKey, err := keys.ParsePrivateKey(t.c.ws.GetPriv())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	wsJWTKey, err := jwt.New(&jwt.Config{
+		Clock:       t.c.clock,
+		PrivateKey:  wsPrivateKey,
+		ClusterName: types.TeleportAzureMSIEndpoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	claims, err := clientJWTKey.VerifyAzureToken(token)
+	if err != nil {
+		// If we fail to parse the token using the client's public key,
+		// that likely means the client is on an old version and is
+		// signing the token with the web session key directly, meaning
+		// we don't need to resign it, just let it through.
+		// TODO (Joerger): DELETE IN 17.0.0
+		if _, err := wsJWTKey.VerifyAzureToken(token); err == nil {
+			return nil
+		}
+
+		// jwt signed by unknown key.
+		return trace.Wrap(err, "azure jwt signed by unknown key")
+	}
+
+	newToken, err := wsJWTKey.SignAzureToken(*claims)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	r.Header.Set("Authorization", "Bearer "+newToken)
+	return nil
+}
+
+func parseBearerToken(r *http.Request) (string, error) {
+	bearerToken := r.Header.Get("Authorization")
+	if bearerToken == "" {
+		return "", trace.NotFound("auth header not set")
+	}
+
+	bearer, token, found := strings.Cut(bearerToken, " ")
+	if !found || bearer != "Bearer" {
+		return "", trace.BadParameter("unable to parse auth header")
+	}
+
+	return token, nil
 }
 
 // DialContext dials and connect to the application service over the reverse
@@ -244,7 +362,14 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
-		appServer.GetApp()
+
+		appIntegration := appServer.GetApp().GetIntegration()
+		if appIntegration != "" {
+			src, dst := net.Pipe()
+			go t.c.integrationAppHandler.HandleConnection(src)
+			return dst, nil
+		}
+
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
 			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
@@ -260,12 +385,18 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		break
 	}
 
-	// eliminate any servers from the head of the list that were unreachable
 	t.mu.Lock()
-	if i < len(servers) {
-		t.c.servers = t.c.servers[i:]
-	} else {
-		t.c.servers = nil
+	// Only attempt to tidy up the list of servers if they weren't altered
+	// while the dialing happened. Since the lock is only held initially when
+	// making the servers copy and released during the dials, another dial attempt
+	// may have already happened and modified the list of servers.
+	if len(servers) == len(t.c.servers) {
+		// eliminate any servers from the head of the list that were unreachable
+		if i < len(t.c.servers) {
+			t.c.servers = t.c.servers[i:]
+		} else {
+			t.c.servers = nil
+		}
 	}
 	t.mu.Unlock()
 

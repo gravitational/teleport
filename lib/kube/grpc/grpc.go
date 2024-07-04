@@ -28,11 +28,12 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -89,7 +90,7 @@ type Config struct {
 type CertificateSigner interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.
-	ProcessKubeCSR(req auth.KubeCSR) (*auth.KubeCSRResponse, error)
+	ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error)
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -118,7 +119,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
-	c.Log = c.Log.WithFields(logrus.Fields{trace.Component: c.Component})
+	c.Log = c.Log.WithFields(logrus.Fields{teleport.ComponentKey: c.Component})
 	return nil
 }
 
@@ -220,10 +221,17 @@ func (s *Server) listKubernetesResources(
 
 	limit := int(req.Limit)
 	filter := services.MatchResourceFilter{
-		ResourceKind:        req.ResourceType,
-		Labels:              req.Labels,
-		SearchKeywords:      req.SearchKeywords,
-		PredicateExpression: req.PredicateExpression,
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
 	}
 
 	rsp := &proto.ListKubernetesResourcesResponse{}
@@ -529,19 +537,26 @@ func (s *Server) listResourcesUsingFakePagination(
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// map the request to the fake pagination request.
+	params := local.FakePaginateParams{
+		StartKey:       req.StartKey,
+		Limit:          req.Limit,
+		ResourceType:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+
 	// Apply request filters and get pagination info.
-	fakeRsp, err := local.FakePaginate(
-		sortedClusters.AsResources(),
-		// map the request to the fake pagination request.
-		local.FakePaginateParams{
-			StartKey:            req.StartKey,
-			Limit:               req.Limit,
-			ResourceType:        req.ResourceType,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		},
-	)
+	fakeRsp, err := local.FakePaginate(sortedClusters.AsResources(), params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

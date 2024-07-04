@@ -26,10 +26,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,6 +50,9 @@ type ServiceConfig struct {
 
 	// Clock is the clock.
 	Clock clockwork.Clock
+
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -58,9 +65,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
 	}
+	if s.Emitter == nil {
+		return trace.BadParameter("emitter is required")
+	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.New().WithField(trace.Component, "discoveryconfig_crud_service")
+		s.Logger = logrus.New().WithField(teleport.ComponentKey, "discoveryconfig_crud_service")
 	}
 
 	if s.Clock == nil {
@@ -78,6 +88,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	backend    services.DiscoveryConfigs
 	clock      clockwork.Clock
+	emitter    apievents.Emitter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -91,6 +102,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
 		clock:      cfg.Clock,
+		emitter:    cfg.Emitter,
 	}, nil
 }
 
@@ -156,9 +168,28 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the status to an empty struct to clear any status that may have been set
+	// in the request.
+	dc.Status = discoveryconfig.Status{}
+
 	resp, err := s.backend.CreateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigCreateEvent,
+			Code: events.DiscoveryConfigCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
 	}
 
 	return conv.ToProto(resp), nil
@@ -180,9 +211,31 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the status to the existing status to ensure it is not cleared.
+	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc.Status = oldDiscoveryConfig.Status
+
 	resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigUpdateEvent,
+			Code: events.DiscoveryConfigUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config update event.")
 	}
 
 	return conv.ToProto(resp), nil
@@ -204,9 +257,28 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the status to an empty struct to clear any status that may have been set
+	// in the request.
+	dc.Status = discoveryconfig.Status{}
+
 	resp, err := s.backend.UpsertDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigCreateEvent,
+			Code: events.DiscoveryConfigCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
 	}
 
 	return conv.ToProto(resp), nil
@@ -227,6 +299,20 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigDelete{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigDeleteEvent,
+			Code: events.DiscoveryConfigDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config delete event.")
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -245,5 +331,49 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigDeleteAll{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigDeleteAllEvent,
+			Code: events.DiscoveryConfigDeleteAllCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config delete all event.")
+	}
+
 	return &emptypb.Empty{}, nil
+}
+
+// UpdateDiscoveryConfigStatus updates the status of a DiscoveryConfig.
+func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discoveryconfigv1.UpdateDiscoveryConfigStatusRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+		return nil, trace.AccessDenied("UpdateDiscoveryConfigStatus request can be only executed by a Discovery Service")
+	}
+
+	for {
+		dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+		switch {
+		case trace.IsNotFound(err):
+			return nil, trace.NotFound("discovery config %q not found", req.GetName())
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+
+		dc.Status = conv.StatusFromProto(req.GetStatus())
+		resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		return conv.ToProto(resp), nil
+	}
 }

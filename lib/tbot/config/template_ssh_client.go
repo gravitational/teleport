@@ -20,40 +20,38 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// sshConfigProxyModeEnv is the environment variable that controls whether or
+// not to use the new proxy command.
+// It supports:
+// - "legacy" (default in v15): use the legacy proxy command
+// - "new" (default in v16): use the new proxy command
+// In v17, it will be removed.
+const sshConfigProxyModeEnv = "TBOT_SSH_CONFIG_PROXY_COMMAND_MODE"
 
 // templateSSHClient contains parameters for the ssh_config config
 // template
 type templateSSHClient struct {
 	getSSHVersion        func() (*semver.Version, error)
+	getEnv               func(key string) string
 	executablePathGetter executablePathGetter
 	// destPath controls whether or not to write the SSH config file.
 	// This is lets this be skipped on non-directory destinations where this
 	// doesn't make sense.
 	destPath string
 }
-
-const (
-	// sshConfigName is the name of the ssh_config file on disk
-	sshConfigName = "ssh_config"
-
-	// knownHostsName is the name of the known_hosts file on disk
-	knownHostsName = "known_hosts"
-)
 
 func (c *templateSSHClient) name() string {
 	return TemplateSSHClientName
@@ -62,13 +60,13 @@ func (c *templateSSHClient) name() string {
 func (c *templateSSHClient) describe() []FileDescription {
 	fds := []FileDescription{
 		{
-			Name: knownHostsName,
+			Name: ssh.KnownHostsName,
 		},
 	}
 
 	if c.destPath != "" {
 		fds = append(fds, FileDescription{
-			Name: sshConfigName,
+			Name: ssh.ConfigName,
 		})
 	}
 
@@ -76,11 +74,11 @@ func (c *templateSSHClient) describe() []FileDescription {
 }
 
 func getClusterNames(
-	bot provider, connectedClusterName string,
+	ctx context.Context, bot provider, connectedClusterName string,
 ) ([]string, error) {
 	allClusterNames := []string{connectedClusterName}
 
-	leafClusters, err := bot.GetRemoteClusters()
+	leafClusters, err := bot.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,24 +101,24 @@ func (c *templateSSHClient) render(
 	)
 	defer span.End()
 
-	ping, err := bot.AuthPing(ctx)
+	ping, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.Proxy.SSH.PublicAddr)
 	if err != nil {
-		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
+		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.Proxy.SSH.PublicAddr, err)
 	}
 
-	clusterNames, err := getClusterNames(bot, ping.ClusterName)
+	clusterNames, err := getClusterNames(ctx, bot, ping.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
-	knownHosts, err := fetchKnownHosts(
+	knownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		bot,
 		clusterNames,
@@ -130,7 +128,7 @@ func (c *templateSSHClient) render(
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
+	if err := destination.Write(ctx, ssh.KnownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -154,60 +152,73 @@ func (c *templateSSHClient) render(
 	}
 
 	var sshConfigBuilder strings.Builder
-	knownHostsPath := filepath.Join(absDestPath, knownHostsName)
+	knownHostsPath := filepath.Join(absDestPath, ssh.KnownHostsName)
 	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
-	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
-	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-		AppName:             openssh.TbotApp,
-		ClusterNames:        clusterNames,
-		KnownHostsPath:      knownHostsPath,
-		IdentityFilePath:    identityFilePath,
-		CertificateFilePath: certificateFilePath,
-		ProxyHost:           proxyHost,
-		ProxyPort:           proxyPort,
-		ExecutablePath:      executablePath,
-		DestinationDir:      absDestPath,
-	}); err != nil {
-		return trace.Wrap(err)
+	sshConf := openssh.NewSSHConfig(c.getSSHVersion, nil)
+	botConfig := bot.Config()
+
+	if c.getEnv(sshConfigProxyModeEnv) == "legacy" {
+		// Deprecated: this block will be removed in v17. It exists so users can
+		// revert to the old behavior if necessary.
+		// TODO(strideynet) DELETE IN 17.0.0
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// Test if ALPN upgrade is required, this will only be necessary if we
+		// are using TLS routing.
+		connUpgradeRequired := false
+		if ping.Proxy.TLSRoutingEnabled {
+			connUpgradeRequired, err = bot.IsALPNConnUpgradeRequired(
+				ctx, ping.Proxy.SSH.PublicAddr, botConfig.Insecure,
+			)
+			if err != nil {
+				return trace.Wrap(err, "determining if ALPN upgrade is required")
+			}
+		}
+
+		// Generate SSH config
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
+
+			PureTBotProxyCommand: true,
+			Insecure:             botConfig.Insecure,
+			FIPS:                 botConfig.FIPS,
+			TLSRouting:           ping.Proxy.TLSRoutingEnabled,
+			ConnectionUpgrade:    connUpgradeRequired,
+
+			// Session resumption is enabled by default, this can be
+			// configurable at a later date if we discover reasons for this to
+			// be disabled.
+			Resume: true,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if err := destination.Write(ctx, sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	if err := destination.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, proxyHosts string) (string, error) {
-	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
-	for _, cn := range clusterNames {
-		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: cn,
-		}, false)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		certAuthorities = append(certAuthorities, ca)
-	}
-
-	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts(certAuthorities) {
-		pubKeys, err := auth.SSHCertPublicKeys()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		for _, pubKey := range pubKeys {
-			bytes := ssh.MarshalAuthorizedKey(pubKey)
-			sb.WriteString(fmt.Sprintf(
-				"@cert-authority %s,%s,*.%s %s type=host\n",
-				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
-			))
-		}
-	}
-
-	return sb.String(), nil
 }

@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -159,7 +159,7 @@ traits:
 
 			userName := validRandomResourceName("user-")
 
-			obj, err := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			obj, err := reconcilers.GetUnstructuredObjectFromGVK(teleportUserGVK)
 			require.NoError(t, err)
 			obj.Object["spec"] = userManifest
 			obj.SetName(userName)

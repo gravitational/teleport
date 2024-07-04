@@ -198,7 +198,7 @@ func (m *mockMiddlewareCounter) onStateChange() {
 	}
 }
 
-func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareCounter) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	m.Lock()
 	defer m.Unlock()
 	m.connCount++
@@ -289,16 +289,16 @@ func TestMiddleware(t *testing.T) {
 
 // mockCertRenewer is a mock middleware for the local proxy that always sets the local proxy certs slice.
 type mockCertRenewer struct {
-	certs []tls.Certificate
+	cert tls.Certificate
 }
 
-func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
-	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
+func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy) error {
+	lp.SetCert(m.cert)
 	return nil
 }
 
 func (m *mockCertRenewer) OnStart(_ context.Context, lp *LocalProxy) error {
-	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
+	lp.SetCert(m.cert)
 	return nil
 }
 
@@ -314,7 +314,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		Middleware:         &mockCertRenewer{certs: []tls.Certificate{}},
+		Middleware:         &mockCertRenewer{tls.Certificate{}},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -419,8 +419,8 @@ func TestCheckDBCerts(t *testing.T) {
 				}),
 				withClock(tt.clock),
 			)
-			lp.SetCerts([]tls.Certificate{tlsCert})
-			tt.errAssertFn(t, lp.CheckDBCerts(tt.dbRoute))
+			lp.SetCert(tlsCert)
+			tt.errAssertFn(t, lp.CheckDBCert(tt.dbRoute))
 		})
 	}
 }
@@ -428,7 +428,7 @@ func TestCheckDBCerts(t *testing.T) {
 type mockMiddlewareConnUnauth struct {
 }
 
-func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy, _ net.Conn) error {
+func (m *mockMiddlewareConnUnauth) OnNewConnection(_ context.Context, _ *LocalProxy) error {
 	return trace.AccessDenied("access denied.")
 }
 
@@ -504,8 +504,51 @@ func TestKubeMiddleware(t *testing.T) {
 	)
 
 	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return newCert, nil
+		select {
+		case <-ctx.Done():
+			return tls.Certificate{}, ctx.Err()
+		default:
+			return newCert, nil
+		}
 	}
+
+	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
+		req := &http.Request{
+			TLS: &tls.ConnectionState{
+				ServerName: "kube1",
+			},
+		}
+		// we set request context to a context that will expired immediately.
+		reqCtx, cancel := context.WithDeadline(context.Background(), time.Now())
+		defer cancel()
+		req = req.WithContext(reqCtx)
+
+		km := NewKubeMiddleware(KubeMiddlewareConfig{
+			Certs:        KubeClientCerts{"kube1": kube1Cert},
+			CertReissuer: certReissuer,
+			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			CloseContext: context.Background(),
+		})
+		err := km.CheckAndSetDefaults()
+		require.NoError(t, err)
+
+		rw := responsewriters.NewMemoryResponseWriter()
+		// HandleRequest will reissue certificate if needed.
+		km.HandleRequest(rw, req)
+
+		// request timed out.
+		require.Equal(t, http.StatusInternalServerError, rw.Status())
+		require.Contains(t, rw.Buffer().String(), "context deadline exceeded")
+
+		// just let the reissuing goroutine some time to replace certs.
+		time.Sleep(10 * time.Millisecond)
+
+		// but certificate still was reissued.
+		certs, err := km.OverwriteClientCerts(req)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		require.Equal(t, newCert, certs[0], "certificate was not reissued")
+	})
 
 	testCases := []struct {
 		name            string
@@ -559,6 +602,7 @@ func TestKubeMiddleware(t *testing.T) {
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
 				Clock:        tt.clock,
+				CloseContext: context.Background(),
 			})
 
 			// HandleRequest will reissue certificate if needed
@@ -595,7 +639,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 		hs.Close()
 	})
 	go func() {
-		err := lp.StartHTTPAccessProxy(context.Background())
+		err := lp.Start(context.Background())
 		assert.NoError(t, err)
 	}()
 	return lp
@@ -674,14 +718,22 @@ func TestGetCertsForConn(t *testing.T) {
 		"no tunnel when not needed for postgres protocol": {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
-			stubConnBytes:    (&pgproto3.SSLRequest{}).Encode(nil),
-			wantCerts:        false,
+			stubConnBytes: func() []byte {
+				val, err := (&pgproto3.SSLRequest{}).Encode(nil)
+				require.NoError(t, err, "SSLRequest.Encode failed")
+				return val
+			}(),
+			wantCerts: false,
 		},
 		"tunnel when needed for postgres protocol": {
 			checkCertsNeeded: true,
 			addProtocols:     []common.Protocol{common.ProtocolPostgres},
-			stubConnBytes:    (&pgproto3.CancelRequest{}).Encode(nil),
-			wantCerts:        true,
+			stubConnBytes: func() []byte {
+				val, err := (&pgproto3.CancelRequest{}).Encode(nil)
+				require.NoError(t, err, "CancelRequest.Encode failed")
+				return val
+			}(),
+			wantCerts: true,
 		},
 	}
 	for name, tt := range tests {
@@ -690,21 +742,20 @@ func TestGetCertsForConn(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
 			lp, err := NewLocalProxy(LocalProxyConfig{
-				RemoteProxyAddr:  "localhost",
-				Protocols:        append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
-				ParentContext:    context.Background(),
-				CheckCertsNeeded: tt.checkCertsNeeded,
-				Certs:            []tls.Certificate{tlsCert},
+				RemoteProxyAddr: "localhost",
+				Protocols:       append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
+				ParentContext:   context.Background(),
+				CheckCertNeeded: tt.checkCertsNeeded,
+				Cert:            tlsCert,
 			})
 			require.NoError(t, err)
 			conn := &stubConn{buff: *bytes.NewBuffer(tt.stubConnBytes)}
-			gotCerts, _, err := lp.getCertsForConn(context.Background(), conn)
+			gotCert, _, err := lp.getCertForConn(conn)
 			require.NoError(t, err)
 			if tt.wantCerts {
-				require.Len(t, gotCerts, 1)
-				require.Equal(t, tlsCert, gotCerts[0])
+				require.Equal(t, tlsCert, gotCert)
 			} else {
-				require.Empty(t, gotCerts)
+				require.Empty(t, gotCert)
 			}
 		})
 	}

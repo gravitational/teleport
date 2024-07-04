@@ -88,8 +88,6 @@ type UserACL struct {
 	DeviceTrust ResourceAccess `json:"deviceTrust"`
 	// Locks defines access to locking resources.
 	Locks ResourceAccess `json:"lock"`
-	// Assist defines access to assist feature.
-	Assist ResourceAccess `json:"assist"`
 	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
 	SAMLIdpServiceProvider ResourceAccess `json:"samlIdpServiceProvider"`
 	// AccessList defines access to access list management.
@@ -106,6 +104,12 @@ type UserACL struct {
 	AccessGraph ResourceAccess `json:"accessGraph"`
 	// Bots defines access to manage Bots.
 	Bots ResourceAccess `json:"bots"`
+	// BotInstances defines access to manage bot instances
+	BotInstances ResourceAccess `json:"botInstances"`
+	// AccessMonitoringRule defines access to manage access monitoring rule resources.
+	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
+	// CrownJewel defines access to manage CrownJewel resources.
+	CrownJewel ResourceAccess `json:"crownJewel"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -134,7 +138,6 @@ func newAccess(roleSet RoleSet, ctx *Context, kind string) ResourceAccess {
 func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled, accessMonitoringEnabled bool) UserACL {
 	ctx := &Context{User: user}
 	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
-	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
 	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
@@ -151,9 +154,12 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
 
-	var assistAccess ResourceAccess
-	if features.Assist {
-		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	// active sessions are a special case - if a user's role set has any join_sessions
+	// policies then the ACL must permit showing active sessions
+	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
+	if userRoles.CanJoinSessions() {
+		activeSessionAccess.List = true
+		activeSessionAccess.Read = true
 	}
 
 	// The billing dashboards are available in cloud clusters or for
@@ -187,12 +193,16 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
+	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
+	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
+	var accessMonitoringRules ResourceAccess
 	if accessMonitoringEnabled {
 		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
 		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
+		accessMonitoringRules = newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	}
 
 	return UserACL{
@@ -223,7 +233,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
-		Assist:                  assistAccess,
 		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
 		AccessList:              accessListAccess,
 		AuditQuery:              auditQuery,
@@ -231,5 +240,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
+		BotInstances:            botInstances,
+		AccessMonitoringRule:    accessMonitoringRules,
+		CrownJewel:              crownJewelAccess,
 	}
 }

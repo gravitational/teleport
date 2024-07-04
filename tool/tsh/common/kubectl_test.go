@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -275,7 +275,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 		Credentials: &client.Key{
 			PrivateKey: priv,
 			TLSCert:    []byte(fixtures.TLSCACertPEM),
-			TrustedCerts: []auth.TrustedCerts{{
+			TrustedCerts: []authclient.TrustedCerts{{
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},

@@ -15,7 +15,20 @@ spec:
     singular: teleportopensshserverv2
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Server hostname
+      jsonPath: .spec.hostname
+      name: Hostname
+      type: string
+    - description: Server address, with SSH port.
+      jsonPath: .spec.addr
+      name: Address
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: OpenSSHServerV2 is the Schema for the opensshserversv2 API

@@ -4,19 +4,23 @@ description: Managing Okta resources in Teleport
 ---
 
 The Okta integration imports and synchronizes resources from an Okta
-organisation. This guide details how those Okta resources are represented inside
+organization. This guide details how those Okta resources are represented inside
 a Teleport cluster.
 
 ## Synchronization & SCIM
 
 Teleport uses two complimentary methods for synchronizing Teleport resources with
 an upstream Okta Organization:
- - the Okta integration [synchronization process](./architecture.mdx)
- - provisioning via SCIM 
+ - the Okta integration synchronization process
+ - provisioning via SCIM
 
 On the whole, it doesn't matter to the wider Teleport system which method was
 used to import a user as both processes create identical resources inside
-Teleport. 
+Teleport.
+
+To complement user provisioning, Okta is also able to model Okta permissions as
+Access Lists, which will effectively import Okta's application permissions into
+Teleport.
 
 ## Users
 
@@ -111,4 +115,61 @@ Teleport and so Teleport will not automatically lock and remove that user.
 
 Be sure to either deactivate the user, or unassign them from the Okta SAML
 Application in order to make sure their status is updated in Teleport.
+</Admonition>
+
+## Access Lists
+
+### Modeling Okta permissions within Teleport
+
+Okta has its own permissions system that doesn't map cleanly into Teleport. This
+includes permissions granted by Okta groups along with the assignment of users to individual
+applications within Okta. To model this within Teleport, an administrator would typically need
+to carefully craft a labeling system to attach to various Okta apps and groups and a set of
+roles to go along with them.
+
+With the new Access List synchronization feature in the Okta service, this work is performed
+for you. We'll discuss the details of how this works.
+
+### Synchronizing Access Lists from Okta groups and applications
+
+The Okta Access List synchronizer will look for any Okta group with members or any Okta
+application with individual assignments that matches configurable filters that you can
+optionally supply. Access lists will not be created for groups or applications without
+any assignments.
+
+The synchronizer will create the following resources for each matched group or application:
+
+- A role for members that grants access to the group/application.
+- A role for owners that grants the ability to review access to the group/application.
+- An Access List representing membership to the group/application.
+- Members for the Access List.
+
+It should be noted that the Access List sync waits until the Okta groups and Okta applications
+has finished syncing as Teleport resources, so it may not start synchronizing immediately on startup.
+
+#### Deletion of Access Lists
+
+Access Lists synchronized from Okta will automatically be deleted when there are no members assigned to them in
+Okta or when they are deleted in Okta.
+
+<Admonition type="warning">
+It is possible for an administrator to delete Access Lists, but this should only be done once
+the Okta integration has been removed and Access List synchronization is disabled. This could
+remove all users from the Okta group or application that's being targeted!
+</Admonition>
+
+### Working with synchronized Access Lists
+
+When first synchronizing an Access List, the owners of the Access List will be set to the default owners configured during the initial Okta integration enrollment, and the initial review date
+will be set 6 months from the configured date. These fields are modifiable, as well as the owner and
+membership requirements. However, you will not be able to change grants, as these belong to
+the Okta Access List synchronizer.
+
+The owners of an Okta synchronized Access List will be preserved between runs.
+
+<Admonition type="warning">
+Removing members from an Okta synchronized Access List will remove the user from the Okta group
+or Okta application in Okta unless there are other assignments that convey the assignment to the
+user. In this way, Teleport becomes the source of truth for Okta membership. Please keep this in mind
+when adding other automated workflows or integrations into your Okta environment.
 </Admonition>

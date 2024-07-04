@@ -25,13 +25,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // ExternalAuditStorageConnectionTesterConfig defines the config fields for ExternalAuditStorageConnectionTester.
 type ExternalAuditStorageConnectionTesterConfig struct {
 	// UserClient is an auth client that has a User's identity.
-	UserClient auth.ClientI
+	UserClient authclient.ClientI
 }
 
 // ExternalAuditStorageConnectionTester implements the ConnectionTester interface for testing External Audit Storage access.

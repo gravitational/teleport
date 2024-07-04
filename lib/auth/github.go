@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -51,13 +52,19 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
-// GithubConverter is a thin wrapper around the ClientI interface that
+// InvalidClientRedirectErrorMessage is a string added to SSO login errors
+// caused by an invalid client redirect URL; the presence of this string is
+// checked by the proxy to provide a more useful error message to the user when
+// logging in.
+const InvalidClientRedirectErrorMessage = "invalid or disallowed client redirect URL"
+
+// GithubConverter is a thin wrapper around the [authclient.ClientI] interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
-	ClientI
+	authclient.ClientI
 }
 
-// WithGithubConnectorConversions takes a ClientI and returns one that
+// WithGithubConnectorConversions takes a [authclient.ClientI]  and returns one that
 // ensures returned or passed [types.GithubConnector] interfaces
 // use the registered implementation for the following methods:
 //
@@ -68,7 +75,7 @@ type GithubConverter struct {
 // This is function is necessary so that the
 // [github.com/gravitational/teleport/api] module does not import
 // [github.com/gravitational/teleport/lib/services].
-func WithGithubConnectorConversions(c ClientI) ClientI {
+func WithGithubConnectorConversions(c authclient.ClientI) authclient.ClientI {
 	return &GithubConverter{
 		ClientI: c,
 	}
@@ -132,16 +139,28 @@ func (g *GithubConverter) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
-	_, client, err := a.getGithubConnectorAndClient(ctx, req)
+	connector, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// requests for a web session originate from the proxy, so they are trusted
+	// and they're handled in such a way that minimizes misuse in the callback
+	// endpoint; requests for a client session (as used by tsh login) need to be
+	// checked, as they will point the browser away from the IdP or the web UI
+	// after the authentication is done
+	if !req.CreateWebSession {
+		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+	}
+
 	req.StateToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
 	err = a.Services.CreateGithubAuthRequest(ctx, req)
@@ -225,7 +244,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
 	}
 
 	return updated, nil
@@ -264,7 +283,8 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	// Check each organization only once
-	// DELETE IN 12 (zmb3)
+	// TODO: this can be removed as of Teleport 12, but we should create cluster
+	// alerts for anyone using the old teams_to_logins field to avoid breaking anyone
 	for _, mapping := range conn.GetTeamsToLogins() {
 		addOrg(mapping.Organization)
 	}
@@ -386,44 +406,9 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 	return nil
 }
 
-// GithubAuthResponse represents Github auth callback validation response
-type GithubAuthResponse struct {
-	// Username is the name of authenticated user
-	Username string `json:"username"`
-	// Identity is the external identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Session is the created web session
-	Session types.WebSession `json:"session,omitempty"`
-	// Cert is the generated SSH client certificate
-	Cert []byte `json:"cert,omitempty"`
-	// TLSCert is PEM encoded TLS client certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// Req is the original auth request
-	Req GithubAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []types.CertAuthority `json:"host_signers"`
-}
-
-// GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use.
-	ConnectorID string `json:"connector_id"`
-	// CSRFToken is used to protect against CSRF attacks.
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successful authentication.
-	CreateWebSession bool `json:"create_web_session"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth.
-	ClientRedirectURL string `json:"client_redirect_url"`
-}
-
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
-func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
-	return GithubAuthRequest{
+func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
+	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		PublicKey:         req.PublicKey,
 		CSRFToken:         req.CSRFToken,
@@ -433,16 +418,16 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest 
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	diagCtx := NewSSODiagContext(types.KindGithub, a)
 	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -577,8 +562,8 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
-	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
@@ -710,7 +695,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	auth := GithubAuthResponse{
+	auth := authclient.GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,
@@ -727,7 +712,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
+		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 			User:             userState.GetName(),
 			Roles:            userState.GetRoles(),
 			Traits:           userState.GetTraits(),
@@ -860,7 +845,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 }
 
 func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
 		p.ConnectorName, p.Username, p.Roles, dryRun)
 
@@ -922,6 +907,84 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
+// ValidateClientRedirect checks a desktop client redirect URL for SSO logins
+// against some (potentially nil) settings from an auth connector; in the
+// current implementation, that means either "http" schema with a hostname of
+// "localhost", "127.0.0.1", or "::1" and a path of "/callback" (with any port),
+// or "https" schema with a hostname that matches one in the https_hostname
+// list, a path of "/callback" and either an empty port or explicitly 443. The
+// settings are ignored and only localhost URLs are allowed if we're using an
+// ephemeral connector (in the SSO testing flow).
+func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
+	if clientRedirect == "" {
+		// empty redirects are non-functional and harmless, so we allow them as
+		// they're used a lot in test code
+		return nil
+	}
+	u, err := url.Parse(clientRedirect)
+	if err != nil {
+		return trace.Wrap(err, "parsing client redirect URL")
+	}
+	if u.Opaque != "" {
+		return trace.BadParameter("unexpected opaque client redirect URL")
+	}
+	if u.User != nil {
+		return trace.BadParameter("unexpected userinfo in client redirect URL")
+	}
+	if u.EscapedPath() != "/callback" {
+		return trace.BadParameter("invalid path in client redirect URL")
+	}
+	if q, err := url.ParseQuery(u.RawQuery); err != nil {
+		return trace.Wrap(err, "parsing query in client redirect URL")
+	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
+		return trace.BadParameter("malformed query parameters in client redirect URL")
+	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// we checked everything but u.Scheme and u.Host now
+
+	switch u.Scheme {
+	default:
+		return trace.BadParameter("invalid scheme in client redirect URL")
+
+	case "http":
+		switch u.Hostname() {
+		default:
+			return trace.BadParameter("invalid hostname in client redirect URL")
+		case "localhost", "127.0.0.1", "::1":
+			return nil
+		}
+
+	case "https":
+		if ssoTestFlow {
+			return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+		}
+
+		switch u.Port() {
+		default:
+			return trace.BadParameter("invalid port in client redirect URL")
+		case "", "443":
+		}
+
+		var allowedHostnames []string
+		if settings != nil {
+			allowedHostnames = settings.AllowedHttpsHostnames
+		}
+
+		ok, err := utils.SliceMatchesRegex(u.Hostname(), allowedHostnames)
+		if err != nil {
+			return trace.Wrap(err, "matching custom client redirect URL hostname")
+		}
+		if !ok {
+			return trace.AccessDenied("unknown custom client redirect URL hostname")
+		}
+
+		return nil
+	}
+}
+
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
 func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
@@ -941,7 +1004,7 @@ func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.Gith
 		OrganizationToTeams: orgToTeams,
 		Teams:               teamList,
 	}
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
 }

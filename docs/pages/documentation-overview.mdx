@@ -30,8 +30,8 @@ probably need to consult at some point:
 
 - [Installation](./installation.mdx): How to install Teleport binaries on your
   environment. If you are just getting started with Teleport, we recommend
-  spinning up a [demo cluster](./index.mdx) or signing up for a [Teleport Team
-  trial](https://goteleport.com/signup).
+  spinning up a [demo cluster](./index.mdx) or signing up for a [Teleport
+  Enterprise Cloud trial](https://goteleport.com/signup).
 - [Frequently Asked Questions](./faq.mdx): If this page does not answer your
   question, try our AI-assisted search box on the left sidebar.
 - [Usage Reporting and Billing](./usage-billing.mdx): How Teleport calculates
@@ -39,14 +39,12 @@ probably need to consult at some point:
 - [Upcoming Releases](./upcoming-releases.mdx): Features to be introduced in
   future versions of Teleport.
 - [Changelog](./changelog.mdx): A comprehensive collection of release notes.
-- [Teleport Assist](./ai-assist.mdx): How to use the AI-guided Teleport client.
 
 ## Choose an edition
 
 After trying out Teleport, you are ready to deploy a cluster to your
-infrastructure. Teleport has four editions: 
+infrastructure. Teleport has three editions:
 
-- Teleport Team
 - Teleport Enterprise Cloud
 - Teleport Enterprise
 - Teleport Community Edition
@@ -84,7 +82,10 @@ Cluster](./management/introduction.mdx) for more information.
 Teleport is protocol aware and provides functionality that is unique to each
 protocol it supports. To enable access to a protocol, deploy the appropriate
 Teleport service and configure it to communicate with resources in your
-infrastructure. 
+infrastructure.
+
+Set up the [Teleport Discovery Service](./auto-discovery/introduction.mdx) to
+automatically enroll infrastructure resources in your Teleport cluster.
 
 Read about how to enable access to:
 

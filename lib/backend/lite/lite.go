@@ -38,6 +38,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -249,7 +250,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	l := &Backend{
 		Config: cfg,
 		db:     db,
-		Entry:  log.WithFields(log.Fields{trace.Component: BackendName}),
+		Entry:  log.WithFields(log.Fields{teleport.ComponentKey: BackendName}),
 		clock:  cfg.Clock,
 		buf:    buf,
 		ctx:    closeCtx,
@@ -610,7 +611,7 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 // getInTransaction returns an item, works in transaction
 func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
 	q, err := tx.PrepareContext(ctx,
-		"SELECT key, value, expires, modified, revision FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
+		"SELECT key, value, expires, revision FROM kv WHERE key = ? AND (expires IS NULL OR expires > ?) LIMIT 1")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -618,7 +619,7 @@ func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, 
 
 	row := q.QueryRowContext(ctx, string(key), l.clock.Now().UTC())
 	var expires sql.NullTime
-	if err := row.Scan(&item.Key, &item.Value, &expires, &item.ID, &item.Revision); err != nil {
+	if err := row.Scan(&item.Key, &item.Value, &expires, &item.Revision); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return trace.NotFound("key %v is not found", string(key))
 		}
@@ -643,7 +644,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	var result backend.GetResult
 	err := l.inTransaction(ctx, func(tx *sql.Tx) error {
 		q, err := tx.PrepareContext(ctx,
-			"SELECT key, value, expires, modified, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
+			"SELECT key, value, expires, revision FROM kv WHERE (key >= ? and key <= ?) AND (expires is NULL or expires > ?) ORDER BY key LIMIT ?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -658,7 +659,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		for rows.Next() {
 			var i backend.Item
 			var expires sql.NullTime
-			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.ID, &i.Revision); err != nil {
+			if err := rows.Scan(&i.Key, &i.Value, &expires, &i.Revision); err != nil {
 				return trace.Wrap(err)
 			}
 			i.Expires = expires.Time

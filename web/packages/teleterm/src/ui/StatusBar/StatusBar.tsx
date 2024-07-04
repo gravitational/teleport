@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
 import React from 'react';
 import { Flex, Text } from 'design';
-// @ts-ignore
-import { AccessRequestCheckoutButton } from 'e-teleterm/ui/StatusBar/AccessRequestCheckoutButton';
 
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 import { ShareFeedback } from './ShareFeedback';
+import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 
 export function StatusBar() {
   const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();

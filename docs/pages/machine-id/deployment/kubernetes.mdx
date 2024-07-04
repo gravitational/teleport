@@ -57,7 +57,7 @@ The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/4. Prepare Kubernetes RBAC
+## Step 1/5. Prepare Kubernetes RBAC
 
 In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
 RBAC resources must be created.
@@ -118,9 +118,11 @@ Apply this file to your Kubernetes cluster:
 $ kubectl apply -f ./k8s-rbac.yaml
 ```
 
-## Step 2/4. Create a join token, role and bot user
+## Step 2/5. Create a Bot
 
-(!docs/pages/includes/machine-id/blank-role.mdx!)
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -148,7 +150,7 @@ metadata:
   name: example-bot
 spec:
   roles: [Bot]
-  # bot_name will match the name of the bot created later in this guide.
+  # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: kubernetes
   kubernetes:
@@ -171,20 +173,14 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
-
-```code
-$ tctl bots add example --token example-bot --roles example-bot
-```
-
-## Step 3/4. Create a `tbot` deployment
+## Step 4/5. Create a `tbot` deployment
 
 First, a ConfigMap will be created to contain the configuration file for `tbot`.
 This will then be mounted into the Pod.
 
 Create `k8s-deployment-config.yaml`, replacing the value of `token` with the
-name of the token you created earlier and the value of `auth_server` with the
-address of your Teleport Proxy or Auth Server:
+name of the token you created earlier and the value of `proxy_server` with the
+address of your Teleport Proxy Service:
 
 ```yaml
 apiVersion: v1
@@ -203,9 +199,8 @@ data:
       # a memory destination is used for the bots own state since the kubernetes
       # join method does not require persistence.
       type: memory
-    # ensure this is configured to the address of your Teleport Proxy or
-    # Auth Server. Prefer the address of the Teleport Proxy.
-    auth_server: example.teleport.sh:443
+    # ensure this is configured to the address of your Teleport Proxy Service.
+    proxy_server: example.teleport.sh:443
     # outputs will be filled in during the completion of an access guide.
     outputs: []
 ```
@@ -240,9 +235,7 @@ spec:
     spec:
       containers:
         - name: tbot
-          image: public.ecr.aws/gravitational/teleport-distroless:(=teleport.version=)
-          command:
-            - tbot
+          image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
           args:
             - start
             - -c
@@ -294,6 +287,12 @@ not necessarily the public address (the port should not be included).
 This is an example manifest, consider modifying it to fit within the conventions
 of deployments to your clusters (e.g customizing labels).
 
+<Admonition type="warning" title="FIPS Compliance">
+The default `tbot-distroless` image does not contain the FIPS-compliant
+binaries. If you operate in an environment where FIPS compliance is required,
+please use the `tbot-fips-distroless` image instead.
+</Admonition>
+
 Apply this file to your Kubernetes cluster:
 
 ```code
@@ -310,7 +309,7 @@ $ kubectl logs deployment/tbot
 With this complete, `tbot` is now successfully deployed to your cluster.
 However, it is not yet producing any useful output.
 
-## Step 4/4. Configure outputs
+## Step 5/5. Configure outputs
 
 Follow one of the [access guides](../access-guides.mdx) to configure an output
 that meets your access needs.

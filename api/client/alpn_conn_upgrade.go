@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -29,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -71,20 +71,21 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 		InsecureSkipVerify: insecure,
 	}
 	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)
+	logger := slog.With("address", addr)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
-			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
+			logger.DebugContext(ctx, "No ALPN protocol is negotiated by the server.", "upgrade_required", true)
 			return true
 		}
 		if isUnadvertisedALPNError(err) {
-			logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, err)
+			logger.DebugContext(ctx, "ALPN connection upgrade received an unadvertised ALPN protocol.", "error", err)
 			return true
 		}
 
 		// If dialing TLS fails for any other reason, we assume connection
 		// upgrade is not required so it will fallback to original connection
 		// method.
-		logrus.Infof("ALPN connection upgrade test failed for %q: %v.", addr, err)
+		logger.InfoContext(ctx, "ALPN connection upgrade test failed.", "error", err)
 		return false
 	}
 	defer testConn.Close()
@@ -92,7 +93,7 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	// Upgrade required when ALPN is not supported on the remote side so
 	// NegotiatedProtocol comes back as empty.
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
-	logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
+	logger.DebugContext(ctx, "ALPN connection upgrade test complete", "upgrade_required", result)
 	return result
 }
 
@@ -124,7 +125,7 @@ func OverwriteALPNConnUpgradeRequirementByEnv(addr string) (bool, bool) {
 		return false, false
 	}
 	result := isALPNConnUpgradeRequiredByEnv(addr, envValue)
-	logrus.WithField(defaults.TLSRoutingConnUpgradeEnvVar, envValue).Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
+	slog.DebugContext(context.TODO(), "Determining if ALPN connection upgrade is explicitly forced due to environment variables.", defaults.TLSRoutingConnUpgradeEnvVar, envValue, "address", addr, "upgrade_required", result)
 	return result, true
 }
 
@@ -153,14 +154,14 @@ func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 			if _, boolText, ok := strings.Cut(token, addr+"="); ok {
 				upgradeRequiredForAddr, err := utils.ParseBool(boolText)
 				if err != nil {
-					logrus.Debugf("Failed to parse %v: %v", envValue, err)
+					slog.DebugContext(context.TODO(), "Failed to parse ALPN connection upgrade environment variable", "value", envValue, "error", err)
 				}
 				return upgradeRequiredForAddr
 			}
 
 		default:
 			if boolValue, err := utils.ParseBool(token); err != nil {
-				logrus.Debugf("Failed to parse %v: %v", envValue, err)
+				slog.DebugContext(context.TODO(), "Failed to parse ALPN connection upgrade environment variable", "value", envValue, "error", err)
 			} else {
 				upgradeRequiredForAll = boolValue
 			}
@@ -270,18 +271,19 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 	}
 
 	// Handle WebSocket.
+	logger := slog.With("hostname", api.Host)
 	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == constants.WebAPIConnUpgradeTypeWebSocket {
 		if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		logrus.WithField("hostname", api.Host).Debug("Performing ALPN WebSocket connection upgrade.")
+		logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
 		return newWebSocketALPNClientConn(conn), nil
 	}
 
 	// Handle "legacy".
 	// TODO(greedy52) DELETE in 17.0.
-	logrus.WithField("hostname", api.Host).Debug("Performing ALPN legacy connection upgrade.")
+	logger.DebugContext(req.Context(), "Performing ALPN legacy connection upgrade.")
 	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
 		return pingconn.New(conn), nil
 	}

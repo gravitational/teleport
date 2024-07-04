@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -40,6 +41,7 @@ var opensshServerV2Spec = types.ServerSpecV2{
 
 type opensshServerV2TestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithLabelsAdapter[types.Server]
 }
 
 func (g *opensshServerV2TestingPrimitives) Init(setup *testSetup) {

@@ -302,7 +302,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
 		AuditLogConfig: cfg,
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAuditLog,
+			teleport.ComponentKey: teleport.ComponentAuditLog,
 		}),
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
@@ -950,59 +950,60 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
+// StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	l.log.Debugf("StreamSessionEvents(%v)", sessionID)
+	l.log.WithField("session_id", string(sessionID)).Debug("StreamSessionEvents()")
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
-	tarballPath := filepath.Join(l.playbackDir, string(sessionID)+".stream.tar")
-	downloadCtx, cancel := l.createOrGetDownload(tarballPath)
-
-	// Wait until another in progress download finishes and use its tarball.
-	if cancel == nil {
-		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sessionID)
-		select {
-		case <-downloadCtx.Done():
-		case <-l.ctx.Done():
-			e <- trace.BadParameter("audit log is closing, aborting the download")
-			return c, e
-		}
-	} else {
-		defer cancel()
-	}
-
-	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
+	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
 	if err != nil {
-		e <- trace.Wrap(err)
+		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
+		return c, e
+	}
+	// The file is still perfectly usable after unlinking it, and the space it's
+	// using on disk will get reclaimed as soon as the file is closed (or the
+	// process terminates) - and if the session is small enough and we go
+	// through it quickly enough, we're likely not even going to end up with any
+	// bytes on the physical disk, anyway. We're using the same playback
+	// directory as the GetSessionChunk flow, which means that if we crash
+	// between creating the empty file and unlinking it, we'll end up with an
+	// empty file that will eventually be cleaned up by periodicCleanupPlaybacks
+	//
+	// TODO(espadolini): investigate the use of O_TMPFILE on Linux, so we don't
+	// even have to bother with the unlink and we avoid writing on the directory
+	if err := os.Remove(rawSession.Name()); err != nil {
+		_ = rawSession.Close()
+		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
 		return c, e
 	}
 
 	start := time.Now()
 	if err := l.UploadHandler.Download(l.ctx, sessionID, rawSession); err != nil {
-		// remove partially downloaded tarball
-		if rmErr := os.Remove(tarballPath); rmErr != nil {
-			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
-		}
+		_ = rawSession.Close()
 		if errors.Is(err, fs.ErrNotExist) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
 		e <- trace.Wrap(err)
 		return c, e
 	}
-
-	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sessionID, tarballPath)
-	_, err = rawSession.Seek(0, 0)
-	if err != nil {
-		e <- trace.Wrap(err)
-		return c, e
-	}
-
-	protoReader := NewProtoReader(rawSession)
+	l.log.WithFields(log.Fields{
+		"duration":   time.Since(start),
+		"session_id": string(sessionID),
+	}).Debug("Downloaded session to a temporary file for streaming.")
 
 	go func() {
+		defer rawSession.Close()
+
+		// this shouldn't be necessary as the position should be already 0 (Download
+		// takes an io.WriterAt), but it's better to be safe than sorry
+		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
+			e <- trace.Wrap(err)
+			return
+		}
+
+		protoReader := NewProtoReader(rawSession)
+
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())

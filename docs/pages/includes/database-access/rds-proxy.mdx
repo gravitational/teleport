@@ -1,19 +1,28 @@
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="RDS Proxy" cloud="AWS"!)
+
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
+<TabItem label="Self-Hosted">
+![Teleport Architecture RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access RDS Proxy Cloud](../../../img/database-access/guides/rds-proxy_cloud.png)
+<TabItem label="Cloud-Hosted">
+![Teleport Architecture RDS Proxy Cloud-Hosted](../../../img/database-access/guides/rds-proxy_cloud.png)
 </TabItem>
 
 </Tabs>
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
-[PostgreSQL](../../database-access/guides/rds-proxy-postgres.mdx),
-[MariaDB/MySQL](../../database-access/guides/rds-proxy-postgres.mdx) or
-[Microsoft SQL Server](../../database-access/guides/rds-proxy-sqlserver.mdx).
+[PostgreSQL](../../database-access/enroll-aws-databases/rds-proxy-postgres.mdx),
+[MariaDB/MySQL](../../database-access/enroll-aws-databases/rds-proxy-postgres.mdx) or
+[Microsoft SQL Server](../../database-access/enroll-aws-databases/rds-proxy-sqlserver.mdx).
 </Admonition>
+
+This guide shows how to enroll a single RDS Proxy instance cluster through the
+Teleport Database Service. For a more scalable approach, learn how to [configure
+the Teleport Discovery Service](../../auto-discovery/databases.mdx) to
+automatically enroll all AWS databases in your infrastructure.
 
 ## Prerequisites
 
@@ -23,26 +32,51 @@ Teleport currently supports RDS Proxy instances with engine family
 - Any RDS Proxy instances intended for connection through Teleport must have TLS enabled.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
-- (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create a Database Service configuration
+## Step 1/7. Install Teleport
 
-(!docs/pages/includes/database-access/token.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/7. Create a Teleport Database Service configuration
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-(!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="RDS Proxy" matcher="rdsproxy" protocol="&lt;Var name&equals;&quot;mysql or postgres or sqlserver&quot;&sol;&gt;" example="my-proxy.proxy-abcdefghijklm.us-west-1.rds.amazonaws.com:3306" !)
+Create the Database Service configuration. Replace <Var
+name="teleport.example.com:443" /> with the domain name **and port** of your
+Teleport Proxy Service or cloud-hosted Teleport Enterprise account and
+<Var name="endpoint:port" /> with the host **and port** of the database endpoint:
 
-## Step 2/5. Create an IAM policy for Teleport
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --proxy=<Var name="teleport.example.com:443"/> \
+   --uri=<Var name="endpoint:port" /> \
+   --protocol={{ protocol }} \
+   --token=/tmp/token \
+   --labels=env=dev
+```
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx type="rdsproxy" !)
+The command will generate a Teleport Database Service configuration file and
+place it at the `/etc/teleport.yaml` location.
 
-## Step 3/5. Start the Database Service
+## Step 3/7. Configure AWS Credentials
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
+
+## Step 4/7. Create an IAM policy for Teleport
+
+Teleport needs AWS IAM permissions to be able to access RDS Proxy instances.
+
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+
+## Step 5/7. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-## Step 4/5. Configure database user credentials
+## Step 6/7. Configure database user credentials
 
 The Database Service connects to an RDS Proxy instance using IAM
 authentication. In addition, the RDS Proxy instance must also be able to
@@ -130,21 +164,20 @@ IAMAuth=REQUIRED AuthScheme=SECRETS,SecretArn=arn-of-non-teleport-user,IAMAuth=D
 See `aws rds modify-db-proxy help` for more information.
 </Admonition>
 
-## Step 5/5. Connect
+## Step 7/7. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
-registered databases:
+registered database:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=alice
 $ tsh db ls
 Name                         Description                     Labels
 ---------------------------- ------------------------------- -------
 rds-proxy                    RDS Proxy in us-west-1          ...
-rds-proxy-my-reader-endpoint RDS Proxy endpoint in us-west-1 ...
 ```
 
-To retrieve credentials for a database and connect to it:
+Retrieve credentials for the database and connect to it as the `alice` user:
 
 ```code
 $ tsh db connect --db-user=alice --db-name=dev rds-proxy

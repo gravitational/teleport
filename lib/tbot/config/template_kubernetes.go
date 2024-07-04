@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
@@ -42,6 +43,7 @@ const defaultKubeconfigPath = "kubeconfig.yaml"
 type templateKubernetes struct {
 	clusterName          string
 	executablePathGetter executablePathGetter
+	disableExecPlugin    bool
 }
 
 func (t *templateKubernetes) name() string {
@@ -66,9 +68,43 @@ type kubernetesStatus struct {
 	credentials           *client.Key
 }
 
-// generateKubeConfig creates a Kubernetes config object with the given cluster
+func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config, error) {
+	config := clientcmdapi.NewConfig()
+
+	contextName := kubeconfig.ContextName(ks.teleportClusterName, ks.kubernetesClusterName)
+	// Configure the cluster.
+	clusterCAs, err := ks.credentials.RootClusterCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cas := bytes.Join(clusterCAs, []byte("\n"))
+	if len(cas) == 0 {
+		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
+	}
+	config.Clusters[contextName] = &clientcmdapi.Cluster{
+		Server:                   ks.clusterAddr,
+		CertificateAuthorityData: cas,
+		TLSServerName:            ks.tlsServerName,
+	}
+
+	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+		ClientCertificateData: ks.credentials.TLSCert,
+		ClientKeyData:         ks.credentials.PrivateKeyPEM(),
+	}
+
+	// Last, create a context linking the cluster to the auth info.
+	config.Contexts[contextName] = &clientcmdapi.Context{
+		Cluster:  contextName,
+		AuthInfo: contextName,
+	}
+	config.CurrentContext = contextName
+
+	return config, nil
+}
+
+// generateKubeConfigWithPlugin creates a Kubernetes config object with the given cluster
 // config.
-func generateKubeConfig(ks *kubernetesStatus, destPath string, executablePath string) (*clientcmdapi.Config, error) {
+func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -138,13 +174,6 @@ func (t *templateKubernetes) render(
 	)
 	defer span.End()
 
-	// Only Destination dirs are supported right now, but we could be flexible
-	// on this in the future if needed.
-	destinationDir, ok := destination.(*DestinationDirectory)
-	if !ok {
-		return trace.BadParameter("Destination %s must be a directory", destination)
-	}
-
 	// Ping the proxy to resolve connection addresses.
 	proxyPong, err := bot.ProxyPing(ctx)
 	if err != nil {
@@ -173,14 +202,40 @@ func (t *templateKubernetes) render(
 		kubernetesClusterName: t.clusterName,
 	}
 
-	executablePath, err := t.executablePathGetter()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// In exec plugin mode, we write the credentials to disk and write a
+	// kubeconfig that execs `tbot` to load those credentials.
 
-	cfg, err := generateKubeConfig(status, destinationDir.Path, executablePath)
-	if err != nil {
-		return trace.Wrap(err)
+	// We only support directory mode for this since the exec plugin needs
+	// to know the path to read the credentials from, and this is
+	// unpredictable with other types of destination.
+	destinationDir, isDirectoryDest := destination.(*DestinationDirectory)
+	if !t.disableExecPlugin {
+		if !isDirectoryDest {
+			log.InfoContext(
+				ctx,
+				"Kubernetes template will be rendered without exec plugin because destination is not a directory. Explicitly set `disable_exec_plugin: true` in the output to suppress this message",
+				"destination", logutils.StringerAttr(destination))
+			t.disableExecPlugin = true
+		}
+	}
+	var cfg *clientcmdapi.Config
+	if t.disableExecPlugin {
+		// If they've disabled the exec plugin, we just write the credentials
+		// directly into the kubeconfig.
+		cfg, err = generateKubeConfigWithoutPlugin(status)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		executablePath, err := t.executablePathGetter()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg, err = generateKubeConfigWithPlugin(status, destinationDir.Path, executablePath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	yamlCfg, err := clientcmd.Write(*cfg)

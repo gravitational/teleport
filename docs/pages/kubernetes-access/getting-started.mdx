@@ -4,25 +4,26 @@ description: Demonstrates how to enroll a Kubernetes cluster as a resource prote
 videoBanner: 3AUGrOZ5me0
 ---
 
-This guide demonstrates how to enroll a Kubernetes cluster as a resource by deploying the 
-Teleport Kubernetes Service on the Kubernetes cluster you want to protect. In this scenario, 
-the Teleport Kubernetes Service pod detects that it is running on Kubernetes and enrolls the 
-Kubernetes cluster automatically. The following diagram provides a simplified overview of 
-this deployment scenario with the Teleport Kubernetes Service running on the Kubernetes cluster:
+This guide demonstrates how to enroll a Kubernetes cluster as a Teleport
+resource by deploying the Teleport Kubernetes Service on the Kubernetes cluster
+you want to protect. 
+
+In this scenario, the Teleport Kubernetes Service pod detects that it is running
+on Kubernetes and enrolls the Kubernetes cluster automatically. The following
+diagram provides a simplified overview of this deployment scenario with the
+Teleport Kubernetes Service running on the Kubernetes cluster:
 
 ![Enroll a Kubernetes cluster](../../img/k8s/enroll-kubernetes.png)
 
-You can also run the Teleport Kubernetes Service on a Linux host in a separate
-network from your Kubernetes cluster. For more information about protecting access to a
-Kubernetes cluster from a separate host, see [Kubernetes Access from a Standalone 
-Teleport Cluster](./register-clusters/static-kubeconfig.mdx).
+For information about other ways to enroll and discover Kubernetes clusters, see
+[Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
 
 ## Prerequisites
 
 - Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool, 
   version >= (=teleport.version=). 
   
-  For Teleport Enterprise, Teleport Team, and Teleport Enterprise Cloud, you should
+  For Teleport Enterprise and Teleport Enterprise Cloud, you should
   use the Enterprise version of `tctl`. 
   You can verify the tools you have installed by running the following commands:
 
@@ -35,94 +36,21 @@ Teleport Cluster](./register-clusters/static-kubeconfig.mdx).
   ```
 
   You can download these tools by following the appropriate [Installation 
-  instructions](../installation.mdx#installation-instructions) for your environment.
+  instructions](../installation.mdx#linux) for your environment.
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Select guided or manual enrollment
+## Step 1/3. Create RBAC resources
 
-There are two options for enrolling a Kubernetes cluster as a resource:
+To authenticate to a Kubernetes cluster using Teleport, you must have a Teleport
+role that grants access to the Kubernetes cluster you plan to interact with.
 
-- You can follow the guided enrollment steps in the Teleport Web UI.
-- You run commands and edit files manually in a terminal.
-
-The guided enrollment simplifies the deployment process by pre-populating commands
-and files with required information—for example, the token used to provision the
-Kubernetes cluster—and information you specify, such as the Kubernetes namespace,
-users, and groups to grant access to.
-
-For information about other ways to enroll and discover Kubernetes clusters, see
-[Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
-
-## Step 2/4. Follow guided enrollment
-
-To enroll a Kubernetes cluster using the Teleport Web UI:
-
-1. Open the Teleport Web UI and sign in using your administrative account.
-
-1. Click **Enroll New Resources**.
-
-1. Type all or part of **Kubernetes** in the Search field to filter the resource types 
-   displayed, then click **Kubernetes**.
-
-1. Copy the command to add the `teleport-agent` chart repository and paste 
-   it in a terminal on a workstation where `kubectl` is installed.
-
-1. Type the Teleport service namespace and the display name to use when connecting to 
-   this cluster namespace, then click **Next**.
-
-   After you click Next, Teleport generates a script to configure and enroll the 
-   Kubernetes cluster as a resource in the Teleport cluster.
-
-1. Copy the command displayed in the Teleport Web UI and run it in a terminal with access
-   to your Kubernetes cluster.
-
-   The Teleport Web UI displays "Successfully detected your new Kubernetes cluster" as 
-   confirmation that your cluster is enrolled. When you see this message, click **Next**
-   to continue.
-
-## Step 3/4. Test Kubernetes access
-
-You can now set up access for specific Kubernetes groups and users to test access to
-the Kubernetes cluster you just enrolled.
-
-To set up and test access:
-
-1. Type a Kubernetes group name and, optionally, one or more Kubernetes user names that should 
-   have access to Kubernetes resources, then click **Next**.
-
-   You must specify at least one Kubernetes group. If you don't specify a Kubernetes user, you can
-   connect to the cluster using your Teleport user by default.
-
-1. (Optional) Specify the namespace, a Kubernetes group from the previous step, and 
-   either your Teleport user or a Kubernetes user, then click **Test Connection**.
-   
-   ![Connect to the Kubernetes cluster](../../img/k8s/test-k8s-connection.png)
-
-1. (Optional) Copy and run the commands displayed in the Teleport Web UI to interact with the
-   Kubernetes cluster to verify access through Teleport.
-   
-   ```code
-   $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/> <Var name="teleport.example.com"/>
-   $ tsh kube login <Var name="Kubernetes-cluster-name"/>
-   $ tsh kubectl get pods
-   ```
-
-1. Click **Finish**.
-
-1. Click **Browse Existing Resources** to see your Kubernetes cluster and discovered 
-   applications.
-
-## Step 4/4. Configure roles and authorize access
-
-To authenticate to a Kubernetes cluster using Teleport, you must have a
-Teleport role that grants access to the cluster you plan to interact with
-through at least one Kubernetes user or group.
-
-The following example illustrates how to configure a `kube-access` role for 
-one Kubernetes group named `viewers` and one Kubernetes user.
+In this step, we show you how to create a Teleport role called `kube-access`
+that enables a user to send requests to any Teleport-protected Kubernetes
+cluster as a member of the `viewers` group. The Teleport Kubernetes Service
+impersonates the `viewers` group when proxying requests from the user.
 
 1. Create a file called `kube-access.yaml` with the following content:
    
@@ -142,8 +70,6 @@ one Kubernetes group named `viewers` and one Kubernetes user.
            verbs: ['*']
        kubernetes_groups:
        - viewers
-       kubernetes_users:
-       - <Var name="myuser"/>
      deny: {}
    ```
 
@@ -155,17 +81,12 @@ one Kubernetes group named `viewers` and one Kubernetes user.
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
 
-   You now have a Teleport tole that enables a Teleport user with the `kube-access` role
-   to authenticate to the Kubernetes cluster using Teleport credentials. To interact with 
-   the Kubernetes cluster, you also need to configure authorization within Kubernetes.
+While you have authorized the `kube-access` role to access Kubernetes clusters
+as a member of the `viewers` group, this group does not yet have permissions
+within its Kubernetes cluster. To assign these permissions, create a Kubernetes
+`RoleBinding` or `ClusterRoleBindings` that grants permission to the `viewers`
+group.
    
-   To configure authorization within your Kubernetes cluster, you must create a Kubernetes 
-   `RoleBinding` or `ClusterRoleBindings` that grants permission to the `kubernetes_users` 
-   and `kubernetes_groups` you specified in the `kube-access` role.
-   
-   For this example, you grant read-only permissions to the `viewers` group specified in 
-   the `kube-access` role.
-
 1. Create a file called `viewers-bind.yaml` with the following contents:
 
    ```yaml
@@ -189,50 +110,104 @@ one Kubernetes group named `viewers` and one Kubernetes user.
 1. Apply the `ClusterRoleBinding` with `kubectl`:
    
    ```code
-   $ tsh kubectl apply -f viewers-bind.yaml
+   $ kubectl apply -f viewers-bind.yaml
    ```
 
-1. Log out of Teleport and log in again.
+Your Teleport user now has permissions to assume membership in the `viewers`
+group when accessing your Kubernetes cluster, and the `viewers` group now has
+permissions to view resources in the cluster. The next step is to deploy the
+Teleport Kubernetes Service in the cluster to proxy user requests.
 
-1. List connected clusters using `tsh kube ls`:
+## Step 2/3. Follow guided enrollment instructions
+
+In this step, you will deploy the Teleport Kubernetes Service on your Kubernetes
+cluster by copying a script from the Teleport Web UI and running it on your
+terminal.
+
+1. Open the Teleport Web UI and sign in using your administrative account.
+
+1. Click **Enroll New Resource**.
+
+1. Type all or part of **Kubernetes** in the Search field to filter the resource types 
+   displayed, then click **Kubernetes**.
+
+1. Copy the command to add the `teleport-agent` chart repository and paste 
+   it in a terminal on your workstation.
+
+1. Type `teleport-agent` for namespace where you will deploy the Teleport
+   Kubernetes Service and the display name to use when connecting to this
+   cluster, then click **Next**.
+
+   After you click Next, Teleport generates a script to configure and enroll the 
+   Kubernetes cluster as a resource in the Teleport cluster.
+
+1. Copy the command displayed in the Teleport Web UI and run it in your
+   terminal.
+
+   The Teleport Web UI displays "Successfully detected your new Kubernetes cluster" as 
+   confirmation that your cluster is enrolled. When you see this message, click **Next**
+   to continue.
+
+## Step 3/3. Test Kubernetes access
+
+Now that you have deployed the Teleport Kubernetes Service on your Kubernetes
+cluster and enrolled the cluster as a Teleport resource, confirm that you can
+access your Kubernetes cluster as a member of the `viewers` group.
+
+If you followed the previous steps in this guide, the **Set Up Access** view
+populates the **Kubernetes Groups** field with `viewers`.
+
+To set up and test access:
+
+1. Click **Next**.
+
+1. Specify the `teleport-agent` namespace, the Kubernetes `viewers` group from
+   the previous step, and your Teleport user name.
+
+1. Copy and run the commands displayed in the Teleport Web UI to interact with the
+   Kubernetes cluster and verify access through Teleport. Alternatively, run the
+   commands shown below:
+
+   Authenticate to your Teleport cluster:
+
+   ```code
+   $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/> <Var name="teleport.example.com"/>
+   ```
+
+   List Kubernetes clusters available for you to access:
 
    ```code
    $ tsh kube ls
    ```
 
-   The command displays current Kubernetes clusters.
+   Retrieve credentials to access your Kubernetes cluster:
 
-   ```
-   tsh kube ls
-   Kube Cluster Name Labels Selected 
-   ----------------- ------ -------- 
-   example-minikube        *        
-   ```
-   
-   If you have more than one cluster enrolled, you can switch between clusters 
-   by running a `tsh kube login <Var name="cluster-name"/>` command.
-  
-1. View pods using the `kubectl` command routed through the Teleport cluster:
-   
    ```code
-   $ tsh kubectl get pods 
+   $ tsh kube login <Var name="Kubernetes-cluster-name"/>
    ```
 
-   The command displays output similar to the following:
+   The Teleport Kubernetes Service proxies `kubectl` commands: 
 
+   ```code
+   $ kubectl get pods -n teleport-agent
    ```
-   NAME                              READY   STATUS    RESTARTS   AGE
-   balanced-567b5f87b5-abcde         1/1     Running   0          143m
-   hello-minikube-59d4768566-abcde   1/1     Running   0          144m
+
+   You should see the Teleport Kubernetes Service pod you deployed earlier:
+
+   ```text
+   NAME               READY   STATUS    RESTARTS   AGE
+   teleport-agent-0   1/1     Running   0          8m6s
    ```
+
+1. Click **Finish**.
 
 ## Next steps
 
-This guide demonstrated how to enroll a Kubernetes cluster by running te=he Teleport
-Kubernetes Service directly on a member of the Kubernetes cluster. 
+This guide demonstrated how to enroll a Kubernetes cluster by running the
+Teleport Kubernetes Service within the Kubernetes cluster. 
 
 - For information about discovering Kubernetes clusters hosted on cloud providers, see 
-[Kubernetes Cluster Discovery](./discovery.mdx). 
+[Kubernetes Cluster Discovery](../auto-discovery/kubernetes.mdx). 
 - To learn about other ways you can register a Kubernetes cluster with Teleport, see 
 [Registering Kubernetes Clusters with Teleport](./register-clusters.mdx).
 - For a complete list of the parameters you can configure in the `teleport-kube-agent` 

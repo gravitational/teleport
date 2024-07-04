@@ -33,6 +33,7 @@ import { CheckedEksCluster } from './EnrollEksCluster';
 
 type Props = {
   items: CheckedEksCluster[];
+  autoDiscovery: boolean;
   fetchStatus: FetchStatus;
   fetchNextPage(): void;
 
@@ -42,6 +43,7 @@ type Props = {
 
 export const ClustersList = ({
   items = [],
+  autoDiscovery,
   fetchStatus = '',
   fetchNextPage,
   onSelectCluster,
@@ -63,7 +65,7 @@ export const ClustersList = ({
                 isChecked={isChecked}
                 onChange={onSelectCluster}
                 value={item.name}
-                {...disabledStates(item)}
+                {...disabledStates(item, autoDiscovery)}
               />
             );
           },
@@ -71,13 +73,15 @@ export const ClustersList = ({
         {
           key: 'name',
           headerText: 'Name',
-          render: item => <Cell {...disabledStates(item)}>{item.name}</Cell>,
+          render: item => (
+            <Cell {...disabledStates(item, autoDiscovery)}>{item.name}</Cell>
+          ),
         },
         {
           key: 'labels',
           headerText: 'Labels',
           render: item => (
-            <Cell {...disabledStates(item)}>
+            <Cell {...disabledStates(item, autoDiscovery)}>
               <Labels labels={item.labels} />
             </Cell>
           ),
@@ -89,7 +93,7 @@ export const ClustersList = ({
             <StatusCell
               status={getStatus(item)}
               statusText={item.status}
-              {...disabledStates(item)}
+              {...disabledStates(item, autoDiscovery)}
             />
           ),
         },
@@ -117,9 +121,11 @@ function getStatus(item: CheckedEksCluster) {
   }
 }
 
-function disabledStates(item: CheckedEksCluster) {
+function disabledStates(item: CheckedEksCluster, autoDiscovery: boolean) {
   const disabled =
-    getStatus(item) !== ItemStatus.Success || item.kubeServerExists;
+    getStatus(item) !== ItemStatus.Success ||
+    item.kubeServerExists ||
+    autoDiscovery;
 
   let disabledText = `This EKS cluster is already enrolled and is a part of this cluster`;
   switch (item.status) {
@@ -132,11 +138,8 @@ function disabledStates(item: CheckedEksCluster) {
     case 'deleting':
       disabledText = 'Not available';
   }
-
-  if (item.status === 'failed') {
-    disabledText = 'Not available, try refreshing the list';
-  } else if (item.status === 'deleting') {
-    disabledText = 'Not available';
+  if (autoDiscovery) {
+    disabledText = 'All eligible EKS clusters will be enrolled automatically';
   }
 
   return { disabled, disabledText };

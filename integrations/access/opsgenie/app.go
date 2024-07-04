@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -45,9 +46,9 @@ const (
 	// minServerVersion is the minimal teleport version the plugin supports.
 	minServerVersion = "6.1.0"
 	// initTimeout is used to bound execution time of health check and teleport version check.
-	initTimeout = time.Second * 10
+	initTimeout = time.Second * 30
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -141,10 +142,9 @@ func (a *App) init(ctx context.Context) error {
 	defer cancel()
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	if _, err = a.checkTeleportVersion(ctx); err != nil {
@@ -155,6 +155,13 @@ func (a *App) init(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log := logger.Get(ctx)
+	log.Debug("Starting API health check...")
+	if err = a.opsgenie.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "API health check failed")
+	}
+	log.Debug("API health check finished ok")
 	return nil
 }
 
@@ -170,7 +177,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
@@ -269,19 +276,13 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
-	if !ok {
-		return nil, trace.NotFound("notify services not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("on-call schedules not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
@@ -294,11 +295,16 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	}
 
 	reqID := req.GetName()
+	annotations := types.Labels{}
+	for k, v := range req.GetSystemAnnotations() {
+		annotations[k] = v
+	}
 	reqData := RequestData{
-		User:          req.GetUser(),
-		Roles:         req.GetRoles(),
-		Created:       req.GetCreationTime(),
-		RequestReason: req.GetRequestReason(),
+		User:              req.GetUser(),
+		Roles:             req.GetRoles(),
+		Created:           req.GetCreationTime(),
+		RequestReason:     req.GetRequestReason(),
+		SystemAnnotations: annotations,
 	}
 
 	// Create plugin data if it didn't exist before.
@@ -429,7 +435,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 			RequestID: req.GetName(),
 			Review: types.AccessReview{
-				Author:        tp.SystemAccessApproverUserName,
+				Author:        a.conf.TeleportUserName,
 				ProposedState: types.RequestState_APPROVED,
 				Reason: fmt.Sprintf("Access requested by user %s who is on call on service(s) %s",
 					tp.SystemAccessApproverUserName,

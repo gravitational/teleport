@@ -21,24 +21,30 @@ package tbot
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,11 +52,39 @@ import (
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
+var clientMetrics = metrics.CreateGRPCClientMetrics(
+	false,
+	prometheus.Labels{},
+)
+
 const componentTBot = "tbot"
+
+// Service is a long-running sub-component of tbot.
+type Service interface {
+	// String returns a human-readable name for the service that can be used
+	// in logging. It should identify the type of the service and any top
+	// level configuration that could distinguish it from a same-type service.
+	String() string
+	// Run starts the service and blocks until the service exits. It should
+	// return a nil error if the service exits successfully and an error
+	// if it is unable to proceed. It should exit gracefully if the context
+	// is canceled.
+	Run(ctx context.Context) error
+}
+
+// OneShotService is a [Service] that offers a mode in which it runs a single
+// time and then exits. This aligns with the `--oneshot` mode of tbot.
+type OneShotService interface {
+	Service
+	// OneShot runs the service once and then exits. It should return a nil
+	// error if the service exits successfully and an error if it is unable
+	// to proceed. It should exit gracefully if the context is canceled.
+	OneShot(ctx context.Context) error
+}
 
 type Bot struct {
 	cfg     *config.BotConfig
-	log     logrus.FieldLogger
+	log     *slog.Logger
 	modules modules.Modules
 
 	mu             sync.Mutex
@@ -58,9 +92,9 @@ type Bot struct {
 	botIdentitySvc *identityService
 }
 
-func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
+func New(cfg *config.BotConfig, log *slog.Logger) *Bot {
 	if log == nil {
-		log = utils.NewLogger()
+		log = slog.Default()
 	}
 
 	return &Bot{
@@ -82,29 +116,33 @@ func (b *Bot) markStarted() error {
 	return nil
 }
 
-type botIdentitySrc interface {
-	BotIdentity() *identity.Identity
-}
+type getBotIdentityFn func() *identity.Identity
 
 // BotIdentity returns the bot's own identity. This will return nil if the bot
 // has not been started.
 func (b *Bot) BotIdentity() *identity.Identity {
-	return b.botIdentitySvc.ident()
+	return b.botIdentitySvc.GetIdentity()
 }
 
-func (b *Bot) Run(ctx context.Context) error {
+func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
-	defer span.End()
+	defer func() { apitracing.EndSpan(span, err) }()
+
+	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
 	}
 	unlock, err := b.preRunChecks(ctx)
 	defer func() {
-		b.log.Debug("Unlocking bot storage.")
+		b.log.DebugContext(ctx, "Unlocking bot storage.")
 		if unlock != nil {
 			if err := unlock(); err != nil {
-				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
+				b.log.WarnContext(
+					ctx, "Failed to release lock. Future starts of tbot may fail.", "error", err,
+				)
 			}
 		}
 	}()
@@ -112,11 +150,12 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	addr, _ := b.cfg.Address()
 	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
 		reversetunnelclient.WebClientResolver(&webclient.Config{
 			Context:   ctx,
-			ProxyAddr: b.cfg.AuthServer,
+			ProxyAddr: addr,
 			Insecure:  b.cfg.Insecure,
 		}),
 		nil /* clock */)
@@ -126,7 +165,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
-	var services []bot.Service
+	var services []Service
 
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
@@ -154,8 +193,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
 		resolver:          resolver,
-		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "identity"),
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "identity"),
 		),
 	}
 	// Initialize bot's own identity. This will load from disk, or fetch a new
@@ -163,71 +202,161 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err := b.botIdentitySvc.Initialize(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := b.botIdentitySvc.Close(); err != nil {
+			b.log.ErrorContext(
+				ctx,
+				"Failed to close bot identity service",
+				"error", err,
+			)
+		}
+	}()
 	services = append(services, b.botIdentitySvc)
+
+	authPingCache := &authPingCache{
+		client: b.botIdentitySvc.GetClient(),
+		log:    b.log,
+	}
+	proxyPingCache := &proxyPingCache{
+		authPingCache: authPingCache,
+		botCfg:        b.cfg,
+		log:           b.log,
+	}
+	alpnUpgradeCache := &alpnProxyConnUpgradeRequiredCache{
+		botCfg: b.cfg,
+		log:    b.log,
+	}
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
 		services = append(services, &diagnosticsService{
 			diagAddr:     b.cfg.DiagAddr,
 			pprofEnabled: b.cfg.Debug,
-			log: b.log.WithField(
-				trace.Component, teleport.Component(componentTBot, "diagnostics"),
+			log: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "diagnostics"),
 			),
 		})
 	}
 	services = append(services, &outputsService{
-		botIdentitySrc: b,
-		cfg:            b.cfg,
-		resolver:       resolver,
-		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "outputs"),
+		authPingCache:    authPingCache,
+		proxyPingCache:   proxyPingCache,
+		alpnUpgradeCache: alpnUpgradeCache,
+		getBotIdentity:   b.botIdentitySvc.GetIdentity,
+		botClient:        b.botIdentitySvc.GetClient(),
+		cfg:              b.cfg,
+		resolver:         resolver,
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "outputs"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 	})
 	services = append(services, &caRotationService{
-		botIdentitySrc: b,
-		cfg:            b.cfg,
-		resolver:       resolver,
-		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
+		getBotIdentity: b.botIdentitySvc.GetIdentity,
+		botClient:      b.botIdentitySvc.GetClient(),
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 	})
-	// Append any services configured by the user
-	services = append(services, b.cfg.Services...)
 
-	b.log.Info("Initialization complete. Starting services.")
+	// Append any services configured by the user
+	for _, svcCfg := range b.cfg.Services {
+		// Convert the service config into the actual service type.
+		switch svcCfg := svcCfg.(type) {
+		case *config.SPIFFEWorkloadAPIService:
+			// Create a credential output for the SPIFFE Workload API service to
+			// use as a source of an impersonated identity.
+			svcIdentity := &config.UnstableClientCredentialOutput{}
+			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+
+			svc := &SPIFFEWorkloadAPIService{
+				botClient:             b.botIdentitySvc.GetClient(),
+				svcIdentity:           svcIdentity,
+				botCfg:                b.cfg,
+				cfg:                   svcCfg,
+				resolver:              resolver,
+				rootReloadBroadcaster: reloadBroadcaster,
+				trustBundleBroadcast: &channelBroadcaster{
+					chanSet: map[chan struct{}]struct{}{},
+				},
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.DatabaseTunnelService:
+			svc := &DatabaseTunnelService{
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				proxyPingCache: proxyPingCache,
+				botClient:      b.botIdentitySvc.GetClient(),
+				resolver:       resolver,
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		case *config.ExampleService:
+			services = append(services, &ExampleService{
+				cfg: svcCfg,
+			})
+		case *config.SSHMultiplexerService:
+			svc := &SSHMultiplexerService{
+				alpnUpgradeCache:  alpnUpgradeCache,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
+		default:
+			return trace.BadParameter("unknown service type: %T", svcCfg)
+		}
+	}
+
+	b.log.InfoContext(ctx, "Initialization complete. Starting services")
 	// Start services
 	for _, svc := range services {
 		svc := svc
-		log := b.log.WithField("service", svc.String())
+		log := b.log.With("service", svc.String())
 
 		if b.cfg.Oneshot {
-			svc, ok := svc.(bot.OneShotService)
+			svc, ok := svc.(OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.Debug("Service does not support oneshot mode, ignoring.")
+				log.DebugContext(ctx, "Service does not support oneshot mode, ignoring")
 				continue
 			}
 			eg.Go(func() error {
-				log.Info("Running service in oneshot mode.")
+				log.InfoContext(ctx, "Running service in oneshot mode")
 				err := svc.OneShot(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error.")
+					log.ErrorContext(
+						egCtx, "Service exited with error", "error", err,
+					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service finished.")
+				log.InfoContext(ctx, "Service finished")
 				return nil
 			})
 		} else {
 			eg.Go(func() error {
-				log.Info("Starting service.")
+				log.InfoContext(ctx, "Starting service")
 				err := svc.Run(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error.")
+					log.ErrorContext(
+						egCtx, "Service exited with error", "error", err,
+					)
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service exited.")
+				log.InfoContext(ctx, "Service exited")
 				return nil
 			})
 		}
@@ -239,15 +368,20 @@ func (b *Bot) Run(ctx context.Context) error {
 // preRunChecks returns an unlock function which must be deferred.
 // It performs any initial validation and locks the bot's storage before any
 // more expensive initialization is performed.
-func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
+func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
-	defer span.End()
+	defer func() { apitracing.EndSpan(span, err) }()
 
-	if b.cfg.AuthServer == "" {
+	switch _, addrKind := b.cfg.Address(); addrKind {
+	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"an auth or proxy server must be set via --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
 		)
+	case config.AddressKindAuth:
+		// TODO(noah): DELETE IN V17.0.0
+		b.log.WarnContext(ctx, "We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
 	}
+
 	// Ensure they have provided a join method.
 	if b.cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return nil, trace.BadParameter("join method must be provided")
@@ -255,10 +389,10 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 
 	if b.cfg.FIPS {
 		if !b.modules.IsBoringBinary() {
-			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
+			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
 			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}
-		b.log.Info("Bot is running in FIPS compliant mode.")
+		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}
 
 	// First, try to make sure all destinations are usable.
@@ -316,7 +450,7 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 
 // checkIdentity performs basic startup checks on an identity and loudly warns
 // end users if it is unlikely to work.
-func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
+func checkIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) error {
 	var validAfter time.Time
 	var validBefore time.Time
 
@@ -332,44 +466,37 @@ func checkIdentity(log logrus.FieldLogger, ident *identity.Identity) error {
 
 	now := time.Now().UTC()
 	if now.After(validBefore) {
-		log.Errorf(
-			"Identity has expired. The renewal is likely to fail. (expires: %s, current time: %s)",
-			validBefore.Format(time.RFC3339),
-			now.Format(time.RFC3339),
+		log.WarnContext(
+			ctx,
+			"Identity has expired. The renewal is likely to fail",
+			"expires", validBefore.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
 		)
 	} else if now.Before(validAfter) {
-		log.Warnf(
-			"Identity is not yet valid. Confirm that the system time is correct. (valid after: %s, current time: %s)",
-			validAfter.Format(time.RFC3339),
-			now.Format(time.RFC3339),
+		log.WarnContext(
+			ctx,
+			"Identity is not yet valid. Confirm that the system time is correct",
+			"valid_after", validAfter.Format(time.RFC3339),
+			"current_time", now.Format(time.RFC3339),
 		)
 	}
 
 	return nil
 }
 
-// clientForIdentity creates a new auth client from the given
-// identity. Note that depending on the connection address given, this may
+// clientForFacade creates a new auth client from the given
+// facade. Note that depending on the connection address given, this may
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
-func clientForIdentity(
+func clientForFacade(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	cfg *config.BotConfig,
-	id *identity.Identity,
-	resolver reversetunnelclient.Resolver,
-) (auth.ClientI, error) {
-	ctx, span := tracer.Start(ctx, "clientForIdentity")
-	defer span.End()
+	facade *identity.Facade,
+	resolver reversetunnelclient.Resolver) (_ *authclient.Client, err error) {
+	ctx, span := tracer.Start(ctx, "clientForFacade")
+	defer func() { apitracing.EndSpan(span, err) }()
 
-	if id.SSHCert == nil || id.X509Cert == nil {
-		return nil, trace.BadParameter("auth client requires a fully formed identity")
-	}
-
-	// TODO(noah): Eventually we'll want to reuse this facade across the bot
-	// rather than recreating it. Right now the blocker to that is handling the
-	// generation field on the certificate.
-	facade := identity.NewFacade(cfg.FIPS, cfg.Insecure, id)
 	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -379,21 +506,167 @@ func clientForIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(cfg.AuthServer)
+	addr, _ := cfg.Address()
+	parsedAddr, err := utils.ParseAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          sshConfig,
+		Log:                   logrus.StandardLogger(),
+		InsecureSkipTLSVerify: cfg.Insecure,
+		ClusterCAs:            tlsConfig.RootCAs,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         log,
+		TLS: tlsConfig,
+		SSH: sshConfig,
+		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
+		// here to avoid pointlessly hitting the address as an auth server.
+		AuthServers: []utils.NetAddr{*parsedAddr},
+		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
-		Resolver:    resolver,
-		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
+		ProxyDialer: dialer,
+		DialOpts: []grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot),
+			grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
+			grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
+		},
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
 	return c, trace.Wrap(err)
+}
+
+type authPingCache struct {
+	client *authclient.Client
+	log    *slog.Logger
+
+	mu          sync.RWMutex
+	cachedValue *proto.PingResponse
+}
+
+func (a *authPingCache) ping(ctx context.Context) (proto.PingResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cachedValue != nil {
+		return *a.cachedValue, nil
+	}
+
+	a.log.DebugContext(ctx, "Pinging auth server.")
+	res, err := a.client.Ping(ctx)
+	if err != nil {
+		a.log.ErrorContext(ctx, "Failed to ping auth server.", "error", err)
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	a.cachedValue = &res
+	a.log.DebugContext(ctx, "Successfully pinged auth server.", "pong", res)
+
+	return *a.cachedValue, nil
+}
+
+type proxyPingCache struct {
+	authPingCache *authPingCache
+	botCfg        *config.BotConfig
+	log           *slog.Logger
+
+	mu          sync.RWMutex
+	cachedValue *webclient.PingResponse
+}
+
+func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cachedValue != nil {
+		return p.cachedValue, nil
+	}
+
+	// Determine the Proxy address to use.
+	addr, addrKind := p.botCfg.Address()
+	switch addrKind {
+	case config.AddressKindAuth:
+		// If the address is an auth address, ping auth to determine proxy addr.
+		authPong, err := p.authPingCache.ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addr = authPong.ProxyPublicAddr
+	case config.AddressKindProxy:
+		// If the address is a proxy address, use it directly.
+	default:
+		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
+	}
+
+	p.log.DebugContext(ctx, "Pinging proxy.", "addr", addr)
+	res, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: addr,
+		Insecure:  p.botCfg.Insecure,
+	})
+	if err != nil {
+		p.log.ErrorContext(ctx, "Failed to ping proxy.", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)
+	p.cachedValue = res
+
+	return p.cachedValue, nil
+}
+
+type alpnProxyConnUpgradeRequiredCache struct {
+	botCfg *config.BotConfig
+	log    *slog.Logger
+
+	mu    sync.Mutex
+	cache map[string]bool
+	group singleflight.Group
+}
+
+func (a *alpnProxyConnUpgradeRequiredCache) isUpgradeRequired(ctx context.Context, addr string, insecure bool) (bool, error) {
+	key := fmt.Sprintf("%s-%t", addr, insecure)
+
+	a.mu.Lock()
+	if a.cache == nil {
+		a.cache = make(map[string]bool)
+	}
+	v, ok := a.cache[key]
+	if ok {
+		a.mu.Unlock()
+		return v, nil
+	}
+	a.mu.Unlock()
+
+	val, err, _ := a.group.Do(key, func() (interface{}, error) {
+		// Recheck the cache in case we've just missed a previous group
+		// completing
+		a.mu.Lock()
+		v, ok := a.cache[key]
+		if ok {
+			a.mu.Unlock()
+			return v, nil
+		}
+		a.mu.Unlock()
+
+		// Ok, now we know for sure that the work hasn't already been done or
+		// isn't in flight, we can complete it.
+		a.log.DebugContext(ctx, "Testing ALPN upgrade necessary", "addr", addr, "insecure", insecure)
+		v = client.IsALPNConnUpgradeRequired(ctx, addr, insecure)
+		a.log.DebugContext(ctx, "Tested ALPN upgrade necessary", "addr", addr, "insecure", insecure, "result", v)
+		if err := ctx.Err(); err != nil {
+			// Check for case where false is returned because client canceled ctx.
+			// We don't want to cache this result.
+			return v, trace.Wrap(err)
+		}
+
+		a.mu.Lock()
+		a.cache[key] = v
+		a.mu.Unlock()
+		return v, nil
+	})
+	return val.(bool), err
 }

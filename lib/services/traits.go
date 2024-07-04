@@ -165,3 +165,11 @@ type literalMatcher struct {
 }
 
 func (m literalMatcher) Match(in string) bool { return m.value == in }
+
+func literalMatchers(literals []string) []parse.Matcher {
+	matchers := make([]parse.Matcher, 0, len(literals))
+	for _, literal := range literals {
+		matchers = append(matchers, literalMatcher{literal})
+	}
+	return matchers
+}

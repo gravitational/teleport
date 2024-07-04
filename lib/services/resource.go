@@ -27,11 +27,15 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/protoadapt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MarshalConfig specifies marshaling options
@@ -39,15 +43,12 @@ type MarshalConfig struct {
 	// Version specifies a particular version we should marshal resources with
 	Version string
 
-	// ID is a record ID to assign
-	ID int64
-
 	// Revision of the resource to assign.
 	Revision string
 
-	// PreserveResourceID preserves resource IDs in resource
+	// PreserveRevision preserves revision in resource
 	// specs when marshaling
-	PreserveResourceID bool
+	PreserveRevision bool
 
 	// Expires is an optional expiry time
 	Expires time.Time
@@ -82,14 +83,6 @@ func AddOptions(opts []MarshalOption, add ...MarshalOption) []MarshalOption {
 	return append(opts, add...)
 }
 
-// WithResourceID assigns ID to the resource
-func WithResourceID(id int64) MarshalOption {
-	return func(c *MarshalConfig) error {
-		c.ID = id
-		return nil
-	}
-}
-
 // WithRevision assigns Revision to the resource
 func WithRevision(rev string) MarshalOption {
 	return func(c *MarshalConfig) error {
@@ -119,11 +112,11 @@ func WithVersion(v string) MarshalOption {
 	}
 }
 
-// PreserveResourceID preserves resource ID when
+// PreserveRevision preserves revision when
 // marshaling value
-func PreserveResourceID() MarshalOption {
+func PreserveRevision() MarshalOption {
 	return func(c *MarshalConfig) error {
-		c.PreserveResourceID = true
+		c.PreserveRevision = true
 		return nil
 	}
 }
@@ -230,8 +223,22 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindServerInfo, nil
 	case types.KindBot, "bots":
 		return types.KindBot, nil
+	case types.KindBotInstance, types.KindBotInstance + "s":
+		return types.KindBotInstance, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
+	case types.KindAccessMonitoringRule:
+		return types.KindAccessMonitoringRule, nil
+	case types.KindDatabaseObject, "database_object":
+		return types.KindDatabaseObject, nil
+	case types.KindCrownJewel, "crown_jewels":
+		return types.KindCrownJewel, nil
+	case types.KindVnetConfig:
+		return types.KindVnetConfig, nil
+	case types.KindAccessRequest, types.KindAccessRequest + "s", "accessrequest", "accessrequests":
+		return types.KindAccessRequest, nil
+	case types.KindPlugin, types.KindPlugin + "s":
+		return types.KindPlugin, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -650,13 +657,6 @@ func init() {
 		}
 		return types.Resource153ToLegacy(b), nil
 	})
-	RegisterResourceUnmarshaler(types.KindDatabaseObjectImportRule, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		out, err := UnmarshalDatabaseObjectImportRule(bytes, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(out), nil
-	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -755,20 +755,134 @@ func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart
 
 type resetProtoResource interface {
 	protoadapt.MessageV1
-	SetResourceID(int64)
 	SetRevision(string)
 }
 
-// maybeResetProtoResourceID returns a clone of [r] with the identifiers
-// reset to default values if preserveResourceID is true, otherwise
-// this is a nop, and the original value is returned unaltered.
-func maybeResetProtoResourceID[T resetProtoResource](preserveResourceID bool, r T) T {
-	if preserveResourceID {
+// maybeResetProtoRevision returns a clone of [r] with the identifiers reset to default values if
+// preserveRevision is true, otherwise this is a nop, and the original value is returned unaltered.
+//
+// Prefer maybeResetProtoRevisionv2 for newer RFD153-style resources, only one or the other should compile
+// for any given type.
+func maybeResetProtoRevision[T resetProtoResource](preserveRevision bool, r T) T {
+	if preserveRevision {
 		return r
 	}
 
-	cp := utils.CloneProtoMsg(r)
-	cp.SetResourceID(0)
+	cp := apiutils.CloneProtoMsg(r)
 	cp.SetRevision("")
 	return cp
+}
+
+// ProtoResource abstracts a resource defined as a protobuf message.
+type ProtoResource interface {
+	proto.Message
+	// GetMetadata returns the generic resource metadata.
+	GetMetadata() *headerv1.Metadata
+}
+
+// ProtoResourcePtr is a ProtoResource that is also a pointer to T.
+type ProtoResourcePtr[T any] interface {
+	*T
+	ProtoResource
+}
+
+// maybeResetProtoRevisionv2 returns a clone of [r] with the identifiers reset to default values if
+// preserveRevision is true, otherwise this is a nop, and the original value is returned unaltered.
+//
+// This is like maybeResetProtoRevision but made for newer RFD153-style resources which implement a
+// different interface, only one or the other should compile for any given type.
+func maybeResetProtoRevisionv2[T ProtoResource](preserveRevision bool, r T) T {
+	if preserveRevision {
+		return r
+	}
+
+	cp := proto.Clone(r).(T)
+	cp.GetMetadata().Revision = ""
+	return cp
+}
+
+// MarshalProtoResource marshals a ProtoResource to JSON using [protojson.Marshal] and respecting [opts].
+func MarshalProtoResource[T ProtoResource](resource T, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resource = maybeResetProtoRevisionv2(cfg.PreserveRevision, resource)
+	data, err := protojson.Marshal(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data, nil
+}
+
+// UnmarshalProtoResource unmarshals a ProtoResource from JSON using [protojson.Unmarshal] and respecting [opts].
+// It is paramaterized on types T and U, where T is a pointer type that implements ProtoResource, and U is the
+// type that T points to. This is so that it can allocate an instance of U to unmarshal into without
+// reflection.
+func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) (T, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("nothing to unmarshal")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var resource T = new(U)
+	err = protojson.Unmarshal(data, resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.Revision != "" {
+		resource.GetMetadata().Revision = cfg.Revision
+	}
+	if !cfg.Expires.IsZero() {
+		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+	}
+	return resource, nil
+}
+
+// FastMarshalProtoResourceDeprecated marshals a ProtoResource to JSON using [utils.FastMarshal] and respecting [opts].
+//
+// Deprecated: this should not be used for new types, prefer [MarshalProtoResource]. Existing types should not
+// be converted to maintain compatibility.
+func FastMarshalProtoResourceDeprecated[T ProtoResource](resource T, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resource = maybeResetProtoRevisionv2(cfg.PreserveRevision, resource)
+	data, err := utils.FastMarshal(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data, nil
+}
+
+// FastUnmarshalProtoResourceDeprecated unmarshals a ProtoResource from JSON using [utils.FastUnmarshal] and respecting [opts].
+// It is paramaterized on types T and U, where T is a pointer type that implements ProtoResource, and U is the
+// type that T points to. This is so that it can allocate an instance of U to unmarshal into without
+// reflection.
+//
+// Deprecated: this should not be used for new types, prefer [UnmarshalProtoResource]. Existing types should not
+// be converted to maintain compatibility.
+func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) (T, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("nothing to unmarshal")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var resource T = new(U)
+	err = utils.FastUnmarshal(data, resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.Revision != "" {
+		resource.GetMetadata().Revision = cfg.Revision
+	}
+	if !cfg.Expires.IsZero() {
+		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+	}
+	return resource, nil
 }

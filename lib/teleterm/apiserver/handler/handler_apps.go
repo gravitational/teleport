@@ -34,7 +34,12 @@ func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetApps(ctx, req)
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetApps(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,9 +70,10 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	awsRoles := []*api.AWSRole{}
 	for _, role := range clusterApp.AWSRoles {
 		awsRoles = append(awsRoles, &api.AWSRole{
-			Name:    role.Name,
-			Display: role.Display,
-			Arn:     role.ARN,
+			Name:      role.Name,
+			Display:   role.Display,
+			Arn:       role.ARN,
+			AccountId: role.AccountID,
 		})
 	}
 

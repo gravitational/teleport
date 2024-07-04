@@ -23,7 +23,11 @@ import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
 import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { DiscoverEvent } from 'teleport/services/userEvent';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEvent,
+} from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
 
@@ -31,6 +35,8 @@ import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
 import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
 
 import { ServerWrapper } from './ServerWrapper';
+import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
+import { ConfigureDiscoveryService } from './ConfigureDiscoveryService/ConfigureDiscoveryService';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Server,
@@ -51,7 +57,12 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
 
   views(resource) {
     let configureResourceViews;
-    if (resource && resource.nodeMeta?.location === ServerLocation.Aws) {
+    const { nodeMeta } = resource;
+    if (
+      nodeMeta?.location === ServerLocation.Aws &&
+      nodeMeta.discoveryConfigMethod ===
+        DiscoverDiscoveryConfigMethod.AwsEc2Eice
+    ) {
       configureResourceViews = [
         {
           title: 'Connect AWS Account',
@@ -68,6 +79,35 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
           component: CreateEc2Ice,
           eventName: DiscoverEvent.CreateNode,
           manuallyEmitSuccessEvent: true,
+        },
+      ];
+    } else if (
+      nodeMeta?.location === ServerLocation.Aws &&
+      nodeMeta.discoveryConfigMethod === DiscoverDiscoveryConfigMethod.AwsEc2Ssm
+    ) {
+      configureResourceViews = [
+        {
+          title: 'Connect AWS Account',
+          component: AwsAccount,
+          eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
+        },
+        // Self hosted requires user to manually install a discovery service.
+        // Cloud already has a discovery service running, so this step is not required.
+        ...(!cfg.isCloud
+          ? [
+              {
+                title: 'Configure Discovery Service',
+                component: ConfigureDiscoveryService,
+                eventName: DiscoverEvent.DeployService,
+              },
+            ]
+          : []),
+        {
+          title: cfg.isCloud
+            ? 'Configure Auto Discovery Service'
+            : 'Create Discovery Config',
+          component: DiscoveryConfigSsm,
+          eventName: DiscoverEvent.CreateDiscoveryConfig,
         },
       ];
     } else {

@@ -36,6 +36,29 @@ import (
 // TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
 type TCPIPForwardDialer func(string) (net.Conn, error)
 
+// TCPIPForwardProcess represents an instance of a port forwarding process.
+type TCPIPForwardProcess struct {
+	// Conn is the socket used to request a dialer or listener in the process.
+	Conn *net.UnixConn
+	// Done signals when the process completes.
+	Done <-chan struct{}
+	// Closer contains and extra io.Closer to run when the process as a whole
+	// is closed.
+	Closer io.Closer
+}
+
+// Close stops the process and frees up its related resources.
+func (p *TCPIPForwardProcess) Close() error {
+	var errs []error
+	if p.Conn != nil {
+		errs = append(errs, p.Conn.Close())
+	}
+	if p.Closer != nil {
+		errs = append(errs, p.Closer.Close())
+	}
+	return trace.NewAggregate(errs...)
+}
+
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
 	// NetConn is the base connection object.
@@ -62,6 +85,9 @@ type ConnectionContext struct {
 	// tcpipForwardDialer is a lazily initialized dialer used to handle all tcpip
 	// forwarding requests.
 	tcpipForwardDialer TCPIPForwardDialer
+	// tcpipForwardProcess is a lazily initialized connection to the subprocess that
+	// handles remote port forwarding.
+	tcpipForwardProcess *TCPIPForwardProcess
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -263,6 +289,26 @@ func (c *ConnectionContext) AddCloser(closer io.Closer) {
 		return
 	}
 	c.closers = append(c.closers, closer)
+}
+
+// TrySetTCPIPForwardProcess attempts to registers a TCPIPForwardProcess. If a
+// different process was concurrently registered, ok is false and the previously
+// registered process is returned.
+func (c *ConnectionContext) TrySetTCPIPForwardProcess(proc *TCPIPForwardProcess) (*TCPIPForwardProcess, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.tcpipForwardProcess != nil {
+		return c.tcpipForwardProcess, false
+	}
+	c.tcpipForwardProcess = proc
+	return proc, true
+}
+
+// GetTCPIPForwardProcess gets the registered TCPIPForwardProcess if one exists.
+func (c *ConnectionContext) GetTCPIPForwardProcess() (*TCPIPForwardProcess, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tcpipForwardProcess, c.tcpipForwardProcess != nil
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null

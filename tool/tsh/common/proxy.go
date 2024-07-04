@@ -19,10 +19,10 @@
 package common
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -30,12 +30,12 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 	"unicode"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -62,13 +62,37 @@ func onProxyCommandSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-		if err != nil {
-			targetHost = tc.Host
-			targetPort = strconv.Itoa(tc.HostPort)
+		var target string
+		switch {
+		case tc.Host != "":
+			targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+			if err != nil {
+				targetHost = tc.Host
+				targetPort = strconv.Itoa(tc.HostPort)
+			}
+			targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
+			target = net.JoinHostPort(targetHost, targetPort)
+		case len(tc.SearchKeywords) != 0 || tc.PredicateExpression != "":
+			nodes, err := client.GetAllResources[types.Server](cf.Context, clt.AuthClient, tc.ResourceFilter(types.KindNode))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(nodes) == 0 {
+				return trace.NotFound("no matching SSH hosts found for search terms or query expression")
+			}
+
+			if len(nodes) > 1 {
+				return trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
+			}
+
+			// Dialing is happening by UUID but a port is still required by
+			// the Proxy dial request. Zero is an indicator to the Proxy that
+			// it may chose the appropriate port based on the target server.
+			target = fmt.Sprintf("%s:0", nodes[0].GetName())
+		default:
+			return trace.BadParameter("no hostname, search terms or query expression provided")
 		}
-		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
-		target := net.JoinHostPort(targetHost, targetPort)
 
 		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
@@ -77,8 +101,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 
 		defer conn.Close()
 
-		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
-		return trace.Wrap(utils.ProxyConn(cf.Context, stdio, conn))
+		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
 	}))
 }
 
@@ -187,7 +210,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,6 +234,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
+		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
+			return trace.Wrap(err)
+		}
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
@@ -227,8 +253,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
+		maybeAddGCPMetadataTplArgs(cf.Context, tc, dbInfo, templateArgs)
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo.Protocol)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -277,18 +304,55 @@ func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *d
 	return opts, nil
 }
 
+func requiresGCPMetadata(protocol string) bool {
+	return protocol == defaults.ProtocolSpanner
+}
+
+func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if !requiresGCPMetadata(dbInfo.Protocol) {
+		return opts, nil
+	}
+	db, err := dbInfo.GetDatabase(ctx, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gcp := db.GetGCP()
+	return append(opts, dbcmd.WithGCP(gcp)), nil
+}
+
+func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, templateArgs map[string]any) {
+	if !requiresGCPMetadata(dbInfo.Protocol) {
+		return
+	}
+	templateArgs["gcpProject"] = "<project>"
+	templateArgs["gcpInstance"] = "<instance>"
+	db, err := dbInfo.GetDatabase(ctx, tc)
+	if err == nil {
+		gcp := db.GetGCP()
+		templateArgs["gcpProject"] = gcp.ProjectID
+		templateArgs["gcpInstance"] = gcp.InstanceID
+	}
+}
+
 type templateCommandItem struct {
 	Description string
 	Command     string
 }
 
-func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, protocol string) *template.Template {
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, dbInfo *databaseInfo) *template.Template {
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
 		templateArgs["command"] = formatCommand(commands[0].Command)
-		if protocol == defaults.ProtocolOracle {
+		switch dbInfo.Protocol {
+		case defaults.ProtocolOracle:
 			templateArgs["args"] = commands[0].Command.Args
 			return dbProxyOracleAuthTpl
+		case defaults.ProtocolSpanner:
+			templateArgs["databaseName"] = "<database>"
+			if dbInfo.Database != "" {
+				templateArgs["databaseName"] = dbInfo.Database
+			}
+			return dbProxySpannerAuthTpl
 		}
 		return dbProxyAuthTpl
 	}
@@ -317,54 +381,29 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, cf.AppName)
+	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
+	app, err := appInfo.GetApp(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	addr := "localhost:0"
-	if cf.LocalProxyPort != "" {
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
-	}
-
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
+	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, listener),
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-	)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
+	defer func() {
+		if err := proxyApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, lp.GetAddr())
-	if cf.LocalProxyPort == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		lp.Close()
 	}()
 
-	defer lp.Close()
-	if err = lp.Start(cf.Context); err != nil {
-		log.WithError(err).Errorf("Failed to start local proxy.")
-	}
-
+	// Proxy connections until the client terminates the command.
+	<-cf.Context.Done()
 	return nil
 }
 
@@ -379,7 +418,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = awsApp.StartLocalProxies()
+	err = awsApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -393,6 +432,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
 		return trace.Wrap(err)
 	}
+
 	<-cf.Context.Done()
 	return nil
 }
@@ -471,7 +511,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = azApp.StartLocalProxies()
+	err = azApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -502,7 +542,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	err = gcpApp.StartLocalProxies()
+	err = gcpApp.StartLocalProxies(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -526,60 +566,20 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
-// loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
-// the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
-// should fix the problem.
-func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	cert, needLogin, err := loadAppCertificate(tc, appName)
-	if err != nil {
-		if !needLogin {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
-		quiet := cf.Quiet
-		cf.Quiet = true
-		errLogin := onAppLogin(cf)
-		cf.Quiet = quiet
-		if errLogin != nil {
-			log.WithError(errLogin).Debugf("Login attempt failed")
-			// combine errors
-			return tls.Certificate{}, trace.NewAggregate(err, errLogin)
-		}
-		// another attempt
-		cert, _, err = loadAppCertificate(tc, appName)
-		return cert, trace.Wrap(err)
-	}
-	return cert, nil
-}
-
-// loadAppCertificate loads the app certificate for the provided app.
-// Returns tuple (certificate, needLogin, err).
-// The boolean `needLogin` will be true if the error returned should go away with successful `tsh app login <appName>`.
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certificate tls.Certificate, needLogin bool, err error) {
+func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
-		return tls.Certificate{}, false, trace.Wrap(err)
-	}
-	cert, ok := key.AppTLSCerts[appName]
-	if !ok {
-		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := key.TLSCertificate(cert)
-	if err != nil {
-		return tls.Certificate{}, false, trace.Wrap(err)
+	appCert, err := key.AppTLSCert(appName)
+	if trace.IsNotFound(err) {
+		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
+	} else if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(tlsCert)
-	if err != nil {
-		return tls.Certificate{}, true, trace.WrapWithMessage(err, "invalid certificate - please login to the application again: 'tsh apps login %v'", appName)
-	}
-	if time.Until(expiresAt) < 5*time.Second {
-		return tls.Certificate{}, true, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh apps login %v'", appName,
-			appName)
-	}
-	return tlsCert, false, nil
+	return appCert, nil
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
@@ -587,24 +587,15 @@ func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certifi
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cert, ok := key.DBTLSCerts[dbName]
-	if !ok {
+
+	dbCert, err := key.DBTLSCert(dbName)
+	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
-	}
-	tlsCert, err := key.TLSCertificate(cert)
-	if err != nil {
+	} else if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return tlsCert, nil
-}
 
-// getTLSCertExpireTime returns the certificate NotAfter time.
-func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertLeaf(cert)
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-	return x509cert.NotAfter, nil
+	return dbCert, nil
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
@@ -614,11 +605,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient, listener net.Listener, insecure bool) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         tc.WebProxyAddr,
-		InsecureSkipVerify:      cf.InsecureSkipVerify,
-		ParentContext:           cf.Context,
+		InsecureSkipVerify:      insecure,
+		ParentContext:           ctx,
 		Listener:                listener,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
@@ -679,6 +670,19 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 ` + dbProxyConnectAd + `
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
+`))
+
+// dbProxySpannerAuthTpl is the message that's printed for an authenticated spanner db proxy.
+var dbProxySpannerAuthTpl = template.Must(template.New("").Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+` + dbProxyConnectAd + `
+Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
+  $ {{.command}}
+
+Or use the following JDBC connection string to connect with other GUI/CLI clients:
+jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
 // dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.

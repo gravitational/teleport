@@ -40,7 +40,7 @@ export function BotList({
   bots,
   disabledEdit,
   disabledDelete,
-  roles,
+  fetchRoles,
   onClose,
   onDelete,
   onEdit,
@@ -107,7 +107,7 @@ export function BotList({
       )}
       {selectedBot && interaction === Interaction.EDIT && (
         <EditBot
-          allRoles={roles}
+          fetchRoles={fetchRoles}
           attempt={attempt}
           name={selectedBot.name}
           onClose={onClose}

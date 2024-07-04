@@ -128,9 +128,9 @@ spec:
     #....
   options:
     # Controls whether this role supports auto provisioning of users.
-    # Options: drop (remove user on session end), keep (keep users at session end)
+    # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
-    create_host_user_mode: drop
+    create_host_user_mode: keep
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed for SSH

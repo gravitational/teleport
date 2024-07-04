@@ -65,6 +65,7 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 					InstallTeleport: true,
 					ScriptName:      "default-installer",
 					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &AssumeRole{
@@ -91,6 +92,7 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 					InstallTeleport: true,
 					ScriptName:      "default-installer",
 					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			},
@@ -117,6 +119,7 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 					InstallTeleport: false,
 					ScriptName:      "default-agentless-installer",
 					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &AWSSSM{DocumentName: "TeleportAgentlessDiscoveryInstaller"},
 			},
@@ -224,9 +227,101 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 					InstallTeleport: true,
 					ScriptName:      "default-installer",
 					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				AssumeRole: &AssumeRole{
 					ExternalID: "id123",
+				},
+				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			},
+		},
+		{
+			name: "enroll mode and integration are not set, defaults to script enroll mode",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					JoinMethod:      "iam",
+					JoinToken:       "aws-discovery-iam-token",
+					InstallTeleport: true,
+					ScriptName:      "default-installer",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			},
+		},
+		{
+			name: "enroll mode not set but integration is set, defaults to eice enroll mode",
+			in: &AWSMatcher{
+				Types:       []string{"ec2"},
+				Regions:     []string{"eu-west-2"},
+				Integration: "my-integration",
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+				Integration: "my-integration",
+				Params: &InstallerParams{
+					JoinMethod:      "iam",
+					JoinToken:       "aws-discovery-iam-token",
+					InstallTeleport: true,
+					ScriptName:      "default-installer",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				},
+				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			},
+		},
+		{
+			name: "non-integration/ambient credentials do not support EICE",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Params: &InstallerParams{
+					EnrollMode: InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "integration can be used with Script mode",
+			in: &AWSMatcher{
+				Types:       []string{"ec2"},
+				Regions:     []string{"eu-west-2"},
+				Integration: "my-integration",
+				Params: &InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+				Integration: "my-integration",
+				Params: &InstallerParams{
+					JoinMethod:      "iam",
+					JoinToken:       "aws-discovery-iam-token",
+					InstallTeleport: true,
+					ScriptName:      "default-installer",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			},

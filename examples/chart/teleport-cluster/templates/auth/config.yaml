@@ -5,7 +5,11 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-auth
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.config }}
+    {{- toYaml $auth.extraLabels.config | nindent 4 }}
+    {{- end }}
 {{- if $auth.annotations.config }}
   annotations: {{- toYaml $auth.annotations.config | nindent 4 }}
 {{- end }}
@@ -113,6 +117,14 @@ data:
               - delete
           - resources:
               - access_list
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - node
             verbs:
               - list
               - create

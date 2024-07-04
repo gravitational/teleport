@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -56,7 +57,55 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend)
+	return local.NewTestIdentityService(backend)
+}
+
+func TestIdentityService_CreateUser(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		desc, username, password, role string
+		passwordState                  types.PasswordState
+	}{{
+		desc:          "user without a password",
+		username:      "capybara",
+		role:          "access",
+		passwordState: types.PasswordState_PASSWORD_STATE_UNSET,
+	}, {
+		desc:          "user with a password",
+		username:      "llama",
+		password:      "verysecret",
+		role:          "editor",
+		passwordState: types.PasswordState_PASSWORD_STATE_SET,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user, err := types.NewUser(tt.username)
+			require.NoError(t, err)
+			user.AddRole(tt.role)
+			if tt.password != "" {
+				hash, err := bcrypt.GenerateFromPassword(([]byte(tt.password)), bcrypt.MinCost)
+				require.NoError(t, err, "Unable to generate password hash")
+				user.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
+			}
+			_, err = identity.CreateUser(ctx, user)
+			require.NoError(t, err, "failed to create the user")
+
+			user, err = identity.GetUser(ctx, tt.username, true /* withSecrets */)
+			require.NoError(t, err, "failed to get the user")
+			assert.Equal(t, []string{tt.role}, user.GetRoles(), "roles are not set")
+			assert.Equal(t, tt.passwordState, user.GetPasswordState(), "password state is not set")
+			if tt.password != "" {
+				assert.NoError(t,
+					bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte(tt.password)),
+					"password hash does not match")
+			}
+		})
+	}
+
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
@@ -983,14 +1032,14 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 			}
 
 			// Assert update response.
-			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+			if diff := cmp.Diff(want, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
 			}
 
 			// Assert stored.
 			stored, err := identity.GetUser(ctx, test.user, test.withSecrets)
 			require.NoError(t, err, "GetUser failed")
-			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")); diff != "" {
+			if diff := cmp.Diff(want, stored, cmpopts.IgnoreFields(types.Metadata{}, "Revision")); diff != "" {
 				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
 			}
 		})
@@ -1012,15 +1061,17 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.NoError(t, err, "creating otp device failed")
 
 	// Validate that no users returns an empty page.
-	users, next, err := identity.ListUsers(ctx, 0, "", false)
+	rsp, err := identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, users, "users returned from listing when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
-	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+		WithSecrets: true,
+	})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, users, "users returned from listing when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
+	assert.Empty(t, rsp.Users, "users returned from listing when no users exist")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 
 	// Validate that listing works when there is only a single user
 	user, err := types.NewUser("fish0")
@@ -1028,17 +1079,17 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	user, err = identity.CreateUser(ctx, user)
 	require.NoError(t, err, "creating user %s failed", user)
-	expectedUsers := []types.User{user}
+	expectedUsers := []*types.UserV2{user.(*types.UserV2)}
 
-	users, next, err = identity.ListUsers(ctx, 0, "", false)
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no more users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
-	assert.Empty(t, next, "next page token returned from listing when no users exist")
-	assert.Empty(t, cmp.Diff(expectedUsers, users), "not all users returned from listing operation")
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
 
 	// Create a number of users.
 	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
@@ -1070,25 +1121,29 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 		created, err := identity.CreateUser(ctx, user)
 		require.NoError(t, err, "creating user %s failed", user)
-		expectedUsers = append(expectedUsers, created)
+		expectedUsers = append(expectedUsers, created.(*types.UserV2))
 	}
-	slices.SortFunc(expectedUsers, func(a, b types.User) int {
+	slices.SortFunc(expectedUsers, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 
 	// List a few users at a time and validate that all users are eventually returned.
-	var retrieved []types.User
-	for next := ""; ; {
-		users, nextToken, err := identity.ListUsers(ctx, 2, next, false)
+	var retrieved []*types.UserV2
+	req := userspb.ListUsersRequest{
+		PageSize: 2,
+	}
+	for {
+		rsp, err := identity.ListUsers(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		for _, user := range users {
+		for _, user := range rsp.Users {
 			assert.Empty(t, user.GetLocalAuth(), "expected no secrets to be returned with user %s", user.GetName())
 		}
 
-		retrieved = append(retrieved, users...)
-		next = nextToken
-		if next == "" {
+		retrieved = append(retrieved, rsp.Users...)
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1097,16 +1152,22 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		}
 	}
 
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
 	// Validate that listing all users at once returns all expected users with secrets.
-	users, next, err = identity.ListUsers(ctx, 200, "", true)
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:    200,
+		WithSecrets: true,
+	})
 	require.NoError(t, err, "unexpected error listing users")
-	assert.Empty(t, next, "got a next page token when page size was greater than number of items")
-	slices.SortFunc(users, func(a, b types.User) int {
+	assert.Empty(t, rsp.NextPageToken, "got a next page token when page size was greater than number of items")
+
+	users := rsp.Users
+
+	slices.SortFunc(users, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 
@@ -1115,14 +1176,19 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	require.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
-	retrieved = []types.User{}
-	for next := ""; ; {
-		users, nextToken, err := identity.ListUsers(ctx, 2, next, true)
+	retrieved = nil
+	req = userspb.ListUsersRequest{
+		PageSize:    2,
+		WithSecrets: true,
+	}
+	for {
+		rsp, err := identity.ListUsers(ctx, &req)
 		require.NoError(t, err, "no error returned when no users exist")
 
-		retrieved = append(retrieved, users...)
-		next = nextToken
-		if next == "" {
+		retrieved = append(retrieved, rsp.Users...)
+
+		req.PageToken = rsp.NextPageToken
+		if req.PageToken == "" {
 			break
 		}
 
@@ -1131,7 +1197,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		}
 	}
 
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
@@ -1145,13 +1211,66 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	clock.Advance(time.Hour)
 
-	retrieved, next, err = identity.ListUsers(ctx, 0, "", true)
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{
+		WithSecrets: true,
+	})
 	assert.NoError(t, err, "got an error while listing over an expired user")
-	assert.Empty(t, next, "next page token returned from listing all users")
-	slices.SortFunc(retrieved, func(a, b types.User) int {
+	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing all users")
+
+	retrieved = rsp.Users
+
+	slices.SortFunc(retrieved, func(a, b *types.UserV2) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+}
+
+func TestIdentityService_UpsertAndDeletePassword(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	// Create a user.
+	user, err := types.NewUser("capybara")
+	require.NoError(t, err)
+	_, err = identity.CreateUser(ctx, user)
+	require.NoError(t, err, "failed to create the user")
+
+	// Verify the initial password state
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
+
+	// Set the password.
+	err = identity.UpsertPassword(user.GetName(), []byte("gimme12chars"))
+	require.NoError(t, err, "failed to set password")
+
+	// Validate that the password is set.
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.NoError(t,
+		bcrypt.CompareHashAndPassword(user.GetLocalAuth().PasswordHash, []byte("gimme12chars")),
+		"password hash does not match")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, user.GetPasswordState(), "password state is not SET")
+
+	// Delete the password.
+	err = identity.DeletePassword(ctx, "capybara")
+	require.NoError(t, err, "failed to delete password")
+
+	// Validate that the password is removed.
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
+
+	// Attempt to delete the password again. This should return an error.
+	err = identity.DeletePassword(ctx, "capybara")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+	user, err = identity.GetUser(ctx, "capybara", true /* withSecrets */)
+	require.NoError(t, err, "failed to get the user")
+	assert.Nil(t, user.GetLocalAuth(), "secrets are not empty")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, user.GetPasswordState(), "password state is not UNSET")
 }
 
 func TestCompareAndSwapUser(t *testing.T) {

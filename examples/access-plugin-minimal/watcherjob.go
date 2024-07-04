@@ -28,7 +28,16 @@ func (g *googleSheetsClient) HandleEvent(ctx context.Context, event types.Event)
 		return nil
 	}
 
-	r := event.Resource.(types.AccessRequest)
+	if _, ok := event.Resource.(*types.WatchStatusV1); ok {
+		fmt.Println("Successfully started listening for Access Requests...")
+		return nil
+	}
+
+	r, ok := event.Resource.(types.AccessRequest)
+	if !ok {
+		fmt.Printf("Unknown (%T) event received, skipping.\n", event.Resource)
+		return nil
+	}
 
 	if r.GetState() == types.RequestState_PENDING {
 		if err := g.createRow(r); err != nil {

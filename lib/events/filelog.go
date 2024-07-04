@@ -102,7 +102,7 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 	f := &FileLog{
 		FileLogConfig: cfg,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAuditLog,
+			teleport.ComponentKey: teleport.ComponentAuditLog,
 		}),
 	}
 	return f, nil

@@ -517,7 +517,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := utils.ParsePrivateKeyPEM(cfg.Key.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.Key.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -527,7 +527,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	// issuer for an oracle wallet user_cert, and the server cert we create
 	// is not signed by the DB Client CA, so don't pass trusted certs
 	// (DB Client CA) here.
-	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK, certBlock, nil, cfg.Password)
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK.Signer, certBlock, nil, cfg.Password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -811,35 +811,56 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 // Additionally, the [clusterName] argument can ve used to target a leaf cluster
 // rather than the default root cluster.
 func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
-	if proxyAddr == "" {
-		return nil, trace.BadParameter("missing a Proxy address when loading an Identity File.")
-	}
-	proxyHost, err := utils.Host(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Preload the client key from the agent.
 	clientStore := client.NewMemClientStore()
-	if err := clientStore.AddKey(key); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Save temporary profile into the key store.
-	profile := &profile.Profile{
-		WebProxyAddr:     proxyAddr,
-		SiteName:         key.ClusterName,
-		Username:         key.Username,
-		PrivateKeyPolicy: key.PrivateKey.GetPrivateKeyPolicy(),
-	}
-	if err := clientStore.SaveProfile(profile, true); err != nil {
+	if err := LoadIdentityFileIntoClientStore(clientStore, identityFile, proxyAddr, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return clientStore, nil
+}
+
+// LoadIdentityFileIntoClientStore loads the identityFile from the given path
+// into the given client store, assimilating it with other keys in the store.
+func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAddr, clusterName string) error {
+	if proxyAddr == "" {
+		return trace.BadParameter("missing a Proxy address when loading an Identity File.")
+	}
+	proxyHost, err := utils.Host(proxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// This key may already exist in a tsh profile, delete it before overwriting
+	// it with the identity key to avoid leaving app/db/kube certs from the old key.
+	if err := store.DeleteKey(key.KeyIndex); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := store.AddKey(key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the client store is not initialized (this is the first key added),
+	// then the profile will be missing. Add a temporary profile with necessary
+	// information. This profile should be filled in with information from the
+	// proxy by the caller.
+	if _, err := store.GetProfile(proxyAddr); trace.IsNotFound(err) {
+		profile := &profile.Profile{
+			MissingClusterDetails: true,
+			WebProxyAddr:          proxyAddr,
+			SiteName:              key.ClusterName,
+			Username:              key.Username,
+			PrivateKeyPolicy:      key.PrivateKey.GetPrivateKeyPolicy(),
+		}
+		if err := store.SaveProfile(profile, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }

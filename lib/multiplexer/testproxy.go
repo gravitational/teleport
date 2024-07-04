@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,7 +50,7 @@ func NewTestProxy(target string, v2 bool) (*TestProxy, error) {
 		listener: listener,
 		target:   target,
 		closeCh:  make(chan struct{}),
-		log:      logrus.WithField(trace.Component, "test:proxy"),
+		log:      logrus.WithField(teleport.ComponentKey, "test:proxy"),
 		v2:       v2,
 	}, nil
 }

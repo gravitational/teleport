@@ -23,6 +23,7 @@ import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 import {
+  appUri,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
@@ -159,6 +160,23 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
     kind: 'reason.gateway-cert-expired',
     targetUri: dbGateway.targetUri,
     gateway: undefined,
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonVnetCertExpired = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.vnet-cert-expired',
+    targetUri: appUri,
+    publicAddr: 'tcp-app.teleport.example.com',
   };
 
   return (
@@ -316,6 +334,28 @@ export const HardwareCredentialPrompt = () => {
   );
 };
 
+export const HardwareCredentialPromptProcessing = () => {
+  const props = makeProps();
+  props.loginAttempt.status = 'processing';
+  props.webauthnLogin = {
+    prompt: 'credential',
+    loginUsernames: [
+      'apple',
+      'banana',
+      'blueberry',
+      'carrot',
+      'durian',
+      'pumpkin',
+      'strawberry',
+    ],
+  };
+  props.webauthnLogin.processing = true;
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
 export const SsoPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';

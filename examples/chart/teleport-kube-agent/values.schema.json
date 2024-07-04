@@ -739,6 +739,39 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "jamfCredentialsSecret": {
+            "$id": "#/properties/jamfCredentialsSecret",
+            "type": "object",
+            "required": ["create", "name"],
+            "properties": {
+                "create": {
+                    "$id": "#/properties/jamfCredentialsSecret/create",
+                    "type": "boolean",
+                    "default": true
+                },
+                "name": {
+                    "$id": "#/properties/jamfCredentialsSecret/name",
+                    "type": "string",
+                    "default": "teleport-jamf-api-credentials"
+                },
+                "additionalProperties": false
+            }
+        },
+        "jamfApiEndpoint": {
+            "$id": "#/properties/jamfApiEndpoint",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientId": {
+            "$id": "#/properties/jamfClientId",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientSecret": {
+            "$id": "#/properties/jamfSecret",
+            "type": "string",
+            "default": ""
         }
     }
 }

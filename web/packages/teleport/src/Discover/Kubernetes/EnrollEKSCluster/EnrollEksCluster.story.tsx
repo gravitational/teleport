@@ -101,6 +101,11 @@ const successEnrollmentHandler = rest.post(
   }
 );
 
+const discoveryConfigHandler = rest.post(
+  cfg.api.discoveryConfigPath,
+  (req, res, ctx) => res(ctx.json({}))
+);
+
 export const ClustersList = () => <Component />;
 
 ClustersList.parameters = {
@@ -108,6 +113,7 @@ ClustersList.parameters = {
     handlers: [
       tokenHandler,
       successEnrollmentHandler,
+      discoveryConfigHandler,
       rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
         {
           return res(ctx.json({ clusters: eksClusters }));
@@ -135,6 +141,7 @@ ClustersListInCloud.parameters = {
     handlers: [
       tokenHandler,
       successEnrollmentHandler,
+      discoveryConfigHandler,
       rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
         {
           return res(ctx.json({ clusters: eksClusters }));
@@ -232,6 +239,8 @@ const Component = () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       },

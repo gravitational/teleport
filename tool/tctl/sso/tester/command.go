@@ -31,7 +31,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -49,7 +49,7 @@ type SSOTestCommand struct {
 	connectorFileName string
 
 	// Handlers is a mapping between auth kind and appropriate handling function
-	Handlers map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error)
+	Handlers map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error)
 	// GetDiagInfoFields provides auth kind-specific diagnostic info fields.
 	GetDiagInfoFields map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string
 	// Browser to use in login flow.
@@ -80,12 +80,16 @@ Examples:
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
-	cmd.Handlers = map[string]func(c auth.ClientI, connBytes []byte) (*AuthRequestInfo, error){
+	cmd.Handlers = map[string]func(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error){
 		types.KindGithubConnector: handleGithubConnector,
+		types.KindSAMLConnector:   handleSAMLConnector,
+		types.KindOIDCConnector:   handleOIDCConnector,
 	}
 
 	cmd.GetDiagInfoFields = map[string]func(diag *types.SSODiagnosticInfo, debug bool) []string{
 		types.KindGithubConnector: getGithubDiagInfoFields,
+		types.KindSAMLConnector:   getInfoFieldsSAML,
+		types.KindOIDCConnector:   getInfoFieldsOIDC,
 	}
 }
 
@@ -99,7 +103,7 @@ func (cmd *SSOTestCommand) getSupportedKinds() []string {
 	return kinds
 }
 
-func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) error {
+func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Client) error {
 	reader := os.Stdin
 	if cmd.connectorFileName != "" {
 		f, err := utils.OpenFileAllowingUnsafeLinks(cmd.connectorFileName)
@@ -149,7 +153,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) e
 
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
-func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error) {
+func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c *authclient.Client) (match bool, err error) {
 	if selectedCommand == cmd.ssoTestCmd.FullCommand() {
 		return true, cmd.ssoTestCommand(ctx, c)
 	}
@@ -166,7 +170,7 @@ type AuthRequestInfo struct {
 	RequestCreateErr error
 }
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c auth.ClientI, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*authclient.SSHLoginResponse, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -216,7 +220,7 @@ func GetDiagMessage(present bool, show bool, msg string) string {
 	return ""
 }
 
-func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *auth.SSHLoginResponse, loginErr error) (errResult error) {
+func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.SSHLoginResponse, loginErr error) (errResult error) {
 	success := diag != nil && diag.Success
 
 	// check for errors

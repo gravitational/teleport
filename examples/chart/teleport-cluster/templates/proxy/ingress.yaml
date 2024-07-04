@@ -23,7 +23,11 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-proxy
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+    {{- if $proxy.extraLabels.ingress }}
+    {{- toYaml $proxy.extraLabels.ingress | nindent 4 }}
+    {{- end }}
   {{- if $proxy.annotations.ingress }}
   annotations: {{- toYaml $proxy.annotations.ingress | nindent 4 }}
   {{- end }}

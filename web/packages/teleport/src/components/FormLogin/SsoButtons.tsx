@@ -17,17 +17,16 @@
  */
 
 import React, { forwardRef } from 'react';
-import { Box, Text } from 'design';
+import { Flex, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 import { AuthProvider } from 'shared/services';
 
 const SSOBtnList = forwardRef<HTMLInputElement, Props>(
-  ({ providers, prefixText, isDisabled, onClick, autoFocus = false }, ref) => {
+  ({ providers, isDisabled, onClick, autoFocus = false }, ref) => {
     const $btns = providers.map((item, index) => {
       let { name, type, displayName } = item;
-      const title = displayName || `${prefixText} ${name}`;
+      const title = displayName || name;
       const ssoType = guessProviderType(title, type);
-      const len = providers.length - 1;
       return (
         <ButtonSso
           setRef={index === 0 ? ref : null}
@@ -35,8 +34,6 @@ const SSOBtnList = forwardRef<HTMLInputElement, Props>(
           title={title}
           ssoType={ssoType}
           disabled={isDisabled}
-          mt={3}
-          mb={index < len ? 3 : 0}
           autoFocus={index === 0 && autoFocus}
           onClick={e => {
             e.preventDefault();
@@ -55,15 +52,14 @@ const SSOBtnList = forwardRef<HTMLInputElement, Props>(
     }
 
     return (
-      <Box px={6} pt={2} pb={2} data-testid="sso-list">
+      <Flex flexDirection="column" data-testid="sso-list" gap={3}>
         {$btns}
-      </Box>
+      </Flex>
     );
   }
 );
 
 type Props = {
-  prefixText: string;
   isDisabled: boolean;
   onClick(provider: AuthProvider): void;
   providers: AuthProvider[];

@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate/builder"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -326,7 +328,7 @@ func TestCreateRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -481,7 +483,7 @@ func TestUpdateRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -625,7 +627,7 @@ func TestUpsertRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -742,7 +744,7 @@ func TestGetRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -854,7 +856,7 @@ func TestGetRoles(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.SortSlices(func(r1, r2 types.Role) bool {
 						return r1.GetName() < r2.GetName()
 					}),
@@ -865,6 +867,153 @@ func TestGetRoles(t *testing.T) {
 					}),
 				))
 			}
+
+			// verify that ListRoles behavior is equivalent to GetRoles
+			var lgot []types.Role
+			var req proto.ListRolesRequest
+			for {
+				rsp, err := clt.ListRoles(ctx, &req)
+				test.wantErr(t, err)
+				if test.want == nil {
+					require.Nil(t, rsp)
+					break
+				}
+
+				for _, r := range rsp.Roles {
+					lgot = append(lgot, r)
+				}
+				req.StartKey = rsp.NextKey
+				if req.StartKey == "" {
+					break
+				}
+			}
+
+			require.Equal(t, got, lgot)
+		})
+	}
+}
+
+func TestListRolesFiltering(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testRoles := func(t *testing.T) []types.Role {
+		return []types.Role{
+			newRole(t, "nop", nil, types.RoleConditions{}, types.RoleConditions{}),
+			newRole(t, "foo", map[string]string{
+				"ord": "odd",
+				"grp": "low",
+			}, types.RoleConditions{}, types.RoleConditions{}),
+			newRole(t, "bar", map[string]string{
+				"ord": "even",
+				"grp": "low",
+			}, types.RoleConditions{}, types.RoleConditions{}),
+			newRole(t, "bin", map[string]string{
+				"ord": "odd",
+				"grp": "high",
+			}, types.RoleConditions{}, types.RoleConditions{}),
+			newRole(t, "baz", map[string]string{
+				"ord": "even",
+				"grp": "high",
+			}, types.RoleConditions{}, types.RoleConditions{}),
+		}
+	}
+
+	tts := []struct {
+		name   string
+		search []string
+		expect []string
+	}{
+		{
+			name:   "all",
+			search: nil,
+			expect: []string{
+				"nop",
+				"foo",
+				"bar",
+				"bin",
+				"baz",
+			},
+		},
+		{
+			name:   "nothing",
+			search: []string{"this-matches-nothing"},
+			expect: nil,
+		},
+		{
+			name:   "simple label",
+			search: []string{"odd"},
+			expect: []string{
+				"foo",
+				"bin",
+			},
+		},
+		{
+			name:   "label substring",
+			search: []string{"eve"},
+			expect: []string{
+				"bar",
+				"baz",
+			},
+		},
+		{
+			name:   "multi lable",
+			search: []string{"high", "even"},
+			expect: []string{
+				"baz",
+			},
+		},
+		{
+			name:   "name substring",
+			search: []string{"ba"},
+			expect: []string{
+				"bar",
+				"baz",
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		search, expect := tt.search, tt.expect
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := newTestTLSServer(t)
+
+			clt, err := srv.NewClient(TestAdmin())
+			require.NoError(t, err)
+
+			// Only create the role if it's been supplied.
+			for _, role := range testRoles(t) {
+				_, err := clt.CreateRole(ctx, role)
+				require.NoError(t, err)
+			}
+
+			req := proto.ListRolesRequest{
+				Filter: &types.RoleFilter{
+					SearchKeywords: search,
+				},
+			}
+			var gotRoles []string
+			for {
+				rsp, err := clt.ListRoles(ctx, &req)
+				require.NoError(t, err)
+
+				for _, role := range rsp.Roles {
+					if role.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					gotRoles = append(gotRoles, role.GetName())
+				}
+
+				req.StartKey = rsp.NextKey
+				if req.StartKey == "" {
+					break
+				}
+			}
+
+			slices.Sort(expect)
+			slices.Sort(gotRoles)
+			require.Equal(t, expect, gotRoles)
 		})
 	}
 }

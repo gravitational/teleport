@@ -149,7 +149,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%v.%v", appName, addr.Host()), nil
+		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
 	}
 
 	// Fall back to cluster name.

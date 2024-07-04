@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
@@ -43,8 +42,7 @@ import (
 )
 
 func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) string {
-	features := proto.Features{}
-	require.NoError(t, channels.CheckAndSetDefaults(features))
+	require.NoError(t, channels.CheckAndSetDefaults())
 	testDir := t.TempDir()
 
 	cfg := helpers.InstanceConfig{
@@ -142,7 +140,7 @@ func TestVersionServer(t *testing.T) {
 		{
 			name:             "static version too high",
 			channel:          staticHighChannel,
-			expectedResponse: teleport.Version,
+			expectedResponse: "v" + teleport.Version,
 		},
 		{
 			name:             "static version none",
@@ -157,12 +155,65 @@ func TestVersionServer(t *testing.T) {
 		{
 			name:             "forward version too high",
 			channel:          forwardHighChannel,
-			expectedResponse: teleport.Version,
+			expectedResponse: "v" + teleport.Version,
 		},
 		{
 			name:             "forward version none",
 			channel:          forwardNoVersionChannel,
 			expectedResponse: constants.NoVersion,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			channelUrl, err := url.Parse(
+				fmt.Sprintf("https://%s/v1/webapi/automaticupgrades/channel/%s/version", proxyAddr, tt.channel),
+			)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, channelUrl.String(), nil)
+			require.NoError(t, err)
+			res, err := httpClient.Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, tt.expectedResponse, string(body))
+		})
+	}
+}
+func TestDefaultVersionServer(t *testing.T) {
+	// Test setup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	channels := automaticupgrades.Channels{}
+
+	proxyAddr := createProxyWithChannels(t, channels)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	httpClient := http.Client{Transport: tr}
+
+	// Test execution
+	tests := []struct {
+		name             string
+		channel          string
+		expectedResponse string
+	}{
+		{
+			name:             "default channel is served",
+			channel:          automaticupgrades.DefaultChannelName,
+			expectedResponse: "v" + teleport.Version,
+		},
+		{
+			name:             "cloud default channel is served",
+			channel:          automaticupgrades.DefaultCloudChannelName,
+			expectedResponse: "v" + teleport.Version,
 		},
 	}
 	for _, tt := range tests {

@@ -18,6 +18,8 @@
 
 import { EventMeta } from 'teleport/services/userEvent';
 
+import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
+
 export type Base64urlString = string;
 
 export type UserCredentials = {
@@ -48,6 +50,7 @@ export type ChangedUserAuthn = {
   recovery: RecoveryCodes;
 };
 
+/** A Web API request data for the New Credentials call. */
 export type NewCredentialRequest = {
   tokenId: string;
   password?: string;
@@ -68,5 +71,28 @@ export type ResetPasswordReqWithEvent = {
 
 export type ResetPasswordWithWebauthnReqWithEvent = {
   req: NewCredentialRequest;
+  credential?: Credential;
   eventMeta?: EventMeta;
 };
+
+export type CreateAuthenticateChallengeRequest = {
+  scope: MfaChallengeScope;
+  allowReuse?: boolean;
+  isMfaRequiredRequest?: IsMfaRequiredRequest;
+  userVerificationRequirement?: UserVerificationRequirement;
+};
+
+export type ChangePasswordReq = {
+  oldPassword: string;
+  newPassword: string;
+  secondFactorToken: string;
+  credential?: Credential;
+};
+
+export type CreateNewHardwareDeviceRequest = {
+  tokenId: string;
+  deviceUsage?: DeviceUsage;
+};
+
+/** The intended usage of the device (as an MFA method or a passkey). */
+export type DeviceUsage = 'passwordless' | 'mfa';

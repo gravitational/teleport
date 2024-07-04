@@ -60,23 +60,17 @@ type ClusterConfiguration interface {
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	// UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
-	// SetAuthPreference sets types.AuthPreference from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
-	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
 	// CreateSessionRecordingConfig creates a session recording config if once does not already exist.
 	CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpdateSessionRecordingConfig updates an existing session recording config.
 	UpdateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpsertSessionRecordingConfig creates a new session recording config or overwrites the existing session recording.
 	UpsertSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
-	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
@@ -89,22 +83,18 @@ type ClusterConfiguration interface {
 	// UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
 	UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
 	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
 	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 	// CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
 	CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpdateClusterNetworkingConfig updates an existing cluster networking config.
 	UpdateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpsertClusterNetworkingConfig creates a new cluster networking config or overwrites the existing cluster networking config.
 	UpsertClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
-	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
-	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
 

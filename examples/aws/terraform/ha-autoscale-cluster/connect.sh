@@ -25,13 +25,13 @@ CLUSTER_NAME="$(terraform output -raw cluster_name)"
 echo "Cluster name: ${CLUSTER_NAME?}"
 
 if [[ "${INSTANCE_TYPE?}" == "auth" ]]; then
-    SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID?}].Instances[*].PrivateIpAddress" --output text)"
+    SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=auth" "Name=instance-state-name,Values=running" --query "Reservations[${INSTANCE_ID?}].Instances[*].PrivateIpAddress" --output text)"
     echo "Auth ${INSTANCE_ID?} IP: ${SERVER_IP?}"
 elif [[ "${INSTANCE_TYPE?}" == "proxy" ]]; then
-    SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID?}].Instances[*].PrivateIpAddress" --output text)"
+    SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=proxy" "Name=instance-state-name,Values=running" --query "Reservations[${INSTANCE_ID?}].Instances[*].PrivateIpAddress" --output text)"
     echo "Proxy ${INSTANCE_ID?} IP: ${SERVER_IP?}"
 elif [[ "${INSTANCE_TYPE?}" == "node" ]]; then
-   SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)"
+   SERVER_IP="$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${CLUSTER_NAME?}" "Name=tag:TeleportRole,Values=node" "Name=instance-state-name,Values=running" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)"
     echo "Node IP: ${SERVER_IP?}"
 fi
 

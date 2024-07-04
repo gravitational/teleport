@@ -12,18 +12,13 @@ Our GitHub Actions workflows will create two PRs when a release is published:
 
 The AWS AMI ID PR can be merged right away.
 
-The docs version PR should be merged after the `gravitational/teleport-plugins` release
-is published, since the PR will include an update to the plugins version as well.
-
 ### Major releases only
 
 - [ ] Update support matrix in docs FAQ page
-- [ ] Update `branchMajorVersion` const in Dronegen `/dronegen/container_images.go`, then run `make dronegen`
-- [ ] Update `CURRENT_VERSION_ROOT`, `PREVIOUS_VERSION_ONE_ROOT`, and `PREVIOUS_VERSION_TWO_ROOT` variables in `.drone.yml`, then run `make dronegen`
   - Example: https://github.com/gravitational/teleport/pull/4602
-- [ ] Create PR to update default Teleport image referenced in docker/teleport-quickstart.yml
-  - Example: https://github.com/gravitational/teleport/pull/4655
-- [ ] Create PR to update default Teleport image referenced in docker/teleport-lab.yml
 - [ ] Update the list of OCI images to monitor and rebuild nightly in
   [`monitor-teleport-oci-distroless.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/monitor-teleport-oci-distroless.yml) and
   [`rebuild-teleport-oci-distroless-cron.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/rebuild-teleport-oci-distroless-cron.yml)
+- [ ] Update `e/.github/workflows/build-buildboxes-cron.yaml` to bump the
+  branches on each job (two per job) and to comment out the final job that only
+  exists for the pre-release, and bump the versions for the next release.

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import {
   MainProcessClient,
@@ -37,7 +38,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ConfigService } from 'teleterm/services/config';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -62,6 +63,27 @@ export interface IAppContext {
   connectMyComputerService: ConnectMyComputerService;
   headlessAuthenticationService: HeadlessAuthenticationService;
   tshd: TshdClient;
+  vnet: VnetClient;
 
   pullInitialState(): Promise<void>;
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function.
+   */
+  addUnexpectedVnetShutdownListener: (
+    listener: UnexpectedVnetShutdownListener
+  ) => () => void;
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
 }
+
+export type UnexpectedVnetShutdownListener = (
+  request: tshdEventsApi.ReportUnexpectedVnetShutdownRequest
+) => void;

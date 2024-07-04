@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -91,6 +92,15 @@ type Server interface {
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
 	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
+
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+
+	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+	GetAWSInstanceID() string
+	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+	GetAWSAccountID() string
 }
 
 // NewServer creates an instance of Server.
@@ -132,6 +142,22 @@ func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) 
 	return server, nil
 }
 
+// NewNode is a convenience method to create an EICE Node.
+func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: SubKindOpenSSHEICENode,
+		Metadata: Metadata{
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -160,16 +186,6 @@ func (s *ServerV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (s *ServerV2) SetSubKind(sk string) {
 	s.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (s *ServerV2) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (s *ServerV2) SetResourceID(id int64) {
-	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -350,7 +366,11 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 
 // CombineLabels combines the passed in static and dynamic labels.
 func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
-	lmap := make(map[string]string)
+	if len(dynamic) == 0 {
+		return static
+	}
+
+	lmap := make(map[string]string, len(static)+len(dynamic))
 	for key, value := range static {
 		lmap[key] = value
 	}
@@ -385,6 +405,38 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
 	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+}
+
+// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSAccountID() string {
+	awsAccountID, _ := s.GetLabel(AWSAccountIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.AccountID != "" {
+		awsAccountID = awsMetadata.AccountID
+	}
+	return awsAccountID
+}
+
+// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+func (s *ServerV2) GetAWSInstanceID() string {
+	awsInstanceID, _ := s.GetLabel(AWSInstanceIDLabel)
+
+	awsMetadata := s.GetAWSInfo()
+	if awsMetadata != nil && awsMetadata.InstanceID != "" {
+		awsInstanceID = awsMetadata.InstanceID
+	}
+	return awsInstanceID
+}
+
+// IsEICE returns whether the Node is an EICE instance.
+// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+func (s *ServerV2) IsEICE() bool {
+	if s.SubKind != SubKindOpenSSHEICENode {
+		return false
+	}
+
+	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
@@ -440,16 +492,44 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+// serverNameForEICE returns the deterministic Server's name for an EICE instance.
+// This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
+// Returns an error if AccountID or InstanceID is not present.
+func serverNameForEICE(s *ServerV2) (string, error) {
+	awsAccountID := s.GetAWSAccountID()
+	awsInstanceID := s.GetAWSInstanceID()
+
+	if awsAccountID != "" && awsInstanceID != "" {
+		eiceNodeName := fmt.Sprintf("%s-%s", awsAccountID, awsInstanceID)
+		if !aws.IsEC2NodeID(eiceNodeName) {
+			return "", trace.BadParameter("invalid account %q or instance id %q", awsAccountID, awsInstanceID)
+		}
+		return eiceNodeName, nil
+	}
+
+	return "", trace.BadParameter("missing account id or instance id in %s node", SubKindOpenSSHEICENode)
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
 
-	// if the server is a registered OpenSSH node, allow the name to be
-	// randomly generated
-	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
-		s.Metadata.Name = uuid.New().String()
+	if s.Metadata.Name == "" {
+		switch s.SubKind {
+		case SubKindOpenSSHEICENode:
+			// For EICE nodes, use a deterministic name.
+			eiceNodeName, err := serverNameForEICE(s)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			s.Metadata.Name = eiceNodeName
+		case SubKindOpenSSHNode:
+			// if the server is a registered OpenSSH node, allow the name to be
+			// randomly generated
+			s.Metadata.Name = uuid.NewString()
+		}
 	}
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
@@ -492,19 +572,26 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	var fieldVals []string
+	if s.GetKind() != KindNode {
+		return false
+	}
+
 	var custom func(val string) bool
-
-	if s.GetKind() == KindNode {
-		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
-		fieldVals = append(fieldVals, s.GetPublicAddrs()...)
-
-		if s.GetUseTunnel() {
-			custom = func(val string) bool {
-				return strings.EqualFold(val, "tunnel")
-			}
+	if s.GetUseTunnel() {
+		custom = func(val string) bool {
+			return strings.EqualFold(val, "tunnel")
 		}
 	}
+
+	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
+
+	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+	for key, value := range labels {
+		fieldVals = append(fieldVals, key, value)
+	}
+
+	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
+	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
 
 	return MatchSearch(fieldVals, values, custom)
 }

@@ -37,9 +37,24 @@ export interface UserContext {
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;
-  // accessRequestId is the ID of the access request from which additional roles to assume were obtained for the current session.
+  /**
+   * ID of the access request from which additional roles to assume were
+   * obtained for the current session.
+   */
   accessRequestId?: string;
   allowedSearchAsRoles: string[];
+  /** Indicates whether the user has a password set. */
+  passwordState: PasswordState;
+}
+
+/**
+ * Indicates whether a user has a password set. Corresponds to the PasswordState
+ * protocol buffers enum.
+ */
+export enum PasswordState {
+  PASSWORD_STATE_UNSPECIFIED = 0,
+  PASSWORD_STATE_UNSET = 1,
+  PASSWORD_STATE_SET = 2,
 }
 
 export interface Access {
@@ -81,7 +96,6 @@ export interface Acl {
   integrations: AccessWithUse;
   deviceTrust: Access;
   lock: Access;
-  assist: Access;
   samlIdpServiceProvider: Access;
   accessList: Access;
   auditQuery: Access;
@@ -89,10 +103,13 @@ export interface Acl {
   externalAuditStorage: Access;
   accessGraph: Access;
   bots: Access;
+  accessMonitoringRule: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
 export type AllUserTraits = Record<string, string[]>;
+
+export type UserOrigin = 'okta' | 'saml' | 'scim';
 
 export interface User {
   // name is the teleport username.
@@ -102,15 +119,26 @@ export interface User {
   // authType describes how the user authenticated
   // e.g. locally or with a SSO provider.
   authType?: string;
+  // What kind of upstream IdP has the user come from?
+  origin?: UserOrigin;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
-  // traits existed before field "externalTraits"
-  // and returns only "specific" traits.
+  // isBot is true if the user is a Bot User.
+  isBot?: boolean;
+  // traits are preset traits defined in Teleport, such as
+  // logins, db_role etc. These traits are defiend in UserTraits interface.
   traits?: UserTraits;
-  // externalTraits came after field "traits"
-  // and contains ALL the traits defined for
-  // this user.
+  // allTraits contains both preset traits, as well as externalTraits
+  // such as those created by external IdP attributes to roles mapping
+  // or new values as set by Teleport admin.
   allTraits?: AllUserTraits;
+}
+
+// Backend does not allow User fields "traits" and "allTraits"
+// both to be specified in the same request when creating or updating a user.
+export enum ExcludeUserField {
+  Traits = 'traits',
+  AllTraits = 'allTraits',
 }
 
 // UserTraits contain fields that define traits for local accounts.

@@ -21,7 +21,6 @@ package apiserver
 import (
 	"context"
 
-	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -38,10 +37,6 @@ func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.WithError(err).Error("Request failed.")
-			// do not return a full error stack on access denied errors
-			if trace.IsAccessDenied(err) {
-				return resp, trail.ToGRPC(trace.AccessDenied("access denied"))
-			}
 			return resp, trail.ToGRPC(err)
 		}
 

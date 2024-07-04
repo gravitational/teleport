@@ -65,6 +65,18 @@ message AWSResource {
     AWSRoleAttachedPolicies role_attached_policies = 13;
     // instance_profile is an AWS instance profile.
     AWSInstanceProfileV1 instance_profile = 14;
+    // eks_cluster is an AWS EKS cluster.
+    AWSEKSClusterV1 eks_cluster = 15;
+    // eks_cluster_access_entry is an access entry for a cluster.
+    AWSEKSClusterAccessEntryV1 eks_cluster_access_entry = 16;
+    // eks_cluster_associated_policy is an associated policy for a single cluster.
+    AWSEKSAssociatedAccessPolicyV1 eks_cluster_associated_policy = 17;
+    // rds is an AWS RDS database.
+    AWSRDSDatabaseV1 rds = 18;
+    // saml_provider is an AWS IAM SAML Identity Provider
+    AWSSAMLProviderV1 saml_provider = 19;
+    // oidc_provider is an AWS IAM OpenID Connect Identity Provider
+    AWSOIDCProviderV1 oidc_provider = 20;
   }
 }
 
@@ -384,4 +396,149 @@ message AWSInstanceProfileV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 8;
+}
+
+// AWSEKSClusterV1 represents an AWS EKS cluster.
+message AWSEKSClusterV1 {
+  // name is the cluster name.
+  string name = 1;
+  // arn is the cluster arn
+  string arn = 2;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp created_at = 3;
+  // status is the cluster status.
+  string status = 4;
+  // version is the Kubernetes version that the cluster runs.
+  string version = 5;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 6;
+  // region is the region where the cluster is located.
+  string region = 7;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 8;
+}
+
+// AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
+message AWSEKSClusterAccessEntryV1 {
+  // cluster is the EKS cluster.
+  AWSEKSClusterV1 cluster = 1;
+  // access_entry_arn is the ARN of the access entry.
+  string access_entry_arn = 2;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp created_at = 3;
+  // kubernetes_groups is the list of groups from which the principal will inherit its permissions.
+  repeated string kubernetes_groups = 4;
+  // created_at is the time when the instance profile was created.
+  google.protobuf.Timestamp modified_at = 5;
+  // principal is the ARN of the IAM principal for the access entry.
+  string principal_arn = 6;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 7;
+  // type represents the type of the access entry.
+  string type = 8;
+  // username is the name of the Kubernetes user.
+  string username = 9;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 10;
+}
+
+// AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
+message AWSEKSAssociatedAccessPolicyV1 {
+  // cluster is the EKS cluster.
+  AWSEKSClusterV1 cluster = 1;
+  // principal_arn is the principal that the associated access policy insides.
+  string principal_arn = 2;
+  // scope restricts the access policy.
+  AWSEKSAccessScopeV1 scope = 3;
+  // associated_at is the date and time the AccessPolicy was associated with an AccessEntry.
+  google.protobuf.Timestamp associated_at = 4;
+  // modified_at is the last modification to the object.
+  google.protobuf.Timestamp modified_at = 5;
+  // policy_arn is the ARN of the AccessPolicy.
+  // Managed by AWS.
+  string policy_arn = 6;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 7;
+}
+
+//AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
+message AWSEKSAccessScopeV1 {
+  // namespaces is the list of namespaces to scope the policy into.
+  repeated string namespaces = 1;
+  // type identifies which scope type was configured.
+  string type = 2;
+}
+
+// AWSRDSDatabaseV1 defines the database details.
+message AWSRDSDatabaseV1 {
+  // arn is the instance ARN.
+  string arn = 1;
+  // status is the instance status.
+  string status = 2;
+  // name is the instance name.
+  string name = 3;
+  // engine_details describes the database engine details.
+  AWSRDSEngineV1 engine_details = 4;
+  // created_at is the time when the db instance was created.
+  google.protobuf.Timestamp created_at = 5;
+  // tags is the list of tags that are attached to the instance profile.
+  repeated AWSTag tags = 6;
+  // region is the database region location
+  string region = 7;
+  // is_cluster indicates if the database is a cluster.
+  bool is_cluster = 8;
+  // account_id is the ID of the AWS account that the instance profile belongs
+  // to.
+  string account_id = 9;
+  // resource_id is the RDS unique resource id.
+  string resource_id = 10;
+}
+
+// AWSRDSEngineV1 defines the database engine details
+message AWSRDSEngineV1 {
+  // engine is the engine the database runs.
+  string engine = 1;
+  // version holds the version information.
+  string version = 2;
+}
+
+// AWSSAMLProviderV1 defines the SAML identity provider details.
+message AWSSAMLProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the SAML provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // valid_until is the expiration date and time for the SAML provider.
+  google.protobuf.Timestamp valid_until = 3;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 4;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 5;
+  // entity_id is the SAML entity ID for this provider.
+  string entity_id = 6;
+  // sso_urls is a list of single sign-on service URLs for this identity provider.
+  repeated string sso_urls = 7;
+  // signing_certificates is a list of signing certificates for this identity provider.
+  repeated string signing_certificates = 8;
+}
+
+// AWSOIDCProviderV1 defines the OIDC identity provider details.
+message AWSOIDCProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the OIDC provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 3;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 4;
+  // client_ids is a list of client IDs (audiences) associated with this OIDC provider.
+  repeated string client_ids = 5;
+  // thumbprints is a list of certificate thumbprints for this OIDC provider.
+  repeated string thumbprints = 6;
+  // url is the URL for this OIDC provider.
+  string url = 7;
 }

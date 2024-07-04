@@ -60,7 +60,7 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		}),
@@ -84,7 +84,7 @@ func (la *LoginAttempt) Check() error {
 }
 
 // UnmarshalUser unmarshals the User resource from JSON.
-func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (*types.UserV2, error) {
 	var h types.ResourceHeader
 	err := json.Unmarshal(bytes, &h)
 	if err != nil {
@@ -105,9 +105,6 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 
 		if err := ValidateUser(&u); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			u.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			u.SetRevision(cfg.Revision)
@@ -134,7 +131,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, user))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, user))
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}

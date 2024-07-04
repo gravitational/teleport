@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -31,6 +31,10 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { ResourceItemProps } from '../types';
 import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import {
+  BackgroundColorProps,
+  getBackgroundColor,
+} from '../shared/getBackgroundColor';
 
 export function ResourceListItem({
   name,
@@ -46,6 +50,7 @@ export function ResourceListItem({
   selectResource,
   selected,
   expandAllLabels,
+  requiresRequest = false,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
@@ -78,7 +83,12 @@ export function ResourceListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RowInnerContainer alignItems="start" pinned={pinned} selected={selected}>
+      <RowInnerContainer
+        requiresRequest={requiresRequest}
+        alignItems="start"
+        pinned={pinned}
+        selected={selected}
+      >
         {/* checkbox */}
         <HoverTooltip
           css={`
@@ -86,7 +96,7 @@ export function ResourceListItem({
           `}
           tipContent={selected ? 'Deselect' : 'Select'}
         >
-          <StyledCheckbox checked={selected} onChange={selectResource} />
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}
@@ -109,6 +119,7 @@ export function ResourceListItem({
           css={`
             grid-area: icon;
             place-self: center center;
+            opacity: ${requiresRequest ? '0.5' : '1'};
           `}
         />
 
@@ -285,7 +296,7 @@ const RowContainer = styled(Box)`
   }
 `;
 
-const RowInnerContainer = styled(Flex)`
+const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   display: grid;
   grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   column-gap: ${props => props.theme.space[3]}px;
@@ -309,16 +320,6 @@ const RowInnerContainer = styled(Flex)`
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
-
-const getBackgroundColor = props => {
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
-  }
-  return 'transparent';
-};
 
 const Name = styled(Text)`
   white-space: nowrap;

@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // openSSHEICEServerClient implements TeleportResourceClient and offers CRUD
@@ -71,12 +73,12 @@ func (r openSSHEICEServerClient) Delete(ctx context.Context, name string) error 
 
 // NewOpenSSHEICEServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSHEICE server resources.
-func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	serverClient := &openSSHEICEServerClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
 		client,
 		serverClient,
 	)

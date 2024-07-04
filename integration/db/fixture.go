@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -63,7 +64,7 @@ type databaseClusterPack struct {
 	User             types.User
 	role             types.Role
 	dbProcess        *service.TeleportProcess
-	dbAuthClient     *auth.Client
+	dbAuthClient     *authclient.Client
 	PostgresService  servicecfg.Database
 	postgresAddr     string
 	postgres         *postgres.TestServer
@@ -425,7 +426,7 @@ type databaseAgentStartParams struct {
 
 // startRootDatabaseAgent starts a database agent with the provided
 // configuration on the root cluster.
-func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
+func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *authclient.Client) {
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")

@@ -160,7 +160,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, "azblob")
+		c.Log = logrus.WithField(teleport.ComponentKey, "azblob")
 	}
 
 	return nil

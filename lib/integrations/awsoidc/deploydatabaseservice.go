@@ -21,10 +21,10 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -204,15 +204,15 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 		return nil, trace.Wrap(err)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
-		"region":        req.Region,
-		"account-id":    req.accountID,
-		"integration":   req.IntegrationName,
-		"deployservice": DatabaseServiceDeploymentMode,
-		"ecs-cluster":   req.ecsClusterName,
-	})
+	log := slog.Default().With(
+		"region", req.Region,
+		"account_id", req.accountID,
+		"integration", req.IntegrationName,
+		"deployservice", DatabaseServiceDeploymentMode,
+		"ecs_cluster", req.ecsClusterName,
+	)
 
-	log.Debug("Upsert ECS Cluster")
+	log.DebugContext(ctx, "Upsert ECS Cluster")
 	cluster, err := upsertCluster(ctx, clt, req.ecsClusterName, req.ResourceCreationTags)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -222,11 +222,11 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 		taskName := ecsTaskName(req.TeleportClusterName, DatabaseServiceDeploymentMode, deployment.VPCID)
 		serviceName := ecsServiceName(DatabaseServiceDeploymentMode, deployment.VPCID)
 
-		log = log.WithFields(logrus.Fields{
-			"vpc-id":           deployment.VPCID,
-			"ecs-task-name":    taskName,
-			"ecs-service-name": serviceName,
-		})
+		logDeployment := log.With(
+			"vpc_id", deployment.VPCID,
+			"ecs_task_name", taskName,
+			"ecs_service_name", serviceName,
+		)
 
 		upsertTaskReq := upsertTaskRequest{
 			TaskName:             taskName,
@@ -238,7 +238,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 			Region:               req.Region,
 			TeleportConfigB64:    deployment.DeployServiceConfig,
 		}
-		log.Debug("Upsert ECS TaskDefinition.")
+		logDeployment.DebugContext(ctx, "Upsert ECS TaskDefinition.")
 		taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -252,7 +252,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 			SubnetIDs:            deployment.SubnetIDs,
 			SecurityGroups:       deployment.SecurityGroupIDs,
 		}
-		log.Debug("Upsert ECS Service.")
+		logDeployment.DebugContext(ctx, "Upsert ECS Service.")
 		if _, err := upsertService(ctx, clt, upsertServiceReq, taskDefinitionARN); err != nil {
 			return nil, trace.Wrap(err)
 		}

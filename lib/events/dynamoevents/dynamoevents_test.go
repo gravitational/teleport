@@ -20,6 +20,7 @@ package dynamoevents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -39,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,6 +68,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
+		Endpoint:     "http://localhost:8000",
 	})
 	require.NoError(t, err)
 
@@ -112,6 +115,32 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	tt.suite.SearchSessionEventsBySessionID(t)
+}
+
+// TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
+// if checkpoint date is outside of the window [fromUTC,toUTC].
+func TestCheckpointOutsideOfWindow(t *testing.T) {
+	tt := &Log{}
+
+	key := checkpointKey{
+		Date: "2022-10-02",
+	}
+	keyB, err := json.Marshal(key)
+	require.NoError(t, err)
+
+	results, nextKey, err := tt.SearchEvents(
+		context.Background(),
+		events.SearchEventsRequest{
+			From:     time.Date(2021, 10, 10, 0, 0, 0, 0, time.UTC),
+			To:       time.Date(2021, 11, 10, 0, 0, 0, 0, time.UTC),
+			Limit:    100,
+			StartKey: string(keyB),
+			Order:    types.EventOrderAscending,
+		},
+	)
+	require.NoError(t, err)
+	require.Empty(t, results)
+	require.Empty(t, nextKey)
 }
 
 func TestSizeBreak(t *testing.T) {
@@ -431,6 +460,47 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := test.config.CheckAndSetDefaults()
 			test.assertionFn(t, test.config, err)
 		})
+	}
+}
+
+// TestEmitSessionEventsSameIndex given events that share the same session ID
+// and index, the emit should succeed.
+func TestEmitSessionEventsSameIndex(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1, "")))
+}
+
+// TestValidationErrorsHandling given events that return validation
+// errors (large event size and already exists), the emit should handle them
+// and succeed on emitting the event when it does support trimming.
+func TestValidationErrorsHandling(t *testing.T) {
+	ctx := context.Background()
+	tt := setupDynamoContext(t)
+	sessionID := session.NewID()
+	largeQuery := strings.Repeat("A", maxItemSize)
+
+	// First write should only trigger the large event size
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+	// Second should trigger both errors.
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0, largeQuery)))
+}
+
+func generateEvent(sessionID session.ID, index int64, query string) apievents.AuditEvent {
+	return &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			Type:        events.DatabaseSessionQueryEvent,
+			ClusterName: "root",
+			Index:       index,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID.String(),
+		},
+		DatabaseQuery: query,
 	}
 }
 

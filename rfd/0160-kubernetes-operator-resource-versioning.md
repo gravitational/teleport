@@ -51,7 +51,7 @@ Put the Teleport resource version in the Kubernetes Kind and treat different
 versions as different resources.
 
 This approach completely avoids any conversion problem by not doing conversions.
-This way, we don't have to deal with how Kubernetes does API versionning and the
+This way, we don't have to deal with how Kubernetes does API versioning and the
 fact it is not compatible with how Teleport manages versions.
 
 For example, to support roles v6 and v7 we would introduce:

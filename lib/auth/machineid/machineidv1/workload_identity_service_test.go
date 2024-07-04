@@ -31,17 +31,13 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // TestWorkloadIdentityService_SignX509SVIDs is an integration test that uses a
 // real gRPC client/server.
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
-	experimentBefore := experiment.Enabled()
-	experiment.SetEnabled(true)
-	t.Cleanup(func() { experiment.SetEnabled(experimentBefore) })
-
+	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -117,8 +113,11 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 						PublicKey:    pubBytes,
 						Hint:         "llamas",
 						Ttl:          durationpb.New(30 * time.Minute),
-						DnsSans:      []string{"foo.alpha.example.com"},
-						IpSans:       []string{"10.42.42.42"},
+						DnsSans: []string{
+							"foo.alpha.example.com",
+							"bar.alpha.example.com",
+						},
+						IpSans: []string{"10.42.42.42"},
 					},
 				},
 			},
@@ -147,8 +146,9 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 				require.Equal(t, wantSPIFFEID, cert.URIs[0].String())
 				// 2: An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
 				// Here we validate against what was requested
-				require.Len(t, cert.DNSNames, 1)
+				require.Len(t, cert.DNSNames, 2)
 				require.Equal(t, "foo.alpha.example.com", cert.DNSNames[0])
+				require.Equal(t, "bar.alpha.example.com", cert.DNSNames[1])
 				require.Len(t, cert.IPAddresses, 1)
 				require.Equal(t, "10.42.42.42", cert.IPAddresses[0].String())
 				// 4.1: leaf certificates MUST set the cA field to false.
@@ -164,6 +164,9 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 				// 4.4: When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+
+				// Check that the Common Name is set to the first DNS SAN.
+				require.Equal(t, "foo.alpha.example.com", cert.Subject.CommonName)
 			},
 		},
 		{

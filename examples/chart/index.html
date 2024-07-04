@@ -43,6 +43,18 @@
         --set authAddr="${TELEPORT_ADDR?}" \
         --set token="${JOIN_TOKEN?}"</pre>
     <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/access/slack">teleport-plugin-slack:</a></b>
+      # Install the Teleport Slack Plugin to send Slack notifications on Access Requests.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-plugin-slack \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleport.address="${TELEPORT_ADDR?}" \
+        --set teleport.identitySecretName="${ID_SECRET}" \
+        --set roleToRecipients.\*[0]=admin-channel \
+        --set slack.token="${SLACK_TOKEN}"</pre>
+    <br />
     <h3>Changelog</h3>
     <pre>See the <a href="https://goteleport.com/docs/changelog/">Teleport Changelog</a> for a list of important changes between Helm chart versions.</pre>
   </body>

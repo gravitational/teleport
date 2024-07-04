@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -101,12 +101,12 @@ type AgentPool struct {
 type AgentPoolConfig struct {
 	// Client is client to the auth server this agent connects to receive
 	// a list of pools
-	Client auth.ClientI
+	Client authclient.ClientI
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
-	AccessPoint auth.AccessCache
-	// HostSigner is a host signer this agent presents itself as
-	HostSigner ssh.Signer
+	AccessPoint authclient.AccessCache
+	// AuthMethods contains SSH credentials that this pool connects as.
+	AuthMethods []ssh.AuthMethod
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -151,8 +151,8 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("missing 'AccessPoint' parameter")
 	}
-	if cfg.HostSigner == nil {
-		return trace.BadParameter("missing 'HostSigner' parameter")
+	if len(cfg.AuthMethods) == 0 {
+		return trace.BadParameter("missing 'AuthMethods' parameter")
 	}
 	if len(cfg.HostUUID) == 0 {
 		return trace.BadParameter("missing 'HostUUID' parameter")
@@ -202,8 +202,8 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		events:          make(chan Agent),
 		backoff:         retry,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentReverseTunnelAgent,
-			trace.ComponentFields: logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentReverseTunnelAgent,
+			teleport.ComponentFields: logrus.Fields{
 				"targetCluster": config.Cluster,
 				"localCluster":  config.LocalCluster,
 			},
@@ -455,7 +455,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	dialer := &agentDialer{
 		client:      p.Client,
 		fips:        p.FIPS,
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(p.HostSigner)},
+		authMethods: p.AuthMethods,
 		options:     options,
 		username:    p.HostUUID,
 		log:         p.log,
@@ -483,8 +483,8 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	return agent, nil
 }
 
-func (p *AgentPool) getClusterCAs(_ context.Context) (*x509.CertPool, error) {
-	clusterCAs, _, err := auth.ClientCertPool(p.AccessPoint, p.Cluster, types.HostCA)
+func (p *AgentPool) getClusterCAs(ctx context.Context) (*x509.CertPool, error) {
+	clusterCAs, _, err := authclient.ClientCertPool(ctx, p.AccessPoint, p.Cluster, types.HostCA)
 	return clusterCAs, trace.Wrap(err)
 }
 

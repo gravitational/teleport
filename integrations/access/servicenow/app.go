@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -49,7 +50,7 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -140,10 +141,9 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	var err error
-	if a.teleport == nil {
-		if a.teleport, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
-			return trace.Wrap(err)
-		}
+	a.teleport, err = a.conf.GetTeleportClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting teleport client")
 	}
 
 	pong, err := a.checkTeleportVersion(ctx)
@@ -183,7 +183,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
@@ -317,11 +317,8 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
-	if !ok {
-		return nil, trace.NotFound("on-call schedules not specified")
-	}
-	return services, nil
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 // createIncident posts an incident with request information.

@@ -26,52 +26,25 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
-func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, rootAuthClient authclient.ClientI) (watcher types.Watcher, close func(), err error) {
+	watcher, err = rootAuthClient.WatchPendingHeadlessAuthentications(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		proxyClient.Close()
-		return nil, nil, trace.Wrap(err)
-	}
-
-	watcher, err = rootClient.WatchPendingHeadlessAuthentications(ctx)
-	if err != nil {
-		proxyClient.Close()
-		rootClient.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
 	close = func() {
 		watcher.Close()
-		proxyClient.Close()
-		rootClient.Close()
 	}
 
 	return watcher, close, trace.Wrap(err)
 }
 
 // WatchHeadlessAuthentications watches the backend for headless authentication events for the user.
-func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
-	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		proxyClient.Close()
-		return nil, nil, trace.Wrap(err)
-	}
-
+func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, rootAuthClient authclient.ClientI) (watcher types.Watcher, close func(), err error) {
 	watch := types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindHeadlessAuthentication,
@@ -81,17 +54,13 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher typ
 		}},
 	}
 
-	watcher, err = rootClient.NewWatcher(ctx, watch)
+	watcher, err = rootAuthClient.NewWatcher(ctx, watch)
 	if err != nil {
-		proxyClient.Close()
-		rootClient.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
 	close = func() {
 		watcher.Close()
-		proxyClient.Close()
-		rootClient.Close()
 	}
 
 	return watcher, close, trace.Wrap(err)
@@ -99,25 +68,12 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher typ
 
 // UpdateHeadlessAuthenticationState updates the headless authentication matching the given id to the given state.
 // MFA will be prompted when updating to the approve state.
-func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState) error {
+func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAuthClient authclient.ClientI, headlessID string, state types.HeadlessAuthenticationState) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rootClient.Close()
-
 		// If changing state to approved, create an MFA challenge and prompt for MFA.
 		var mfaResponse *proto.MFAAuthenticateResponse
 		if state == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
-			chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			chall, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
@@ -135,7 +91,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headles
 			}
 		}
 
-		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
+		err := rootAuthClient.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)

@@ -284,7 +284,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 }
 
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*protocol.Conn, error) {
-	config, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	config, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -22,6 +22,8 @@ import {
   StyleSheetManager,
 } from 'styled-components';
 
+import { Theme } from 'design/theme/themes/types';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { GlobalStyle } from './globals';
@@ -62,7 +64,7 @@ export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
 
 /** Uses a theme from a prop. Useful in storybook. */
 export const StaticThemeProvider = (
-  props: React.PropsWithChildren<{ theme?: unknown }>
+  props: React.PropsWithChildren<{ theme?: Theme }>
 ) => {
   return (
     <StyledThemeProvider theme={props.theme}>

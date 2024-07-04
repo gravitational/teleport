@@ -3,18 +3,35 @@ run-name: Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/unit-tests-helm.yaml'
-      - 'examples/chart/**'
   merge_group:
-    paths:
-      - '.github/workflows/unit-tests-helm.yaml'
-      - 'examples/chart/**'
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/unit-tests-helm.yaml'
+              - 'examples/chart/**'
+
   test:
     name: Unit Tests (Helm)
+    needs: changes
     runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
 
     permissions:
       contents: read

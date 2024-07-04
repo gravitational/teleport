@@ -74,8 +74,11 @@ func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.Datab
 	service, err := generic.NewServiceWrapper(backend,
 		types.KindDatabaseObjectImportRule,
 		databaseObjectImportRulePrefix,
-		services.MarshalDatabaseObjectImportRule,
-		services.UnmarshalDatabaseObjectImportRule)
+		//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
+		services.FastMarshalProtoResourceDeprecated[*databaseobjectimportrulev1.DatabaseObjectImportRule],
+		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+		services.FastUnmarshalProtoResourceDeprecated[*databaseobjectimportrulev1.DatabaseObjectImportRule],
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

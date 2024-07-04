@@ -23,7 +23,7 @@
     "golangci-lint@1.55.2",
     "libfido2@1.13.0",
     "llvmPackages_14.clangUseLLVM@14.0.6",
-    "nodejs@18.16.1",
+    "nodejs@20.11.1",
     "protobuf3_20@3.20.3",
     "yarn@1.22.19",
 

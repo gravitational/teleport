@@ -45,6 +45,12 @@ func MergeResources(results ...*Resources) *Resources {
 		result.RoleInlinePolicies = append(result.RoleInlinePolicies, r.RoleInlinePolicies...)
 		result.RoleAttachedPolicies = append(result.RoleAttachedPolicies, r.RoleAttachedPolicies...)
 		result.InstanceProfiles = append(result.InstanceProfiles, r.InstanceProfiles...)
+		result.AssociatedAccessPolicies = append(result.AssociatedAccessPolicies, r.AssociatedAccessPolicies...)
+		result.EKSClusters = append(result.EKSClusters, r.EKSClusters...)
+		result.AccessEntries = append(result.AccessEntries, r.AccessEntries...)
+		result.RDSDatabases = append(result.RDSDatabases, r.RDSDatabases...)
+		result.SAMLProviders = append(result.SAMLProviders, r.SAMLProviders...)
+		result.OIDCProviders = append(result.OIDCProviders, r.OIDCProviders...)
 	}
 	return result
 }

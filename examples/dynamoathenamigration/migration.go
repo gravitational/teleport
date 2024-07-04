@@ -165,15 +165,14 @@ func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, 
 		dynamoClient: dynamodb.NewFromConfig(awsCfg),
 		s3Downloader: manager.NewDownloader(s3Client),
 		eventsEmitter: athena.NewPublisher(athena.PublisherConfig{
-			TopicARN: cfg.TopicARN,
-			SNSPublisher: sns.NewFromConfig(awsCfg, func(o *sns.Options) {
+			MessagePublisher: athena.SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(awsCfg, func(o *sns.Options) {
 				o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
 					so.MaxAttempts = 30
 					so.MaxBackoff = 1 * time.Minute
 					// Use bigger rate limit to handle default sdk throttling: https://github.com/aws/aws-sdk-go-v2/issues/1665
 					so.RateLimiter = ratelimit.NewTokenRateLimit(1000000)
 				})
-			}),
+			})),
 			Uploader:      manager.NewUploader(s3Client),
 			PayloadBucket: cfg.LargePayloadBucket,
 			PayloadPrefix: cfg.LargePayloadPrefix,

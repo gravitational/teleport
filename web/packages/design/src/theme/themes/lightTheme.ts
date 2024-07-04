@@ -90,33 +90,65 @@ const colors: ThemeColors = {
   brand: '#512FC9',
 
   interactive: {
+    solid: {
+      primary: {
+        default: { text: '#FFFFFF', background: '#512FC9' },
+        hover: { text: '#FFFFFF', background: '#4126A1' },
+        active: { text: '#FFFFFF', background: '#311C79' },
+      },
+      success: {
+        default: { text: '#FFFFFF', background: '#007D6B' },
+        hover: { text: '#FFFFFF', background: '#006456' },
+        active: { text: '#FFFFFF', background: '#004B40' },
+      },
+      accent: {
+        default: { text: '#FFFFFF', background: '#0073BA' },
+        hover: { text: '#FFFFFF', background: '#005C95' },
+        active: { text: '#FFFFFF', background: '#004570' },
+      },
+      danger: {
+        default: { text: '#FFFFFF', background: '#CC372D' },
+        hover: { text: '#FFFFFF', background: '#A32C24' },
+        active: { text: '#FFFFFF', background: '#7A211B' },
+      },
+      alert: {
+        default: { text: '#000000', background: '#FFAB00' },
+        hover: { text: '#000000', background: '#CC8900' },
+        active: { text: '#000000', background: '#996700' },
+      },
+    },
+
     tonal: {
       primary: [
-        'rgba(81,47,201, 0.1)',
-        'rgba(81,47,201, 0.18)',
-        'rgba(81,47,201, 0.25)',
+        { text: '#4126A1', background: 'rgba(81,47,201, 0.1)' },
+        { text: '#311C79', background: 'rgba(81,47,201, 0.18)' },
+        { text: '#311C79', background: 'rgba(81,47,201, 0.25)' },
       ],
       success: [
-        'rgba(0, 125, 107, 0.1)',
-        'rgba(0, 125, 107, 0.18)',
-        'rgba(0, 125, 107, 0.25)',
+        { text: '#006456', background: 'rgba(0, 125, 107, 0.1)' },
+        { text: '#006456', background: 'rgba(0, 125, 107, 0.18)' },
+        { text: '#004B40', background: 'rgba(0, 125, 107, 0.25)' },
       ],
       danger: [
-        'rgba(204, 55, 45, 0.1)',
-        'rgba(204, 55, 45, 0.18)',
-        'rgba(204, 55, 45, 0.25)',
+        { text: '#A32C24', background: 'rgba(204, 55, 45, 0.1)' },
+        { text: '#A32C24', background: 'rgba(204, 55, 45, 0.18)' },
+        { text: '#7A211B', background: 'rgba(204, 55, 45, 0.25)' },
       ],
       alert: [
-        'rgba(255, 171, 0, 0.1)',
-        'rgba(255, 171, 0, 0.18)',
-        'rgba(255, 171, 0, 0.25)',
+        { text: '#996700', background: 'rgba(255, 171, 0, 0.1)' },
+        { text: '#996700', background: 'rgba(255, 171, 0, 0.18)' },
+        { text: '#996700', background: 'rgba(255, 171, 0, 0.25)' },
       ],
       informational: [
-        'rgba(0, 115, 186, 0.1)',
-        'rgba(0, 115, 186, 0.18)',
-        'rgba(0, 115, 186, 0.25)',
+        { text: '#004570', background: 'rgba(0, 115, 186, 0.1)' },
+        { text: '#004570', background: 'rgba(0, 115, 186, 0.18)' },
+        { text: '#004570', background: 'rgba(0, 115, 186, 0.25)' },
       ],
-      neutral: neutralColors,
+      neutral: [
+        { text: '#000000', background: neutralColors[0] },
+        { text: '#000000', background: neutralColors[1] },
+        { text: '#000000', background: neutralColors[2] },
+      ],
     },
   },
 
@@ -465,6 +497,8 @@ const colors: ThemeColors = {
   },
 
   link: '#0073BA',
+
+  highlightedNavigationItem: blue[200],
 
   dataVisualisation: dataVisualisationColors,
 };

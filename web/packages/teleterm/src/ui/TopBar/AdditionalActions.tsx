@@ -22,6 +22,8 @@ import styled from 'styled-components';
 import { Flex, Text, Popover } from 'design';
 import * as icons from 'design/Icon';
 
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { IAppContext } from 'teleterm/ui/types';
@@ -59,6 +61,8 @@ function useMenuItems(): MenuItem[] {
   const hasNoActiveWorkspace = !documentsService;
   const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
+  const isRequestingResourcesFromResourcesViewEnabled =
+    activeRootCluster?.showResources === ShowResources.REQUESTABLE;
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
@@ -100,7 +104,9 @@ function useMenuItems(): MenuItem[] {
       },
     },
     {
-      title: 'New access request',
+      title: isRequestingResourcesFromResourcesViewEnabled
+        ? 'New role request'
+        : 'New access request',
       isVisible: areAccessRequestsSupported,
       prependSeparator: true,
       Icon: icons.Add,
@@ -108,7 +114,9 @@ function useMenuItems(): MenuItem[] {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,
           state: 'creating',
-          title: 'New Access Request',
+          title: isRequestingResourcesFromResourcesViewEnabled
+            ? 'New Role Request'
+            : 'New Access Request',
         });
         documentsService.add(doc);
         documentsService.open(doc.uri);

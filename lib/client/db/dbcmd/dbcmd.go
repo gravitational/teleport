@@ -33,6 +33,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -78,6 +79,8 @@ const (
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
 	oracleBin = "sql"
+	// spannerBin is a Google Spanner interactive CLI program name.
+	spannerBin = "spanner-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -109,12 +112,19 @@ func (s SystemExecer) LookPath(file string) (string, error) {
 type CLICommandBuilder struct {
 	tc          *client.TeleportClient
 	rootCluster string
-	profile     *client.ProfileStatus
-	db          *tlsca.RouteToDatabase
-	host        string
-	port        int
-	options     connectionCommandOpts
-	uid         utils.UID
+	// profile is the currently selected tsh profile.
+	//
+	// Note that profile.Cluster indicates the cluster selected with `tsh login
+	// <root/leaf>`. However, the target cluster can be overwritten with
+	// --cluster flag. Therefore profile.Cluster is not suitable for
+	// determining the target cluster or the root cluster. Use tc.SiteName for
+	// the target cluster and rootCluster for root cluster.
+	profile *client.ProfileStatus
+	db      *tlsca.RouteToDatabase
+	host    string
+	port    int
+	options connectionCommandOpts
+	uid     utils.UID
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -206,6 +216,8 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolClickHouse:
 		return c.getClickhouseNativeCommand()
 
+	case defaults.ProtocolSpanner:
+		return c.getSpannerCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -668,15 +680,23 @@ func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	return exec.Command(openSearchCLIBin, args...), nil
 }
 
-func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
-	// we can't guess at what the user wants to do, so this command is for print purposes only,
-	// and it only works with a local proxy tunnel.
-	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+func (c *CLICommandBuilder) checkLocalProxyTunnelOnly(requirePrint bool) error {
+	if (requirePrint && !c.options.printFormat) || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
 		svc := "<db>"
 		if c.db != nil && c.db.ServiceName != "" {
 			svc = c.db.ServiceName
 		}
-		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
+		protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+		return trace.BadParameter("%s requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", protocol, svc)
+	}
+	return nil
+}
+
+func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
+	// we can't guess at what the user wants to do, so this command is for print
+	// purposes only, and it only works with a local proxy tunnel.
+	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	args := []string{
 		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),
@@ -684,6 +704,52 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"<command>",
 	}
 	return exec.Command(awsBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
+	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var (
+		project,
+		instance,
+		database string
+	)
+	if c.options.printFormat {
+		// default placeholders for a print command if not all info is available
+		project, instance, database = "<project>", "<instance>", "<database>"
+	}
+
+	if c.options.gcp.ProjectID != "" {
+		project = c.options.gcp.ProjectID
+	}
+	if c.options.gcp.InstanceID != "" {
+		instance = c.options.gcp.InstanceID
+	}
+	if c.db.Database != "" {
+		database = c.db.Database
+	}
+
+	protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+	switch {
+	case project == "":
+		return nil, trace.BadParameter("missing GCP project ID for %s command (this is a bug)", protocol)
+	case instance == "":
+		return nil, trace.BadParameter("missing GCP instance ID for %s command (this is a bug)", protocol)
+	case database == "":
+		return nil, trace.BadParameter("missing database name for %s command (this is a bug)", protocol)
+	}
+
+	args := []string{
+		"-p", project,
+		"-i", instance,
+		"-d", database,
+	}
+	cmd := exec.Command(spannerBin, args...)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%d", c.host, c.port),
+	)
+	return cmd, nil
 }
 
 type jdbcOracleThinConnection struct {
@@ -698,7 +764,7 @@ func (j *jdbcOracleThinConnection) ConnString() string {
 }
 
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
-	tnsAdminPath := c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName)
+	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
 	if runtime.GOOS == constants.WindowsOS {
 		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
 	}
@@ -814,6 +880,7 @@ type connectionCommandOpts struct {
 	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
+	gcp                      types.GCPCloudSQL
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -861,7 +928,7 @@ func WithPassword(pass string) ConnectCommandFunc {
 // WithPrintFormat is known to be used for the following situations:
 // - tsh db config --format cmd <database>
 // - tsh proxy db --tunnel <database>
-// - Teleport Connect where the command is put into a terminal.
+// - Teleport Connect where the gateway command is shown in the UI.
 //
 // WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
 // client application.
@@ -900,6 +967,13 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 func WithExecer(exe Execer) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.exe = exe
+	}
+}
+
+// WithGCP adds GCP metadata for the database command to access.
+func WithGCP(gcp types.GCPCloudSQL) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.gcp = gcp
 	}
 }
 

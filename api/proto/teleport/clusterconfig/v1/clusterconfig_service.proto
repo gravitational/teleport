@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.clusterconfig.v1;
 
+import "teleport/clusterconfig/v1/access_graph.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
@@ -38,7 +39,7 @@ service ClusterConfigService {
   // UpsertSessionRecordingConfig overwrites the active session recording configuration.
   rpc UpsertSessionRecordingConfig(UpsertSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
   // ResetSessionRecordingConfig restores the active session recording configuration to default settings.
-  rpc ResetSessionRecordingConfig(ResetSessionRecordingConfigRequest) returns (types.ClusterNetworkingConfigV2);
+  rpc ResetSessionRecordingConfig(ResetSessionRecordingConfigRequest) returns (types.SessionRecordingConfigV2);
 
   // GetAuthPreference retrieves the active auth preference.
   rpc GetAuthPreference(GetAuthPreferenceRequest) returns (types.AuthPreferenceV2);
@@ -51,12 +52,9 @@ service ClusterConfigService {
 
   // GetClusterAuditConfig retrieves the active cluster audit configuration.
   rpc GetClusterAuditConfig(GetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // UpdateClusterAuditConfig updates the cluster audit configuration..
-  rpc UpdateClusterAuditConfig(UpdateClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // UpsertClusterAuditConfig overwrites the active cluster audit configuration..
-  rpc UpsertClusterAuditConfig(UpsertClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
-  // ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
-  rpc ResetClusterAuditConfig(ResetClusterAuditConfigRequest) returns (types.ClusterAuditConfigV2);
+
+  // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+  rpc GetClusterAccessGraphConfig(GetClusterAccessGraphConfigRequest) returns (GetClusterAccessGraphConfigResponse);
 }
 
 // Request for GetClusterNetworkingConfig
@@ -110,15 +108,11 @@ message ResetAuthPreferenceRequest {}
 // Request for GetClusterAuditConfig
 message GetClusterAuditConfigRequest {}
 
-// Request for UpdateClusterAuditConfig
-message UpdateClusterAuditConfigRequest {
-  types.ClusterAuditConfigV2 audit_config = 1;
-}
+// Request for GetClusterAccessGraphConfig
+message GetClusterAccessGraphConfigRequest {}
 
-// Request for UpsertClusterAuditConfig
-message UpsertClusterAuditConfigRequest {
-  types.ClusterAuditConfigV2 audit_config = 1;
+// Response for GetClusterAccessGraphConfig
+message GetClusterAccessGraphConfigResponse {
+  // access_graph holds the information about Access Graph service.
+  teleport.clusterconfig.v1.AccessGraphConfig access_graph = 1;
 }
-
-// Request for ResetClusterAuditConfig
-message ResetClusterAuditConfigRequest {}

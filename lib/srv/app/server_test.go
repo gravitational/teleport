@@ -46,28 +46,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -76,21 +82,24 @@ type Suite struct {
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
-	authClient   *auth.Client
+	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
 
-	hostUUID              string
-	closeContext          context.Context
-	closeFunc             context.CancelFunc
-	message               string
-	hostport              string
-	testhttp              *httptest.Server
-	clientCertificate     tls.Certificate
-	awsConsoleCertificate tls.Certificate
+	hostUUID     string
+	closeContext context.Context
+	closeFunc    context.CancelFunc
+	message      string
+	hostport     string
+	testhttp     *httptest.Server
 
-	appFoo *types.AppV3
-	appAWS *types.AppV3
+	clientCertificate                    tls.Certificate
+	awsConsoleCertificate                tls.Certificate
+	awsConsoleCertificateWithIntegration tls.Certificate
+
+	appFoo                *types.AppV3
+	appAWS                *types.AppV3
+	appAWSWithIntegration *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -172,7 +181,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { s.authServer.Close() })
 
 	if config.ServerStreamer != nil {
-		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
 			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
 		})
 		require.NoError(t, err)
@@ -286,6 +295,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		PublicAddr: "aws.example.com",
 	})
 	require.NoError(t, err)
+	s.appAWSWithIntegration, err = types.NewAppV3(types.Metadata{
+		Name:   "awsconsole-integration",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:         constants.AWSConsoleURL,
+		PublicAddr:  "aws-integration.example.com",
+		Integration: "my-integration",
+	})
+	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
@@ -307,6 +325,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
+	// Generate certificate for AWS console application with integration
+	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
+
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
@@ -325,37 +346,60 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
 
+	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
+		Clock:              s.clock,
+		DataDir:            s.dataDir,
+		Emitter:            s.authClient,
+		Authorizer:         authorizer,
+		HostID:             s.hostUUID,
+		AuthClient:         s.authClient,
+		AccessPoint:        s.authClient,
+		Cloud:              &testCloud{},
+		TLSConfig:          tlsConfig,
+		ConnectionMonitor:  fakeConnMonitor{},
+		CipherSuites:       utils.DefaultCipherSuites(),
+		ServiceComponent:   teleport.ComponentApp,
+		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+	})
+	require.NoError(t, err)
+
+	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: s.hostUUID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleApp},
+		Hostname: "test",
+	})
+
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		AccessPoint:       s.authClient,
-		AuthClient:        s.authClient,
-		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
-		HostID:            s.hostUUID,
-		Hostname:          "test",
-		Authorizer:        authorizer,
-		GetRotation:       testRotationGetter,
-		Apps:              apps,
-		OnHeartbeat:       func(err error) {},
-		Cloud:             &testCloud{},
-		ResourceMatchers:  config.ResourceMatchers,
-		OnReconcile:       config.OnReconcile,
-		Emitter:           s.authClient,
-		CloudLabels:       config.CloudImporter,
-		ConnectionMonitor: fakeConnMonitor{},
+		Clock:              s.clock,
+		AccessPoint:        s.authClient,
+		AuthClient:         s.authClient,
+		HostID:             s.hostUUID,
+		Hostname:           "test",
+		GetRotation:        testRotationGetter,
+		Apps:               apps,
+		OnHeartbeat:        func(err error) {},
+		ResourceMatchers:   config.ResourceMatchers,
+		OnReconcile:        config.OnReconcile,
+		CloudLabels:        config.CloudImporter,
+		ConnectionsHandler: connectionsHandler,
+		InventoryHandle:    inventoryHandle,
 	})
 	require.NoError(t, err)
 
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
-	err = s.appServer.ForceHeartbeat()
-	require.NoError(t, err)
+
+	for _, app := range apps {
+		_, err := s.authServer.AuthServer.UpsertApplicationServer(s.closeContext, s.appServer.getServerInfo(app))
+		require.NoError(t, err)
+	}
+
 	t.Cleanup(func() {
 		s.appServer.Close()
 
@@ -402,6 +446,7 @@ func TestStart(t *testing.T) {
 	// check that the dynamic labels have been evaluated.
 	appFoo := s.appFoo.Copy()
 	appAWS := s.appAWS.Copy()
+	appAWSWithIntegration := s.appAWSWithIntegration.Copy()
 
 	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
 		dynamicLabelName: &types.CommandLabelV2{
@@ -415,10 +460,12 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
+	serverAWSWithIntegration, err := types.NewAppServerV3FromApp(appAWSWithIntegration, "test", s.hostUUID)
+	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Expires")))
+	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -483,14 +530,16 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate heartbeat is present after start.
-			s.appServer.ForceHeartbeat()
+			_, err = s.authServer.AuthServer.UpsertApplicationServer(ctx, s.appServer.getServerInfo(app0))
+			require.NoError(t, err)
+
 			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			require.Len(t, appServers, 1)
-			require.Equal(t, appServers[0].GetApp(), app0)
+			require.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			t.Cleanup(cancel)
 			if test.hasForkedChild {
 				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
@@ -502,7 +551,7 @@ func TestShutdown(t *testing.T) {
 			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
 			if test.wantAppServersAfterShutdown {
-				require.Equal(t, appServers, appServersAfterShutdown)
+				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.Empty(t, appServersAfterShutdown)
 			}
@@ -968,7 +1017,17 @@ func TestSessionClose(t *testing.T) {
 // TestAWSConsoleRedirect verifies AWS management console access.
 func TestAWSConsoleRedirect(t *testing.T) {
 	s := SetUpSuite(t)
+
+	// Using ambient credentials.
 	s.checkHTTPResponse(t, s.awsConsoleCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "https://signin.aws.amazon.com", location.String())
+	})
+
+	// Using an Integration.
+	s.checkHTTPResponse(t, s.awsConsoleCertificateWithIntegration, func(resp *http.Response) {
 		require.Equal(t, http.StatusFound, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
@@ -1011,7 +1070,6 @@ func TestRequestAuditEvents(t *testing.T) {
 						Type:        events.AppSessionChunkEvent,
 						Code:        events.AppSessionChunkCode,
 						ClusterName: "root.example.com",
-						Index:       0,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -1023,7 +1081,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 				))
 			case events.AppSessionRequestEvent:
@@ -1033,7 +1091,6 @@ func TestRequestAuditEvents(t *testing.T) {
 						Type:        events.AppSessionRequestEvent,
 						Code:        events.AppSessionRequestCode,
 						ClusterName: "root.example.com",
-						Index:       1,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -1048,7 +1105,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 				))
 			}
@@ -1101,7 +1158,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 	))
 }
@@ -1224,7 +1281,7 @@ func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {
 
 type testCloud struct{}
 
-func (c *testCloud) GetAWSSigninURL(_ AWSSigninRequest) (*AWSSigninResponse, error) {
+func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWSSigninResponse, error) {
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil

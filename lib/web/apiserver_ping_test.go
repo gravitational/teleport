@@ -174,7 +174,8 @@ func TestPing(t *testing.T) {
 
 			cap, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
-			require.NoError(t, authServer.SetAuthPreference(ctx, cap))
+			cap, err = authServer.UpsertAuthPreference(ctx, cap)
+			require.NoError(t, err)
 
 			resp, err := clt.Get(ctx, clt.Endpoint("webapi", "ping"), url.Values{})
 			require.NoError(t, err)

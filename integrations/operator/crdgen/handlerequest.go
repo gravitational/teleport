@@ -20,12 +20,15 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
-	"github.com/gogo/protobuf/vanity/command"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/pluginpb"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
@@ -55,7 +58,32 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 		}
 	}
 
-	command.Write(gen.Response)
+	// Convert the gogo response to a regular protobuf response. This allows us
+	// to pack in the SupportedFeatures field, which indicates that the optional
+	// field is supported.
+	response := &pluginpb.CodeGeneratorResponse{}
+	response.Error = gen.Response.Error
+	response.File = make([]*pluginpb.CodeGeneratorResponse_File, 0, len(gen.Response.File))
+	for _, file := range gen.Response.File {
+		response.File = append(response.File, &pluginpb.CodeGeneratorResponse_File{
+			Name:           file.Name,
+			InsertionPoint: file.InsertionPoint,
+			Content:        file.Content,
+		})
+	}
+	features := uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+	response.SupportedFeatures = &features
+
+	// Send back the results. The code below was taken from the vanity command,
+	// but it now uses the regular response instead of the gogo specific one.
+	data, err := proto.Marshal(response)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal output proto")
+	}
+	_, err = os.Stdout.Write(data)
+	if err != nil {
+		return trace.Wrap(err, "failed to write output proto")
+	}
 
 	return nil
 }
@@ -80,11 +108,55 @@ type resource struct {
 	opts []resourceSchemaOption
 }
 
+var userColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Roles",
+		Type:        "string",
+		Description: "List of Teleport roles granted to the user.",
+		Priority:    0,
+		JSONPath:    ".spec.roles",
+	},
+}
+
+var serverColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Hostname",
+		Type:        "string",
+		Description: "Server hostname",
+		Priority:    0,
+		JSONPath:    ".spec.hostname",
+	},
+	{
+		Name:        "Address",
+		Type:        "string",
+		Description: "Server address, with SSH port.",
+		Priority:    0,
+		JSONPath:    ".spec.addr",
+	},
+}
+
+var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
+	{
+		Name:        "Join Method",
+		Type:        "string",
+		Description: "Token join method.",
+		Priority:    0,
+		JSONPath:    ".spec.join_method",
+	},
+	{
+		Name:        "System Roles",
+		Type:        "string",
+		Description: "System roles granted by this token.",
+		Priority:    0,
+		JSONPath:    ".spec.roles",
+	},
+}
+
 func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
-		{name: "UserV2"},
+		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns)}},
 		// Role V5 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
 		// For backward compatibility in v15, it actually creates v5 roles though.
@@ -106,7 +178,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
 			},
 		},
-		{name: "ProvisionTokenV2"},
+		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns)}},
 		{name: "OktaImportRuleV1"},
 		{
 			name: "AccessList",
@@ -119,6 +191,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
 				withNameOverride("OpenSSHServer"),
+				withAdditionalColumns(serverColumns),
 			},
 		},
 		{
@@ -126,6 +199,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
 				withNameOverride("OpenSSHEICEServer"),
+				withAdditionalColumns(serverColumns),
 			},
 		},
 	}

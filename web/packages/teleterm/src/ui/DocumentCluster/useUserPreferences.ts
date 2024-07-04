@@ -31,6 +31,7 @@ import {
 } from 'shared/hooks/useAsync';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
@@ -43,7 +44,7 @@ import { routing, ClusterUri } from 'teleterm/ui/uri';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import createAbortController from 'teleterm/services/tshd/createAbortController';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<void>;
@@ -51,7 +52,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferences: UserPreferences;
 } {
   const appContext = useAppContext();
-  const initialFetchAttemptAbortController = useRef(createAbortController());
+  const initialFetchAttemptAbortController = useRef(new AbortController());
   // Consider storing the unified resource view preferences on the document.
   // https://github.com/gravitational/teleport/pull/35251#discussion_r1424116275
   const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
@@ -65,6 +66,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
       labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.NONE,
     }
   );
   const [clusterPreferences, setClusterPreferences] = useState<
@@ -77,12 +79,17 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
     useCallback(
       async () =>
-        retryWithRelogin(appContext, clusterUri, () =>
-          appContext.tshd.getUserPreferences(
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.getUserPreferences(
             { clusterUri },
-            initialFetchAttemptAbortController.current.signal
-          )
-        ),
+            {
+              abort: cloneAbortSignal(
+                initialFetchAttemptAbortController.current.signal
+              ),
+            }
+          );
+          return response.userPreferences;
+        }),
       [appContext, clusterUri]
     )
   );
@@ -97,12 +104,13 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [, runUpdateAttempt] = useAsync(
     useCallback(
       async (newPreferences: UserPreferences) =>
-        retryWithRelogin(appContext, clusterUri, () =>
-          appContext.tshd.updateUserPreferences({
+        retryWithRelogin(appContext, clusterUri, async () => {
+          const { response } = await appContext.tshd.updateUserPreferences({
             clusterUri,
             userPreferences: newPreferences,
-          })
-        ),
+          });
+          return response.userPreferences;
+        }),
       [appContext, clusterUri]
     )
   );
@@ -232,5 +240,11 @@ function mergeWithDefaultUnifiedResourcePreferences(
       unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.labelsViewMode
         : LabelsViewMode.COLLAPSED,
+    availableResourceMode:
+      unifiedResourcePreferences &&
+      unifiedResourcePreferences.availableResourceMode !==
+        AvailableResourceMode.UNSPECIFIED
+        ? unifiedResourcePreferences.availableResourceMode
+        : AvailableResourceMode.NONE,
   };
 }

@@ -91,7 +91,7 @@ func (f *processState) update(event Event) {
 
 	component, ok := event.Payload.(string)
 	if !ok {
-		f.process.log.Errorf("%v broadcasted without component name, this is a bug!", event.Name)
+		f.process.logger.ErrorContext(f.process.ExitContext(), "Received event broadcast without component name, this is a bug!", "event", event.Name)
 		return
 	}
 	s, ok := f.states[component]
@@ -105,7 +105,7 @@ func (f *processState) update(event Event) {
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		s.state = stateDegraded
-		f.process.log.Infof("Detected Teleport component %q is running in a degraded state.", component)
+		f.process.logger.InfoContext(f.process.ExitContext(), "Detected Teleport component is running in a degraded state.", "component", component)
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
 	// recovering and a OK events is received, if it's been longer
@@ -115,15 +115,15 @@ func (f *processState) update(event Event) {
 		switch s.state {
 		case stateStarting:
 			s.state = stateOK
-			f.process.log.Debugf("Teleport component %q has started.", component)
+			f.process.logger.DebugContext(f.process.ExitContext(), "Teleport component has started.", "component", component)
 		case stateDegraded:
 			s.state = stateRecovering
 			s.recoveryTime = f.process.Clock.Now()
-			f.process.log.Infof("Teleport component %q is recovering from a degraded state.", component)
+			f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component is recovering from a degraded state.", "component", component)
 		case stateRecovering:
 			if f.process.Clock.Since(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
-				f.process.log.Infof("Teleport component %q has recovered from a degraded state.", component)
+				f.process.logger.InfoContext(f.process.ExitContext(), "Teleport component has recovered from a degraded state.", "component", component)
 			}
 		}
 	}

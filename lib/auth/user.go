@@ -38,7 +38,7 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if user.GetCreatedBy().IsEmpty() {
@@ -83,7 +83,7 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpdateUser updates an existing user in a backend.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
@@ -145,7 +145,7 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpsertUser updates a user.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.UpsertUser] instead.
 func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
@@ -239,7 +239,7 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existing user in a backend by username.
-// TODO(tross): DELETE IN 16.0.0
+// TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.DeleteUser] instead.
 func (a *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := a.GetUser(ctx, user, false)

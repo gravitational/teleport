@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -53,6 +54,7 @@ var roleV6Spec = types.RoleSpecV6{
 
 type roleV6TestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithLabelsAdapter[types.Role]
 }
 
 func (g *roleV6TestingPrimitives) Init(setup *testSetup) {

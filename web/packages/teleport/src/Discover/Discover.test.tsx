@@ -34,7 +34,6 @@ import {
   APPLICATIONS,
   KUBERNETES,
   SERVERS,
-  WINDOWS_DESKTOPS,
 } from 'teleport/Discover/SelectResource/resources';
 import {
   DATABASES,
@@ -96,9 +95,6 @@ test('displays all resources by default', () => {
       .getAllByTestId(ResourceKind.Server)
       .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
   ).toHaveLength(SERVERS.length);
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
   expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
     DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
   );
@@ -115,10 +111,6 @@ test('location state applies filter/search', () => {
     initialEntry: 'desktop',
     preferredResource: Resource.WEB_APPLICATIONS,
   });
-
-  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-    WINDOWS_DESKTOPS.length
-  );
 
   expect(
     screen.queryByTestId(ResourceKind.Application)
@@ -152,10 +144,6 @@ describe('location state', () => {
 
   test('displays desktops when the location state is desktop', () => {
     create({ initialEntry: 'desktop' });
-
-    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-      WINDOWS_DESKTOPS.length
-    );
 
     expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
     expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();

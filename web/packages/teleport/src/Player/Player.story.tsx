@@ -24,7 +24,7 @@ import { createMemoryHistory } from 'history';
 
 import { Router, Route } from 'teleport/components/Router';
 
-import PlayerComponent from './Player';
+import { Player } from './Player';
 
 export default {
   title: 'Teleport/Player',
@@ -40,7 +40,7 @@ export const SSH = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
@@ -59,7 +59,7 @@ export const Desktop = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
@@ -76,7 +76,7 @@ export const RecordingTypeError = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
@@ -95,7 +95,7 @@ export const DurationMsError = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>

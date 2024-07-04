@@ -16,7 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Support from './Support';
-
-// export as default for use with React.lazy
-export default Support;
+export { SupportContainer as Support } from './Support';

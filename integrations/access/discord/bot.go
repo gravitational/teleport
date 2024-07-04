@@ -153,6 +153,11 @@ func (b DiscordBot) PostReviewReply(ctx context.Context, channelID, timestamp st
 	return nil
 }
 
+// NotifyUser will send users a direct message with the access request status
+func (b DiscordBot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
+}
+
 // UpdateMessages updates already posted Discord messages
 func (b DiscordBot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, messagingData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error

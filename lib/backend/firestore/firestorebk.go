@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -129,7 +130,6 @@ type record struct {
 	Key        []byte `firestore:"key,omitempty"`
 	Timestamp  int64  `firestore:"timestamp,omitempty"`
 	Expires    int64  `firestore:"expires,omitempty"`
-	ID         int64  `firestore:"id,omitempty"`
 	Value      []byte `firestore:"value,omitempty"`
 	RevisionV2 string `firestore:"revision,omitempty"`
 	RevisionV1 string `firestore:"-"`
@@ -140,7 +140,6 @@ func (r *record) updates() []firestore.Update {
 		{Path: keyDocProperty, Value: r.Key},
 		{Path: timestampDocProperty, Value: r.Timestamp},
 		{Path: expiresDocProperty, Value: r.Expires},
-		{Path: idDocProperty, Value: r.ID},
 		{Path: valueDocProperty, Value: r.Value},
 		{Path: revisionDocProperty, Value: r.RevisionV2},
 	}
@@ -158,7 +157,6 @@ type legacyRecord struct {
 	Key       string `firestore:"key,omitempty"`
 	Timestamp int64  `firestore:"timestamp,omitempty"`
 	Expires   int64  `firestore:"expires,omitempty"`
-	ID        int64  `firestore:"id,omitempty"`
 	Value     string `firestore:"value,omitempty"`
 }
 
@@ -167,7 +165,6 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 		Key:       from.Key,
 		Value:     from.Value,
 		Timestamp: clock.Now().UTC().Unix(),
-		ID:        id(clock.Now()),
 	}
 
 	if isRevisionV2(from.Revision) {
@@ -197,7 +194,6 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			Value:     []byte(rl.Value),
 			Timestamp: rl.Timestamp,
 			Expires:   rl.Expires,
-			ID:        rl.ID,
 		}
 	}
 	if r.RevisionV2 == "" {
@@ -219,7 +215,6 @@ func (r *record) backendItem() backend.Item {
 	bi := backend.Item{
 		Key:   r.Key,
 		Value: r.Value,
-		ID:    r.ID,
 	}
 
 	if r.RevisionV2 != "" {
@@ -245,8 +240,6 @@ const (
 	expiresDocProperty = "expires"
 	// timestampDocProperty is used internally to query for records and matches the timestamp in the record struct tag
 	timestampDocProperty = "timestamp"
-	// idDocProperty references the record's internal ID
-	idDocProperty = "id"
 	// valueDocProperty references the value of the record
 	valueDocProperty = "value"
 	// revisionDocProperty references the record's revision
@@ -328,7 +321,7 @@ func (opts *Options) checkAndSetDefaults() error {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params, options Options) (*Backend, error) {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 	var cfg *backendConfig
 	err := apiutils.ObjectToStruct(params, &cfg)
 	if err != nil {
@@ -809,7 +802,6 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	updates := []firestore.Update{
 		{Path: expiresDocProperty, Value: expires.UTC().Unix()},
 		{Path: timestampDocProperty, Value: b.clock.Now().UTC().Unix()},
-		{Path: idDocProperty, Value: id(b.clock.Now())},
 		{Path: revisionDocProperty, Value: createRevisionV2()},
 	}
 	_, err = docSnap.Ref.Update(ctx, updates)
@@ -1083,7 +1075,7 @@ type indexTask struct {
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
 // indexes are reported as created
 func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples IndexList, indexParent string) error {
-	l := log.WithFields(log.Fields{trace.Component: BackendName})
+	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
 	var tasks []indexTask
 
 	// create the indexes
@@ -1149,11 +1141,6 @@ func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) erro
 	}
 
 	return nil
-}
-
-// id returns a new record ID base on the specified timestamp
-func id(now time.Time) int64 {
-	return now.UTC().UnixNano()
 }
 
 // revisionV2Prefix uniquely identifies version 2 firestore revision values. Older firestore documents

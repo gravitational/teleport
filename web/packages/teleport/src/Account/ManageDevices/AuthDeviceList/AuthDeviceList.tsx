@@ -49,7 +49,7 @@ export function AuthDeviceList({
       <Row>{header}</Row>
       {devices.length > 0 && (
         <Row>
-          <StyledTable<MfaDevice>
+          <StyledTable
             columns={[
               {
                 key: 'description',
@@ -98,37 +98,17 @@ interface RemoveCellProps {
 function RemoveCell({ onRemove }: RemoveCellProps) {
   return (
     <Cell>
-      <ButtonWarningBorder p={2} onClick={onRemove}>
+      <ButtonWarningBorder title="Delete" p={2} onClick={onRemove}>
         <Icon.Trash size="small" />
       </ButtonWarningBorder>
     </Cell>
   );
 }
 
-const StyledTable = styled(Table)(
-  props => `
-  background-color: transparent;
-
-  & > tbody > tr > td, thead > tr > th {
-    font-size: ${props.theme.fontSizes[2]}px;
+const StyledTable = styled(Table<MfaDevice>)`
+  & > tbody > tr > td,
+  thead > tr > th {
     font-weight: 300;
+    padding-bottom: ${props => props.theme.space[2]}px;
   }
-
-  & > thead > tr > th {
-    text-transform: none;
-    padding-top: ${props.theme.space[2]}px;
-    padding-bottom: ${props.theme.space[2]}px;
-
-    &:first-child {
-      border-radius: ${props.theme.radii[2]}px 0 0 ${props.theme.radii[2]}px;
-    }
-    &:last-child {
-      border-radius: 0 ${props.theme.radii[2]}px ${props.theme.radii[2]}px 0;
-    }
-  }
-
-  & > tbody > tr {
-    border: none;
-  }
-`
-);
+`;

@@ -116,6 +116,9 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
 	}
 	err = exec(proxy)
+	if !isRelevantWebsocketError(err) {
+		err = nil
+	}
 	if err := proxy.sendStatus(err); err != nil {
 		log.Warningf("Failed to send status: %v", err)
 	}
@@ -272,7 +275,7 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 				Status:  metav1.StatusFailure,
 				Code:    http.StatusForbidden,
 				Reason:  metav1.StatusReasonForbidden,
-				Message: err.Error(),
+				Message: formatExecForbiddenErrorMessage(err),
 			},
 		})
 	} else if isSessionTerminatedError(err) {
@@ -281,6 +284,28 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 
 	err = trace.BadParameter("error executing command in container: %v", err)
 	return s.writeStatus(apierrors.NewInternalError(err))
+}
+
+// formatExecForbiddenErrorMessage formats the error message for the forbidden error
+// when trying to exec into a pod in Kubernetes 1.30.
+func formatExecForbiddenErrorMessage(err error) string {
+	message := err.Error()
+	// forbiddenGetResource is the error message that is returned when the user is forbidden to exec into a pod.
+	// This error message is returned when the user does not have the necessary RBAC rules to exec into a pod.
+	const forbiddenGetResource = "cannot get resource \"pods/exec\" in API group"
+	// Kubernetes 1.30 switched to a new exec API that uses a different protocol.
+	// Previously, the exec API used SPDY. The new exec API uses websockets.
+	// SPDY allowed the client to send the request as GET or POST, but websockets
+	// only allow GET per definition.
+	// This means that most clients that used kubectl version 1.29 or older can
+	// suddenly get a forbidden error when trying to exec into a pod in Kubernetes 1.30
+	// because the RBAC rules are not allowing the user to access the pods/exec resource
+	// using the GET verb.
+	// This error message is a hint to the user that they need to update their RBAC rules.
+	if strings.Contains(message, forbiddenGetResource) {
+		message += kubernetes130BreakingChangeHint
+	}
+	return message
 }
 
 // streamAndReply holds both a Stream and a channel that is closed when the stream's reply frame is

@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 // openSSHServerClient implements TeleportResourceClient and offers CRUD methods
@@ -71,12 +73,12 @@ func (r openSSHServerClient) Delete(ctx context.Context, name string) error {
 
 // NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSH server resources.
-func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	serverClient := &openSSHServerClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
 		client,
 		serverClient,
 	)

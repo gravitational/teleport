@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types"
 	conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
@@ -58,7 +59,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, "user_login_state_crud_service")
+		c.Logger = logrus.WithField(teleport.ComponentKey, "user_login_state_crud_service")
 	}
 
 	if c.Clock == nil {

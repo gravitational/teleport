@@ -34,7 +34,7 @@ function Node({ item }: { item: TestItem }) {
   return <li>{item.title}</li>;
 }
 
-test('render first 10 items by default', () => {
+test('render all items by default', () => {
   render(
     <FilterableList<TestItem>
       items={mockedItems}
@@ -44,7 +44,7 @@ test('render first 10 items by default', () => {
   );
   const items = screen.getAllByRole('listitem');
 
-  expect(items).toHaveLength(10);
+  expect(items).toHaveLength(30);
   items.forEach((item, index) => {
     expect(item).toHaveTextContent(mockedItems[index].title);
   });

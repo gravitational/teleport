@@ -29,8 +29,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -63,7 +63,7 @@ func (m *AzureMSIMiddleware) CheckAndSetDefaults() error {
 		m.Clock = clockwork.NewRealClock()
 	}
 	if m.Log == nil {
-		m.Log = logrus.WithField(trace.Component, "azure_msi")
+		m.Log = logrus.WithField(teleport.ComponentKey, "azure_msi")
 	}
 
 	if m.Key == nil {
@@ -177,7 +177,6 @@ func (m *AzureMSIMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error) 
 	key, err := jwt.New(&jwt.Config{
 		Clock:       m.Clock,
 		PrivateKey:  m.Key,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint, // todo get cluster name
 	})
 	if err != nil {

@@ -1,4 +1,12 @@
 issues:
+  exclude-dirs:
+    - (^|/)node_modules/
+    - ^api/gen/
+    - ^docs/
+    - ^gen/
+    - ^rfd/
+    - ^web/
+  exclude-dirs-use-default: false
   exclude-rules:
     - linters:
       - gosimple
@@ -10,6 +18,43 @@ issues:
     - linters:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+    # TODO(codingllama): Remove once we move to grpc.NewClient.
+    - linters: [staticcheck]
+      text: "grpc.Dial is deprecated"
+    - linters: [staticcheck]
+      text: "grpc.DialContext is deprecated"
+    # Deprecated gRPC dial options. Related to grpc.NewClient.
+    - path: (client/client.go|client/proxy/client_test.go) # api/
+      linters: [staticcheck]
+      # grpc.FailOnNonTempDialError
+      # grpc.WithReturnConnectionError
+      text: "this DialOption is not supported by NewClient"
+    - path: lib/kube/grpc/grpc_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/observability/tracing/client.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: integrations/lib/config.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: lib/service/service_test.go
+      linters: [staticcheck]
+      # grpc.WithReturnConnectionError
+      # grpc.FailOnNonTempDialError
+      text: "this DialOption is not supported by NewClient"
+    - path: integration/client_test.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: integration/integration_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/multiplexer/multiplexer_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: provider/provider.go # integrations/terraform
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -59,6 +104,45 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+          - pkg: github.com/hashicorp/go-version
+            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
+      # Prevent logrus from being imported by api. Once everything in teleport has been converted
+      # to use log/slog this should be moved into the main block above.
+      logrus:
+        files:
+          - '**/api/**'
+        deny:
+          - pkg: github.com/sirupsen/logrus
+            desc: 'use "log/slog" instead'
+      # Prevent importing internal packages in client tools or packages containing
+      # common interfaces consumed by them that are known to bloat binaries or break builds
+      # because they only support a single platform.
+      client-tools:
+        files:
+          # Tests can do anything
+          - "!$test"
+          - '**/tool/tbot/**'
+          - '**/lib/tbot/**'
+          - '**/tool/tctl/**'
+          - '**/tool/tsh/**'
+          - '**/lib/client/**'
+          - '**/lib/services/**'
+          - '**/lib/service/servicecfg/**'
+          - '**/lib/reversetunnelclient/**'
+          - '**/lib/auth/authclient/**'
+          - '**/lib/cloud/imds/**'
+        allow:
+          - github.com/gravitational/teleport/lib/cloud/imds
+        deny:
+          - pkg: github.com/gravitational/teleport/lib/auth$
+            desc: 'lib/auth should not be imported to prevent increasing binary size, prefer lib/auth/authclient instead'
+          - pkg: github.com/gravitational/teleport/lib/cloud
+            desc: 'lib/cloud should not be imported to prevent increasing binary size'
+          - pkg: github.com/gravitational/teleport/lib/srv$
+            desc: 'lib/srv prevents client tools from build on non-linux platforms'
+          - pkg: github.com/gravitational/teleport/lib/web$
+            desc: 'lib/web should not be imported to prevent increasing binary size'
+        list-mode: lax
   errorlint:
     comparison: true
     asserts: true
@@ -68,6 +152,7 @@ linters-settings:
       - standard # Standard section: captures all standard packages.
       - default # Default section: contains all imports that could not be matched to another section type.
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
+      - prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
   misspell:
@@ -81,9 +166,14 @@ linters-settings:
     - name: unused-parameter
       disabled: true
   sloglint:
-    context-only: true
+    context: all
     key-naming-case: snake
     static-msg: true
+    forbidden-keys:
+      - level
+      - msg
+      - source
+      - time
   testifylint:
     disable-all: true
     enable:
@@ -102,14 +192,6 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.21'
+  go: '1.22'
   build-tags: []
-  skip-dirs:
-    - (^|/)node_modules/
-    - ^api/gen/
-    - ^docs/
-    - ^gen/
-    - ^rfd/
-    - ^web/
-  skip-dirs-use-default: false
   timeout: 15m

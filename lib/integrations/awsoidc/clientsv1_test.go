@@ -52,7 +52,7 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	m.tokenCallsCount++
 	return uuid.NewString(), nil
 }
@@ -91,6 +91,15 @@ func TestNewSessionV1(t *testing.T) {
 			expectedErr: require.NoError,
 			sessionValidator: func(t *testing.T, s *session.Session) {
 				require.Equal(t, aws.String("us-dummy-1"), s.Config.Region)
+			},
+		},
+		{
+			name:        "valid with empty region",
+			region:      "",
+			integration: "myawsintegration",
+			expectedErr: require.NoError,
+			sessionValidator: func(t *testing.T, s *session.Session) {
+				require.Equal(t, aws.String(""), s.Config.Region)
 			},
 		},
 		{

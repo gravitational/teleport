@@ -39,7 +39,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -105,7 +105,7 @@ type Key struct {
 	// Map key is the desktop server name.
 	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCerts is a list of trusted certificate authorities
-	TrustedCerts []auth.TrustedCerts
+	TrustedCerts []authclient.TrustedCerts
 }
 
 // Copy returns a shallow copy of k, or nil if k is nil.
@@ -434,6 +434,19 @@ func (k *Key) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 	return tlsCert, nil
 }
 
+// DBTLSCert returns the tls.Certificate for authentication against a named database.
+func (k *Key) DBTLSCert(dbName string) (tls.Certificate, error) {
+	certPem, ok := k.DBTLSCerts[dbName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for database %q not found", dbName)
+	}
+	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
+}
+
 // DBTLSCertificates returns all parsed x509 database access certificates.
 func (k *Key) DBTLSCertificates() (certs []x509.Certificate, err error) {
 	for _, bytes := range k.DBTLSCerts {
@@ -444,6 +457,19 @@ func (k *Key) DBTLSCertificates() (certs []x509.Certificate, err error) {
 		certs = append(certs, *cert)
 	}
 	return certs, nil
+}
+
+// AppTLSCert returns the tls.Certificate for authentication against a named app.
+func (k *Key) AppTLSCert(appName string) (tls.Certificate, error) {
+	certPem, ok := k.AppTLSCerts[appName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
+	}
+	tlsCert, err := k.PrivateKey.TLSCertificate(certPem)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }
 
 // AppTLSCertificates returns all parsed x509 app access certificates.

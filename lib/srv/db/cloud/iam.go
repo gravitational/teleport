@@ -29,9 +29,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +44,7 @@ type IAMConfig struct {
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint auth.DatabaseAccessPoint
+	AccessPoint authclient.DatabaseAccessPoint
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// HostID is the host identified where this agent is running.
@@ -112,7 +113,7 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 	}
 	return &IAM{
 		cfg:             config,
-		log:             logrus.WithField(trace.Component, "iam"),
+		log:             logrus.WithField(teleport.ComponentKey, "iam"),
 		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
 		iamPolicyStatus: sync.Map{},
 	}, nil

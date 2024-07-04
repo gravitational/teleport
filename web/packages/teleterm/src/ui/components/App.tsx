@@ -39,7 +39,14 @@ export const FailedApp = (props: { message: string }) => {
         ThemeProvider to provide a theme, it needs to use StaticThemeProvider to provide one.
       */}
       <StaticThemeProvider theme={darkTheme}>
-        <Failed alignSelf={'baseline'} message={props.message} />
+        <Failed
+          message={props.message}
+          alignSelf={'baseline'}
+          width="600px"
+          css={`
+            white-space: pre-wrap;
+          `}
+        />
       </StaticThemeProvider>
     </StyledApp>
   );

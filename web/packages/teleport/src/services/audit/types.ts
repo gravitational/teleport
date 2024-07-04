@@ -69,6 +69,10 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
   DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
+  DATABASE_SESSION_USER_CREATE: 'TDB08I',
+  DATABASE_SESSION_USER_CREATE_FAILURE: 'TDB08W',
+  DATABASE_SESSION_USER_DEACTIVATE: 'TDB09I',
+  DATABASE_SESSION_USER_DEACTIVATE_FAILURE: 'TDB09W',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -120,11 +124,13 @@ export const eventCodes = {
   DEVICE_ENROLL: 'TV005I',
   DEVICE_AUTHENTICATE: 'TV006I',
   DEVICE_UPDATE: 'TV007I',
+  DEVICE_WEB_TOKEN_CREATE: 'TV008I',
+  DEVICE_AUTHENTICATE_CONFIRM: 'TV009I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
-  GITHUB_CONNECTOR_UPDATED: 'T8002I',
+  GITHUB_CONNECTOR_UPDATED: 'T80002I', // extra 0 is intentional
   KUBE_REQUEST: 'T3009I',
   KUBE_CREATED: 'T3010I',
   KUBE_UPDATED: 'T3011I',
@@ -239,7 +245,9 @@ export const eventCodes = {
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   BOT_JOIN: 'TJ001I',
+  BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
+  INSTANCE_JOIN_FAILURE: 'TJ002E',
   BOT_CREATED: 'TB001I',
   BOT_UPDATED: 'TB002I',
   BOT_DELETED: 'TB003I',
@@ -287,6 +295,12 @@ export const eventCodes = {
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
   SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
   SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
+  CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
+  SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
+  ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
+  SPANNER_RPC: 'TSPN001I',
+  SPANNER_RPC_DENIED: 'TSPN001W',
 } as const;
 
 /**
@@ -307,7 +321,7 @@ export type RawEvents = {
   >;
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
-    { resource_type: string; search_as_roles: string }
+    { resource_type: string; search_as_roles: string[] }
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -783,6 +797,34 @@ export type RawEvents = {
       }[];
     }
   >;
+  [eventCodes.DATABASE_SESSION_USER_CREATE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE,
+    {
+      roles: string[];
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_CREATE_FAILURE,
+    {
+      error: string;
+      message: string;
+      roles: string[];
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE,
+    {
+      delete: boolean;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE]: RawDatabaseSessionEvent<
+    typeof eventCodes.DATABASE_SESSION_USER_DEACTIVATE_FAILURE,
+    {
+      error: string;
+      message: string;
+      delete: boolean;
+    }
+  >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
     typeof eventCodes.DATABASE_CREATED,
     {
@@ -1209,6 +1251,12 @@ export type RawEvents = {
     typeof eventCodes.DEVICE_AUTHENTICATE
   >;
   [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
+  [eventCodes.DEVICE_WEB_TOKEN_CREATE]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_WEB_TOKEN_CREATE
+  >;
+  [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_AUTHENTICATE_CONFIRM
+  >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1274,7 +1322,22 @@ export type RawEvents = {
       method: string;
     }
   >;
+  [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
+    typeof eventCodes.BOT_JOIN,
+    {
+      bot_name: string;
+      method: string;
+    }
+  >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
+    typeof eventCodes.INSTANCE_JOIN,
+    {
+      node_name: string;
+      method: string;
+      role: string;
+    }
+  >;
+  [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.INSTANCE_JOIN,
     {
       node_name: string;
@@ -1571,6 +1634,37 @@ export type RawEvents = {
       spiffe_id: string;
     }
   >;
+  [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
+    typeof eventCodes.AUTH_PREFERENCE_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.SESSION_RECORDING_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: RawEvent<
+    typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+    {
+      change_id: string;
+      affected_resource_name: string;
+      affected_resource_source: string;
+      affected_resource_kind: string;
+    }
+  >;
+  [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
+  [eventCodes.SPANNER_RPC_DENIED]: RawSpannerRPCEvent<
+    typeof eventCodes.SPANNER_RPC_DENIED
+  >;
 };
 
 /**
@@ -1744,6 +1838,30 @@ type RawEventSFTP<T extends EventCode> = RawEvent<
     path: string;
     error: string;
     ['addr.local']: string;
+  }
+>;
+
+type RawDatabaseSessionEvent<T extends EventCode, K = unknown> = Merge<
+  RawEvent<
+    T,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      username: string;
+    }
+  >,
+  K
+>;
+
+type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    procedure: string;
+    db_service: string;
+    db_name: string;
+    args: { sql?: string };
   }
 >;
 

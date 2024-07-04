@@ -32,7 +32,7 @@ guidance on deploying Machine ID as a workload on Kubernetes.
 - A GCP Compute Engine VM that you wish to install Machine ID onto that has
   been configured with the GCP service account.
 
-## Step 1/4. Install `tbot`
+## Step 1/5. Install `tbot`
 
 **This step is completed on the GCP VM.**
 
@@ -43,11 +43,15 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create a join token, role and bot user
+## Step 2/5. Create a Bot
 
 **This step is completed on your local machine.**
 
-(!docs/pages/includes/machine-id/blank-role.mdx!)
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a join token
+
+**This step is completed on your local machine.**
 
 Create `bot-token.yaml`:
 
@@ -59,7 +63,7 @@ metadata:
   name: example-bot
 spec:
   roles: [Bot]
-  # bot_name will match the name of the bot created later in this guide.
+  # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
   join_method: gcp
   gcp:
@@ -77,6 +81,7 @@ spec:
 Replace:
 
 - `my-project-123456` with the ID of your GCP project
+- `example` with the name of the bot you created in the second step.
 - `my-service-account@my-project-123456.iam.gserviceaccount.com` with the email
   of the service account configured in the previous step. The default compute
   service account is not supported.
@@ -87,13 +92,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-Create the bot, specifying the token and role that you have created:
-
-```code
-$ tctl bots add example --token example-bot --roles example-bot
-```
-
-## Step 3/4. Configure `tbot`
+## Step 4/5. Configure `tbot`
 
 **This step is completed on the GCP VM.**
 
@@ -101,7 +100,7 @@ Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
-auth_server: example.teleport.sh:443
+proxy_server: example.teleport.sh:443
 onboarding:
   join_method: gcp
   token: example-bot
@@ -119,7 +118,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 4/4. Configure outputs
+## Step 5/5. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 

@@ -43,6 +43,9 @@ import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer'
 import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -61,6 +64,102 @@ const leafClusterDoc = makeDocumentCluster({
   uri: '/docs/456',
 });
 
+export const OnlineLoadedResources = () => {
+  const state = createClusterServiceState();
+  state.clusters.set(
+    rootClusterDoc.clusterUri,
+    makeRootCluster({
+      uri: rootClusterDoc.clusterUri,
+    })
+  );
+
+  return renderState({
+    state,
+    doc: rootClusterDoc,
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [
+          {
+            kind: 'server',
+            resource: makeServer(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'server',
+            resource: makeServer({
+              uri: `${rootClusterUri}/servers/1234`,
+              hostname: 'bar',
+              tunnel: true,
+            }),
+            requiresRequest: false,
+          },
+          {
+            kind: 'database',
+            resource: makeDatabase(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'kube',
+            resource: makeKube(),
+            requiresRequest: false,
+          },
+          {
+            kind: 'app',
+            resource: { ...makeApp(), name: 'TCP app' },
+            requiresRequest: false,
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'HTTP app',
+              endpointUri: 'http://localhost:8080',
+            },
+            requiresRequest: false,
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'AWS console',
+              endpointUri: 'https://localhost:8080',
+              awsConsole: true,
+              awsRoles: [
+                {
+                  arn: 'foo',
+                  display: 'foo',
+                  name: 'foo',
+                  accountId: '123456789012',
+                },
+                {
+                  arn: 'bar',
+                  display: 'bar',
+                  name: 'bar',
+                  accountId: '123456789012',
+                },
+              ],
+            },
+            requiresRequest: true,
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'SAML app',
+              desc: 'SAML Application',
+              publicAddr: '',
+              endpointUri: '',
+              samlApp: true,
+            },
+            requiresRequest: true,
+          },
+        ],
+        totalCount: 4,
+        nextKey: '',
+      }),
+  });
+};
+
 export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
   state.clusters.set(
@@ -68,7 +167,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.LOCAL,
+        userType: tsh.LoggedInUser_UserType.LOCAL,
         acl: {
           tokens: {
             create: true,
@@ -104,7 +203,7 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.SSO,
+          userType: tsh.LoggedInUser_UserType.SSO,
           acl: {
             tokens: {
               create: true,
@@ -192,75 +291,6 @@ export const OnlineLoadingResources = () => {
   });
 };
 
-export const OnlineLoadedResources = () => {
-  const state = createClusterServiceState();
-  state.clusters.set(
-    rootClusterDoc.clusterUri,
-    makeRootCluster({
-      uri: rootClusterDoc.clusterUri,
-    })
-  );
-
-  return renderState({
-    state,
-    doc: rootClusterDoc,
-    listUnifiedResources: () =>
-      Promise.resolve({
-        resources: [
-          {
-            kind: 'server',
-            resource: makeServer(),
-          },
-          {
-            kind: 'server',
-            resource: makeServer({
-              uri: `${rootClusterUri}/servers/1234`,
-              hostname: 'bar',
-              tunnel: true,
-            }),
-          },
-          { kind: 'database', resource: makeDatabase() },
-          { kind: 'kube', resource: makeKube() },
-          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'HTTP app',
-              endpointUri: 'http://localhost:8080',
-            },
-          },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'AWS console',
-              endpointUri: 'https://localhost:8080',
-              awsConsole: true,
-              awsRoles: [
-                { arn: 'foo', display: 'foo', name: 'foo' },
-                { arn: 'bar', display: 'bar', name: 'bar' },
-              ],
-            },
-          },
-          {
-            kind: 'app',
-            resource: {
-              ...makeApp(),
-              name: 'SAML app',
-              desc: 'SAML Application',
-              publicAddr: '',
-              endpointUri: '',
-              samlApp: true,
-            },
-          },
-        ],
-        totalCount: 4,
-        nextKey: '',
-      }),
-  });
-};
-
 export const OnlineErrorLoadingResources = () => {
   const state = createClusterServiceState();
   state.clusters.set(
@@ -312,7 +342,7 @@ function renderState({
   doc: docTypes.DocumentCluster;
   listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
-  userType?: tsh.UserType;
+  userType?: tsh.LoggedInUser_UserType;
 }) {
   const appContext = new MockAppContext({ platform });
   appContext.clustersService.state = state;
@@ -324,7 +354,10 @@ function renderState({
       localClusterUri: doc.clusterUri,
       documents: [doc],
       location: doc.uri,
-      accessRequests: undefined,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
     };
   });
 
@@ -335,15 +368,19 @@ function renderState({
 
   return (
     <AppContextProvider value={appContext}>
-      <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-            <Wrapper>
-              <DocumentCluster visible={true} doc={doc} />
-            </Wrapper>
-          </ConnectMyComputerContextProvider>
-        </ResourcesContextProvider>
-      </MockWorkspaceContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <MockWorkspaceContextProvider>
+            <ResourcesContextProvider>
+              <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
+                <Wrapper>
+                  <DocumentCluster visible={true} doc={doc} />
+                </Wrapper>
+              </ConnectMyComputerContextProvider>
+            </ResourcesContextProvider>
+          </MockWorkspaceContextProvider>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }

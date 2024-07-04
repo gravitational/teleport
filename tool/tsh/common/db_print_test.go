@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func Test_printDatabaseTable(t *testing.T) {
 	t.Parallel()
 
 	rows := []databaseTableRow{
-		databaseTableRow{
+		{
 			Proxy:        "proxy",
 			Cluster:      "cluster1",
 			DisplayName:  "db1",
@@ -45,7 +46,7 @@ func Test_printDatabaseTable(t *testing.T) {
 			Labels:       "Env=dev",
 			Connect:      "tsh db connect db1",
 		},
-		databaseTableRow{
+		{
 			Proxy:         "proxy",
 			Cluster:       "cluster1",
 			DisplayName:   "db2",
@@ -193,6 +194,83 @@ func Test_formatDatabaseRolesForDB(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expect, formatDatabaseRolesForDB(test.database, test.accessChecker))
+		})
+	}
+}
+
+func Test_maybeShowListDatabaseHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cf       *CLIConf
+		numRows  int
+		wantHint bool
+	}{
+		{
+			name: "show hint when number is big",
+			cf: &CLIConf{
+				command: "db ls",
+			},
+			numRows:  25,
+			wantHint: true,
+		},
+		{
+			name: "no hint for tsh db connect",
+			cf: &CLIConf{
+				command: "db connect",
+			},
+			numRows:  25,
+			wantHint: false,
+		},
+		{
+			name: "no hint when number is small",
+			cf: &CLIConf{
+				command: "db ls",
+			},
+			numRows:  15,
+			wantHint: false,
+		},
+		{
+			name: "no hint when search flag exists",
+			cf: &CLIConf{
+				command:        "db ls",
+				SearchKeywords: "foo",
+			},
+			numRows:  25,
+			wantHint: false,
+		},
+		{
+			name: "no hint when query flag exists",
+			cf: &CLIConf{
+				command:             "db ls",
+				PredicateExpression: "labels[\"key\"] == \"value\"",
+			},
+			numRows:  25,
+			wantHint: false,
+		},
+		{
+			name: "no hint when labels exist",
+			cf: &CLIConf{
+				command: "db ls",
+				Labels:  "key=value",
+			},
+			numRows:  25,
+			wantHint: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			maybeShowListDatabasesHint(test.cf, &buf, test.numRows)
+
+			if test.wantHint {
+				require.Contains(t, buf.String(), "hint")
+			} else {
+				require.Empty(t, buf.String())
+			}
 		})
 	}
 }

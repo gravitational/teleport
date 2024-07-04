@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -84,7 +85,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "app:audit"),
+		log: logrus.WithField(teleport.ComponentKey, "app:audit"),
 	}, nil
 }
 
@@ -105,6 +106,7 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
@@ -131,6 +133,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},
@@ -157,6 +160,7 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        serverID,
 			ServerNamespace: apidefaults.Namespace,
 		},

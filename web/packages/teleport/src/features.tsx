@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { lazy } from 'react';
+import React from 'react';
 
 import {
   AddCircle,
@@ -44,38 +44,32 @@ import {
   ManagementSection,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
+import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
 import { NavTitle } from './types';
 
+import { AuditContainer as Audit } from './Audit';
+import { SessionsContainer as Sessions } from './Sessions';
+import { UnifiedResources } from './UnifiedResources';
+import { AccountPage } from './Account';
+import { Support } from './Support';
+import { Clusters } from './Clusters';
+import { Nodes } from './Nodes';
+import { TrustedClusters } from './TrustedClusters';
+import { Users } from './Users';
+import { RolesContainer as Roles } from './Roles';
+import { DeviceTrustLocked } from './DeviceTrust';
+import { RecordingsContainer as Recordings } from './Recordings';
+import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
+import { Locks } from './LocksV2/Locks';
+import { NewLockView } from './LocksV2/NewLock';
+import { Discover } from './Discover';
+import { LockedAccessRequests } from './AccessRequests';
+import { Integrations } from './Integrations';
+import { Bots } from './Bots';
+import { AddBots } from './Bots/Add';
+
 import type { FeatureFlags, TeleportFeature } from './types';
-
-const Audit = lazy(() => import('./Audit'));
-const Sessions = lazy(() => import('./Sessions'));
-const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account'));
-const Support = lazy(() => import('./Support'));
-const Clusters = lazy(() => import('./Clusters'));
-const Nodes = lazy(() => import('./Nodes'));
-const Trust = lazy(() => import('./TrustedClusters'));
-const Users = lazy(() => import('./Users'));
-const Roles = lazy(() => import('./Roles'));
-const DeviceTrust = lazy(() => import('./DeviceTrust'));
-const Recordings = lazy(() => import('./Recordings'));
-const AuthConnectors = lazy(() => import('./AuthConnectors'));
-const Locks = lazy(() => import('./LocksV2/Locks'));
-const NewLock = lazy(() => import('./LocksV2/NewLock'));
-const Discover = lazy(() => import('./Discover'));
-const LockedAccessRequests = lazy(() => import('./AccessRequests'));
-const Integrations = lazy(() => import('./Integrations'));
-const IntegrationEnroll = lazy(
-  () => import('@gravitational/teleport/src/Integrations/Enroll')
-);
-const Bots = lazy(() => import('./Bots'));
-const AddBots = lazy(() => import('./Bots/Add'));
-
-// ****************************
-// Resource Features
-// ****************************
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -148,6 +142,10 @@ export class FeatureUnifiedResources implements TeleportFeature {
 
   hasAccess() {
     return !cfg.isDashboard;
+  }
+
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -341,7 +339,7 @@ export class FeatureNewLock implements TeleportFeature {
     title: 'Create New Lock',
     path: cfg.routes.newLock,
     exact: true,
-    component: NewLock,
+    component: NewLockView,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -527,7 +525,7 @@ export class FeatureTrust implements TeleportFeature {
   route = {
     title: 'Trusted Clusters',
     path: cfg.routes.trustedClusters,
-    component: Trust,
+    component: TrustedClusters,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -550,7 +548,7 @@ class FeatureDeviceTrust implements TeleportFeature {
     title: 'Manage Trusted Devices',
     path: cfg.routes.deviceTrust,
     exact: true,
-    component: DeviceTrust,
+    component: DeviceTrustLocked,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -575,7 +573,7 @@ export class FeatureAccount implements TeleportFeature {
   route = {
     title: 'Account Settings',
     path: cfg.routes.account,
-    component: Account,
+    component: AccountPage,
   };
 
   hasAccess() {

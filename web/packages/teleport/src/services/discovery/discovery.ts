@@ -23,12 +23,18 @@ import { AwsMatcher, DiscoveryConfig } from './types';
 // when creating a discovery config.
 export const DISCOVERY_GROUP_CLOUD = 'cloud-discovery-group';
 
+export const DEFAULT_DISCOVERY_GROUP_NON_CLOUD = 'aws-prod';
+
 export function createDiscoveryConfig(
   clusterId: string,
   req: DiscoveryConfig
 ): Promise<DiscoveryConfig> {
   return api
-    .post(cfg.getDiscoveryConfigUrl(clusterId), req)
+    .post(cfg.getDiscoveryConfigUrl(clusterId), {
+      name: req.name,
+      discoveryGroup: req.discoveryGroup,
+      aws: makeAwsMatchersReq(req.aws),
+    })
     .then(makeDiscoveryConfig);
 }
 
@@ -42,15 +48,38 @@ export function makeDiscoveryConfig(rawResp: DiscoveryConfig): DiscoveryConfig {
   };
 }
 
-function makeAws(rawResp: AwsMatcher[]) {
-  if (!rawResp) {
+function makeAws(rawAwsMatchers): AwsMatcher[] {
+  if (!rawAwsMatchers) {
     return [];
   }
 
-  return rawResp.map(a => ({
+  return rawAwsMatchers.map(a => ({
     types: a.types || [],
     regions: a.regions || [],
     tags: a.tags || {},
     integration: a.integration,
+    kubeAppDiscovery: !!a.kube_app_discovery,
+  }));
+}
+
+function makeAwsMatchersReq(inputMatchers: AwsMatcher[]) {
+  if (!inputMatchers) {
+    return [];
+  }
+
+  return inputMatchers.map(a => ({
+    types: a.types || [],
+    regions: a.regions || [],
+    tags: a.tags || {},
+    integration: a.integration,
+    kube_app_discovery: !!a.kubeAppDiscovery,
+    ssm: a.ssm ? { document_name: a.ssm.documentName } : undefined,
+    install: a.install
+      ? {
+          enroll_mode: a.install.enrollMode,
+          install_teleport: a.install.installTeleport,
+          join_token: a.install.joinToken,
+        }
+      : undefined,
   }));
 }

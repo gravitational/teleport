@@ -41,7 +41,7 @@ export type Integration<
 > = {
   resourceType: T;
   kind: K;
-  spec: S;
+  spec?: S;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
@@ -51,10 +51,13 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
+  issuerS3Prefix: string;
+  issuerS3Bucket: string;
 };
 
 export enum IntegrationStatusCode {
@@ -116,7 +119,12 @@ export type ExternalAuditStorageIntegration = Integration<
 >;
 
 export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
-export type PluginSpec = PluginOktaSpec | any; // currently only okta has a plugin spec
+export type PluginSpec =
+  | PluginOktaSpec
+  | PluginSlackSpec
+  | PluginMattermostSpec
+  | PluginOpsgenieSpec;
+
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
 // https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
@@ -132,7 +140,8 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
-  | 'jamf';
+  | 'jamf'
+  | 'entra-id';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -151,6 +160,20 @@ export type PluginOktaSpec = {
   // that were deemed not serious enough to fail the plugin installation, but
   // may effect the operation of advanced features like User Sync or SCIM.
   error: string;
+};
+
+export type PluginSlackSpec = {
+  fallbackChannel: string;
+};
+
+export type PluginMattermostSpec = {
+  channel: string;
+  team: string;
+  reportToEmail: string;
+};
+
+export type PluginOpsgenieSpec = {
+  defaultSchedules: string[];
 };
 
 export type PluginStatus<S = any> = {
@@ -326,6 +349,8 @@ export type ListAwsRdsDatabaseResponse = {
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
+    issuerS3Bucket: string;
+    issuerS3Prefix: string;
   };
 };
 
@@ -429,8 +454,8 @@ export type ListEc2InstancesResponse = {
 
 export type ListEc2InstanceConnectEndpointsRequest = {
   region: Regions;
-  // vpcId is the VPC to filter EC2 Instance Connect Endpoints.
-  vpcId: string;
+  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+  vpcIds: string[];
   nextToken?: string;
 };
 
@@ -438,6 +463,9 @@ export type ListEc2InstanceConnectEndpointsResponse = {
   // endpoints is the list of EC2 Instance Connect Endpoints.
   endpoints: Ec2InstanceConnectEndpoint[];
   nextToken?: string;
+  // DashboardLink is the URL for AWS Web Console that
+  // lists all the Endpoints for the queries VPCs.
+  dashboardLink: string;
 };
 
 export type Ec2InstanceConnectEndpoint = {
@@ -450,6 +478,8 @@ export type Ec2InstanceConnectEndpoint = {
   dashboardLink: string;
   // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
   subnetId: string;
+  // VPCID is the VPC ID where the Endpoint is created.
+  vpcId: string;
 };
 
 export type Ec2InstanceConnectEndpointState =
@@ -460,17 +490,30 @@ export type Ec2InstanceConnectEndpointState =
   | 'delete-complete'
   | 'delete-failed';
 
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // subnetID is the subnet id for the EC2 Instance Connect Endpoint.
+export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
+  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
   subnetId: string;
-  // securityGroupIDs is the list of SecurityGroups to apply to the Endpoint. If not specified, the Endpoint will receive the default SG for the subnet's VPC.
+  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
   securityGroupIds?: string[];
 };
 
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // name is the name of the EC2 Instance Connect Endpoint that was created.
+export type DeployEc2InstanceConnectEndpointRequest = {
+  region: Regions;
+  // Endpoints is a list of endpoinst to create.
+  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
+};
+
+export type AwsEc2InstanceConnectEndpoint = {
+  // Name is the EC2 Instance Connect Endpoint name.
   name: string;
+  // SubnetID is the subnet where this endpoint was created.
+  subnetId: string;
+};
+
+export type DeployEc2InstanceConnectEndpointResponse = {
+  // Endpoints is a list of created endpoints
+  endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
 export type ListAwsSecurityGroupsRequest = {

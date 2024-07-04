@@ -23,7 +23,9 @@ package modules
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -43,162 +46,122 @@ import (
 
 // Features provides supported and unsupported features
 type Features struct {
-	// Kubernetes enables Kubernetes Access product
-	Kubernetes bool
-	// App enables Application Access product
-	App bool
-	// DB enables database access product
-	DB bool
-	// OIDC enables OIDC connectors
-	OIDC bool
-	// SAML enables SAML connectors
-	SAML bool
-	// AccessControls enables FIPS access controls
-	AccessControls bool
-	// Currently this flag is to gate actions from OSS clusters.
-	//
-	// Determining support for access request is currently determined by:
-	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
-	//   introduced with Enterprise Usage Based (EUB) product.
-	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
-	//   where before EUB, it was unlimited.
-	//
-	// AdvancedAccessWorkflows is currently set to true for all
-	// enterprise editions (team, cloud, on-prem). Historically, access request
-	// was only available for enterprise cloud and enterprise on-prem.
-	AdvancedAccessWorkflows bool
+	// --------------- Cloud Settings
 	// Cloud enables some cloud-related features
 	Cloud bool
-	// HSM enables PKCS#11 HSM support
-	HSM bool
-	// Desktop enables desktop access product
-	Desktop bool
+	// CustomTheme holds the name of WebUI custom theme.
+	CustomTheme string
+	// IsStripeManaged indicates if the cluster billing is managed via Stripe
+	IsStripeManaged bool
+	// IsUsageBasedBilling enables some usage-based billing features
+	IsUsageBasedBilling bool
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool
+	// SupportType indicates the type of customer's support
+	SupportType proto.SupportType
+	// Entitlements reflect Cloud Entitlements including access and limits
+	Entitlements map[entitlements.EntitlementKind]EntitlementInfo
+
+	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
+	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
+	AdvancedAccessWorkflows bool
 	// RecoveryCodes enables account recovery codes
 	RecoveryCodes bool
 	// Plugins enables hosted plugins
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
-	// IsUsageBasedBilling enables some usage-based billing features
-	IsUsageBasedBilling bool
-	// Assist enables Assistant feature
-	Assist bool
-	// DeviceTrust holds its namesake feature settings.
-	DeviceTrust DeviceTrustFeature
-	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
-	FeatureHiding bool
-	// AccessRequests holds its namesake feature settings.
-	AccessRequests AccessRequestsFeature
-	// CustomTheme holds the name of WebUI custom theme.
-	CustomTheme string
-
 	// AccessGraph enables the usage of access graph.
 	// NOTE: this is a legacy flag that is currently used to signal
 	// that Access Graph integration is *enabled* on a cluster.
 	// *Access* to the feature is gated on the `Policy` flag.
 	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
-	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
-	// access list, access request, access monitoring, device trust.
-	IdentityGovernanceSecurity bool
-	// AccessList holds its namesake feature settings.
-	AccessList AccessListFeature
-	// AccessMonitoring holds its namesake feature settings.
-	AccessMonitoring AccessMonitoringFeature
+	// AccessMonitoringConfigured contributes to the enablement of access monitoring.
+	// NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `AccessMonitoring` entitlement.
+	AccessMonitoringConfigured bool
+	// --------------- Deprecated Fields
+	// AccessControls enables FIPS access controls
+	// Deprecated
+	AccessControls bool
+	// Assist enables Assistant feature
+	// Deprecated
+	Assist bool
 	// ProductType describes the product being used.
+	// Deprecated
 	ProductType ProductType
-	// Policy holds settings for the Teleport Policy feature set.
-	// At the time of writing, this includes Teleport Access Graph (TAG).
-	Policy PolicyFeature
 }
 
-// DeviceTrustFeature holds the Device Trust feature general and usage-based
-// settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
-type DeviceTrustFeature struct {
-	// Currently this flag is to gate actions from OSS clusters.
-	//
-	// Determining support for device trust is currently determined by:
-	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
-	//   introduced with Enterprise Usage Based (EUB) product.
-	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
-	//   where before EUB, it was unlimited.
+// EntitlementInfo is the state and limits of a particular entitlement
+type EntitlementInfo struct {
+	// Enabled indicates the feature is 'on' if true; feature is disabled if false
 	Enabled bool
-	// DevicesUsageLimit is the usage-based limit for the number of
-	// registered/enrolled devices, at the implementation's discretion.
-	DevicesUsageLimit int
-}
-
-// AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
-type AccessRequestsFeature struct {
-	// MonthlyRequestLimit is the usage-based limit for the number of
-	// access requests created in a calendar month.
-	MonthlyRequestLimit int
-}
-
-// AccessListFeature holds the Access List feature settings.
-// Limits have no affect if feature is enabled.
-type AccessListFeature struct {
-	// Limit for the number of access list creatable when feature is
-	// not enabled.
-	CreateLimit int
-}
-
-// AccessMonitoring holds the Access Monitoring feature settings.
-// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
-type AccessMonitoringFeature struct {
-	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
-	Enabled bool
-	// Defines the max number of days to include in an access report.
-	MaxReportRangeLimit int
-}
-
-type PolicyFeature struct {
-	// Enabled is set to `true` if Teleport Policy is enabled in the license.
-	Enabled bool
+	// Limit indicates the allotted amount of use when limited; if 0 use is unlimited
+	Limit int32
 }
 
 // ToProto converts Features into proto.Features
+// todo (michellescripts) phase 2 entitlements: update auth service
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
-		ProductType:             proto.ProductType(f.ProductType),
-		Kubernetes:              f.Kubernetes,
-		App:                     f.App,
-		DB:                      f.DB,
-		OIDC:                    f.OIDC,
-		SAML:                    f.SAML,
-		AccessControls:          f.AccessControls,
-		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
-		Cloud:                   f.Cloud,
-		HSM:                     f.HSM,
-		Desktop:                 f.Desktop,
-		RecoveryCodes:           f.RecoveryCodes,
-		Plugins:                 f.Plugins,
-		AutomaticUpgrades:       f.AutomaticUpgrades,
-		IsUsageBased:            f.IsUsageBasedBilling,
-		Assist:                  f.Assist,
-		FeatureHiding:           f.FeatureHiding,
-		CustomTheme:             f.CustomTheme,
-		AccessGraph:             f.AccessGraph,
-		DeviceTrust: &proto.DeviceTrustFeature{
-			Enabled:           f.DeviceTrust.Enabled,
-			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		// Settings
+		Cloud:           f.Cloud,
+		CustomTheme:     f.CustomTheme,
+		IsStripeManaged: f.IsStripeManaged,
+		IsUsageBased:    f.IsUsageBasedBilling,
+		Questionnaire:   f.Questionnaire,
+		SupportType:     f.SupportType,
+
+		// todo (michellescripts) update this api to use new entitlements; typed as Entitlement
+		AccessList: &proto.AccessListFeature{
+			CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
+		},
+		// todo (michellescripts) in phase 2, break out AccessMonitoringConfigured and AccessMonitoringEntitlement
+		AccessMonitoring: &proto.AccessMonitoringFeature{
+			Enabled:             f.AccessMonitoringConfigured, // currently for backwards compatibility until we can separate enabled and entitled
+			MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
 		},
 		AccessRequests: &proto.AccessRequestsFeature{
-			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
+			MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
 		},
-		IdentityGovernance: f.IdentityGovernanceSecurity,
-		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled:             f.AccessMonitoring.Enabled,
-			MaxReportRangeLimit: int32(f.AccessMonitoring.MaxReportRangeLimit),
+		DeviceTrust: &proto.DeviceTrustFeature{
+			Enabled:           f.GetEntitlement(entitlements.DeviceTrust).Enabled,
+			DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
 		},
-		AccessList: &proto.AccessListFeature{
-			CreateLimit: int32(f.AccessList.CreateLimit),
-		},
-		Policy: &proto.PolicyFeature{
-			Enabled: f.Policy.Enabled,
-		},
+
+		AccessControls:          f.AccessControls,
+		AccessGraph:             f.AccessGraph,
+		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
+		App:                     f.GetEntitlement(entitlements.App).Enabled,
+		AutomaticUpgrades:       f.AutomaticUpgrades,
+		DB:                      f.GetEntitlement(entitlements.DB).Enabled,
+		Desktop:                 f.GetEntitlement(entitlements.Desktop).Enabled,
+		ExternalAuditStorage:    f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled,
+		FeatureHiding:           f.GetEntitlement(entitlements.FeatureHiding).Enabled,
+		HSM:                     f.GetEntitlement(entitlements.HSM).Enabled,
+		IdentityGovernance:      f.GetEntitlement(entitlements.Identity).Enabled,
+		JoinActiveSessions:      f.GetEntitlement(entitlements.JoinActiveSessions).Enabled,
+		Kubernetes:              f.GetEntitlement(entitlements.K8s).Enabled,
+		MobileDeviceManagement:  f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled,
+		OIDC:                    f.GetEntitlement(entitlements.OIDC).Enabled,
+		Plugins:                 f.Plugins,
+		Policy:                  &proto.PolicyFeature{Enabled: f.GetEntitlement(entitlements.Policy).Enabled},
+		ProductType:             proto.ProductType(f.ProductType),
+		RecoveryCodes:           f.RecoveryCodes,
+		SAML:                    f.GetEntitlement(entitlements.SAML).Enabled,
+	}
+}
+
+func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo {
+	al, ok := f.Entitlements[e]
+	if !ok {
+		return EntitlementInfo{}
+	}
+
+	return EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
 	}
 }
 
@@ -212,22 +175,6 @@ const (
 	// ProductTypeEUB is Teleport Enterprise Usage Based product.
 	ProductTypeEUB ProductType = 2
 )
-
-// IsLegacy describes the legacy enterprise product that existed before the
-// usage-based product was introduced. Some features (Device Trust, for example)
-// require the IGS add-on in usage-based products but are included for legacy
-// licenses.
-func (f Features) IsLegacy() bool {
-	return !f.IsUsageBasedBilling
-}
-
-func (f Features) IGSEnabled() bool {
-	return f.IdentityGovernanceSecurity
-}
-
-func (f Features) IsTeam() bool {
-	return f.ProductType == ProductTypeTeam
-}
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
 // and related resources from the backend.
@@ -271,8 +218,12 @@ type Modules interface {
 	Features() Features
 	// SetFeatures set features queried from Cloud
 	SetFeatures(Features)
-	// BuildType returns build type (OSS or Enterprise)
+	// BuildType returns build type (OSS, Community or Enterprise)
 	BuildType() string
+	// IsEnterpriseBuild returns if the binary was built with enterprise modules
+	IsEnterpriseBuild() bool
+	// IsOSSBuild returns if the binary was built without enterprise modules
+	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
@@ -294,6 +245,10 @@ const (
 	BuildOSS = "oss"
 	// BuildEnterprise specifies enterprise build type
 	BuildEnterprise = "ent"
+	// BuildCommunity identifies builds of Teleport Community Edition,
+	// which are distributed on goteleport.com/download under our
+	// Teleport Community license agreement.
+	BuildCommunity = "community"
 )
 
 // SetModules sets the modules interface
@@ -310,19 +265,29 @@ func GetModules() Modules {
 	return modules
 }
 
+var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
+
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
+	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	if GetModules().Features().Cloud ||
+		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
+
+		switch r := res.(type) {
+		case types.AuthPreference:
+			switch r.GetSecondFactor() {
+			case constants.SecondFactorOff, constants.SecondFactorOptional:
+				return trace.Wrap(ErrCannotDisableSecondFactor)
+			}
+		}
+	}
+
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
 	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
-		}
 	case types.SessionRecordingConfig:
 		switch r.GetMode() {
 		case types.RecordAtProxy, types.RecordAtProxySync:
@@ -340,9 +305,21 @@ type defaultModules struct {
 	loadDynamicValues sync.Once
 }
 
-// BuildType returns build type (OSS or Enterprise)
+var teleportBuildType = BuildOSS
+
+// BuildType returns build type (OSS, Community or Enterprise)
 func (p *defaultModules) BuildType() string {
-	return BuildOSS
+	return teleportBuildType
+}
+
+// IsEnterpriseBuild returns false for [defaultModules].
+func (p *defaultModules) IsEnterpriseBuild() bool {
+	return false
+}
+
+// IsOSSBuild returns true for [defaultModules].
+func (p *defaultModules) IsOSSBuild() bool {
+	return true
 }
 
 // PrintVersion prints the Teleport version.
@@ -350,19 +327,23 @@ func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
-// Features returns supported features
+// Features returns supported features for default modules which is applied for OSS users
+// todo (michellescripts) remove deprecated features
 func (p *defaultModules) Features() Features {
 	p.loadDynamicValues.Do(func() {
 		p.automaticUpgrades = automaticupgrades.IsEnabled()
 	})
 
 	return Features{
-		Kubernetes:        true,
-		DB:                true,
-		App:               true,
-		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
-		Assist:            true,
+		SupportType:       proto.SupportType_SUPPORT_TYPE_FREE,
+		Entitlements: map[entitlements.EntitlementKind]EntitlementInfo{
+			entitlements.App:                {Enabled: true, Limit: 0},
+			entitlements.DB:                 {Enabled: true, Limit: 0},
+			entitlements.Desktop:            {Enabled: true, Limit: 0},
+			entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
+			entitlements.K8s:                {Enabled: true, Limit: 0},
+		},
 	}
 }
 
@@ -415,3 +396,27 @@ var (
 	mutex   sync.Mutex
 	modules Modules = &defaultModules{}
 )
+
+var (
+	// flagLock protects access to accessing insecure test mode below
+	flagLock sync.Mutex
+
+	// insecureTestAllow is used to allow disabling second factor auth
+	// in test environments. Not user configurable.
+	insecureTestAllowNoSecondFactor bool
+)
+
+// SetInsecureTestMode is used to set insecure test mode on, to allow
+// second factor to be disabled
+func SetInsecureTestMode(m bool) {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	insecureTestAllowNoSecondFactor = m
+}
+
+// IsInsecureTestMode retrieves the current insecure test mode value
+func IsInsecureTestMode() bool {
+	flagLock.Lock()
+	defer flagLock.Unlock()
+	return insecureTestAllowNoSecondFactor
+}

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/fixtures"
 )
 
 func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
@@ -894,6 +895,123 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Allow: []*ProvisionTokenSpecV2GCP_Rule{
 							{
 								Locations: []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "tpm success with CA",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTPM,
+					TPM: &ProvisionTokenSpecV2TPM{
+						EKCertAllowedCAs: []string{fixtures.TLSCACertPEM},
+						Allow: []*ProvisionTokenSpecV2TPM_Rule{
+							{
+								Description:  "my description",
+								EKPublicHash: "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+							},
+							{
+								EKCertificateSerial: "73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+							},
+							{
+								EKPublicHash:        "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+								EKCertificateSerial: "73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "tpm success without CA",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTPM,
+					TPM: &ProvisionTokenSpecV2TPM{
+						Allow: []*ProvisionTokenSpecV2TPM_Rule{
+							{
+								Description:  "my description",
+								EKPublicHash: "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+							},
+							{
+								EKCertificateSerial: "73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+							},
+							{
+								EKPublicHash:        "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+								EKCertificateSerial: "73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "tpm corrupt CA",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTPM,
+					TPM: &ProvisionTokenSpecV2TPM{
+						EKCertAllowedCAs: []string{"corrupt"},
+						Allow: []*ProvisionTokenSpecV2TPM_Rule{
+							{
+								Description:  "my description",
+								EKPublicHash: "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "tpm missing rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTPM,
+					TPM: &ProvisionTokenSpecV2TPM{
+						EKCertAllowedCAs: []string{},
+						Allow:            []*ProvisionTokenSpecV2TPM_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "tpm rule without ekpubhash or ekcertserial",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTPM,
+					TPM: &ProvisionTokenSpecV2TPM{
+						EKCertAllowedCAs: []string{},
+						Allow: []*ProvisionTokenSpecV2TPM_Rule{
+							{
+								Description: "my description",
 							},
 						},
 					},

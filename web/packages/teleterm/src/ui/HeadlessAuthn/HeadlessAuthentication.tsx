@@ -25,6 +25,8 @@ import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+
 import { HeadlessPrompt } from './HeadlessPrompt';
 
 interface HeadlessAuthenticationProps {
@@ -38,7 +40,7 @@ interface HeadlessAuthenticationProps {
 
 export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
   const { headlessAuthenticationService, clustersService } = useAppContext();
-  const refAbortCtrl = useRef(clustersService.client.createAbortController());
+  const refAbortCtrl = useRef(new AbortController());
   const cluster = clustersService.findCluster(props.rootClusterUri);
 
   const [updateHeadlessStateAttempt, updateHeadlessState] = useAsync(
@@ -49,7 +51,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
           headlessAuthenticationId: props.headlessAuthenticationId,
           state: state,
         },
-        refAbortCtrl.current.signal
+        cloneAbortSignal(refAbortCtrl.current.signal)
       )
   );
 
@@ -83,7 +85,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
       clientIp={props.clientIp}
       skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}
-      abortApproval={refAbortCtrl.current.abort}
+      abortApproval={() => refAbortCtrl.current.abort()}
       onReject={handleHeadlessReject}
       headlessAuthenticationId={props.headlessAuthenticationId}
       updateHeadlessStateAttempt={updateHeadlessStateAttempt}

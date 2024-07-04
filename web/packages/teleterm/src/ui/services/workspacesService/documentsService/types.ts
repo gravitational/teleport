@@ -24,6 +24,9 @@ import type * as tsh from 'teleterm/services/tshd/types';
 
 export type Kind = Document['kind'];
 
+/**
+ * DocumentOrigin denotes which part of Connect UI was used to create a document for the resource.
+ */
 export type DocumentOrigin =
   | 'resource_table'
   | 'search_bar'

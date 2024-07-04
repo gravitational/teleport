@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,7 +38,7 @@ import (
 // UserProvisioner handles automatic database user creation.
 type UserProvisioner struct {
 	// AuthClient is the cluster auth server client.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// Backend is the particular database implementation.
 	Backend AutoUsers
 	// Log is the logger.
@@ -77,6 +77,7 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
 
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Activating database user")
 	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,6 +120,7 @@ func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) err
 func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) error {
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Deactivating database user")
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()
@@ -147,6 +149,7 @@ func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) e
 func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error {
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
+	a.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Deleting database user")
 
 	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
 	defer cancel()

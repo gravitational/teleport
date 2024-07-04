@@ -98,17 +98,28 @@ func newClientNegotiator(codecFactory *serializer.CodecFactory) runtime.ClientNe
 	)
 }
 
+// gvkSupportedResourcesKey is the key used in gvkSupportedResources
+// to map from a parsed API path to the corresponding resource GVK.
+type gvkSupportedResourcesKey struct {
+	name     string
+	apiGroup string
+	version  string
+}
+
+// gvkSupportedResources maps a parsed API path to the corresponding resource GVK.
+type gvkSupportedResources map[gvkSupportedResourcesKey]*schema.GroupVersionKind
+
 // newClusterSchemaBuilder creates a new schema builder for the given cluster.
 // This schema includes all well-known Kubernetes types and all namespaced
 // custom resources.
 // It also returns a map of resources that we support RBAC restrictions for.
-func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, error) {
+func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
-
+	gvkSupportedRes := make(gvkSupportedResources)
 	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
-		return serializer.CodecFactory{}, nil, trace.Wrap(err)
+		return serializer.CodecFactory{}, nil, nil, trace.Wrap(err)
 	}
 	// discoveryErr is returned when the discovery of one or more API groups fails.
 	var discoveryErr *discovery.ErrGroupDiscoveryFailed
@@ -126,17 +137,30 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		// available in the cluster.
 		log.WithError(err).Debugf("Failed to discover some API groups: %v", maps.Keys(discoveryErr.Groups))
 	case err != nil:
-		return serializer.CodecFactory{}, nil, trace.Wrap(err)
+		return serializer.CodecFactory{}, nil, nil, trace.Wrap(err)
 	}
 
 	for _, apiGroup := range apiGroups {
 		group, version := getKubeAPIGroupAndVersion(apiGroup.GroupVersion)
+
+		for _, apiResource := range apiGroup.APIResources {
+			// register all types
+			gvkSupportedRes[gvkSupportedResourcesKey{
+				name:     apiResource.Name, /* pods, configmaps, ... */
+				apiGroup: group,
+				version:  version,
+			}] = &schema.GroupVersionKind{
+				Group:   group,
+				Version: version,
+				Kind:    apiResource.Kind, /* Pod, ConfigMap ...*/
+			}
+		}
+
 		// Skip well-known Kubernetes API groups because they are already registered
 		// in the scheme.
 		if _, ok := knownKubernetesGroups[group]; ok {
 			continue
 		}
-
 		groupVersion := schema.GroupVersion{Group: group, Version: version}
 		for _, apiResource := range apiGroup.APIResources {
 			// Skip cluster-scoped resources because we don't support RBAC restrictions
@@ -177,7 +201,7 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		}
 	}
 
-	return kubeCodecs, supportedResources, nil
+	return kubeCodecs, supportedResources, gvkSupportedRes, nil
 }
 
 // getKubeAPIGroupAndVersion returns the API group and version from the given

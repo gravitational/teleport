@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -95,13 +94,13 @@ func getDatabasesFromWorkgroups(ctx context.Context, client rssAPI, log logrus.F
 	var databases types.Databases
 	var workgroupsWithTags []*workgroupWithTags
 	for _, workgroup := range workgroups {
-		if !services.IsAWSResourceAvailable(workgroup, workgroup.Status) {
+		if !libcloudaws.IsResourceAvailable(workgroup, workgroup.Status) {
 			log.Debugf("The current status of Redshift Serverless workgroup %v is %v. Skipping.", aws.StringValue(workgroup.WorkgroupName), aws.StringValue(workgroup.Status))
 			continue
 		}
 
 		tags := getRSSResourceTags(ctx, workgroup.WorkgroupArn, client, log)
-		database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
+		database, err := common.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 		if err != nil {
 			log.WithError(err).Infof("Could not convert Redshift Serverless workgroup %q to database resource.", aws.StringValue(workgroup.WorkgroupName))
 			continue
@@ -130,14 +129,14 @@ func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWi
 			continue
 		}
 
-		if !services.IsAWSResourceAvailable(endpoint, endpoint.EndpointStatus) {
+		if !libcloudaws.IsResourceAvailable(endpoint, endpoint.EndpointStatus) {
 			log.Debugf("The current status of Redshift Serverless endpoint %v is %v. Skipping.", aws.StringValue(endpoint.EndpointName), aws.StringValue(endpoint.EndpointStatus))
 			continue
 		}
 
 		// VPC endpoints do not have resource tags attached to them. Use the
 		// tags from the workgroups instead.
-		database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup.Workgroup, workgroup.Tags)
+		database, err := common.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup.Workgroup, workgroup.Tags)
 		if err != nil {
 			log.WithError(err).Infof("Could not convert Redshift Serverless endpoint %q to database resource.", aws.StringValue(endpoint.EndpointName))
 			continue

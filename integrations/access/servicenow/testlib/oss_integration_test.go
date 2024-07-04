@@ -27,9 +27,11 @@ import (
 )
 
 func TestServiceNowPluginOSS(t *testing.T) {
-	servicenowSuite := &ServiceNowSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	servicenowSuite := &ServiceNowSuiteOSS{
+		ServiceNowBaseSuite: ServiceNowBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, servicenowSuite)

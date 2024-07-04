@@ -22,12 +22,9 @@ export const KeysEnum = {
   LAST_ACTIVE: 'grv_teleport_last_active',
   DISCOVER: 'grv_teleport_discover',
   THEME: 'grv_teleport_ui_theme',
-  SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
-  ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
-  PINNED_RESOURCES_NOT_SUPPORTED: 'grv_teleport_pinned_resources_not_supported',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
@@ -35,13 +32,16 @@ export const KeysEnum = {
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
+  LICENSE_ACKNOWLEDGED: 'grv_teleport_license_acknowledged',
+
+  LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
 };
 
 // SurveyRequest is the request for sending data to the back end
 export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
-  resourcesList: Array<string>;
+  resources: Array<string>;
   role: string;
   team: string;
 };

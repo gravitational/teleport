@@ -33,5 +33,7 @@ export const Alerts = () => (
     <Alert kind="info">Some informational message</Alert>
     <Alert kind="success">This is success</Alert>
     <Alert kind="outline-info">Text align it yourself</Alert>
+    <Alert kind="outline-warn">Text align it yourself</Alert>
+    <Alert kind="outline-danger">Text align it yourself</Alert>
   </Box>
 );

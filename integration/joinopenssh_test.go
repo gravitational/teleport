@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -129,7 +129,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	require.ElementsMatch(t, bytes.Split(bytes.TrimSpace(cabytes), []byte("\n")), allOpenSSHCAs)
 }
 
-func getOpenSSHCAs(t *testing.T, ctx context.Context, cl auth.ClientI) [][]byte {
+func getOpenSSHCAs(t *testing.T, ctx context.Context, cl authclient.ClientI) [][]byte {
 	t.Helper()
 	cas, err := cl.GetCertAuthorities(ctx, types.OpenSSHCA, false)
 	require.NoError(t, err)

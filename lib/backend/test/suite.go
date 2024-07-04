@@ -370,6 +370,16 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 		item.Revision = lease.Revision
 	}
 
+	// Some Backends (e.g. DynamoDB) have a limit on the number of items that can
+	// be deleted in a single operation. This test is designed to be run with
+	// a backend that has a limit of 25 items per delete operation.
+	for i := 0; i < 100; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/prefix/c/cn%d", i)), Value: []byte(fmt.Sprintf("val cn%d", i))}
+		lease, err := uut.Create(ctx, *item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+		item.Revision = lease.Revision
+	}
+
 	err = uut.DeleteRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")))
 	require.NoError(t, err)
 
@@ -1041,9 +1051,9 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	item, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
 
-	// Save the original ID, later in this test after an update, the ID should
+	// Save the original revision, later in this test after an update, the revision should
 	// not have changed in mirror mode.
-	originalID := item.ID
+	originalRevision := item.Revision
 
 	// Make sure a PUT event is emitted.
 	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
@@ -1068,10 +1078,10 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	})
 	require.NoError(t, err)
 
-	// Get update item and make sure that the ID has not changed.
+	// Get update item and make sure that the revision has not changed.
 	item, err = uut.Get(ctx, prefix("a"))
 	require.NoError(t, err)
-	require.Equal(t, originalID, item.ID)
+	require.Equal(t, originalRevision, item.Revision)
 
 	// Add item to backend that is already expired.
 	item2 := &backend.Item{

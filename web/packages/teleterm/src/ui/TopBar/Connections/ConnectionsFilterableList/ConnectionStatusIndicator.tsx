@@ -16,31 +16,90 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
+import styled, { css } from 'styled-components';
+import { Box, blink } from 'design';
 
-export const ConnectionStatusIndicator: React.FC<Props> = props => {
-  const { connected, ...styles } = props;
-  return <StyledStatus $connected={connected} {...styles} />;
+type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
+
+export const ConnectionStatusIndicator = (props: {
+  status: Status;
+  inline?: boolean;
+  [key: string]: any;
+}) => {
+  const { status, inline, ...styles } = props;
+
+  return <StyledStatus {...styles} $status={status} $inline={inline} />;
 };
 
-const StyledStatus = styled<Props>(Box)`
+const StyledStatus = styled(Box)`
+  position: relative;
+  ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  ${props => {
-    const { $connected, theme } = props;
-    const backgroundColor = $connected
-      ? theme.colors.success.main
-      : theme.colors.grey[300];
-    return {
-      backgroundColor,
-    };
+
+  ${(props: { $status: Status; [key: string]: any }) => {
+    const { $status, theme } = props;
+
+    switch ($status) {
+      case 'on': {
+        return { backgroundColor: theme.colors.success.main };
+      }
+      case 'processing': {
+        return css`
+          background-color: ${props => props.theme.colors.success.main};
+          animation: ${blink} 1.4s ease-in-out;
+          animation-iteration-count: infinite;
+        `;
+      }
+      case 'off': {
+        return { border: `1px solid ${theme.colors.grey[300]}` };
+      }
+      case 'error': {
+        // Using text instead of an icon because any icon used here would be smaller than the
+        // rounded divs used to represent on and off states.
+        //
+        // A red circle was not used to avoid differentiating states only by color.
+        //
+        // The spacing has been painstakingly adjusted so that the cross is rendered pretty much at
+        // the same spot as a rounded div would have been.
+        //
+        // To verify that the position of the cross is correct, move the &:after pseudoselector
+        // outside of this switch to StyledStatus.
+        return css`
+          color: ${theme.colors.error.main};
+          &:after {
+            content: '𐄂';
+            font-size: 19px;
+
+            ${!props.$inline &&
+            `position: absolute;
+            top: -3px;
+            left: -1px;
+            line-height: 8px;`}
+          }
+        `;
+      }
+      case 'warning': {
+        return css`
+          color: ${theme.colors.warning.main};
+          &:after {
+            content: '⚠';
+            font-size: 12px;
+
+            ${!props.$inline &&
+            `
+            position: absolute;
+            top: -1px;
+            left: -2px;
+            line-height: 8px;
+            `}
+          }
+        `;
+      }
+      default: {
+        $status satisfies never;
+      }
+    }
   }}
 `;
-
-type Props = {
-  connected: boolean;
-  [key: string]: any;
-};

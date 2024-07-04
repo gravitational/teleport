@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -363,6 +362,15 @@ func TestConfigReading(t *testing.T) {
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
 				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"us-west-1", "us-east-1"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+					Integration:      "integration1",
+					KubeAppDiscovery: true,
+				},
 			},
 			AzureMatchers: []AzureMatcher{
 				{
@@ -536,6 +544,12 @@ func TestConfigReading(t *testing.T) {
 			GRPCServerLatency: true,
 			GRPCClientLatency: true,
 		},
+		Debug: DebugService{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "yes",
+			},
+		},
 		WindowsDesktop: WindowsDesktopService{
 			Service: Service{
 				EnabledFlag:   "yes",
@@ -571,6 +585,8 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.Databases.Enabled())
 	require.True(t, conf.Metrics.Configured())
 	require.True(t, conf.Metrics.Enabled())
+	require.True(t, conf.Debug.Configured())
+	require.True(t, conf.Debug.Enabled())
 	require.True(t, conf.WindowsDesktop.Configured())
 	require.True(t, conf.WindowsDesktop.Enabled())
 	require.True(t, conf.Tracing.Enabled())
@@ -713,7 +729,7 @@ func TestApplyConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "join-token", token)
-	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
+	require.Equal(t, types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
 			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
@@ -821,7 +837,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.PIN)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -899,6 +915,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		JoinToken:       types.IAMInviteTokenName,
 		ScriptName:      "default-installer",
 		SSHDConfig:      types.SSHDConfigPath,
+		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 	}, cfg.Discovery.AWSMatchers[0].Params)
 
 	require.True(t, cfg.Okta.Enabled)
@@ -930,6 +947,7 @@ func TestApplyConfigNoneEnabled(t *testing.T) {
 	require.False(t, cfg.Apps.Enabled)
 	require.False(t, cfg.Databases.Enabled)
 	require.False(t, cfg.Metrics.Enabled)
+	require.True(t, cfg.DebugService.Enabled)
 	require.False(t, cfg.WindowsDesktop.Enabled)
 	require.Empty(t, cfg.Proxy.PostgresPublicAddrs)
 	require.Empty(t, cfg.Proxy.MySQLPublicAddrs)
@@ -1489,6 +1507,13 @@ func makeConfigFixture() string {
 			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 			ExternalID:    "externalID123",
 		},
+		{
+			Types:            []string{"eks"},
+			Regions:          []string{"us-west-1", "us-east-1"},
+			Tags:             map[string]apiutils.Strings{"a": {"b"}},
+			Integration:      "integration1",
+			KubeAppDiscovery: true,
+		},
 	}
 
 	conf.Discovery.AzureMatchers = []AzureMatcher{
@@ -1642,6 +1667,9 @@ func makeConfigFixture() string {
 		},
 	}
 
+	// Debug service.
+	conf.Debug.EnabledFlag = "yes"
+
 	// Windows Desktop Service
 	conf.WindowsDesktop = WindowsDesktopService{
 		Service: Service{
@@ -1783,7 +1811,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 			require.NoError(t, ApplyFileConfig(&tt.fc, cfg))
 			require.NoError(t, Configure(&CommandLineFlags{}, cfg, false))
 
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }
@@ -1853,20 +1885,29 @@ func TestMergingCAPinConfig(t *testing.T) {
 
 func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
-		path   string
-		result string
+		path    string
+		datadir string
+		result  string
 	}{
-		// 0 - no license
+		// 0 - no license, no data dir
 		{
-			path:   "",
-			result: filepath.Join(defaults.DataDir, defaults.LicenseFile),
+			path:    "",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, defaults.LicenseFile),
 		},
-		// 1 - relative path
+		// 1 - relative path, default data dir
 		{
-			path:   "lic.pem",
-			result: filepath.Join(defaults.DataDir, "lic.pem"),
+			path:    "lic.pem",
+			datadir: "",
+			result:  filepath.Join(defaults.DataDir, "lic.pem"),
 		},
-		// 2 - absolute path
+		// 2 - relative path, custom data dir
+		{
+			path:    "baz.pem",
+			datadir: filepath.Join("foo", "bar"),
+			result:  filepath.Join("foo", "bar", "baz.pem"),
+		},
+		// 3 - absolute path
 		{
 			path:   "/etc/teleport/license",
 			result: "/etc/teleport/license",
@@ -1874,15 +1915,22 @@ func TestLicenseFile(t *testing.T) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
-	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), cfg.Auth.LicenseFile)
 
-	for _, tc := range testCases {
-		fc := new(FileConfig)
-		require.NoError(t, fc.CheckAndSetDefaults())
-		fc.Auth.LicenseFile = tc.path
-		err := ApplyFileConfig(fc, cfg)
-		require.NoError(t, err)
-		require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+	// the license file should be empty by default, as we can only fill
+	// in the default (<datadir>/license.pem) after we know what the
+	// data dir is supposed to be
+	require.Empty(t, cfg.Auth.LicenseFile)
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
+			fc := new(FileConfig)
+			require.NoError(t, fc.CheckAndSetDefaults())
+			fc.Auth.LicenseFile = tc.path
+			fc.DataDir = tc.datadir
+			err := ApplyFileConfig(fc, cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.result, cfg.Auth.LicenseFile)
+		})
 	}
 }
 
@@ -2113,7 +2161,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			err := ApplyFileConfig(&tt.fc, cfg)
 			tt.checkErr(t, err)
-			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, cmpopts.EquateEmpty()))
+			opts := cmp.Options{
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreFields(servicecfg.ProxyConfig{}, "AutomaticUpgradesChannels"),
+			}
+			require.Empty(t, cmp.Diff(cfg.Proxy, tt.want, opts...))
 		})
 	}
 }
@@ -2524,11 +2576,12 @@ func TestAppsCLF(t *testing.T) {
 	}
 }
 
+// TestDatabaseConfig ensures reading database the configuration won't return
+// error.
 func TestDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		desc           string
-		outError       string
 	}{
 		{
 			desc: "valid database config",
@@ -2560,7 +2613,6 @@ db_service:
       command: ["uname", "-p"]
       period: 1h
 `,
-			outError: "",
 		},
 		{
 			desc: "missing database name",
@@ -2571,7 +2623,6 @@ db_service:
   - protocol: postgres
     uri: localhost:5432
 `,
-			outError: "empty database name",
 		},
 		{
 			desc: "unsupported database protocol",
@@ -2583,7 +2634,6 @@ db_service:
     protocol: unknown
     uri: localhost:5432
 `,
-			outError: `unsupported database "foo" protocol`,
 		},
 		{
 			desc: "missing database uri",
@@ -2594,7 +2644,6 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2606,7 +2655,6 @@ db_service:
     protocol: postgres
     uri: 192.168.1.1
 `,
-			outError: `invalid database "foo" address`,
 		},
 	}
 	for _, tt := range tests {
@@ -2615,12 +2663,7 @@ db_service:
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
 			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
-			if tt.outError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -2635,7 +2678,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		inFlags     CommandLineFlags
 		desc        string
 		outDatabase servicecfg.Database
-		outError    string
 	}{
 		{
 			desc: "valid database config",
@@ -2659,36 +2701,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
-		},
-		{
-			desc: "unsupported database protocol",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: "unknown",
-				DatabaseURI:      "localhost:5432",
-			},
-			outError: `unsupported database "foo" protocol`,
-		},
-		{
-			desc: "missing database uri",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-			},
-			outError: `database "foo" URI is empty`,
-		},
-		{
-			desc: "invalid database uri (missing port)",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-				DatabaseURI:      "localhost",
-			},
-			outError: `invalid database "foo" address`,
 		},
 		{
 			desc: "RDS database",
@@ -2715,9 +2728,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2748,9 +2758,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2768,7 +2775,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 				TLS: servicecfg.DatabaseTLS{
-					Mode:   servicecfg.VerifyFull,
 					CACert: fixtures.LocalhostCert,
 				},
 				GCP: servicecfg.DatabaseGCP{
@@ -2795,12 +2801,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver.example.com:1433",
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 				AD: servicecfg.DatabaseAD{
 					KeytabFile: "/etc/keytab",
-					Krb5File:   defaults.Krb5FilePath,
 					Domain:     "EXAMPLE.COM",
 					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
@@ -2824,9 +2826,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				URI:      "localhost:3306",
 				MySQL: servicecfg.MySQLOptions{
 					ServerVersion: "8.0.28",
-				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2859,9 +2858,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2889,9 +2885,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2924,9 +2917,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 	}
@@ -2938,12 +2928,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 			config := servicecfg.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config, false)
-			if tt.outError != "" {
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
-			}
+			require.NoError(t, err)
+			require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 		})
 	}
 }
@@ -3037,7 +3023,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 
 		auth Auth
 
-		want       keystore.Config
+		want       servicecfg.KeystoreConfig
 		errMessage string
 	}{
 		{
@@ -3055,15 +3041,15 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						Pin:        "pin",
+						PIN:        "pin",
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "pin",
+					PIN:        "pin",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3076,15 +3062,15 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						PinPath:    securePinFilePath,
+						PINPath:    securePinFilePath,
 					},
 				},
 			},
-			want: keystore.Config{
-				PKCS11: keystore.PKCS11Config{
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "secure-pin-file",
+					PIN:        "secure-pin-file",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3094,8 +3080,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						Pin:     "oops",
-						PinPath: securePinFilePath,
+						PIN:     "oops",
+						PINPath: securePinFilePath,
 					},
 				},
 			},
@@ -3120,7 +3106,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						PinPath: worldReadablePinFilePath,
+						PINPath: worldReadablePinFilePath,
 					},
 				},
 			},
@@ -3139,8 +3125,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 					},
 				},
 			},
-			want: keystore.Config{
-				GCPKMS: keystore.GCPKMSConfig{
+			want: servicecfg.KeystoreConfig{
+				GCPKMS: servicecfg.GCPKMSConfig{
 					KeyRing:         "/projects/my-project/locations/global/keyRings/my-keyring",
 					ProtectionLevel: "HSM",
 				},
@@ -3441,6 +3427,22 @@ jamf_service:
 			},
 		},
 		{
+			name: "using API credentials",
+			yaml: fmt.Sprintf(`jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: %v`, passwordFile),
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:      true,
+					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
+					ClientId:     "llama-UUID",
+					ClientSecret: password,
+				},
+			},
+		},
+		{
 			name: "all fields",
 			yaml: minimalYAML + `  name: jamf2
   sync_delay: 1m
@@ -3450,6 +3452,7 @@ jamf_service:
     sync_period_partial: 4h
     sync_period_full: 48h
     on_missing: NOOP
+    page_size: 10
   - {}`,
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
@@ -3465,6 +3468,7 @@ jamf_service:
 							SyncPeriodPartial: types.Duration(4 * time.Hour),
 							SyncPeriodFull:    types.Duration(48 * time.Hour),
 							OnMissing:         "NOOP",
+							PageSize:          10,
 						},
 						{},
 					},
@@ -3479,15 +3483,6 @@ jamf_service:
 			wantErr: "listen_addr",
 		},
 		{
-			name: "password_file empty",
-			yaml: `
-jamf_service:
-  enabled: true
-  api_endpoint: https://yourtenant.jamfcloud.com
-  username: llama`,
-			wantErr: "password_file required",
-		},
-		{
 			name: "password_file invalid",
 			yaml: `
 jamf_service:
@@ -3496,6 +3491,16 @@ jamf_service:
   username: llama
   password_file: /path/to/file/that/doesnt/exist.txt`,
 			wantErr: "password_file",
+		},
+		{
+			name: "client_secret_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  client_id: llama-UUID
+  client_secret_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "client_secret_file",
 		},
 		{
 			name: "spec is validated",
@@ -3513,13 +3518,12 @@ jamf_service:
 			yaml: `jamf_service: {}`,
 		},
 		{
-			name: "disabled config is validated",
+			name: "disabled config ignored",
 			yaml: `
 jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password_file",
 		},
 	}
 	for _, test := range tests {
@@ -4053,65 +4057,6 @@ func TestApplyOktaConfig(t *testing.T) {
 	}
 }
 
-func TestAssistKey(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		desc        string
-		input       string
-		expectKey   string
-		expectError bool
-	}{
-		{
-			desc: "api token is set",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-      api_token_path: testdata/test-api-key
-`,
-			expectKey: "123-abc-zzz",
-		},
-		{
-			desc: "api token file does not exist",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-      api_token_path: testdata/non-existent-file
-`,
-			expectError: true,
-		},
-		{
-			desc: "missing api token doesn't error",
-			input: `
-teleport:
-proxy_service:
-  assist:
-    openai:
-`,
-			expectKey: "",
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			conf, err := ReadConfig(strings.NewReader(tc.input))
-			require.NoError(t, err)
-
-			cfg := servicecfg.MakeDefaultConfig()
-			err = ApplyFileConfig(conf, cfg)
-
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
-		})
-	}
-}
-
 func TestApplyKubeConfig(t *testing.T) {
 	t.Parallel()
 
@@ -4514,6 +4459,46 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      installers.InstallerScriptName,
 					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
+			}},
+		},
+		{
+			desc:          "AWS section is filled using the example config in docs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"us-east-1", "us-west-1"},
+						"install": map[string]map[string]string{
+							"join_params": {
+								"token_name": "aws-discovery-iam-token",
+								"method":     "iam",
+							},
+						},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1", "us-west-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      installers.InstallerScriptName,
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
 			}},
@@ -4558,6 +4543,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      "installer-custom",
 					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: "hello_document"},
 				AssumeRole: &types.AssumeRole{
@@ -4565,6 +4551,88 @@ func TestDiscoveryConfig(t *testing.T) {
 					ExternalID: "externalID123",
 				},
 			}},
+		},
+		{
+			desc:          "AWS section with eice enroll mode",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+							"enroll_mode": "eice",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
+						"external_id":     "externalID123",
+						"integration":     "my-integration",
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "hello-iam-a-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "installer-custom",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
+				},
+				SSM:         &types.AWSSSM{DocumentName: "hello_document"},
+				Integration: "my-integration",
+				AssumeRole: &types.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID: "externalID123",
+				},
+			}},
+		},
+		{
+			desc:          "AWS cannot use EICE mode without integration",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+							"enroll_mode": "eice",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
+						"external_id":     "externalID123",
+					},
+				}
+			},
 		},
 		{
 			desc:          "AWS section is filled with invalid region",
@@ -4650,6 +4718,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					ScriptName:      "default-installer",
 					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &types.AssumeRole{
@@ -4725,6 +4794,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      installers.InstallerScriptName,
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 			}},
 		},

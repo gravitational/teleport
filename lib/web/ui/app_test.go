@@ -223,8 +223,64 @@ func newApp(t *testing.T, name, publicAddr, description string, labels map[strin
 	return app
 }
 
+func TestMakeAppTypeFromSAMLApp(t *testing.T) {
+	tests := []struct {
+		name             string
+		sp               types.SAMLIdPServiceProviderV1
+		appsToUserGroups map[string]types.UserGroups
+		expected         App
+	}{
+		{
+			name: "empty",
+			expected: App{
+				Kind:          types.KindApp,
+				Name:          "",
+				Description:   "SAML Application",
+				PublicAddr:    "",
+				Labels:        []Label{},
+				SAMLApp:       true,
+				SAMLAppPreset: "",
+			},
+		},
+		{
+			name: "saml idp service provider",
+			sp: types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test_app",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					Preset: "test_preset",
+				},
+			},
+			expected: App{
+				Kind:          types.KindApp,
+				Name:          "test_app",
+				Description:   "SAML Application",
+				PublicAddr:    "",
+				Labels:        []Label{},
+				SAMLApp:       true,
+				SAMLAppPreset: "test_preset",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			apps := MakeAppTypeFromSAMLApp(&test.sp, MakeAppsConfig{})
+			require.Empty(t, cmp.Diff(test.expected, apps))
+		})
+	}
+}
+
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given an App.
+//
+//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPServiceProvider {
+	//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
 			AppServer: &types.AppServerV3{
@@ -239,6 +295,8 @@ func createAppServerOrSPFromApp(app types.Application) types.AppServerOrSAMLIdPS
 }
 
 // createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
+//
+//nolint:staticcheck // SA1019. Kept to be deleted along with the API in 16.0.
 func createAppServerOrSPFromSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
 	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{

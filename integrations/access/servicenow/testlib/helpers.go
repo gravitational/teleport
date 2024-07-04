@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 )
 
-func (s *ServiceNowSuite) checkPluginData(ctx context.Context, reqID string, cond func(servicenow.PluginData) bool) servicenow.PluginData {
+func (s *ServiceNowBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(servicenow.PluginData) bool) servicenow.PluginData {
 	t := s.T()
 	t.Helper()
 

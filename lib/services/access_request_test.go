@@ -20,6 +20,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -212,6 +214,23 @@ func TestReviewThresholds(t *testing.T) {
 				// no explicit thresholds defaults to single approval/denial
 			},
 		},
+		// rationalists can achieve dictatorship via consensus with a single
+		// approval if there is a good reason.
+		"rationalist": {
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"dictator"},
+				Annotations: map[string][]string{
+					"mechanism": {"consensus"},
+				},
+				Thresholds: []types.AccessReviewThreshold{
+					{
+						Name:    "rational consensus",
+						Filter:  `regexp.match(request.reason, "*good*") && regexp.match(review.reason, "*good*")`,
+						Approve: 1,
+					},
+				},
+			},
+		},
 		// idealists have an directive for requesting a role which
 		// does not exist, and no threshold which permit it to be assumed.
 		"idealist": {
@@ -229,21 +248,22 @@ func TestReviewThresholds(t *testing.T) {
 		"proletariat": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"uprising")`,
+				Where: `contains(request.system_annotations["mechanism"],"uprising")`,
 			},
 		},
-		// the intelligentsia can put dictators into power via consensus
+		// the intelligentsia can put dictators into power via consensus, with a
+		// good reason.
 		"intelligentsia": {
 			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanism"],"consensus")`,
+				Roles: []string{"dictator", "never"},
+				Where: `contains(request.system_annotations["mechanism"],"consensus") && regexp.match(request.reason, "*good*")`,
 			},
 		},
 		// the military can put dictators into power via a coup our treachery
 		"military": {
 			ReviewRequests: &types.AccessReviewConditions{
 				Roles: []string{"dictator"},
-				Where: `contains(request.system_annotations["mechanisms"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
+				Where: `contains(request.system_annotations["mechanism"],"coup") || contains(request.system_annotations["mechanism"],"treachery")`,
 			},
 		},
 		// never is the role that will never be requested
@@ -283,8 +303,9 @@ func TestReviewThresholds(t *testing.T) {
 
 	users := make(map[string]types.User)
 	userDesc := map[string][]string{
-		"bob":  {"general", "proletariat", "intelligentsia", "military"},
-		"dave": {"populist", "general", "conqueror"},
+		"bob":   {"general", "proletariat", "intelligentsia", "military"},
+		"dave":  {"populist", "general", "conqueror"},
+		"frank": {"rationalist"},
 	}
 
 	for name, roles := range userDesc {
@@ -302,6 +323,7 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	const (
+		pending = types.RequestState_PENDING
 		approve = types.RequestState_APPROVED
 		deny    = types.RequestState_DENIED
 		promote = types.RequestState_PROMOTED
@@ -318,6 +340,8 @@ func TestReviewThresholds(t *testing.T) {
 		expect types.RequestState
 		// assumeStartTime to apply to review
 		assumeStartTime time.Time
+		// reason for the review
+		reason string
 
 		errCheck require.ErrorAssertionFunc
 	}
@@ -329,13 +353,16 @@ func TestReviewThresholds(t *testing.T) {
 		// requestor is the name of the requesting user
 		requestor string
 		// the roles to be requested (defaults to "dictator")
-		roles   []string
+		roles []string
+		// the reason for the request
+		reason  string
 		reviews []review
 		expiry  time.Time
 	}{
 		{
 			desc:      "populist approval via multi-threshold match",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "alice",
@@ -363,6 +390,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "trying to deny an already approved request",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "alice",
@@ -417,8 +445,20 @@ func TestReviewThresholds(t *testing.T) {
 			},
 		},
 		{
+			desc:      "intelligentsia cannot review without reason",
+			requestor: "alice",
+			reviews: []review{
+				{
+					author:   g.user(t, "intelligentsia"),
+					propose:  approve,
+					noReview: true,
+				},
+			},
+		},
+		{
 			desc:      "populist approval via consensus threshold",
 			requestor: "alice", // permitted by role populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches "consensus" threshold
 					author:  g.user(t, "intelligentsia"),
@@ -446,6 +486,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "general denial via coup threshold",
 			requestor: "bob", // permitted by role general
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "bob",
@@ -481,6 +522,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "conqueror approval via default threshold",
 			requestor: "carol", // permitted by role conqueror
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // cannot review own requests
 					author:   "carol",
@@ -519,6 +561,7 @@ func TestReviewThresholds(t *testing.T) {
 			// "smart" about which thresholds really need to pass.
 			desc:      "multi-role requestor approval via separate threshold matches",
 			requestor: "dave", // permitted by conqueror, general, *and* populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches "default", "coup", and "consensus" thresholds
 					author:  g.user(t, "military"),
@@ -569,6 +612,7 @@ func TestReviewThresholds(t *testing.T) {
 			// about denying requests (i.e. erring on the side of caution).
 			desc:      "multi-role requestor denial via short-circuit on default",
 			requestor: "dave", // permitted by conqueror, general, *and* populist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // ...
 					author:  g.user(t, "intelligentsia"),
@@ -584,6 +628,7 @@ func TestReviewThresholds(t *testing.T) {
 			desc:      "threshold omission related sanity-check",
 			requestor: "erika", // permitted by combination of populist and idealist
 			roles:     []string{"dictator", "never"},
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // matches default threshold from idealist
 					author:  g.user(t, "intelligentsia"),
@@ -600,6 +645,7 @@ func TestReviewThresholds(t *testing.T) {
 			// be omitted.
 			desc:      "threshold omission check",
 			requestor: "erika", // permitted by populist, but also holds idealist
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // review is permitted but matches no thresholds
 					author:  g.user(t, "intelligentsia"),
@@ -622,6 +668,7 @@ func TestReviewThresholds(t *testing.T) {
 		{
 			desc:      "promoted skips the threshold check",
 			requestor: "bob",
+			reason:    "some very good reason",
 			reviews: []review{
 				{ // status should be set to promoted despite the approval threshold not being met
 					author:  g.user(t, "intelligentsia"),
@@ -644,8 +691,28 @@ func TestReviewThresholds(t *testing.T) {
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
 					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-						require.ErrorIs(tt, err, trace.BadParameter("request start time is after expiry"), i...)
+						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
+				},
+			},
+		},
+		{
+			desc:      "rationalist approval with valid reasons",
+			requestor: "frank",
+			roles:     []string{"dictator"},
+			reason:    "some very good reason",
+			reviews: []review{
+				{
+					author:  g.user(t, "intelligentsia"),
+					propose: approve,
+					reason:  "frank is just okay",
+					expect:  pending,
+				},
+				{
+					author:  g.user(t, "intelligentsia"),
+					propose: approve,
+					reason:  "frank is pretty good",
+					expect:  approve,
 				},
 			},
 		},
@@ -660,6 +727,7 @@ func TestReviewThresholds(t *testing.T) {
 			// create a request for the specified author
 			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
 			require.NoError(t, err, "scenario=%q", tt.desc)
+			req.SetRequestReason(tt.reason)
 
 			clock := clockwork.NewFakeClock()
 			identity := tlsca.Identity{
@@ -692,11 +760,14 @@ func TestReviewThresholds(t *testing.T) {
 				if rt.noReview {
 					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
 					continue Inner
+				} else {
+					require.True(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
 				}
 
 				rev := types.AccessReview{
 					Author:          rt.author,
 					ProposedState:   rt.propose,
+					Reason:          rt.reason,
 					AssumeStartTime: &rt.assumeStartTime,
 				}
 
@@ -742,22 +813,22 @@ func TestThresholdReviewFilter(t *testing.T) {
 	}{
 		{ // test expected matching behavior against a basic example context
 			ctx: thresholdFilterContext{
-				Reviewer: reviewAuthorContext{
-					Roles: []string{"dev"},
-					Traits: map[string][]string{
+				reviewer: reviewAuthorContext{
+					roles: []string{"dev"},
+					traits: map[string][]string{
 						"teams": {"staging-admin"},
 					},
 				},
-				Review: reviewParamsContext{
-					Reason: "ok",
-					Annotations: map[string][]string{
+				review: reviewParamsContext{
+					reason: "ok",
+					annotations: map[string][]string{
 						"constraints": {"no-admin"},
 					},
 				},
-				Request: reviewRequestContext{
-					Roles:  []string{"dev"},
-					Reason: "plz",
-					SystemAnnotations: map[string][]string{
+				request: reviewRequestContext{
+					roles:  []string{"dev"},
+					reason: "Ticket 123",
+					systemAnnotations: map[string][]string{
 						"teams": {"staging-dev"},
 					},
 				},
@@ -766,9 +837,11 @@ func TestThresholdReviewFilter(t *testing.T) {
 				`contains(reviewer.roles,"dev")`,
 				`contains(reviewer.traits["teams"],"staging-admin") && contains(request.system_annotations["teams"],"staging-dev")`,
 				`!contains(review.annotations["constraints"],"no-admin") || !contains(request.roles,"admin")`,
-				`equals(request.reason,"plz") && equals(review.reason,"ok")`,
+				`equals(request.reason,"Ticket 123") && equals(review.reason,"ok")`,
 				`contains(reviewer.roles,"admin") || contains(reviewer.roles,"dev")`,
 				`!(contains(reviewer.roles,"foo") || contains(reviewer.roles,"bar"))`,
+				`regexp.match(request.roles, "^dev(elopers)?$")`,
+				`regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")`,
 			},
 			wontMatch: []string{
 				`contains(reviewer.roles, "admin")`,
@@ -791,6 +864,8 @@ func TestThresholdReviewFilter(t *testing.T) {
 				`contains(reviewer.traits["teams"],"staging-admin") && contains(request.system_annotations["teams"],"staging-dev")`,
 				`equals(request.reason,"plz") && equals(review.reason,"ok")`,
 				`contains(reviewer.roles,"admin") || contains(reviewer.roles,"dev")`,
+				`regexp.match(request.roles, "^dev(elopers)?$")`,
+				`regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")`,
 			},
 			// confirm that an empty context can be used to catch syntax errors
 			wontParse: []string{
@@ -806,22 +881,24 @@ func TestThresholdReviewFilter(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		parser, err := NewJSONBoolParser(tt.ctx)
-		require.NoError(t, err)
 		for _, expr := range tt.willMatch {
-			result, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseThresholdFilterExpression(expr)
+			require.NoError(t, err)
+			result, err := parsed.Evaluate(tt.ctx)
 			require.NoError(t, err)
 			require.True(t, result)
 		}
 
 		for _, expr := range tt.wontMatch {
-			result, err := parser.EvalBoolPredicate(expr)
+			parsed, err := parseThresholdFilterExpression(expr)
+			require.NoError(t, err)
+			result, err := parsed.Evaluate(tt.ctx)
 			require.NoError(t, err)
 			require.False(t, result)
 		}
 
 		for _, expr := range tt.wontParse {
-			_, err := parser.EvalBoolPredicate(expr)
+			_, err := parseThresholdFilterExpression(expr)
 			require.Error(t, err)
 		}
 	}
@@ -1585,7 +1662,7 @@ func TestPruneRequestRoles(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
+			accessCaps, err := CalculateAccessCapabilities(ctx, clock, g, tlsca.Identity{}, types.AccessCapabilitiesRequest{User: user, ResourceIDs: tc.requestResourceIDs})
 			require.NoError(t, err)
 
 			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, ExpandVars(true))
@@ -1604,6 +1681,274 @@ func TestPruneRequestRoles(t *testing.T) {
 			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
 				"Length of rtm does not match number of roles. rtm: %v roles %v",
 				req.GetRoleThresholdMapping(), req.GetRoles())
+		})
+	}
+}
+
+func TestGetRequestableRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clusterName := "my-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		nodes:       make(map[string]types.Server),
+		clusterName: clusterName,
+	}
+
+	for i := 0; i < 10; i++ {
+		node, err := types.NewServerWithLabels(
+			fmt.Sprintf("node-%d", i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"index": strconv.Itoa(i)})
+		require.NoError(t, err)
+		g.nodes[node.GetName()] = node
+	}
+
+	getResourceID := func(i int) types.ResourceID {
+		return types.ResourceID{
+			ClusterName: clusterName,
+			Kind:        types.KindNode,
+			Name:        fmt.Sprintf("node-%d", i),
+		}
+	}
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"partial-access": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"full-access", "full-search"},
+					SearchAsRoles: []string{"full-access"},
+				},
+				NodeLabels: types.Labels{
+					"index": {"0", "1", "2", "3", "4"},
+				},
+				Logins: []string{"{{internal.logins}}"},
+			},
+		},
+		"full-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"index": {"*"},
+				},
+				Logins: []string{"{{internal.logins}}"},
+			},
+		},
+		"full-search": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access", "full-access"},
+					SearchAsRoles: []string{"full-access"},
+				},
+			},
+		},
+		"partial-search": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access", "full-access"},
+					SearchAsRoles: []string{"partial-access"},
+				},
+			},
+		},
+		"partial-roles": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"partial-access"},
+					SearchAsRoles: []string{"full-access"},
+				},
+			},
+		},
+	}
+
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	user := g.user(t)
+
+	tests := []struct {
+		name               string
+		userRole           string
+		requestedResources []types.ResourceID
+		disableFilter      bool
+		allowedResourceIDs []types.ResourceID
+		expectedRoles      []string
+	}{
+		{
+			name:          "no resources to filter by",
+			userRole:      "full-search",
+			expectedRoles: []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "filtering disabled",
+			userRole:           "full-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			disableFilter:      true,
+			expectedRoles:      []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "filter by resources",
+			userRole:           "full-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			expectedRoles:      []string{"full-access"},
+		},
+		{
+			name:     "resource in another cluster",
+			userRole: "full-search",
+			requestedResources: []types.ResourceID{
+				getResourceID(9),
+				{
+					ClusterName: "some-other-cluster",
+					Kind:        types.KindNode,
+					Name:        "node-9",
+				},
+			},
+			expectedRoles: []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "resource user shouldn't know about",
+			userRole:           "partial-search",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			expectedRoles:      []string{"partial-access", "full-access"},
+		},
+		{
+			name:               "can view resource but not assume role",
+			userRole:           "partial-roles",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+		},
+		{
+			name:               "prevent transitive access",
+			userRole:           "partial-access",
+			requestedResources: []types.ResourceID{getResourceID(9)},
+			allowedResourceIDs: []types.ResourceID{getResourceID(0), getResourceID(1), getResourceID(2), getResourceID(3), getResourceID(4)},
+			expectedRoles:      []string{"full-access", "full-search"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g.userStates[user].Spec.Roles = []string{tc.userRole}
+			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
+				tlsca.Identity{
+					AllowedResourceIDs: tc.allowedResourceIDs,
+				},
+				types.AccessCapabilitiesRequest{
+					User:                             user,
+					RequestableRoles:                 true,
+					ResourceIDs:                      tc.requestedResources,
+					FilterRequestableRolesByResource: !tc.disableFilter,
+				})
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedRoles, accessCaps.RequestableRoles)
+		})
+	}
+}
+
+// TestCalculatePendingRequestTTL verifies that the TTL for the Access Request is capped to the
+// request's access expiry or capped to the default const requestTTL, whichever is smaller.
+func TestCalculatePendingRequestTTL(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+
+	tests := []struct {
+		desc string
+		// accessExpiryTTL == max access duration.
+		accessExpiryTTL time.Duration
+		// when the access request expires in the PENDING state.
+		requestPendingExpiryTTL time.Time
+		assertion               require.ErrorAssertionFunc
+		expectedDuration        time.Duration
+	}{
+		{
+			desc:                    "valid: requested ttl < access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (4 * day)),
+			expectedDuration:        requestTTL - (4 * day),
+			assertion:               require.NoError,
+		},
+		{
+			desc:                    "valid: requested ttl == access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (3 * day)),
+			expectedDuration:        requestTTL - (3 * day),
+			assertion:               require.NoError,
+		},
+		{
+			desc:                    "valid: requested ttl == default request ttl",
+			accessExpiryTTL:         requestTTL,
+			requestPendingExpiryTTL: now.Add(requestTTL),
+			expectedDuration:        requestTTL,
+			assertion:               require.NoError,
+		},
+		{
+			desc:             "valid: no TTL request defaults to the const requestTTL if access expiry is larger",
+			accessExpiryTTL:  requestTTL + (3 * day),
+			expectedDuration: requestTTL,
+			assertion:        require.NoError,
+		},
+		{
+			desc:             "valid: no TTL request defaults to accessExpiry if const requestTTL is larger",
+			accessExpiryTTL:  requestTTL - (3 * day),
+			expectedDuration: requestTTL - (3 * day),
+			assertion:        require.NoError,
+		},
+		{
+			desc:                    "invalid: requested ttl > access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (2 * day)),
+			assertion:               require.Error,
+		},
+		{
+			desc:                    "invalid: requested ttl > default request TTL",
+			accessExpiryTTL:         requestTTL + (1 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL + (1 * day)),
+			assertion:               require.Error,
+		},
+		{
+			desc:                    "invalid: requested ttl < now",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(-(3 * day)),
+			assertion:               require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Setup test user "foo" and "bar" and the mock auth server that
+			// will return users and roles.
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "foo",
+			}, userloginstate.Spec{
+				Roles: []string{"bar"},
+			})
+			require.NoError(t, err)
+
+			role, err := types.NewRole("bar", types.RoleSpecV6{})
+			require.NoError(t, err)
+
+			getter := &mockGetter{
+				userStates: map[string]*userloginstate.UserLoginState{"foo": uls},
+				roles:      map[string]types.Role{"bar": role},
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
+			require.NoError(t, err)
+
+			request, err := types.NewAccessRequest("some-id", "foo", "bar")
+			require.NoError(t, err)
+			request.SetExpiry(tt.requestPendingExpiryTTL)
+			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
+
+			ttl, err := validator.calculatePendingRequestTTL(request, now)
+			tt.assertion(t, err)
+			if err == nil {
+				require.Equal(t, tt.expectedDuration, ttl)
+			}
 		})
 	}
 }
@@ -1673,7 +2018,7 @@ func TestSessionTTL(t *testing.T) {
 			request.SetAccessExpiry(tt.accessExpiry)
 			require.NoError(t, err)
 
-			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request)
+			ttl, err := validator.sessionTTL(context.Background(), tt.identity, request, now)
 			tt.assertion(t, err)
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
@@ -1803,7 +2148,7 @@ func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.Cluste
 	return mcg.localCluster, nil
 }
 
-func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil
 	}
@@ -1867,7 +2212,10 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 	}
 }
 
-func TestMaxDuration(t *testing.T) {
+// TestValidate_RequestedMaxDuration tests requested max duration
+// and the default values for session and pending TTL as a result
+// of requested max duration.
+func TestValidate_RequestedMaxDuration(t *testing.T) {
 	// describes a collection of roles and their conditions
 	roleDesc := roleTestSet{
 		"requestedRole": {
@@ -1929,6 +2277,8 @@ func TestMaxDuration(t *testing.T) {
 		"david": {"maxDurationReqRole"},
 	}
 
+	defaultSessionTTL := 8 * time.Hour
+
 	g := getMockGetter(t, roleDesc, userDesc)
 
 	tts := []struct {
@@ -1938,101 +2288,122 @@ func TestMaxDuration(t *testing.T) {
 		requestor string
 		// the roles to be requested (defaults to "dictator")
 		roles []string
-		// maxDuration is the requested maxDuration duration
-		maxDuration time.Duration
+		// requestedMaxDuration is the requested requestedMaxDuration duration
+		requestedMaxDuration time.Duration
 		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
 		expectedSessionTTL time.Duration
+		// expectedPendingTTL is the time when request expires in PENDING state
+		expectedPendingTTL time.Duration
 		// DryRun is true if the request is a dry run
 		dryRun bool
 	}{
 		{
-			desc:                   "role maxDuration is respected",
+			desc:                   "role max_duration is respected and sessionTTL does not exceed the calculated max duration",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            7 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   7 * day,                   // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
-			expectedSessionTTL:     8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour, // caps to defaultSessionTTL b/c it's < than the expectedAccessDuration
+			expectedPendingTTL:     3 * day,       // caps to expectedAccessDuration b/c it's < than the const default TTL
 		},
 		{
-			desc:                   "dry run allows for longer maxDuration then 7d",
+			desc:                   "role max_duration is still respected even with dry run (which requests for longer maxDuration)",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            10 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   10 * day,                  // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 			dryRun:                 true,
 		},
 		{
-			desc:                   "maxDuration not set, default maxTTL (8h)",
-			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			expectedAccessDuration: 8 * time.Hour,
+			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration inside request is respected",
+			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * time.Hour,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < defaultSessionTTL",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            2 * day,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour,
+			expectedPendingTTL:     5 * time.Hour,
+			expectedSessionTTL:     5 * time.Hour, // capped to expectedAccessDuration because it's < defaultSessionTTL (8h)
+		},
+		{
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > defaultSessionTTL",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   10 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour, // caps to defaultSessionTTL (8h) which is < requestedMaxDuration
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can't exceed maxTTL by default",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > role defined sesssionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
-			expectedAccessDuration: 6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,
+			expectedAccessDuration: 6 * time.Hour, // capped to the lowest sessionTTL found in role (6h) which is < requestedMaxDuration
+			expectedPendingTTL:     6 * time.Hour,
 			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < role defined sessionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
-			expectedAccessDuration: 6 * time.Hour,
-			expectedSessionTTL:     6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour, // caps to requestedMaxDuration which is < role defined sessionTTL (6h)
+			expectedPendingTTL:     5 * time.Hour,
+			expectedSessionTTL:     5 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			desc:                   "requestedMaxDuration is respected if it's < the max_duration set in role",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration capped to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,                       // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: day,
-			expectedSessionTTL:     6 * time.Hour,
+			expectedPendingTTL:     day,
+			expectedSessionTTL:     6 * time.Hour, // capped to the lowest sessionTTL found in role which is < requestedMaxDuration
 		},
 		{
-			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			desc:                   "expectedSessionTTL does not exceed requestedMaxDuration",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // caps max_duration to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   2 * time.Hour,             // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: 2 * time.Hour,
-			expectedSessionTTL:     2 * time.Hour,
+			expectedPendingTTL:     2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour, // capped to requestedMaxDuration because it's < role defined sessionTTL (6h)
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration",
+			requestor:              "carol",                   // has multiple roles assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
+			requestedMaxDuration:   5 * day,
 			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration #2",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole2"},
-			maxDuration:            6 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration #2",
+			requestor:              "carol",                    // has multiple roles assigned
+			roles:                  []string{"requestedRole2"}, // caps max_duration to 1 day
+			requestedMaxDuration:   6 * day,
 			expectedAccessDuration: day,
+			expectedPendingTTL:     day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 	}
@@ -2048,22 +2419,71 @@ func TestMaxDuration(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
 			identity := tlsca.Identity{
-				Expires: now.Add(8 * time.Hour),
+				Expires: now.Add(defaultSessionTTL),
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
+			require.Equal(t, now.Add(tt.expectedPendingTTL), req.Expiry())
 		})
 	}
+}
+
+// TestValidate_RequestedPendingTTLAndMaxDuration tests that both requested
+// max duration and pending TTL is respected (given within limits).
+func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
+	// describes a collection of roles and their conditions
+	roleDesc := roleTestSet{
+		"requestRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestRole"},
+					MaxDuration: types.Duration(5 * day),
+				},
+			},
+		},
+	}
+
+	// describes a collection of users with various roles
+	userDesc := map[string][]string{
+		"alice": {"requestRole"},
+	}
+
+	g := getMockGetter(t, roleDesc, userDesc)
+	req, err := types.NewAccessRequest("some-id", "alice", []string{"requestRole"}...)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+	defaultSessionTTL := 8 * time.Hour
+	identity := tlsca.Identity{
+		Expires: now.Add(defaultSessionTTL),
+	}
+
+	validator, err := NewRequestValidator(context.Background(), clock, g, "alice", ExpandVars(true))
+	require.NoError(t, err)
+
+	requestedMaxDuration := 4 * day
+	requestedPendingTTL := 2 * day
+
+	req.SetCreationTime(now)
+	req.SetMaxDuration(now.Add(requestedMaxDuration))
+	req.SetExpiry(now.Add(requestedPendingTTL))
+
+	require.NoError(t, validator.Validate(context.Background(), req, identity))
+	require.Equal(t, now.Add(requestedMaxDuration), req.GetAccessExpiry())
+	require.Equal(t, now.Add(requestedMaxDuration), req.GetMaxDuration())
+	require.Equal(t, now.Add(defaultSessionTTL), req.GetSessionTLL())
+	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
 type roleTestSet map[string]struct {

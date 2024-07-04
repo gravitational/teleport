@@ -35,6 +35,11 @@ const (
 	concurrencyLimit = 5
 )
 
+const (
+	// DefaultDiscoveryPollInterval is the default interval that Discovery Services fetches resources.
+	DefaultDiscoveryPollInterval = 5 * time.Minute
+)
+
 // WatcherConfig is the common discovery watcher configuration.
 type WatcherConfig struct {
 	// FetchersFn is a function that returns the fetchers used for this watcher.
@@ -62,7 +67,7 @@ type WatcherConfig struct {
 // CheckAndSetDefaults validates the config.
 func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Interval == 0 {
-		c.Interval = 5 * time.Minute
+		c.Interval = DefaultDiscoveryPollInterval
 	}
 	if c.TriggerFetchC == nil {
 		c.TriggerFetchC = make(chan struct{})
@@ -106,16 +111,25 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 
 // Start starts fetching cloud resources and sending them to the channel.
 func (w *Watcher) Start() {
-	ticker := w.cfg.Clock.NewTicker(w.cfg.Interval)
-	defer ticker.Stop()
+	pollTimer := w.cfg.Clock.NewTimer(w.cfg.Interval)
+	defer pollTimer.Stop()
 	w.cfg.Log.Infof("Starting watcher.")
 	w.fetchAndSend()
 	for {
 		select {
-		case <-ticker.Chan():
+		case <-pollTimer.Chan():
 			w.fetchAndSend()
+			pollTimer.Reset(w.cfg.Interval)
+
 		case <-w.cfg.TriggerFetchC:
 			w.fetchAndSend()
+
+			// stop and drain timer
+			if !pollTimer.Stop() {
+				<-pollTimer.Chan()
+			}
+			pollTimer.Reset(w.cfg.Interval)
+
 		case <-w.ctx.Done():
 			w.cfg.Log.Infof("Watcher done.")
 			return

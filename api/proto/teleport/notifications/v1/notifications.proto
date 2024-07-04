@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -34,7 +34,7 @@ message Notification {
   string sub_kind = 2;
   // version is the resource version.
   string version = 3;
-  // metadata is the notification's metadata. This contains the notification's title, description, labels, and expiry.
+  // metadata is the notification's metadata. This contains the notification's labels, and expiry. All custom notification metadata should be stored in labels.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the notification specification.
   NotificationSpec spec = 5;
@@ -42,12 +42,14 @@ message Notification {
 
 // NotificationSpec is the notification specification.
 message NotificationSpec {
-  // id is the UUID of the notification, in UUIDv7 format.
-  string id = 1;
+  reserved 1;
+  reserved "id";
   // created is when the notification was created, in UNIX time.
   google.protobuf.Timestamp created = 2;
   // unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.
   bool unscoped = 3;
+  // username is the username of the target user if this is a user-specific notification. Requests for global notifications with a username will be rejected.
+  string username = 4;
 }
 
 // GlobalNotification represents a global notification.
@@ -146,15 +148,17 @@ message UserLastSeenNotification {
   teleport.header.v1.Metadata metadata = 4;
   // UserLastSeenNotificationSpec is the user last seen notification item's specification.
   UserLastSeenNotificationSpec spec = 5;
-  // time is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
-  UserLastSeenNotificationTime time = 6;
+  reserved 6;
+  reserved "time";
+  // status is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
+  UserLastSeenNotificationStatus status = 7;
 }
 
 // UserLastSeenNotificationSpec is a user last seen notification specification.
 message UserLastSeenNotificationSpec {}
 
-// UserLastSeenNotificationTime is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
-message UserLastSeenNotificationTime {
+// UserLastSeenNotificationStatus is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
+message UserLastSeenNotificationStatus {
   // last_seen_time is the timestamp of the last notification that the user has seen.
   google.protobuf.Timestamp last_seen_time = 1;
 }

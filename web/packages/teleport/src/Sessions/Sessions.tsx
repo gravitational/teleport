@@ -34,7 +34,7 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import SessionList from './SessionList';
 import useSessions from './useSessions';
 
-export default function Container() {
+export function SessionsContainer() {
   const ctx = useTeleport();
   const { clusterId } = useStickerClusterId();
   const state = useSessions(ctx, clusterId);
@@ -81,13 +81,12 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
         )}
       </FeatureHeader>
       {!errorMessage && (
-        <Box mb={4}>
-          <ClusterDropdown
-            clusterLoader={ctx.clusterService}
-            clusterId={clusterId}
-            onError={setErrorMessage}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={ctx.clusterService}
+          clusterId={clusterId}
+          onError={setErrorMessage}
+          mb={2}
+        />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.isFailed && <Danger>{attempt.message} </Danger>}

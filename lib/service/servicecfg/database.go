@@ -19,16 +19,9 @@
 package servicecfg
 
 import (
-	"strings"
-
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -100,53 +93,23 @@ type OracleOptions struct {
 
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
-	if err := enterprise.ProtocolValidation(d.Protocol); err != nil {
-		return trace.Wrap(err)
-	}
-	if d.Name == "" {
-		return trace.BadParameter("empty database name")
-	}
-
 	// Mark the database as coming from the static configuration.
 	if d.StaticLabels == nil {
 		d.StaticLabels = make(map[string]string)
 	}
 	d.StaticLabels[types.OriginLabel] = types.OriginConfigFile
 
-	if err := d.TLS.Mode.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// We support Azure AD authentication and Kerberos auth with AD for SQL
-	// Server. The first method doesn't require additional configuration since
-	// it assumes the environment’s Azure credentials
-	// (https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication).
-	// The second method requires additional information, validated by
-	// DatabaseAD.
-	if d.Protocol == defaults.ProtocolSQLServer &&
-		(d.AD.Domain != "" || !strings.Contains(d.URI, azure.MSSQLEndpointSuffix)) {
-		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// If AWS account ID is missing, but assume role ARN is given,
 	// try to parse the role arn and set the account id to match.
+	// TODO(gabrielcorado): move this into the api package.
 	if d.AWS.AccountID == "" && d.AWS.AssumeRoleARN != "" {
 		parsed, err := awsutils.ParseRoleARN(d.AWS.AssumeRoleARN)
-		if err != nil {
-			return trace.BadParameter("database %q invalid AWS assume_role_arn: %v",
-				d.Name, err)
+		if err == nil {
+			d.AWS.AccountID = parsed.AccountID
 		}
-		d.AWS.AccountID = parsed.AccountID
 	}
 
-	// Do a test run with extra validations.
-	db, err := d.ToDatabase()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(services.ValidateDatabase(db))
+	return nil
 }
 
 // ToDatabase converts Database to types.Database.
@@ -160,9 +123,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		URI:      d.URI,
 		CACert:   string(d.TLS.CACert),
 		TLS: types.DatabaseTLS{
-			CACert:     string(d.TLS.CACert),
-			ServerName: d.TLS.ServerName,
-			Mode:       d.TLS.Mode.ToProto(),
+			CACert:              string(d.TLS.CACert),
+			ServerName:          d.TLS.ServerName,
+			Mode:                d.TLS.Mode.ToProto(),
+			TrustSystemCertPool: d.TLS.TrustSystemCertPool,
 		},
 		MySQL: types.MySQLOptions{
 			ServerVersion: d.MySQL.ServerVersion,
@@ -241,6 +205,9 @@ type DatabaseTLS struct {
 	ServerName string
 	// CACert is an optional database CA certificate.
 	CACert []byte
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -333,35 +300,6 @@ type DatabaseAD struct {
 	LDAPCert string
 	// KDCHostName is the Key Distribution Center Hostname for x509 authentication
 	KDCHostName string
-}
-
-// IsEmpty returns true if the database AD configuration is empty.
-func (d *DatabaseAD) IsEmpty() bool {
-	return d.KeytabFile == "" && d.Krb5File == "" && d.Domain == "" && d.SPN == ""
-}
-
-// CheckAndSetDefaults validates database Active Directory configuration.
-func (d *DatabaseAD) CheckAndSetDefaults(name string) error {
-	if d.KeytabFile == "" && d.KDCHostName == "" {
-		return trace.BadParameter("missing keytab file path or kdc_host_name for database %q", name)
-	}
-	if d.Krb5File == "" {
-		d.Krb5File = defaults.Krb5FilePath
-	}
-	if d.Domain == "" {
-		return trace.BadParameter("missing Active Directory domain for database %q", name)
-	}
-	if d.SPN == "" {
-		return trace.BadParameter("missing service principal name for database %q", name)
-	}
-
-	if d.KDCHostName != "" {
-		if d.LDAPCert == "" {
-			return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", name)
-		}
-	}
-
-	return nil
 }
 
 // DatabaseAzure contains Azure database configuration.

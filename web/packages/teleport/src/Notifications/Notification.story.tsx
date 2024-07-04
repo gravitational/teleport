@@ -17,169 +17,500 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
+import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 
-import { Flex } from 'design';
+import { Flex, Text } from 'design';
 
 import {
   NotificationSubKind,
-  Notification as NotificationType,
+  UpsertNotificationStateRequest,
 } from 'teleport/services/notifications';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import cfg from 'teleport/config';
+
+import { ContextProvider } from '..';
 
 import { Notification } from './Notification';
+import { Notifications as NotificationsListComponent } from './Notifications';
+import { notifications as mockNotifications } from './fixtures';
 
 export default {
   title: 'Teleport/Notifications',
+  loaders: [mswLoader],
 };
 
-export const Notifications = () => {
+initialize();
+
+export const NotificationCard = () => {
+  const ctx = createTeleportContext();
+
   return (
-    <Flex
-      css={`
-        background: ${props => props.theme.colors.levels.surface};
-        padding: 24px;
-        width: fit-content;
-        height: fit-content;
-        flex-direction: column;
-        gap: 24px;
-      `}
-    >
-      {mockNotifications.map(notification => {
-        return (
-          <Notification notification={notification} key={notification.id} />
-        );
-      })}
-    </Flex>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Flex
+          mt={4}
+          p={4}
+          gap={4}
+          css={`
+            background: ${props => props.theme.colors.levels.surface};
+            width: 450px;
+            height: fit-content;
+            flex-direction: column;
+          `}
+        >
+          <Flex flexDirection="column">
+            <Text typography="h4" textAlign="center" mb={1}>
+              Visited: Yes
+            </Text>
+            <Notification
+              notification={mockNotifications[5]}
+              closeNotificationsList={() => null}
+              markNotificationAsClicked={() => null}
+              removeNotification={() => null}
+            />
+          </Flex>
+          <Flex flexDirection="column">
+            <Text typography="h4" textAlign="center" mb={1}>
+              Visited: No
+            </Text>
+            <Notification
+              notification={{
+                ...mockNotifications[5],
+                clicked: false,
+                id: '2',
+              }}
+              closeNotificationsList={() => null}
+              markNotificationAsClicked={() => null}
+              removeNotification={() => null}
+            />
+          </Flex>
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
 
-const mockNotifications: NotificationType[] = [
-  {
-    id: '1',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestApproved,
-    createdDate: new Date(Date.now() - 30 * 1000), // 30 seconds ago
-    clicked: false,
-    labels: [
-      {
-        name: 'requested-resources',
-        value: 'node-1,node-2,db-1,db-2,db-3',
-      },
-      { name: 'reviewer', value: 'joe' },
+export const NotificationTypes = () => {
+  const ctx = createTeleportContext();
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        Enterprise notifications can be viewed in the
+        "TeleportE/Notifications/Notification Types E" story.
+        <Flex
+          mt={4}
+          p={4}
+          gap={4}
+          css={`
+            background: ${props => props.theme.colors.levels.surface};
+            width: fit-content;
+            height: fit-content;
+            flex-direction: column;
+          `}
+        >
+          {mockNotifications.map(notification => {
+            return (
+              <Notification
+                notification={notification}
+                key={notification.id}
+                closeNotificationsList={() => null}
+                markNotificationAsClicked={() => null}
+                removeNotification={() => null}
+              />
+            );
+          })}
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+export const NotificationsList = () => <ListComponent />;
+NotificationsList.parameters = {
+  msw: {
+    handlers: [
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res.once(ctx.json(mockNotificationsResponseFirstPage))
+      ),
+      rest.put(cfg.api.notificationLastSeenTimePath, (req, res, ctx) =>
+        res(ctx.delay(2000), ctx.json({ time: Date.now() }))
+      ),
+      rest.put(cfg.api.notificationStatePath, (req, res, ctx) => {
+        const body = req.body as UpsertNotificationStateRequest;
+        return res(ctx.json({ notificationState: body.notificationState }));
+      }),
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res(ctx.delay(2000), ctx.json(mockNotificationsResponseSecondPage))
+      ),
     ],
   },
-  {
-    id: '2',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestApproved,
-    createdDate: new Date(Date.now() - 4 * 60 * 1000), // 4 minutes ago
-    clicked: false,
-    labels: [
-      {
-        name: 'requested-role',
-        value: 'auditor',
-      },
-      { name: 'reviewer', value: 'joe' },
+};
+
+export const NotificationListNotificationStateErrors = () => <ListComponent />;
+NotificationListNotificationStateErrors.parameters = {
+  msw: {
+    handlers: [
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res.once(ctx.json(mockNotificationsResponseFirstPage))
+      ),
+      rest.put(cfg.api.notificationLastSeenTimePath, (req, res, ctx) =>
+        res(ctx.json({ time: Date.now() }))
+      ),
+      rest.put(cfg.api.notificationStatePath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({
+            message: 'failed to update state',
+          })
+        )
+      ),
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res(ctx.delay(2000), ctx.json(mockNotificationsResponseSecondPage))
+      ),
     ],
   },
-  {
-    id: '3',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestDenied,
-    createdDate: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
-    clicked: false,
-    labels: [
-      {
-        name: 'requested-role',
-        value: 'auditor',
-      },
-      { name: 'reviewer', value: 'joe' },
+};
+
+export const NotificationsListEmpty = () => <ListComponent />;
+NotificationsListEmpty.parameters = {
+  msw: {
+    handlers: [
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res(
+          ctx.json({
+            nextKey: '',
+            userLastSeenNotification: subDays(Date.now(), 15).toISOString(), // 15 days ago
+            notifications: [],
+          })
+        )
+      ),
     ],
   },
-  {
-    id: '4',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestPending,
-    createdDate: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
-    clicked: true,
-    labels: [
-      {
-        name: 'requested-resources',
-        value: 'db-2,node-5',
-      },
-      { name: 'requester', value: 'bob' },
+};
+
+export const NotificationsListError = () => <ListComponent />;
+NotificationsListError.parameters = {
+  msw: {
+    handlers: [
+      rest.get(cfg.api.notificationsPath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({
+            message: 'Error encountered: failed to fetch notifications',
+          })
+        )
+      ),
     ],
   },
-  {
-    id: '5',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestPending,
-    createdDate: new Date(Date.now() - 15 * 60 * 60 * 1000), // 15 hours ago
-    clicked: true,
-    labels: [
-      {
-        name: 'requested-role',
-        value: 'intern',
-      },
-      { name: 'requester', value: 'bob' },
-    ],
-  },
-  {
-    id: '6',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-    clicked: true,
-    labels: [
-      {
-        name: 'requested-resources',
-        value: 'db-2,node-5',
-      },
-      { name: 'requester', value: 'bob' },
-    ],
-  },
-  {
-    id: '7',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    clicked: false,
-    labels: [
-      {
-        name: 'requested-resources',
-        value: 'node-5',
-      },
-      { name: 'requester', value: 'bob' },
-    ],
-  },
-  {
-    id: '8',
-    title: '',
-    description: '',
-    subKind: NotificationSubKind.AccessRequestNowAssumable,
-    createdDate: new Date(Date.now() - 2 * 7 * 24 * 60 * 60 * 1000), // 2 weeks ago
-    clicked: true,
-    labels: [
-      {
-        name: 'requested-role',
-        value: 'auditor',
-      },
-      { name: 'requester', value: 'bob' },
-    ],
-  },
-  {
-    id: '9',
-    title: 'This is an example user-created warning notification',
-    description: 'This is the text content of a warning notification.',
-    subKind: NotificationSubKind.UserCreatedWarning,
-    createdDate: new Date(Date.now() - 93 * 24 * 60 * 60 * 1000), // 3 months ago
-    clicked: true,
-    labels: [],
-  },
-];
+};
+
+const ListComponent = () => {
+  const ctx = createTeleportContext();
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Flex
+          css={`
+            width: 100%;
+            justify-content: center;
+            height: ${p => p.theme.topBarHeight[2]}px;
+          `}
+        >
+          <NotificationsListComponent />
+        </Flex>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+const mockNotificationsResponseFirstPage = {
+  nextKey: '16,',
+  userLastSeenNotification: subMinutes(Date.now(), 12).toISOString(), // 12 minutes ago
+  notifications: [
+    {
+      id: '1',
+      title: 'Example notification 1',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subSeconds(Date.now(), 15).toISOString(), // 15 seconds ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '2',
+      title: 'Example notification 2',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subSeconds(Date.now(), 30).toISOString(), // 30 seconds ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '3',
+      title: 'Example notification 3',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subMinutes(Date.now(), 1).toISOString(), // 1 minute ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '4',
+      title: 'Example notification 4',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subMinutes(Date.now(), 5).toISOString(), // 5 minutes ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '5',
+      title: 'Example notification 5',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subMinutes(Date.now(), 10).toISOString(), // 10 minutes ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '6',
+      title: 'Example notification 6',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subHours(Date.now(), 1).toISOString(), // 1 hour ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '7',
+      title: 'Example notification 7',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 1).toISOString(), // 1 day ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '8',
+      title: 'Example notification 8',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 2).toISOString(), // 2 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '9',
+      title: 'Example notification 9',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 7).toISOString(), // 7 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '10',
+      title: 'Example notification 10',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 15).toISOString(), // 15 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '11',
+      title: 'Example notification 11',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 30).toISOString(), // 30 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '12',
+      title: 'Example notification 12',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 35).toISOString(), // 35 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '13',
+      title: 'Example notification 13',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 40).toISOString(), // 40 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '14',
+      title: 'Example notification 14',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 45).toISOString(), // 45 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '15',
+      title: 'Example notification 15',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 50).toISOString(), // 50 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+  ],
+};
+
+const mockNotificationsResponseSecondPage = {
+  nextKey: '',
+  userLastSeenNotification: subDays(Date.now(), 60).toISOString(), // 60 days ago
+  notifications: [
+    {
+      id: '16',
+      title: 'Example notification 16',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 55).toISOString(), // 55 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '17',
+      title: 'Example notification 17',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 60).toISOString(), // 60 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '18',
+      title: 'Example notification 18',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 65).toISOString(), // 65 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '19',
+      title: 'Example notification 19',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 70).toISOString(), // 70 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '20',
+      title: 'Example notification 20',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 75).toISOString(), // 75 days ago
+      clicked: true,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+    {
+      id: '21',
+      title: 'Example notification 21',
+      subKind: NotificationSubKind.UserCreatedInformational,
+      created: subDays(Date.now(), 80).toISOString(), // 80 days ago
+      clicked: false,
+      labels: [
+        {
+          name: 'text-content',
+          value: 'This is the text content of the notification.',
+        },
+      ],
+    },
+  ],
+};

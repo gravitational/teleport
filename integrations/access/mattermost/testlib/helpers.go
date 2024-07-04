@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/mattermost"
 )
 
-func (s *MattermostSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
+func (s *MattermostBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 

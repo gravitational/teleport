@@ -36,9 +36,6 @@ func (m *Memory) AtomicWrite(ctx context.Context, condacts []backend.Conditional
 
 	m.Lock()
 	defer m.Unlock()
-	if m.Mirror {
-		return "", trace.Errorf("atomic write not supported by mirror-mode memory backend")
-	}
 
 	m.removeExpired()
 
@@ -79,7 +76,6 @@ func (m *Memory) AtomicWrite(ctx context.Context, condacts []backend.Conditional
 				Item: ca.Action.Item,
 			}
 			event.Item.Key = ca.Key
-			event.Item.ID = m.generateID()
 			event.Item.Revision = revision
 			events = append(events, event)
 		case backend.KindDelete:

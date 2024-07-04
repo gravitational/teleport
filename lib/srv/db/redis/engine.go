@@ -33,6 +33,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -215,7 +216,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // getNewClientFn returns a partial Redis client factory function.
 func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session) (redisClientFactoryFn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -548,6 +549,6 @@ func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
 
 func init() {
 	redis.SetLogger(&driverLogger{
-		Entry: logrus.WithField(trace.Component, "go-redis"),
+		Entry: logrus.WithField(teleport.ComponentKey, "go-redis"),
 	})
 }

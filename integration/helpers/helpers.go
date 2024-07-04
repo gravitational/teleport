@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -46,10 +47,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -62,13 +64,14 @@ import (
 
 // CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
-	ForwardAgent bool
-	ForcePTY     bool
-	ControlPath  string
-	SocketPath   string
-	ProxyPort    string
-	NodePort     string
-	Command      string
+	ForwardAgent  bool
+	ForcePTY      bool
+	X11Forwarding bool
+	ControlPath   string
+	SocketPath    string
+	ProxyPort     string
+	NodePort      string
+	Command       string
 }
 
 // ExternalSSHCommand runs an external SSH command (if an external ssh binary
@@ -87,6 +90,10 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 		execArgs = append(execArgs, "-oControlPersist=1s")
 		execArgs = append(execArgs, "-oConnectTimeout=2")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
+	}
+
+	if o.X11Forwarding {
+		execArgs = append(execArgs, "-X")
 	}
 
 	// The -tt flag is used to force PTY allocation. It's often used by
@@ -201,7 +208,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
 	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
@@ -231,7 +238,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second
+	max := time.Second * 2
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
@@ -330,7 +337,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// execution of this test.
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
@@ -371,7 +378,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// Set up a test proxy service.
 	cfg = servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 
@@ -414,7 +421,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.SetAuthServerAddress(proxyAddr)
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
@@ -465,4 +472,22 @@ func FindNodeWithLabel(t *testing.T, ctx context.Context, cl apiclient.ListResou
 		assert.NoError(t, err)
 		return len(servers.Resources) >= 1
 	}
+}
+
+// UpsertAuthPrefAndWaitForCache upserts the authentication preference and waits
+// until the auth server's cache contains the new value. This is needed since
+// the cache doesn't always catch up before we need to use the preference value.
+func UpsertAuthPrefAndWaitForCache(
+	t *testing.T, ctx context.Context, srv *auth.Server, pref types.AuthPreference,
+) {
+	_, err := srv.UpsertAuthPreference(ctx, pref)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// we need to wait for the in-memory copy of auth pref to be updated, which
+		// takes a bit longer than standard cache propagation.
+		rp, err := srv.GetReadOnlyAuthPreference(ctx)
+		require.NoError(t, err)
+		p := rp.Clone()
+		assert.Empty(t, cmp.Diff(&pref, &p))
+	}, 5*time.Second, 100*time.Millisecond)
 }

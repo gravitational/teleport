@@ -32,7 +32,7 @@ import {
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
-import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
+import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
@@ -238,9 +238,12 @@ function AgentSetup() {
                 await ctx.connectMyComputerService.createRole(rootClusterUri);
               certsReloaded = response.certsReloaded;
             } catch (error) {
-              if (isAccessDeniedError(error)) {
+              if (
+                isTshdRpcError(error, 'PERMISSION_DENIED') &&
+                !error.isResolvableWithRelogin
+              ) {
                 throw new Error(
-                  'Access denied. Contact your administrator for permissions to manage users and roles.'
+                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`
                 );
               }
               throw error;

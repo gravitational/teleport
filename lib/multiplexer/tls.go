@@ -74,7 +74,7 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 	context, cancel := context.WithCancel(context.TODO())
 	return &TLSListener{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.Component("mxtls", cfg.ID),
+			teleport.ComponentKey: teleport.Component("mxtls", cfg.ID),
 		}),
 		cfg:           cfg,
 		http2Listener: newListener(context, cfg.Listener.Addr()),
@@ -145,7 +145,7 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	}
 
 	start := l.cfg.Clock.Now()
-	if err := conn.Handshake(); err != nil {
+	if err := conn.HandshakeContext(l.context); err != nil {
 		if !errors.Is(trace.Unwrap(err), io.EOF) {
 			l.log.WithFields(log.Fields{
 				"src_addr": conn.RemoteAddr(),

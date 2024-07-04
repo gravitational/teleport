@@ -16,12 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Flex, Indicator, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+  Text,
+} from 'design';
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon: React.ReactNode;
   showIndicator?: boolean;
@@ -41,7 +48,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0]}
+        bg={theme.colors.interactive.tonal.neutral[0].background}
         lineHeight={0}
         p={2}
         borderRadius={3}
@@ -59,6 +66,7 @@ export function Header({
       <Box
         lineHeight={0}
         style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+        data-testid="indicator-wrapper"
       >
         <Indicator size={40} />
       </Box>
@@ -67,8 +75,16 @@ export function Header({
   );
 }
 
-export const ActionButton = styled(ButtonSecondary)`
+const actionButtonStyles = css`
   padding: ${props => `${props.theme.space[2]}px ${props.theme.space[4]}px`};
   gap: ${props => `${props.theme.space[2]}px`};
   text-transform: none;
+`;
+
+export const ActionButtonSecondary = styled(ButtonSecondary)`
+  ${actionButtonStyles}
+`;
+
+export const ActionButtonPrimary = styled(ButtonPrimary)`
+  ${actionButtonStyles}
 `;

@@ -23,12 +23,16 @@ import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
 import { StyledArrowBtn } from './StyledPager';
 
-export function ServerSidePager({ nextPage, prevPage }: Props) {
-  const isNextDisabled = !nextPage;
-  const isPrevDisabled = !prevPage;
+export function ServerSidePager({ nextPage, prevPage, isLoading }: Props) {
+  const isNextDisabled = !nextPage || isLoading;
+  const isPrevDisabled = !prevPage || isLoading;
 
   return (
-    <Flex justifyContent="flex-end" width="100%">
+    <Flex
+      justifyContent="flex-end"
+      width="100%"
+      css={{ flexShrink: 1, flexGrow: 0, flexBasis: 0 }}
+    >
       <Flex>
         <StyledArrowBtn
           onClick={prevPage}
@@ -52,6 +56,7 @@ export function ServerSidePager({ nextPage, prevPage }: Props) {
 }
 
 export type Props = {
+  isLoading: boolean;
   nextPage: (() => void) | null;
   prevPage: (() => void) | null;
 };

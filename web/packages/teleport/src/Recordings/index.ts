@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Recordings from './Recordings';
-export default Recordings;
+export { Recordings, RecordingsContainer } from './Recordings';

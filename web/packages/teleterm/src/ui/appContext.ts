@@ -40,8 +40,8 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshdClient } from 'teleterm/services/tshd/types';
-import { IAppContext } from 'teleterm/ui/types';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
+import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
@@ -63,6 +63,7 @@ export default class AppContext implements IAppContext {
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
   tshd: TshdClient;
+  vnet: VnetClient;
   /**
    * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
    * that's going to be called every time a client makes a particular RPC to the tshd events
@@ -81,11 +82,15 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  private _unexpectedVnetShutdownListener:
+    | UnexpectedVnetShutdownListener
+    | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.logger = new Logger('AppContext');
     this.tshd = tshClient;
+    this.vnet = config.vnetClient;
     this.setupTshdEventContextBridgeService =
       config.setupTshdEventContextBridgeService;
     this.mainProcessClient = mainProcessClient;
@@ -171,6 +176,34 @@ export default class AppContext implements IAppContext {
     this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+  }
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function which
+   * removes the listener.
+   */
+  addUnexpectedVnetShutdownListener(
+    listener: UnexpectedVnetShutdownListener
+  ): () => void {
+    this._unexpectedVnetShutdownListener = listener;
+
+    return () => {
+      this._unexpectedVnetShutdownListener = undefined;
+    };
+  }
+
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  // To force callsites to use addUnexpectedVnetShutdownListener instead of setting the property
+  // directly on appContext, we use a getter which exposes a private property.
+  get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
+    return this._unexpectedVnetShutdownListener;
   }
 
   private subscribeToDeepLinkLaunch() {

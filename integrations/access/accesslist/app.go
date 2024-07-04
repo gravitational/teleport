@@ -132,7 +132,6 @@ func (a *App) run(ctx context.Context) error {
 			if err := a.remindIfNecessary(ctx); err != nil {
 				return trace.Wrap(err)
 			}
-
 			timer.Reset(jitter(reminderInterval))
 		case <-ctx.Done():
 			log.Info("Access list monitor is finished")

@@ -22,10 +22,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { Text } from 'design';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
-
+import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -116,7 +113,7 @@ export function DocumentsRenderer(props: {
   );
 }
 
-const DocumentsContainer = styled.div`
+const DocumentsContainer = styled.div<{ isVisible?: boolean }>`
   display: ${props => (props.isVisible ? 'contents' : 'none')};
 `;
 

@@ -1,36 +1,6 @@
 {{ attachToRole="TeleportRole" attachToUser="TeleportUser" account="123456789012" output="/etc/teleport.yaml" }}
 
 Teleport can bootstrap IAM permissions for the Database Service based on its
-configuration:
-
-<Tabs>
-
-<TabItem label="Auto-discovery">
-Teleport can bootstrap IAM permissions for the Database Service based on
-Discovery Service's configuration while bootstrapping the Discovery Service
-using the `teleport discovery bootstrap` command. You can use this command in
-automatic or manual mode:
-
-- In automatic mode, Teleport will attempt to create appropriate IAM policies
-  and attach them to the specified IAM role. This requires IAM permissions to
-  create and attach IAM policies.
-- In manual mode, Teleport will print required IAM policies. You can then create
-  and attach them manually using the AWS management console. Add `--manual`
-  flag to the command to enable manual mode.
-
-```code
-$ teleport discovery bootstrap \
-  --attach-to-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="discovery-iam-role-name"/> \
-  --policy-name TeleportDatabaseDiscovery \
-  --database-service-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="database-iam-role-name"/> \
-  --database-service-policy-name TeleportDatabaseAccess \
-  -c <Var name="path to Discovery's teleport.yaml"/>
-```
-
-</TabItem>
-
-<TabItem label="Static config">
-Teleport can bootstrap IAM permissions for the Database Service based on its
 configuration using the `teleport db configure bootstrap` command. You can use
 this command in automatic or manual mode:
 
@@ -94,11 +64,3 @@ You will need to run the bootstrap command once with the Teleport Database
 Service's IAM identity as the policy attachment target, and once for each AWS
 IAM role that is used for `assume_role_arn`.
 </Details>
-</TabItem>
-
-</Tabs>
-
-Alternatively, you can create or print the required IAM policies with the
-following commands and manually attach them to the IAM role:
-- `teleport db configure aws create-iam --types {{ type }}`
-- `teleport db configure aws print-iam --types {{ type }}`

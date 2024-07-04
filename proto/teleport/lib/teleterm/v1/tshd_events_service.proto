@@ -28,23 +28,40 @@ service TshdEventsService {
   // Relogin makes the Electron app display a login modal for the specific root cluster. The request
   // returns a response after the relogin procedure has been successfully finished.
   rpc Relogin(ReloginRequest) returns (ReloginResponse);
+
   // SendNotification causes the Electron app to display a notification in the UI. The request
   // accepts a specific message rather than a generic string so that the Electron is in control as
   // to what message is displayed and how exactly it looks.
   rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
   // SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
   // which it can use to initiate headless authentication resolution in the UI.
   rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
+
   // PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
+  // If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
+  // If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
+  // code.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
+
+  // GetUsageReportingSettings returns the current state of usage reporting.
+  // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
+  // with the only exception being the first start of the app when they're prompted about telemetry.
+  // Hence why this is an RPC and not information passed over argv to tsh daemon.
+  rpc GetUsageReportingSettings(GetUsageReportingSettingsRequest) returns (GetUsageReportingSettingsResponse);
+
+  // ReportUnexpectedVnetShutdown is sent by tsh daemon when VNet exits outside of the
+  // request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
+  // update the state of VNet in the UI.
+  rpc ReportUnexpectedVnetShutdown(ReportUnexpectedVnetShutdownRequest) returns (ReportUnexpectedVnetShutdownResponse);
 }
 
-// Relogin
-
+// Request for Relogin.
 message ReloginRequest {
   string root_cluster_uri = 1;
   oneof reason {
     GatewayCertExpired gateway_cert_expired = 2;
+    VnetCertExpired vnet_cert_expired = 3;
   }
 }
 
@@ -59,13 +76,26 @@ message GatewayCertExpired {
   string target_uri = 2;
 }
 
+// VnetCertExpired describes which app the user was trying to reach with an expired cert.
+message VnetCertExpired {
+  // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
+  string target_uri = 1;
+  // public_addr is the public address of the app that the user tried to access.
+  string public_addr = 2;
+}
+
+// Response for Relogin.
 message ReloginResponse {}
 
-// SendNotification
-
+// SendNotificationRequest includes details behind a notification.
+//
+// Rather than including arbitrary text strings, SendNotificationRequest should contain minimal
+// details. The Electron app can then consume and format them as needed, without having to change
+// what is sent over the wire.
 message SendNotificationRequest {
   oneof subject {
     CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
+    CannotProxyVnetConnection cannot_proxy_vnet_connection = 2;
   }
 }
 
@@ -79,27 +109,63 @@ message CannotProxyGatewayConnection {
   string error = 3;
 }
 
+// CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
+// At the moment this is used solely when refreshing an expired cert.
+message CannotProxyVnetConnection {
+  string target_uri = 1;
+  string error = 2;
+  // public_addr is the public address of the app that the user tried to access.
+  string public_addr = 3;
+}
+
+// Response for SendNotification.
 message SendNotificationResponse {}
 
-// SendPendingHeadlessAuthentication
-
+// Request for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationRequest {
   string root_cluster_uri = 1;
   string headless_authentication_id = 2;
   string headless_authentication_client_ip = 3;
 }
 
+// Response for SendPendingHeadlessAuthentication.
 message SendPendingHeadlessAuthenticationResponse {}
 
-// PromptMFA
-
+// Request for PromptMFA.
 message PromptMFARequest {
-  string root_cluster_uri = 1;
+  reserved 1; // root_cluster_uri
+  reserved "root_cluster_uri";
   string reason = 2;
   bool totp = 3;
   bool webauthn = 4;
+  string cluster_uri = 5;
 }
 
+// Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
 }
+
+// Request for GetUsageReportingSettings.
+message GetUsageReportingSettingsRequest {}
+
+// Response for GetUsageReportingSettings.
+message GetUsageReportingSettingsResponse {
+  UsageReportingSettings usage_reporting_settings = 1;
+}
+
+// UsageReportingSettings contains information about usage reporting as understood by the Electron
+// app.
+message UsageReportingSettings {
+  bool enabled = 1;
+}
+
+// Request for ReportUnexpectedVnetShutdown.
+message ReportUnexpectedVnetShutdownRequest {
+  // error is the error message with which VNet was shut down. Technically it can be empty, so
+  // consumers should account for that.
+  string error = 1;
+}
+
+// Response for ReportUnexpectedVnetShutdown.
+message ReportUnexpectedVnetShutdownResponse {}

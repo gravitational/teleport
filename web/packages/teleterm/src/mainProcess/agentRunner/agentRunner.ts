@@ -149,6 +149,7 @@ export class AgentRunner {
     process.stderr.setEncoding('utf-8');
     process.stderr.on('data', (error: string) => {
       stderrOutput += error;
+      // TODO(ravicious): Pipe into KeepLastChunks instead.
       stderrOutput = processAgentOutput(stderrOutput);
       this.agentProcesses.get(rootClusterUri).logs = stderrOutput;
     });

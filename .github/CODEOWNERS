@@ -1,4 +1,4 @@
 # Merge rules are governed by logic in the Workflow Bot. Protect the
 # .github/workflows directory (and the merge logic) using CODEOWNERS.
-/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc
+/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @fheinecke @camscale @tcsc @rosstimothy @codingllama
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3

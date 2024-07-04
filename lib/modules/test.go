@@ -45,7 +45,8 @@ type TestModules struct {
 	defaultModules
 
 	// MockAttestationData is fake attestation data to return
-	// during tests when hardware key support is enabled.
+	// during tests when hardware key support is enabled. This
+	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 }
 
@@ -90,6 +91,14 @@ func (m *TestModules) Features() Features {
 // BuildType returns build type (OSS or Enterprise).
 func (m *TestModules) BuildType() string {
 	return m.TestBuildType
+}
+
+func (m *TestModules) IsEnterpriseBuild() bool {
+	return m.BuildType() == BuildEnterprise
+}
+
+func (m *TestModules) IsOSSBuild() bool {
+	return m.BuildType() != BuildEnterprise
 }
 
 // AttestHardwareKey attests a hardware key.

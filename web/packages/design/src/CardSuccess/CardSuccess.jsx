@@ -18,21 +18,17 @@
 
 import React from 'react';
 
-import Card from 'design/Card';
-import Text from 'design/Text';
+import CardIcon from 'design/CardIcon';
 import { CircleCheck } from 'design/Icon';
 
 export default function CardSuccess({ title, children }) {
   return (
-    <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
-      <CircleCheck mb={3} size={64} color="success.main" />
-      {title && (
-        <Text typography="h2" mb="4">
-          {title}
-        </Text>
-      )}
+    <CardIcon
+      title={title}
+      icon={<CircleCheck mb={3} size={64} color="success.main" />}
+    >
       {children}
-    </Card>
+    </CardIcon>
   );
 }
 

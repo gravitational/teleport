@@ -138,7 +138,7 @@ First create a configuration file for Machine ID at `/etc/tbot.yaml`.
 version: v2
 # Replace "example.teleport.sh:443" with the address of your Teleport Proxy or
 # Teleport Cloud tenant.
-auth_server: "example.teleport.sh:443"
+proxy_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
   # Replace the token field with the name of the token that was output when you
@@ -165,7 +165,8 @@ After=network.target
 Type=simple
 User=teleport
 Group=teleport
-Restart=on-failure
+Restart=always
+RestartSec=5
 Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID

@@ -20,8 +20,10 @@ import { Platform } from 'design/platform';
 
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -37,7 +39,6 @@ import {
   ResourceSpec,
   ServerLocation,
 } from './types';
-import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
 const awsKeywords = 'aws amazon ';
@@ -45,7 +46,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'ubuntu',
+    keywords: baseServerKeywords + 'ubuntu linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -53,7 +54,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'debian',
+    keywords: baseServerKeywords + 'debian linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -61,7 +62,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'rhel centos',
+    keywords: baseServerKeywords + 'rhel centos linux',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -83,13 +84,17 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
-    name: 'EC2 Instance',
+    name: 'EC2 Auto Enrollment',
     kind: ResourceKind.Server,
     keywords:
-      baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
+      baseServerKeywords +
+      'ec2 instance aws amazon simple systems manager ssm auto enrollment',
     icon: 'Aws',
     event: DiscoverEventResource.Ec2Instance,
-    nodeMeta: { location: ServerLocation.Aws },
+    nodeMeta: {
+      location: ServerLocation.Aws,
+      discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
+    },
   },
   {
     name: 'Connect My Computer',
@@ -111,6 +116,14 @@ export const APPLICATIONS: ResourceSpec[] = [
     isDialog: true,
     event: DiscoverEventResource.ApplicationHttp,
   },
+  {
+    name: 'AWS CLI/Console Access',
+    kind: ResourceKind.Application,
+    keywords: 'application aws cli console access',
+    icon: 'Aws',
+    event: DiscoverEventResource.ApplicationAwsConsole,
+    appMeta: { awsConsole: true },
+  },
 ];
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
@@ -120,7 +133,8 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.Windows,
+    unguidedLink:
+      'https://goteleport.com/docs/desktop-access/active-directory/',
   },
   {
     name: 'Local Users',
@@ -151,7 +165,7 @@ export const KUBERNETES: ResourceSpec[] = [
   },
 ];
 
-const BASE_RESOURCES: ResourceSpec[] = [
+export const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -161,13 +175,9 @@ const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED_DOC,
 ];
 
-export const RESOURCES = !cfg.isEnterprise
-  ? BASE_RESOURCES
-  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
-
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
-    return {};
+    return '';
   }
 
   switch (r.kind) {
@@ -210,6 +220,8 @@ export function getResourcePretitle(r: ResourceSpec) {
         return 'Amazon Web Services (AWS)';
       }
       return 'Server';
+    case ResourceKind.SamlApplication:
+      return 'SAML Application';
   }
 
   return '';

@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -51,6 +53,84 @@ import (
 const (
 	clusterName = "test-cluster"
 )
+
+func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now()
+	inAnHour := clock.Now().Add(time.Hour)
+
+	for _, test := range []struct {
+		name                    string
+		expires                 time.Time
+		previousIdentityExpires time.Time
+		checker                 services.AccessChecker
+		mfaVerified             bool
+		disconnectExpiredCert   bool
+		expected                time.Time
+	}{
+		{
+			name:                    "mfa overrides expires when set",
+			checker:                 &fakeCtxChecker{},
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   true,
+			expected:                inAnHour,
+		},
+		{
+			name:                  "expires returned when mfa unset",
+			checker:               &fakeCtxChecker{},
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: true,
+			expected:              now,
+		},
+		{
+			name:                    "unset when disconnectExpiredCert is false",
+			checker:                 &fakeCtxChecker{},
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   false,
+		},
+		{
+			name:                  "no expiry returned when checker nil and disconnectExpiredCert false",
+			checker:               nil,
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: false,
+			expected:              time.Time{},
+		},
+		{
+			name:                  "expiry returned when checker nil and disconnectExpiredCert true",
+			checker:               nil,
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: true,
+			expected:              now,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var mfaVerified string
+			if test.mfaVerified {
+				mfaVerified = "1234"
+			}
+			identity := tlsca.Identity{
+				Expires:                 test.expires,
+				PreviousIdentityExpires: test.previousIdentityExpires,
+				MFAVerified:             mfaVerified,
+			}
+
+			authPref := types.DefaultAuthPreference()
+			authPref.SetDisconnectExpiredCert(test.disconnectExpiredCert)
+
+			ctx := Context{Checker: test.checker, Identity: WrapIdentity(identity)}
+
+			got := ctx.GetDisconnectCertExpiry(authPref)
+			require.Equal(t, test.expected, got)
+		})
+	}
+}
 
 func TestContextLockTargets(t *testing.T) {
 	t.Parallel()
@@ -401,9 +481,8 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			apV2.Spec.DeviceTrust = &types.DeviceTrust{
 				Mode: test.deviceMode,
 			}
-			require.NoError(t,
-				client.SetAuthPreference(ctx, apV2),
-				"SetAuthPreference failed")
+			_, err = client.UpsertAuthPreference(ctx, apV2)
+			require.NoError(t, err, "UpsertAuthPreference failed")
 
 			// Create a new authorizer.
 			authorizer, err := NewAuthorizer(AuthorizerOpts{
@@ -467,7 +546,8 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, client.SetAuthPreference(ctx, authPreference))
+	_, err = client.UpsertAuthPreference(ctx, authPreference)
+	require.NoError(t, err)
 
 	// Create a new local user.
 	localUser, _, err := createUserAndRole(client, "localuser", []string{"local"}, nil)
@@ -562,6 +642,16 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			},
 			wantAdminActionAuthorized: false,
 		}, {
+			name: "NOK local user mfa verified private key policy",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:         localUser.GetName(),
+					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				},
+			},
+			wantAdminActionAuthorized: false,
+		}, {
 			// edge case for the admin role check.
 			name: "NOK local user with host-like username",
 			user: LocalUser{
@@ -612,16 +702,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			},
 			withMFA:                   validMFAWithReuse,
 			allowedReusedMFA:          true,
-			wantAdminActionAuthorized: true,
-		}, {
-			name: "OK local user mfa verified private key policy",
-			user: LocalUser{
-				Username: localUser.GetName(),
-				Identity: tlsca.Identity{
-					Username:         localUser.GetName(),
-					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-				},
-			},
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK admin",
@@ -1031,8 +1111,12 @@ type fakeCtxChecker struct {
 	state services.AccessState
 }
 
-func (c *fakeCtxChecker) GetAccessState(_ types.AuthPreference) services.AccessState {
+func (c *fakeCtxChecker) GetAccessState(_ readonly.AuthPreference) services.AccessState {
 	return c.state
+}
+
+func (c *fakeCtxChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	return disconnect
 }
 
 type testClient struct {
@@ -1055,7 +1139,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	require.NoError(t, err)
 	caSvc := local.NewCAService(backend)
 	accessSvc := local.NewAccessService(backend)
-	identitySvc := local.NewIdentityService(backend)
+	identitySvc := local.NewTestIdentityService(backend)
 	eventsSvc := local.NewEventsService(backend)
 
 	client := &testClient{
@@ -1068,10 +1152,14 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 
 	// Set default singletons
 	ctx := context.Background()
-	client.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	client.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	client.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	_, err = client.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
+	err = client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	require.NoError(t, err)
+	_, err = client.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+	_, err = client.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	require.NoError(t, err)
 
 	lockSvc := local.NewAccessService(backend)
 
@@ -1122,6 +1210,6 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }

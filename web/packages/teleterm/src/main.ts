@@ -401,8 +401,8 @@ function launchDeepLink(
         reason = `unknown protocol of the deep link ("${result.protocol}")`;
         break;
       }
-      case 'unsupported-uri': {
-        reason = 'unsupported URI received';
+      case 'unsupported-url': {
+        reason = 'unsupported URL received';
         break;
       }
       case 'malformed-url': {

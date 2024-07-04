@@ -30,6 +30,7 @@ export type MenuProps = {
   transformOrigin?: Origins;
   // CSS supplied to MenuList to be consumed by styled-component
   menuListCss?: (props?: any) => string;
+  backdropProps?: Record<string, any>;
 };
 
 export type AnchorProps = {

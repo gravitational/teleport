@@ -81,7 +81,6 @@ func main() {
 			Retryer:                       limiter,
 			Region:                        aws.String(params.awsRegion),
 			CredentialsChainVerboseErrors: aws.Bool(true),
-			EC2MetadataEnableFallback:     aws.Bool(false),
 			UseFIPSEndpoint:               useFIPSEndpoint,
 		},
 	})

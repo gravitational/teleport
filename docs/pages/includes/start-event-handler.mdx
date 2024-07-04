@@ -15,8 +15,8 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
-ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml --teleport-refresh-enabled true
+Restart=always
+ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml --teleport-refresh-enabled=true
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/teleport-event-handler.pid
 

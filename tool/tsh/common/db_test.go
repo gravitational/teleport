@@ -40,19 +40,50 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+func registerFakeEnterpriseDBEngines(t *testing.T) {
+	newFakeEngine := func(dbcommon.EngineConfig) dbcommon.Engine {
+		type fakeDBEngine struct {
+			dbcommon.Engine
+		}
+		return fakeDBEngine{}
+	}
+	dbcommon.RegisterEngine(newFakeEngine, defaults.ProtocolOracle)
+	t.Cleanup(func() {
+		dbcommon.RegisterEngine(nil, defaults.ProtocolOracle)
+	})
+}
+
 func TestTshDB(t *testing.T) {
+	// Register missing Enterprise database engines. Otherwise db.CheckEngines
+	// will fail. The fake engine registered are not functional. But other
+	// Enterprise features like Access Request can still be tested.
+	registerFakeEnterpriseDBEngines(t)
+	modules.SetTestModules(t,
+		&modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DB: {Enabled: true},
+				},
+			},
+		},
+	)
+
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
 	// clusters are setup.
@@ -81,16 +112,40 @@ func testDatabaseLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	devAccessRole, err := types.NewRole("dev-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{"env": []string{"dev"}},
+			DatabaseNames:  []string{"default"},
+			DatabaseUsers:  []string{"admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	accessRequestorRole, err := types.NewRole("access-requestor", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	// to use default --db-user and --db-name selection, make a user with just
 	// one of each allowed.
 	alice.SetDatabaseUsers([]string{"admin"})
 	alice.SetDatabaseNames([]string{"default"})
-	alice.SetRoles([]string{"access", "autouser"})
+	alice.SetRoles([]string{"dev-access", "autouser", "access-requestor"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, autoUserRole, alice)
+			cfg.Auth.BootstrapResources = append(
+				cfg.Auth.BootstrapResources,
+				autoUserRole,
+				devAccessRole,
+				accessRequestorRole,
+				alice,
+			)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -106,7 +161,7 @@ func testDatabaseLogin(t *testing.T) {
 					StaticLabels: map[string]string{
 						types.DiscoveredNameLabel: "postgres",
 						"region":                  "us-west-1",
-						"env":                     "prod",
+						"env":                     "dev",
 					},
 					AWS: servicecfg.DatabaseAWS{
 						AccountID: "123456789012",
@@ -116,9 +171,15 @@ func testDatabaseLogin(t *testing.T) {
 						},
 					},
 				}, {
-					Name:     "mysql",
-					Protocol: defaults.ProtocolMySQL,
-					URI:      "localhost:3306",
+					Name:         "mysql",
+					Protocol:     defaults.ProtocolMySQL,
+					URI:          "localhost:3306",
+					StaticLabels: map[string]string{"env": "dev"},
+				}, {
+					Name:         "mysql-prod",
+					Protocol:     defaults.ProtocolMySQL,
+					URI:          "localhost:3306",
+					StaticLabels: map[string]string{"env": "prod"},
 				}, {
 					Name:     "mysql-autouser",
 					Protocol: defaults.ProtocolMySQL,
@@ -130,31 +191,42 @@ func testDatabaseLogin(t *testing.T) {
 						Name: "teleport-admin",
 					},
 				}, {
-					Name:     "cassandra",
-					Protocol: defaults.ProtocolCassandra,
-					URI:      "localhost:9042",
+					Name:         "cassandra",
+					Protocol:     defaults.ProtocolCassandra,
+					URI:          "localhost:9042",
+					StaticLabels: map[string]string{"env": "dev"},
 				}, {
-					Name:     "snowflake",
-					Protocol: defaults.ProtocolSnowflake,
-					URI:      "localhost.snowflakecomputing.com",
+					Name:         "snowflake",
+					Protocol:     defaults.ProtocolSnowflake,
+					URI:          "localhost.snowflakecomputing.com",
+					StaticLabels: map[string]string{"env": "dev"},
 				}, {
-					Name:     "mongo",
-					Protocol: defaults.ProtocolMongoDB,
-					URI:      "localhost:27017",
+					Name:         "mongo",
+					Protocol:     defaults.ProtocolMongoDB,
+					URI:          "localhost:27017",
+					StaticLabels: map[string]string{"env": "dev"},
 				}, {
-					Name:     "mssql",
-					Protocol: defaults.ProtocolSQLServer,
-					URI:      "localhost:1433",
+					Name:         "mssql",
+					Protocol:     defaults.ProtocolSQLServer,
+					URI:          "sqlserver.example.com:1433",
+					StaticLabels: map[string]string{"env": "dev"},
+					AD: servicecfg.DatabaseAD{
+						KeytabFile: "/etc/keytab",
+						Domain:     "EXAMPLE.COM",
+						SPN:        "MSSQLSvc/sqlserver.example.com:1433",
+					},
 				}, {
-					Name:     "dynamodb",
-					Protocol: defaults.ProtocolDynamoDB,
-					URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+					Name:         "dynamodb",
+					Protocol:     defaults.ProtocolDynamoDB,
+					URI:          "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+					StaticLabels: map[string]string{"env": "dev"},
 					AWS: servicecfg.DatabaseAWS{
 						AccountID:  "123456789012",
 						ExternalID: "123123123",
 						Region:     "us-west-1",
 					},
-				}}
+				},
+			}
 		}),
 	)
 	s.user = alice
@@ -173,11 +245,13 @@ func testDatabaseLogin(t *testing.T) {
 		// extraLoginOptions is a list of extra options used for login like
 		// `--db-roles`.
 		extraLoginOptions     []string
+		setAccessRequestState types.RequestState
 		expectActiveRoute     tlsca.RouteToDatabase
 		expectCertsLen        int
 		expectKeysLen         int
 		expectErrForConfigCmd bool
 		expectErrForEnvCmd    bool
+		expectLoginErrorIs    func(error) bool
 	}{
 		{
 			name:         "mongo",
@@ -291,7 +365,7 @@ func testDatabaseLogin(t *testing.T) {
 		{
 			name:         "by query",
 			databaseName: "postgres-rds-us-west-1-123456789012",
-			dbSelectors:  []string{"--query", `labels.env=="prod" && labels.region == "us-west-1"`},
+			dbSelectors:  []string{"--query", `labels.env=="dev" && labels.region == "us-west-1"`},
 			expectActiveRoute: tlsca.RouteToDatabase{
 				ServiceName: "postgres-rds-us-west-1-123456789012",
 				Protocol:    "postgres",
@@ -311,6 +385,30 @@ func testDatabaseLogin(t *testing.T) {
 				Roles:       []string{"reader"},
 			},
 			expectCertsLen: 1,
+		},
+		{
+			name:               "database not found",
+			databaseName:       "db-not-found",
+			expectLoginErrorIs: trace.IsNotFound,
+		},
+		{
+			name:                  "access request approved",
+			databaseName:          "mysql-prod",
+			setAccessRequestState: types.RequestState_APPROVED,
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mysql-prod",
+				Protocol:    "mysql",
+				Username:    "admin",
+			},
+			expectCertsLen:        1,
+			expectErrForConfigCmd: false,
+			expectErrForEnvCmd:    false,
+		},
+		{
+			name:                  "access request denied",
+			databaseName:          "mysql-prod",
+			setAccessRequestState: types.RequestState_DENIED,
+			expectLoginErrorIs:    trace.IsAccessDenied,
 		},
 	}
 
@@ -346,7 +444,19 @@ func testDatabaseLogin(t *testing.T) {
 				"db", "login",
 			}, selectors...)
 			args = append(args, test.extraLoginOptions...)
+
+			// Access request setup.
+			if test.setAccessRequestState != types.RequestState_NONE {
+				args = append(args, "--request-reason", test.name)
+				go updateAccessRequestForDB(t, s, test.name, test.databaseName, test.setAccessRequestState)
+			}
+
 			err := Run(context.Background(), args, cliOpts...)
+			if test.expectLoginErrorIs != nil {
+				require.Error(t, err)
+				require.True(t, test.expectLoginErrorIs(err))
+				return
+			}
 			require.NoError(t, err)
 
 			// Fetch the active profile.
@@ -408,6 +518,37 @@ func testDatabaseLogin(t *testing.T) {
 	}
 }
 
+func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBName string, updateState types.RequestState) {
+	var accessRequestID string
+	require.Eventually(t, func() bool {
+		filter := types.AccessRequestFilter{State: types.RequestState_PENDING}
+		accessRequests, err := s.root.GetAuthServer().GetAccessRequests(context.Background(), filter)
+		if err != nil {
+			return false
+		}
+
+		for _, accessRequest := range accessRequests {
+			if accessRequest.GetRequestReason() != wantRequestReason {
+				continue
+			}
+			for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+				if resourceID.Kind == types.KindDatabase &&
+					resourceID.Name == wantDBName {
+					accessRequestID = accessRequest.GetName()
+					return true
+				}
+			}
+		}
+		return false
+	}, 10*time.Second, 500*time.Millisecond, "waiting for access request")
+
+	err := s.root.GetAuthServer().SetAccessRequestState(context.Background(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     updateState,
+	})
+	require.NoError(t, err)
+}
+
 func TestLocalProxyRequirement(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -430,11 +571,8 @@ func TestLocalProxyRequirement(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
@@ -487,9 +625,11 @@ func TestLocalProxyRequirement(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
+			_, err = authServer.UpsertAuthPreference(ctx, tt.clusterAuthPref)
+			require.NoError(t, err)
 			t.Cleanup(func() {
-				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
+				_, err = authServer.UpsertAuthPreference(ctx, defaultAuthPref)
+				require.NoError(t, err)
 			})
 			cf := &CLIConf{
 				Context:         ctx,
@@ -1757,4 +1897,78 @@ func testDatabaseSelection(t *testing.T) {
 			})
 		}
 	})
+}
+
+func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
+	tests := []struct {
+		name        string
+		cf          *CLIConf
+		tc          *client.TeleportClient
+		inputError  error
+		checkOutput require.BoolAssertionFunc
+	}{
+		{
+			name: "tsh db connect",
+			cf: &CLIConf{
+				command: "db connect",
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.NotFound("not found"),
+			checkOutput: require.True,
+		},
+		{
+			name: "tsh db login",
+			cf: &CLIConf{
+				command: "db connect",
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.NotFound("not found"),
+			checkOutput: require.True,
+		},
+		{
+			name: "tsh proxy db",
+			cf: &CLIConf{
+				command: "db connect",
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.NotFound("not found"),
+			checkOutput: require.True,
+		},
+		{
+			name: "not NotFound error",
+			cf: &CLIConf{
+				command: "db connect",
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.ConnectionProblem(fmt.Errorf("timed out"), "timed out"),
+			checkOutput: require.False,
+		},
+		{
+			name: "not supported command",
+			cf: &CLIConf{
+				command: "db env",
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.NotFound("not found"),
+			checkOutput: require.False,
+		},
+		{
+			name: "access request disabled",
+			cf: &CLIConf{
+				command:              "db connect",
+				disableAccessRequest: true,
+			},
+			tc:          &client.TeleportClient{},
+			inputError:  trace.NotFound("not found"),
+			checkOutput: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))
+		})
+	}
 }

@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,7 +53,7 @@ type Store struct {
 func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
-		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewFSKeyStore(dirPath),
 		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
 		ProfileStore:      NewFSProfileStore(dirPath),
@@ -63,7 +63,7 @@ func NewFSClientStore(dirPath string) *Store {
 // NewMemClientStore initializes a new in-memory client store.
 func NewMemClientStore() *Store {
 	return &Store{
-		log:               logrus.WithField(trace.Component, teleport.ComponentKeyStore),
+		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
@@ -82,14 +82,21 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
-// ErrNoCredentials is returned by the client store when a specific key is not found.
-// This error can be used to determine whether a client should retrieve new credentials,
-// like how it is used with lib/client.RetryWithRelogin.
-var ErrNoCredentials = trace.NotFound("no credentials")
+var (
+	// ErrNoCredentials is returned by the client store when a specific key is not found.
+	// This error can be used to determine whether a client should retrieve new credentials,
+	// like how it is used with lib/client.RetryWithRelogin.
+	ErrNoCredentials = &trace.NotFoundError{Message: "no credentials"}
 
-// IsNoCredentialsError returns whether the given error is an ErrNoCredentials error.
+	// ErrNoProfile is returned by the client store when a specific profile is not found.
+	// This error can be used to determine whether a client should retrieve new credentials,
+	// like how it is used with lib/client.RetryWithRelogin.
+	ErrNoProfile = &trace.NotFoundError{Message: "no profile"}
+)
+
+// IsNoCredentialsError returns whether the given error implies that the user should retrieve new credentials.
 func IsNoCredentialsError(err error) bool {
-	return errors.Is(err, ErrNoCredentials)
+	return errors.Is(err, ErrNoCredentials) || errors.Is(err, ErrNoProfile)
 }
 
 // GetKey gets the requested key with trusted the requested certificates. The key's
@@ -133,7 +140,7 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 	for _, hostKey := range hostKeys {
 		authorizedKeys = append(authorizedKeys, ssh.MarshalAuthorizedKey(hostKey))
 	}
-	err := s.SaveTrustedCerts(proxyHost, []auth.TrustedCerts{
+	err := s.SaveTrustedCerts(proxyHost, []authclient.TrustedCerts{
 		{
 			ClusterName:    clusterName,
 			AuthorizedKeys: authorizedKeys,
@@ -161,6 +168,9 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 
 	profile, err := s.GetProfile(profileName)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.Wrap(ErrNoProfile, err.Error())
+		}
 		return nil, trace.Wrap(err)
 	}
 	idx := KeyIndex{

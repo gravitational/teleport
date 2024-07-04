@@ -79,7 +79,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -119,7 +119,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
       textTransform="none"
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -151,6 +151,7 @@ const AppLaunch = ({ app }: { app: App }) => {
   if (awsConsole) {
     return (
       <AwsLaunchButton
+        width="123px"
         awsRoles={awsRoles}
         getLaunchUrl={arn =>
           cfg.getAppLauncherRoute({
@@ -167,7 +168,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <ButtonBorder
         disabled
-        width="90px"
+        width="123px"
         size="small"
         title="Cloud or TCP applications cannot be launched by the browser"
         textTransform="none"
@@ -180,7 +181,7 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <ButtonBorder
         as="a"
-        width="90px"
+        width="123px"
         size="small"
         target="_blank"
         href={samlAppSsoUrl}
@@ -194,7 +195,7 @@ const AppLaunch = ({ app }: { app: App }) => {
   return (
     <ButtonBorder
       as="a"
-      width="90px"
+      width="123px"
       size="small"
       target="_blank"
       href={launchUrl}
@@ -218,7 +219,7 @@ function DatabaseConnect({ database }: { database: Database }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="90px"
+        width="123px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -251,7 +252,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
-        width="90px"
+        width="123px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}

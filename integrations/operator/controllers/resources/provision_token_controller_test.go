@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -69,6 +69,7 @@ func newProvisionTokenFromSpecNoExpire(token string, spec types.ProvisionTokenSp
 
 type tokenTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.ProvisionToken]
 }
 
 func (g *tokenTestingPrimitives) Init(setup *testSetup) {
@@ -197,7 +198,7 @@ github:
 
 	tokenName := validRandomResourceName("token-")
 
-	obj, err := resources.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	obj, err := reconcilers.GetUnstructuredObjectFromGVK(teleportTokenGVK)
 	require.NoError(t, err)
 	obj.Object["spec"] = tokenManifest
 	obj.SetName(tokenName)

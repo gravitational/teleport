@@ -37,7 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -342,7 +342,7 @@ func TestProxyResync(t *testing.T) {
 }
 
 type mockLocalSiteClient struct {
-	auth.Client
+	authclient.Client
 
 	proxies []types.Server
 }

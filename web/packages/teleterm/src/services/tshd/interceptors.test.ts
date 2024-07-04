@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { InterceptingCall, InterceptorOptions } from '@grpc/grpc-js';
+import { UnaryCall, MethodInfo, ServiceInfo } from '@protobuf-ts/runtime-rpc';
 
 import Logger from 'teleterm/logger';
 
@@ -31,23 +31,50 @@ it('do not log sensitive info like password', () => {
       warn: () => {},
     }),
   });
-  const interceptor = loggingInterceptor(new Logger())(
-    { method_definition: { path: 'LogIn' } } as InterceptorOptions,
-    () =>
-      ({
-        sendMessageWithContext: () => {},
-      }) as unknown as InterceptingCall
-  );
+  const interceptor = loggingInterceptor(new Logger());
 
-  interceptor.sendMessage({
-    passw: {},
-    userData: {
-      login: 'admin',
-      password: 'admin',
+  interceptor.interceptUnary(
+    () => ({ then: () => Promise.resolve({ response: '' }) }) as UnaryCall,
+    {
+      name: 'LogIn',
+      service: { typeName: 'FooService' } as ServiceInfo,
+    } as MethodInfo,
+    {
+      password: {},
+      userData: {
+        login: 'admin',
+        password: 'admin',
+      },
     },
-  });
-
-  expect(infoLogger).toHaveBeenCalledWith(
-    'send: LogIn({"passw":"~FILTERED~","userData":{"login":"admin","password":"~FILTERED~"}})'
+    {}
   );
+
+  expect(infoLogger).toHaveBeenCalledWith(expect.any(String), {
+    password: '~FILTERED~',
+    userData: { login: 'admin', password: '~FILTERED~' },
+  });
+});
+
+it('includes service and method name', () => {
+  const infoLogger = jest.fn();
+  Logger.init({
+    createLogger: () => ({
+      info: infoLogger,
+      error: () => {},
+      warn: () => {},
+    }),
+  });
+  const interceptor = loggingInterceptor(new Logger());
+
+  interceptor.interceptUnary(
+    () => ({ then: () => Promise.resolve({ response: '' }) }) as UnaryCall,
+    {
+      name: 'Foo',
+      service: { typeName: 'FooService' } as ServiceInfo,
+    } as MethodInfo,
+    {},
+    {}
+  );
+
+  expect(infoLogger).toHaveBeenCalledWith('send FooService Foo', {});
 });

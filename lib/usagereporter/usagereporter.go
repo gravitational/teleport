@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -422,7 +421,7 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 
 	reporter := &UsageReporter[T]{
 		Entry: options.Log.WithField(
-			trace.Component,
+			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
 		events:          make(chan []*SubmittedEvent[T], 1),

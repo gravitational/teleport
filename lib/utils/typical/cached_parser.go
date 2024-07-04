@@ -60,7 +60,7 @@ type CachedParser[TEnv, TResult any] struct {
 }
 
 // NewCachedParser creates a cached predicate expression parser with the given specification.
-func NewCachedParser[TEnv, TResult any](spec ParserSpec, opts ...ParserOption) (*CachedParser[TEnv, TResult], error) {
+func NewCachedParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOption) (*CachedParser[TEnv, TResult], error) {
 	parser, err := NewParser[TEnv, TResult](spec, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)

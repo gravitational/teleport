@@ -47,6 +47,7 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
 1. [Who Built Teleport?](#who-built-teleport)
+1. [License](#license)
 
 ## Introduction
 
@@ -90,15 +91,15 @@ guide](https://goteleport.com/docs/get-started). You can then register your
 servers, Kubernetes clusters, and other infrastructure with your Teleport
 cluster.
 
-You can also get started with Teleport Team, a managed Teleport deployment that
-makes it easier for small organizations to enable secure access to their
-infrastructure.
+You can also get started with Teleport Enterprise Cloud, a managed Teleport
+deployment that makes it easier to enable secure access to your infrastructure.
 
-[Sign up for a free trial](https://goteleport.com/signup) of Teleport Team.
+[Sign up for a free trial](https://goteleport.com/signup) of Teleport Enterprise
+Cloud.
 
 Follow our guide to [registering your first
-server](https://goteleport.com/docs/choose-an-edition/teleport-team/) with
-Teleport Team
+server](https://goteleport.com/docs/choose-an-edition/teleport-cloud/get-started/)
+with Teleport Enterprise Cloud.
 
 ## Docker
 
@@ -146,7 +147,8 @@ Ensure you have installed correct versions of necessary dependencies:
   `Rust` and `Cargo` versions in
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
+* For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
+  `pkg-config` installed locally
 * To build the web UI:
   * [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
   * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
@@ -194,18 +196,26 @@ maintainer, ask the team for access.
 make build/tsh TOUCHID=yes
 ```
 
-To build `tsh` with `libfido`:
+`tsh` dynamically links against libfido2 by default, to support development
+environments, as long as the library itself can be found:
 
-  ```shell
-  make build/tsh FIDO2=dynamic
-  ```
+```shell
+$ brew install libfido2 pkg-config  # Replace with your package manager of choice
 
-  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
+$ make build/tsh
+> libfido2 found, setting FIDO2=dynamic
+> (...)
+```
 
-    ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
-    make build/tsh FIDO2=dynamic
-    ```
+Release binaries are linked statically against libfido2. You may switch the
+linking mode using the FIDO2 variable:
+
+```shell
+make build/tsh FIDO2=dynamic # dynamic linking
+make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter`
+                             # or `build.assets/macos/build-fido2-macos.sh`.
+make build/tsh FIDO2=off     # doesn't link libfido2 in any way
+```
 
 #### Build output and run locally
 
@@ -391,3 +401,17 @@ You can see the list of companies that use Teleport in production on the Telepor
 Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).
+
+## License
+
+Teleport is distributed in multiple forms with different licensing implications.
+
+The Teleport API module (all code in this repository under `/api`) is available
+under the [Apache 2.0 license](./api/LICENSE).
+
+The remainder of the source code in this repository is available under the
+[GNU Affero General Public License](./LICENSE). Users compiling Teleport
+from source must comply with the terms of this license.
+
+Teleport Community Edition builds distributed on http://goteleport.com/download
+are available under a [modified Apache 2.0 license](./LICENSE-community).

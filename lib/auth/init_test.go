@@ -42,14 +42,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -76,10 +75,10 @@ func TestReadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
+	id, err := state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
 	require.Equal(t, "example.com", id.ClusterName)
-	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, state.IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
 	require.Equal(t, cert, id.CertBytes)
 	require.Equal(t, priv, id.KeyBytes)
 
@@ -109,7 +108,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// bad cert type
-	_, err = ReadSSHIdentityFromKeyPair(priv, pub)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing authority domain
@@ -124,7 +123,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// missing host uuid
@@ -139,7 +138,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 
 	// unrecognized role
@@ -154,7 +153,7 @@ func TestBadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = ReadSSHIdentityFromKeyPair(priv, cert)
+	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
 }
 
@@ -307,7 +306,7 @@ func TestAuthPreference(t *testing.T) {
 				SecondFactor: constants.SecondFactorOff,
 			})
 			require.NoError(t, err)
-			err = authServer.SetAuthPreference(ctx, dynamically)
+			_, err = authServer.UpsertAuthPreference(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -315,6 +314,36 @@ func TestAuthPreference(t *testing.T) {
 			require.NoError(t, err)
 			return authPref
 		},
+	})
+}
+
+func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
+	modules.SetInsecureTestMode(false)
+	defer modules.SetInsecureTestMode(true)
+	ctx := context.Background()
+
+	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+
+		conf.AuthPreference = authPref
+		_, err = Init(ctx, conf)
+		require.Error(t, err)
+	})
+
+	t.Run("starting with defaults and dynamically updating to disable second factor fails", func(t *testing.T) {
+		conf := setupConfig(t)
+		s, err := Init(ctx, conf)
+		require.NoError(t, err)
+		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOff,
+		})
+		require.NoError(t, err)
+		_, err = s.UpsertAuthPreference(ctx, authpref)
+		require.Error(t, err)
 	})
 }
 
@@ -350,7 +379,7 @@ func TestClusterNetworkingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetClusterNetworkingConfig(ctx, dynamically)
+			_, err = authServer.UpsertClusterNetworkingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -392,7 +421,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 			})
 			require.NoError(t, err)
 			dynamically.SetOrigin(types.OriginDynamic)
-			err = authServer.SetSessionRecordingConfig(ctx, dynamically)
+			_, err = authServer.UpsertSessionRecordingConfig(ctx, dynamically)
 			require.NoError(t, err)
 		},
 		getStored: func(t *testing.T, authServer *Server) types.ResourceWithOrigin {
@@ -650,7 +679,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.Contains(t, expectedPresetRoles, r.GetName())
 				require.NotContains(t, createdPresets, r.GetName())
-				require.False(t, types.IsSystemResource(r))
+				require.False(t, types.IsSystemResource(r) && r.GetName() != teleport.SystemOktaRequesterRoleName)
 				createdPresets[r.GetName()] = r
 			}).
 			Return(func(_ context.Context, r types.Role) (types.Role, error) {
@@ -793,12 +822,12 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceAdminRoleName,
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
+			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
-			teleport.SystemOktaRequesterRoleName,
 		}
 
 		enterpriseUsers := []types.User{
@@ -997,12 +1026,7 @@ func setupConfig(t *testing.T) InitConfig {
 		StaticTokens:            types.DefaultStaticTokens(),
 		AuthPreference:          types.DefaultAuthPreference(),
 		SkipPeriodicOperations:  true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
-		},
-		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
+		Tracer:                  tracing.NoopTracer(teleport.ComponentAuth),
 	}
 }
 
@@ -1493,7 +1517,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }
 
@@ -1702,7 +1726,7 @@ func TestIdentityChecker(t *testing.T) {
 				"test",
 				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
-				[]ssh.Signer{test.cert},
+				sshutils.StaticHostSigners(test.cert),
 				sshutils.AuthMethods{NoClient: true},
 				sshutils.SetInsecureSkipHostValidation(),
 			)
@@ -1710,7 +1734,7 @@ func TestIdentityChecker(t *testing.T) {
 			t.Cleanup(func() { sshServer.Close() })
 			require.NoError(t, sshServer.Start())
 
-			identity, err := GenerateIdentity(authServer, IdentityID{
+			identity, err := GenerateIdentity(authServer, state.IdentityID{
 				Role:     types.RoleNode,
 				HostUUID: uuid.New().String(),
 				NodeName: "node-1",
@@ -1747,27 +1771,4 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
-}
-
-func TestMigrateDatabaseClientCA(t *testing.T) {
-	ctx := context.Background()
-	conf := setupConfig(t)
-
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
-	dbServerCA := suite.NewTestCA(types.DatabaseCA, "me.localhost")
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA, dbServerCA}
-	auth, err := Init(ctx, conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	dbClientCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseClientCA, true)
-	require.NoError(t, err)
-	require.Len(t, dbClientCAs, 1)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Cert, dbClientCAs[0].GetActiveKeys().TLS[0].Cert)
-	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Key, dbClientCAs[0].GetActiveKeys().TLS[0].Key)
 }

@@ -16,13 +16,14 @@ You can make production builds locally or you can use Docker to do that.
 
 ### Local Build
 
-Make sure that [you have yarn installed](https://yarnpkg.com/lang/en/docs/install/#debian-stable)
-on your system since this monorepo uses the yarn package manager.
+Make sure that you have [Yarn 1](https://classic.yarnpkg.com/en/docs/install/) installed. The
+Node.js version should match the one reported by executing `make -C build.assets print-node-version`
+from the root directory.
 
-Then you need download and initialize these repository dependencies.
+Then you need to download and initialize JavaScript dependencies.
 
 ```
-$ yarn install
+yarn install
 ```
 
 You will also need the following tools installed:
@@ -35,7 +36,7 @@ You will also need the following tools installed:
 To build the Teleport open source version
 
 ```
-$ yarn build-ui-oss
+yarn build-ui-oss
 ```
 
 The resulting output will be in the `webassets` folder.
@@ -45,7 +46,7 @@ The resulting output will be in the `webassets` folder.
 To build the Teleport community version
 
 ```
-$ make docker-ui
+make docker-ui
 ```
 
 ## Getting Started with Teleport Connect
@@ -139,13 +140,13 @@ We use [jest](https://jestjs.io/) as our testing framework.
 To run all jest unit-tests:
 
 ```
-$ yarn run test
+yarn run test
 ```
 
 To run jest in watch-mode
 
 ```
-$ yarn run tdd
+yarn run tdd
 ```
 
 ### Interactive Testing
@@ -157,7 +158,7 @@ each component, and interactively develop and test components.
 To start a storybook:
 
 ```
-$ yarn run storybook
+yarn run storybook
 ```
 
 This command will open a new browser window with storybook in it. There
@@ -169,7 +170,7 @@ and iterate on shared functionality.
 We are targeting last 2 versions of all major browsers. To quickly find out which ones exactly, use the following command:
 
 ```
-$ yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
+yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
 ```
 
 ### Setup Prettier on VSCode
@@ -224,6 +225,8 @@ $ yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox 
 
 ### MFA Development
 
+#### Local cluster with nip.io
+
 When developing MFA sections of the codebase, you may need to configure the `teleport.yaml` of your target teleport cluster to accept hardware keys registered over the local development setup. Webauthn can get tempermental if you try to use localhost as your `rp_id`, but you can get around this by using https://nip.io/. For example, if you want to configure optional `webauthn` mfa, you can set up your auth service like so:
 
 ```yaml
@@ -241,6 +244,48 @@ proxy_service:
 ```
 
 Then start the dev server like `PROXY_TARGET=https://proxy.127.0.0.1.nip.io:3080 yarn start-teleport` and access it at https://proxy.127.0.0.1.nip.io:8080.
+
+#### Local cluster with /etc/hosts
+
+Unlike the method above, this one requires no changes to an existing local cluster.
+
+If you have entries for your cluster in `/etc/hosts` and your cluster is configured to use something
+like `teleport.test:3080` as the public address of the proxy service, you can just set a proxy
+target to that public address. Then instead of accessing the Vite proxy at `localhost:8080`, you can
+access it at `teleport.test:8080`. MFA will work fine since RP ID will still be `teleport.test`.
+
+#### Remote cluster with socat
+
+Update `/etc/hosts` to override DNS resolution of your proxy addr, e.g my proxy is at alpha.devteleport.com:
+
+```
+::1 alpha.devteleport.com
+127.0.0.1 alpha.devteleport.com
+```
+
+Assuming you've properly configured DNS with a wildcard subdomain record: start a transparent TCP
+proxy that forwards to the Teleport proxy using whatever sub-sub domain (has to be nested twice to
+avoid being routed to teleport app access). AWS route53 wildcard records work for any subdomain
+nesting level. Alternatively, hardcode the real teleport proxy's IP. e.g. with `socat` (`brew install
+socat`):
+
+```
+sudo socat -d2 TCP-LISTEN:443,reuseaddr,fork TCP:x.y.alpha.devteleport.com:443
+```
+
+Generate certs for your proxy's domain as described in [Local HTTPS](#local-https). Start the local
+dev UI server:
+
+```
+PROXY_TARGET=alpha.devteleport.com:443 yarn start-teleport
+```
+
+This makes your browser, tsh, and anything else on your system that respects `/etc/hosts` think it's
+talking to your proxy directly, but it's actually being forwarded without TLS termination by
+`socat`, allowing Webauthn to work as well as TLS verification. You can now go to either port 443 or
+3000 with your actual teleport proxy address - 443 will go to the remote proxy's web UI, 3000 will
+go to the local dev web UI. This can be used to run a dev web UI even for Teleport clusters you do
+not own.
 
 ### Adding Packages/Dependencies
 

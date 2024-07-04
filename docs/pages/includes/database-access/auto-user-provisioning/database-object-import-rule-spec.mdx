@@ -1,0 +1,56 @@
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: my_custom_rule
+spec:
+  # Priority determines how important the rule is, with lower number indicating lower priority.
+  # In case of conflicts, when the same label is applied by two rules,
+  # the label applied by rule with higher priority wins.
+  priority: 123
+  # database_labels is a filter specifying which database resources are in scope of this rule.
+  database_labels:
+  - name: 'env'
+    values:
+    - 'test'
+    - 'staging'
+  - name: 'dept'
+    values:
+    - '*'
+  # Each mapping, if matched, introduces a set of labels applied to database object.
+  # Database objects without labels are not imported.
+  mappings:
+  - add_labels:
+      # the following properties are supported; 'obj' stands for 'database object'.
+      database: '{{obj.database}}'
+      object_kind: '{{obj.object_kind}}'
+      name: '{{obj.name}}'
+      protocol: '{{obj.protocol}}'
+      schema: '{{obj.schema}}'
+      database_service_name: '{{obj.database_service_name}}'
+      # you may use fixed strings or mix with templates
+      fixed: const_value
+      template: 'foo-{{obj.name}}'
+    # match adds objects to be imported; it cannot be empty.
+    match:
+      # list of all table names
+      table_names:
+      - 'fixed_table_name'
+      - 'partial_wildcard_*'
+    # scope reduces scope of import; it may be empty.
+    scope:
+      database_names:
+        - Widget*
+      schema_names:
+        - public
+        - secret
+  # Additional mappings can be added here.
+  - add_labels:
+      confidential: true
+    match:
+      table_names:
+      - '*'
+    scope:
+      schema_names:
+        - secret
+version: v1
+```

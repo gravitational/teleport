@@ -21,10 +21,11 @@ import { ipcMain } from 'electron';
 import { isAbortError } from 'shared/utils/abortError';
 
 import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
-import { TshdClient } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd';
 import { Logger } from 'teleterm/types';
 import { MainProcessIpc } from 'teleterm/mainProcess/types';
 import * as tshd from 'teleterm/services/tshd/types';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 
 export type RootClusterProxyHostAllowList = Set<string>;
 
@@ -47,17 +48,21 @@ export function manageRootClusterProxyHostAllowList({
   logger: Logger;
   allowList: RootClusterProxyHostAllowList;
 }) {
-  let abortController: tshd.TshAbortController;
+  let abortController: AbortController;
 
   const refreshAllowList = async () => {
     // Allow only one call to be in progress. This ensures that on subsequent calls to
     // refreshAllowList, we always store only the most recent version of the list.
     abortController?.abort();
-    abortController = tshdClient.createAbortController();
+    abortController = new AbortController();
 
     let rootClusters: tshd.Cluster[];
     try {
-      rootClusters = await tshdClient.listRootClusters(abortController.signal);
+      const { response } = await tshdClient.listRootClusters(
+        {},
+        { abort: cloneAbortSignal(abortController.signal) }
+      );
+      rootClusters = response.clusters;
     } catch (error) {
       if (isAbortError(error)) {
         // Ignore abort errors. They will be logged by the gRPC client middleware.

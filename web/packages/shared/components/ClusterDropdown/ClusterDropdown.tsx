@@ -38,6 +38,7 @@ export interface ClusterDropdownProps {
    * messages. Even if using the internal "loadClusters", we will pass the error back to be consumed by the parent.
    */
   onError: (errorMessage: string) => void;
+  mb?: number;
 }
 
 interface ClusterLoader {
@@ -60,6 +61,7 @@ export function ClusterDropdown({
   clusterId,
   onChange,
   onError,
+  mb = 0,
 }: ClusterDropdownProps) {
   const initialClusters = clusterLoader.clusters;
   const [options, setOptions] = React.useState<Option[]>(
@@ -129,7 +131,8 @@ export function ClusterDropdown({
     setAnchorEl(null);
   };
 
-  if (options.length < 1) {
+  // If only a single cluster is available, hide the dropdown
+  if (options.length < 2) {
     return null;
   }
 
@@ -145,7 +148,7 @@ export function ClusterDropdown({
   }
 
   return (
-    <Flex textAlign="center" alignItems="center">
+    <Flex textAlign="center" alignItems="center" mb={mb}>
       <HoverTooltip tipContent={'Select cluster'}>
         <ButtonSecondary
           px={2}
@@ -156,7 +159,7 @@ export function ClusterDropdown({
           size="small"
           onClick={handleOpen}
         >
-          {selectedOption.label}
+          Cluster: {selectedOption.label}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonSecondary>
       </HoverTooltip>

@@ -1,0 +1,39 @@
+suite: Test configmap
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      slack:
+        token: test-api-key
+      roleToRecipients:
+        dev:
+          - dev-access-requests
+          - example-user@example.com
+        "*":
+          - dev-access-requests
+      log:
+        output: /var/log/teleport-slack.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should not contain annotations when not defined
+    asserts:
+      - isNull:
+          path: metadata.annotations
+
+  - it: should contain annotations when defined
+    set:
+      annotations:
+        config:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB

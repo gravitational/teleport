@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -40,6 +41,7 @@ import (
 // to the controller in order for it to be able to handle control streams.
 type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 
 	KeepAliveServer(context.Context, types.KeepAlive) error
 
@@ -58,6 +60,16 @@ const (
 	sshUpsertRetryOk  testEvent = "ssh-upsert-retry-ok"
 	sshUpsertRetryErr testEvent = "ssh-upsert-retry-err"
 
+	appKeepAliveOk  testEvent = "app-keep-alive-ok"
+	appKeepAliveErr testEvent = "app-keep-alive-err"
+	appKeepAliveDel testEvent = "app-keep-alive-del"
+
+	appUpsertOk  testEvent = "app-upsert-ok"
+	appUpsertErr testEvent = "app-upsert-err"
+
+	appUpsertRetryOk  testEvent = "app-upsert-retry-ok"
+	appUpsertRetryErr testEvent = "app-upsert-retry-err"
+
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
 
@@ -65,6 +77,8 @@ const (
 
 	handlerStart = "handler-start"
 	handlerClose = "handler-close"
+
+	keepAliveTick = "keep-alive-tick"
 )
 
 // intervalKey is used to uniquely identify the subintervals registered with the interval.MultiInterval
@@ -88,6 +102,8 @@ type controllerOptions struct {
 	testEvents         chan testEvent
 	maxKeepAliveErrs   int
 	authID             string
+	onConnectFunc      func(string)
+	onDisconnectFunc   func(string)
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -107,6 +123,14 @@ func (options *controllerOptions) SetDefaults() {
 		// third error, 3-4m have gone by, so the problem is almost certainly persistent.
 		options.maxKeepAliveErrs = 2
 	}
+
+	if options.onConnectFunc == nil {
+		options.onConnectFunc = func(s string) {}
+	}
+
+	if options.onDisconnectFunc == nil {
+		options.onDisconnectFunc = func(s string) {}
+	}
 }
 
 type ControllerOption func(c *controllerOptions)
@@ -114,6 +138,28 @@ type ControllerOption func(c *controllerOptions)
 func WithAuthServerID(serverID string) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.authID = serverID
+	}
+}
+
+// WithOnConnect sets a function to be called every time a new
+// instance connects via the inventory control stream. The value
+// provided to the callback is the keep alive type of the connected
+// resource. The callback should return quickly so as not to prevent
+// processing of heartbeats.
+func WithOnConnect(f func(heartbeatKind string)) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.onConnectFunc = f
+	}
+}
+
+// WithOnDisconnect sets a function to be called every time an existing
+// instance disconnects from the inventory control stream. The value
+// provided to the callback is the keep alive type of the disconnected
+// resource. The callback should return quickly so as not to prevent
+// processing of heartbeats.
+func WithOnDisconnect(f func(heartbeatKind string)) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.onDisconnectFunc = f
 	}
 }
 
@@ -142,6 +188,7 @@ type Controller struct {
 	serviceCounter             *serviceCounter
 	auth                       Auth
 	authID                     string
+	serverKeepAliveEnabled     bool
 	serverKeepAlive            time.Duration
 	serverTTL                  time.Duration
 	instanceTTL                time.Duration
@@ -150,8 +197,22 @@ type Controller struct {
 	maxKeepAliveErrs           int
 	usageReporter              usagereporter.UsageReporter
 	testEvents                 chan testEvent
+	onConnectFunc              func(string)
+	onDisconnectFunc           func(string)
 	closeContext               context.Context
 	cancel                     context.CancelFunc
+}
+
+// serverKeepAliveDisabledEnv checks if the periodic server keepalive has been
+// explicitly disabled via environment variable.
+func serverKeepAliveDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE") == "yes"
+}
+
+// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
+// via environment variable.
+func instanceHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 // NewController sets up a new controller instance.
@@ -172,6 +233,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	return &Controller{
 		store:                      NewStore(),
 		serviceCounter:             &serviceCounter{},
+		serverKeepAliveEnabled:     !serverKeepAliveDisabledEnv(),
 		serverKeepAlive:            options.serverKeepAlive,
 		serverTTL:                  apidefaults.ServerAnnounceTTL,
 		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
@@ -182,6 +244,8 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 		authID:                     options.authID,
 		testEvents:                 options.testEvents,
 		usageReporter:              usageReporter,
+		onConnectFunc:              options.onConnectFunc,
+		onDisconnectFunc:           options.onDisconnectFunc,
 		closeContext:               ctx,
 		cancel:                     cancel,
 	}
@@ -262,12 +326,23 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
 		handle.ticker.Stop()
+
+		if handle.sshServer != nil {
+			c.onDisconnectFunc(constants.KeepAliveNode)
+		}
+
+		for range handle.appServers {
+			c.onDisconnectFunc(constants.KeepAliveApp)
+		}
+
+		clear(handle.appServers)
 		c.testEvent(handlerClose)
 	}()
 
-	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
-	// upon receipt of the first heartbeat since not all servers send heartbeats.
-	var keepAliveInit bool
+	// keepAliveNeedInit tracks wether or not we should initialize the server
+	// keepalive sub-interval upon receiving a heartbeat. We do this lazily upon
+	// receipt of the first heartbeat since not all servers send heartbeats.
+	keepAliveNeedInit := c.serverKeepAliveEnabled
 
 	for {
 		select {
@@ -284,7 +359,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					handle.CloseWithError(err)
 					return
 				}
-				if !keepAliveInit {
+				if keepAliveNeedInit {
 					// this is the first heartbeat, so we need to initialize the keepalive sub-interval
 					handle.ticker.Push(interval.SubInterval[intervalKey]{
 						Key:           serverKeepAliveKey,
@@ -292,7 +367,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 						FirstDuration: halfJitter(c.serverKeepAlive),
 						Jitter:        seventhJitter,
 					})
-					keepAliveInit = true
+					keepAliveNeedInit = false
 				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
@@ -329,12 +404,6 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			return
 		}
 	}
-}
-
-// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
-// via environment variable.
-func instanceHeartbeatsDisabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
@@ -431,6 +500,13 @@ func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.Invento
 			return trace.Wrap(err)
 		}
 	}
+
+	if hb.AppServer != nil {
+		if err := c.handleAppServerHB(handle, hb.AppServer); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -451,6 +527,11 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		sshServer.SetAddr(utils.ReplaceLocalhost(sshServer.GetAddr(), handle.PeerAddr()))
 	}
 
+	if handle.sshServer == nil {
+		c.onConnectFunc(constants.KeepAliveNode)
+		handle.sshServer = &heartBeatInfo[*types.ServerV2]{}
+	}
+
 	now := time.Now()
 
 	sshServer.SetExpiry(now.Add(c.serverTTL).UTC())
@@ -459,18 +540,66 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	if err == nil {
 		c.testEvent(sshUpsertOk)
 		// store the new lease and reset retry state
-		handle.sshServerLease = lease
-		handle.retrySSHServerUpsert = false
+		handle.sshServer.lease = lease
+		handle.sshServer.retryUpsert = false
 	} else {
 		c.testEvent(sshUpsertErr)
 		log.Warnf("Failed to upsert ssh server %q on heartbeat: %v.", handle.Hello().ServerID, err)
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
-		handle.sshServerLease = nil
-		handle.retrySSHServerUpsert = true
+		handle.sshServer.lease = nil
+		handle.sshServer.retryUpsert = true
 	}
-	handle.sshServer = sshServer
+	handle.sshServer.resource = sshServer
+	return nil
+}
+
+func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.AppServerV3) error {
+	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
+	// client cert. after that point it is our responsibility to ensure that heartbeated information is
+	// consistent with the identity and capabilities claimed in the initial hello.
+	if !handle.HasService(types.RoleApp) {
+		return trace.AccessDenied("control stream not configured to support app server heartbeats")
+	}
+	if appServer.GetHostID() != handle.Hello().ServerID {
+		return trace.AccessDenied("incorrect app server ID (expected %q, got %q)", handle.Hello().ServerID, appServer.GetHostID())
+	}
+
+	if handle.appServers == nil {
+		handle.appServers = make(map[appServerKey]*heartBeatInfo[*types.AppServerV3])
+	}
+
+	appKey := appServerKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
+
+	if _, ok := handle.appServers[appKey]; !ok {
+		c.onConnectFunc(constants.KeepAliveApp)
+		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
+	}
+
+	now := time.Now()
+
+	appServer.SetExpiry(now.Add(c.serverTTL).UTC())
+
+	lease, err := c.auth.UpsertApplicationServer(c.closeContext, appServer)
+	if err == nil {
+		c.testEvent(appUpsertOk)
+		// store the new lease and reset retry state
+		srv := handle.appServers[appKey]
+		srv.lease = lease
+		srv.retryUpsert = false
+		srv.resource = appServer
+	} else {
+		c.testEvent(appUpsertErr)
+		log.Warnf("Failed to upsert app server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+
+		// blank old lease if any and set retry state. next time handleKeepAlive is called
+		// we will attempt to upsert the server again.
+		srv := handle.appServers[appKey]
+		srv.lease = nil
+		srv.retryUpsert = true
+		srv.resource = appServer
+	}
 	return nil
 }
 
@@ -499,36 +628,103 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 }
 
 func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {
-	if handle.sshServerLease != nil {
-		lease := *handle.sshServerLease
+	// always fire off 'tick' event after keepalive processing to ensure
+	// that waiting for N ticks maps intuitively to waiting for N keepalive
+	// processing steps.
+	defer c.testEvent(keepAliveTick)
+	if err := c.keepAliveSSHServer(handle, now); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.keepAliveAppServer(handle, now); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) error {
+	if handle.appServers == nil {
+		return nil
+	}
+
+	for name, srv := range handle.appServers {
+		if srv.lease != nil {
+			lease := *srv.lease
+			lease.Expires = now.Add(c.serverTTL).UTC()
+			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+				c.testEvent(appKeepAliveErr)
+
+				srv.keepAliveErrs++
+				handle.appServers[name] = srv
+				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+				log.Warnf("Failed to keep alive app server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+
+				if shouldRemove {
+					c.testEvent(appKeepAliveDel)
+					delete(handle.appServers, name)
+				}
+			} else {
+				srv.keepAliveErrs = 0
+				c.testEvent(appKeepAliveOk)
+			}
+		} else if srv.retryUpsert {
+			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
+			if err != nil {
+				c.testEvent(appUpsertRetryErr)
+				log.Warnf("Failed to upsert app server %q on retry: %v.", handle.Hello().ServerID, err)
+				// since this is retry-specific logic, an error here means that upsert failed twice in
+				// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
+				// attempting a third time.
+				return trace.Errorf("failed to upsert app server on retry: %v", err)
+			}
+			c.testEvent(appUpsertRetryOk)
+
+			srv.lease = lease
+			srv.retryUpsert = false
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) error {
+	if handle.sshServer == nil {
+		return nil
+	}
+
+	if handle.sshServer.lease != nil {
+		lease := *handle.sshServer.lease
 		lease.Expires = now.Add(c.serverTTL).UTC()
 		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
 			c.testEvent(sshKeepAliveErr)
-			handle.sshServerKeepAliveErrs++
-			shouldClose := handle.sshServerKeepAliveErrs > c.maxKeepAliveErrs
+			handle.sshServer.keepAliveErrs++
+			shouldClose := handle.sshServer.keepAliveErrs > c.maxKeepAliveErrs
 
-			log.Warnf("Failed to keep alive ssh server %q: %v (count=%d, closing=%v).", handle.Hello().ServerID, err, handle.sshServerKeepAliveErrs, shouldClose)
+			log.Warnf("Failed to keep alive ssh server %q: %v (count=%d, closing=%v).", handle.Hello().ServerID, err, handle.sshServer.keepAliveErrs, shouldClose)
 
 			if shouldClose {
 				return trace.Errorf("failed to keep alive ssh server: %v", err)
 			}
 		} else {
+			handle.sshServer.keepAliveErrs = 0
 			c.testEvent(sshKeepAliveOk)
 		}
-	} else if handle.retrySSHServerUpsert {
-		handle.sshServer.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer)
+	} else if handle.sshServer.retryUpsert {
+		handle.sshServer.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertNode(c.closeContext, handle.sshServer.resource)
 		if err != nil {
 			c.testEvent(sshUpsertRetryErr)
 			log.Warnf("Failed to upsert ssh server %q on retry: %v.", handle.Hello().ServerID, err)
 			// since this is retry-specific logic, an error here means that upsert failed twice in
-			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+			// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
 			// attempting a third time.
 			return trace.Errorf("failed to upsert ssh server on retry: %v", err)
 		}
 		c.testEvent(sshUpsertRetryOk)
-		handle.sshServerLease = lease
-		handle.retrySSHServerUpsert = false
+		handle.sshServer.lease = lease
+		handle.sshServer.retryUpsert = false
 	}
 
 	return nil

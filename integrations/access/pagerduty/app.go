@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -188,7 +189,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
@@ -289,6 +290,9 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 
 func (a *App) getNotifyServiceName(req types.AccessRequest) (string, error) {
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.NotifyService
+	// We cannot use common.GetServiceNamesFromAnnotations here as it sorts the
+	// list and might change the first element.
+	// The proper way would be to support notifying multiple services
 	slice, ok := req.GetSystemAnnotations()[annotationKey]
 	if !ok {
 		return "", trace.Errorf("request annotation %s is missing", annotationKey)
@@ -305,14 +309,7 @@ func (a *App) getNotifyServiceName(req types.AccessRequest) (string, error) {
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.Services
-	serviceNames, ok := req.GetSystemAnnotations()[annotationKey]
-	if !ok {
-		return nil, trace.Errorf("request annotation %s is missing", annotationKey)
-	}
-	if len(serviceNames) == 0 {
-		return nil, trace.Errorf("request annotation %s is present but empty", annotationKey)
-	}
-	return serviceNames, nil
+	return common.GetServiceNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {

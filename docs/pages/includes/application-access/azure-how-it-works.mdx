@@ -1,0 +1,12 @@
+The Teleport Application Service installed {{ deployment }} uses {{ credential }}
+to obtain authentication tokens from Azure. When a user authenticates to
+Teleport, they can assume one of the respective user-assigned managed
+identities to execute Azure CLI commands.
+
+You can configure which Teleport users or roles have access to specific Azure
+identities, giving you control over who can obtain credentials for different
+levels of access to Azure CLIs.
+
+The Teleport Application Service connects to the Teleport Proxy Service over a
+reverse tunnel, so you can run the Application Service in a private network and
+prevent unauthorized access to your organization's Azure identities. 

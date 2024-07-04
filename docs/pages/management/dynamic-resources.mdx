@@ -38,9 +38,9 @@ Every resource in Teleport has three required fields:
 
 All other fields are specific to a resource.
 
-While Teleport Enterprise Cloud and Teleport Team do not expose the static
-configuration file to operators, they do use a static configuration file for
-certain settings. Read how Teleport [reconciles static and dynamic
+While Teleport Enterprise Cloud does not expose the static configuration file to
+operators, they do use a static configuration file for certain settings. Read
+how Teleport [reconciles static and dynamic
 resources](#reconciling-the-configuration-file-with-dynamic-resources) to
 understand how to see the values of static configuration settings that also
 appear in dynamic resources.
@@ -63,6 +63,7 @@ You can get started with `tctl`, the Terraform Provider, and the Kubernetes
 Operator by following: 
 - the ["Managing Users and Roles with IaC" guide](./dynamic-resources/user-and-role.mdx)
 - the ["Creating Access Lists with IaC" guide](./dynamic-resources/access-list.mdx)
+- the ["Registering Agentless OpenSSH Servers with IaC" guide](./dynamic-resources/agentless-ssh-servers.mdx)
 
 For more information on Teleport roles, including the `internal.logins`
 trait we use in these example roles, see the [Teleport Access
@@ -201,9 +202,10 @@ static configuration file:
 
 #### `ui_config`
 
-|Dynamic resource field|Static configuration field|
-|---|---|
-|`spec.scrollback_lines`|`proxy_service.ui.scrollback_lines`|
+| Dynamic resource field  | Static configuration field          |
+| ----------------------- | ----------------------------------- |
+| `spec.scrollback_lines` | `proxy_service.ui.scrollback_lines` |
+| `spec.show_resources`   | `proxy_service.ui.show_resources`   |
 
 ### Origin labels
 
@@ -240,9 +242,8 @@ its configuration fields to the default values and add the
 <Notice type="tip">
 
 Cloud-hosted Teleport deployments use configuration files, but these are not
-available for operators to modify. Users of Teleport Enterprise Cloud and
-Teleport Team may see configuration resources with the
-`teleport.dev/origin=config-file` label.
+available for operators to modify. Users of Teleport Enterprise Cloud may see
+configuration resources with the `teleport.dev/origin=config-file` label.
 
 </Notice>
 

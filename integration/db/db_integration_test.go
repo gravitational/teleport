@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -108,7 +109,11 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 func (p *DatabasePack) testIPPinning(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{DB: true},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB: {Enabled: true},
+			},
+		},
 	})
 
 	type testCase struct {
@@ -668,7 +673,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")
@@ -689,7 +694,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
+		}, time.Second*2, time.Millisecond*200, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
 		_, err := client.Execute("select 1")

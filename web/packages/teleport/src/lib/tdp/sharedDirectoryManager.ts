@@ -127,14 +127,8 @@ export class SharedDirectoryManager {
     length: number
   ): Promise<Uint8Array> {
     this.checkReady();
-
-    const fileHandle = await this.walkPath(path);
-    if (fileHandle.kind !== 'file') {
-      throw new Error('cannot read the bytes of a directory');
-    }
-
+    const fileHandle = await this.getFileHandle(path);
     const file = await fileHandle.getFile();
-
     return new Uint8Array(
       await file.slice(Number(offset), Number(offset) + length).arrayBuffer()
     );
@@ -152,16 +146,25 @@ export class SharedDirectoryManager {
   ): Promise<number> {
     this.checkReady();
 
-    const fileHandle = await this.walkPath(path);
-    if (fileHandle.kind !== 'file') {
-      throw new Error('cannot read the bytes of a directory');
-    }
-
+    const fileHandle = await this.getFileHandle(path);
     const file = await fileHandle.createWritable({ keepExistingData: true });
     await file.write({ type: 'write', position: Number(offset), data });
     await file.close(); // Needed to actually write data to disk.
 
     return data.length;
+  }
+
+  /**
+   * Truncates the file at path to size bytes.
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
+  async truncateFile(path: string, size: number): Promise<void> {
+    this.checkReady();
+    const fileHandle = await this.getFileHandle(path);
+    const file = await fileHandle.createWritable({ keepExistingData: true });
+    await file.truncate(size);
+    await file.close();
   }
 
   /**
@@ -175,14 +178,7 @@ export class SharedDirectoryManager {
     let splitPath = path.split('/');
     const fileOrDirName = splitPath.pop();
     const dirPath = splitPath.join('/');
-
-    const dirHandle = await this.walkPath(dirPath);
-    if (dirHandle.kind !== 'directory') {
-      throw new PathDoesNotExistError(
-        'destination was a file, not a directory'
-      );
-    }
-
+    const dirHandle = await this.getDirectoryHandle(dirPath);
     if (fileType === FileType.File) {
       await dirHandle.getFileHandle(fileOrDirName, { create: true });
     } else {
@@ -200,15 +196,36 @@ export class SharedDirectoryManager {
     let splitPath = path.split('/');
     const fileOrDirName = splitPath.pop();
     const dirPath = splitPath.join('/');
-
-    const dirHandle = await this.walkPath(dirPath);
-    if (dirHandle.kind !== 'directory') {
-      throw new PathDoesNotExistError(
-        'destination was a file, not a directory'
-      );
-    }
-
+    const dirHandle = await this.getDirectoryHandle(dirPath);
     await dirHandle.removeEntry(fileOrDirName, { recursive: true });
+  }
+
+  /**
+   * Returns the FileSystemFileHandle for the file at path.
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   * @throws {Error} if the pathstr points to a directory
+   */
+  private async getFileHandle(pathstr: string): Promise<FileSystemFileHandle> {
+    const fileHandle = await this.walkPath(pathstr);
+    if (fileHandle.kind !== 'file') {
+      throw new Error('cannot read the bytes of a directory');
+    }
+    return fileHandle;
+  }
+
+  /**
+   * Returns the FileSystemDirectoryHandle for the directory at path.
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   * @throws {Error} if the pathstr points to a file
+   */
+  private async getDirectoryHandle(
+    pathstr: string
+  ): Promise<FileSystemDirectoryHandle> {
+    const dirHandle = await this.walkPath(pathstr);
+    if (dirHandle.kind !== 'directory') {
+      throw new Error('cannot list the contents of a file');
+    }
+    return dirHandle;
   }
 
   /**

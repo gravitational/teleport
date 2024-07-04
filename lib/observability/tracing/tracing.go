@@ -30,7 +30,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -100,7 +99,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
+		c.Logger = logrus.WithField(teleport.ComponentKey, teleport.ComponentTracing)
 	}
 
 	if c.Client != nil {
@@ -215,12 +214,6 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	// set global propagator, the default is no-op.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-
-	// Set the global metric provider to a no-op so that any metrics created from otelgrpc interceptors
-	// are disabled to prevent memory leaks.
-	// See https://github.com/gravitational/teleport/issues/30759
-	// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-	otel.SetMeterProvider(metricnoop.MeterProvider{})
 
 	// override the global logging handled with one that uses the
 	// configured logger instead

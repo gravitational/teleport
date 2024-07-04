@@ -26,6 +26,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 export default {
   title: 'Teleterm/DocumentGatewayApp',
@@ -64,8 +65,8 @@ export function Online() {
     };
   });
 
-  appContext.tshd.setGatewayLocalPort = (uri, localPort) =>
-    wait(800).then(() => ({ ...gateway, localPort }));
+  appContext.tshd.setGatewayLocalPort = ({ localPort }) =>
+    wait(800).then(() => new MockedUnaryCall({ ...gateway, localPort }));
 
   return (
     <MockAppContextProvider appContext={appContext}>

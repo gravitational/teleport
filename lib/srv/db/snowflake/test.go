@@ -35,6 +35,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -86,8 +87,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolSnowflake,
-			"name":          config.Name,
+			teleport.ComponentKey: defaults.ProtocolSnowflake,
+			"name":                config.Name,
 		}),
 		authorizationToken: "test-token-123",
 	}
@@ -212,7 +213,6 @@ func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token st
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
 		PublicKey:   cert.PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 	})
 	if err != nil {

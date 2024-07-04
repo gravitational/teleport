@@ -70,8 +70,8 @@ export default function Player({ sid, clusterId, durationMs }) {
         onRestart={() => window.location.reload()}
         onStartMove={() => tty.suspendTimeUpdates()}
         move={pos => {
-          tty.move(pos);
           tty.resumeTimeUpdates();
+          tty.move(pos);
         }}
         toggle={() => {
           isPlaying ? tty.stop() : tty.play();

@@ -21,12 +21,12 @@ package common
 import (
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	"github.com/gravitational/teleport/tool/tctl/common/plugin"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
-// Commands returns the set of commands that are to oss and ent
-// variants of tctl.
+// Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
 		&UserCommand{},
@@ -56,14 +56,11 @@ func Commands() []CLICommand {
 		&loginrule.Command{},
 		&IdPCommand{},
 		&accessmonitoring.Command{},
-	}
-}
-
-// OSSCommands returns the oss variants of commands that use different variants
-// for oss and ent.
-func OSSCommands() []CLICommand {
-	return []CLICommand{
+		&plugin.PluginsCommand{},
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
+		&fido2Command{},
+		&webauthnwinCommand{},
+		&touchIDCommand{},
 	}
 }

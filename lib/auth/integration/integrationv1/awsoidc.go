@@ -20,78 +20,50 @@ package integrationv1
 
 import (
 	"context"
-	"time"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/oidc"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
-		return nil, trace.Wrap(err)
+	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
+		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+		}
 	}
-	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
+
+	return nil, trace.AccessDenied("token generation is only available to auth, proxy or discovery services")
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrationName string) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName.GetClusterName(),
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Extract the JWT signing key and sign the claims.
-	signer, err := s.keyStoreManager.GetJWTSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
-		Username: username,
-		Audience: types.IntegrationAWSOIDCAudience,
-		Subject:  types.IntegrationAWSOIDCSubject,
-		Issuer:   issuer,
-		// Token expiration is not controlled by the Expires property.
-		// It is defined by assumed IAM Role's "Maximum session duration" (usually 1h).
-		Expires: s.clock.Now().Add(time.Minute),
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, s.cache, s.keyStoreManager, awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integrationName,
+		Username:    username,
+		Subject:     types.IntegrationAWSOIDCSubject,
+		Clock:       s.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,10 +76,12 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 
 // AWSOIDCServiceConfig holds configuration options for the AWSOIDC Integration gRPC service.
 type AWSOIDCServiceConfig struct {
-	IntegrationService *Service
-	Authorizer         authz.Authorizer
-	Cache              CacheAWSOIDC
-	Logger             *logrus.Entry
+	IntegrationService    *Service
+	Authorizer            authz.Authorizer
+	Cache                 CacheAWSOIDC
+	Clock                 clockwork.Clock
+	ProxyPublicAddrGetter func() string
+	Logger                *slog.Logger
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -125,8 +99,16 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cache is required")
 	}
 
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
+	}
+
+	if s.ProxyPublicAddrGetter == nil {
+		return trace.BadParameter("proxyPublicAddrGetter is required")
+	}
+
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
+		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsoidc.service")
 	}
 
 	return nil
@@ -136,10 +118,12 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 type AWSOIDCService struct {
 	integrationpb.UnimplementedAWSOIDCServiceServer
 
-	integrationService *Service
-	authorizer         authz.Authorizer
-	logger             *logrus.Entry
-	cache              CacheAWSOIDC
+	integrationService    *Service
+	authorizer            authz.Authorizer
+	logger                *slog.Logger
+	clock                 clockwork.Clock
+	proxyPublicAddrGetter func() string
+	cache                 CacheAWSOIDC
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -161,10 +145,12 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 	}
 
 	return &AWSOIDCService{
-		integrationService: cfg.IntegrationService,
-		logger:             cfg.Logger,
-		authorizer:         cfg.Authorizer,
-		cache:              cfg.Cache,
+		integrationService:    cfg.IntegrationService,
+		logger:                cfg.Logger,
+		authorizer:            cfg.Authorizer,
+		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
+		clock:                 cfg.Clock,
+		cache:                 cfg.Cache,
 	}, nil
 }
 
@@ -182,12 +168,11 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	awsoidcSpec := integration.GetAWSOIDCIntegrationSpec()
-	if awsoidcSpec == nil {
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -249,6 +234,65 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 	}, nil
 }
 
+// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			Name:             endpoint.Name,
+			SubnetID:         endpoint.SubnetId,
+			SecurityGroupIDs: endpoint.SecurityGroupIds,
+		})
+	}
+
+	createResp, err := awsoidc.CreateEC2ICE(ctx, createClient, awsoidc.CreateEC2ICERequest{
+		Cluster:         clusterName.GetClusterName(),
+		IntegrationName: req.Integration,
+		Endpoints:       endpoints,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2ICEndpoint, 0, len(createResp.CreatedEndpoints))
+	for _, e := range createResp.CreatedEndpoints {
+		eiceList = append(eiceList, &integrationpb.EC2ICEndpoint{
+			Name:             e.Name,
+			SubnetId:         e.SubnetID,
+			SecurityGroupIds: e.SecurityGroupIDs,
+		})
+	}
+
+	return &integrationpb.CreateEICEResponse{
+		Name:             createResp.Name,
+		CreatedEndpoints: eiceList,
+	}, nil
+}
+
 // ListDatabases returns a paginated list of Databases.
 func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -284,7 +328,11 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	for _, db := range listDBsResp.Databases {
 		dbV3, ok := db.(*types.DatabaseV3)
 		if !ok {
-			s.logger.Warnf("Skipping %s because conversion (%T) to DatabaseV3 failed: %v", db.GetName(), db, err)
+			s.logger.WarnContext(ctx, "Skipping database because conversion to DatabaseV3 failed",
+				"database", db.GetName(),
+				"type", logutils.TypeAttr(db),
+				"error", err,
+			)
 			continue
 		}
 		dbList = append(dbList, dbV3)
@@ -417,6 +465,65 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	}, nil
 }
 
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicProxyAddr := s.proxyPublicAddrGetter()
+	if publicProxyAddr == "" {
+		return nil, trace.BadParameter("could not get public proxy address.")
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	features := modules.GetModules().Features()
+
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+		Region:             req.Region,
+		ClusterNames:       req.GetEksClusterNames(),
+		EnableAppDiscovery: req.EnableAppDiscovery,
+		EnableAutoUpgrades: features.AutomaticUpgrades,
+		IsCloud:            features.Cloud,
+		AgentVersion:       req.AgentVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(enrollmentResponse.Results))
+	for _, r := range enrollmentResponse.Results {
+		results = append(results, &integrationpb.EnrollEKSClusterResult{
+			EksClusterName: r.ClusterName,
+			ResourceId:     r.ResourceId,
+			Error:          trace.UserMessage(r.Error),
+		})
+	}
+
+	return &integrationpb.EnrollEKSClustersResponse{
+		Results: results,
+	}, nil
+}
+
 // DeployService deploys Services into Amazon ECS.
 func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.DeployServiceRequest) (*integrationpb.DeployServiceResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -501,7 +608,11 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 	for _, server := range listEC2Resp.Servers {
 		serverV2, ok := server.(*types.ServerV2)
 		if !ok {
-			s.logger.Warnf("Skipping %s because conversion (%T) to ServerV2 failed: %v", server.GetName(), server, err)
+			s.logger.WarnContext(ctx, "Skipping server because conversion to ServerV2 failed",
+				"server", server.GetName(),
+				"type", logutils.TypeAttr(server),
+				"error", err,
+			)
 			continue
 		}
 		serverList = append(serverList, serverV2)
@@ -510,5 +621,53 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 	return &integrationpb.ListEC2Response{
 		Servers:   serverList,
 		NextToken: listEC2Resp.NextToken,
+	}, nil
+}
+
+// ListEKSCluster returns a paginated list of AWS EKS Clusters.
+func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb.ListEKSClustersRequest) (*integrationpb.ListEKSClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEKSClustersClient, err := awsoidc.NewListEKSClustersClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEKSClustersResp, err := awsoidc.ListEKSClusters(ctx, listEKSClustersClient, awsoidc.ListEKSClustersRequest{
+		Region:    req.Region,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clustersList := make([]*integrationpb.EKSCluster, 0, len(listEKSClustersResp.Clusters))
+	for _, cluster := range listEKSClustersResp.Clusters {
+		clusterPb := &integrationpb.EKSCluster{
+			Name:       cluster.Name,
+			Region:     cluster.Region,
+			Arn:        cluster.Arn,
+			Labels:     cluster.Labels,
+			JoinLabels: cluster.JoinLabels,
+			Status:     cluster.Status,
+		}
+		clustersList = append(clustersList, clusterPb)
+	}
+
+	return &integrationpb.ListEKSClustersResponse{
+		Clusters:  clustersList,
+		NextToken: listEKSClustersResp.NextToken,
 	}, nil
 }

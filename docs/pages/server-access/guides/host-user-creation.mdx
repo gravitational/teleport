@@ -15,9 +15,14 @@ end of an SSH session.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for  how to add a Node to your Teleport cluster.
-- The following utilities should be available in the PATH for the Teleport SSH Service,
-since it must execute these commands in order to create transient users:
+- A running Linux server registered with Teleport. See the [Server Access
+  Getting Started Guide](../getting-started.mdx) for how to add a server to your
+  Teleport cluster. We recommend enrolling a server that runs in a demo
+  environment for the purpose of this guide until you are familiar with the
+  instructions.
+- The following utilities should be available in the PATH for the Teleport SSH
+  Service, since it must execute these commands in order to create transient
+  users:
   - `useradd`
   - `userdel`
   - `usermod`
@@ -26,23 +31,44 @@ since it must execute these commands in order to create transient users:
   - `visudo`
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure a role
+## Step 1/3. Configure RBAC
 
-First, create a role with `create_host_user_mode` set to `keep`. 
-The following role specification will allow users to log in as `nginxrestarter` on
-any matching Node. The host user will be created and added to the groups listed in
-`host_groups`. They will also be given permission to restart the Nginx service as
-root.
+In this section, you will configure a Teleport role that enables host user
+creation.  
 
-<Admonition type="note">
-  `create_host_user_mode` can also be set to `insecure_drop`, which deletes users
-  once the session ends. However, in this mode it is possible for a created user 
-  to get the same UID as a previously deleted user, which would give the new user access
-  to all of the old user's files if they are not deleted. Use `keep` mode
-  unless you really need users to be removed.
-</Admonition>
+When a Teleport user accesses an SSH Service instance, Teleport checks each of
+the user's roles that match the instance. If at least one role matches the
+instance but does not set `create_host_user_mode`, automatic user creation will
+be disabled. Roles that do not match the server will not be checked.
 
-Save the file below as `auto-users.yaml`
+To enable host user creation, you will:
+
+- Label your server so you can match it with a Teleport role that enables host
+  user creation.
+- Create a role that enables host user creation for servers with the label you
+  added.
+- For the purpose of this guide, create a Teleport user with only the role you
+  created.
+
+### Label your server
+
+1. Access the server you enrolled with Teleport before beginning this guide and
+   open the Teleport configuration file, which is `/etc/teleport.yaml` by
+   default.
+
+1. Make the following change to the configuration file:
+
+   ```diff
+     labels:
+   +   app: "nginx"
+   ```
+
+1. Restart Teleport on the server.
+
+### Define a Teleport role
+
+The following role specification allows users to log in as `nginxrestarter` on
+any matching server. Add this content to a file called `auto-users.yaml`:
 
 ```yaml
 kind: role
@@ -67,32 +93,26 @@ spec:
        "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
     ]
     node_labels:
-      'env': 'devel'
-```
-Create the role:
-```code
-$ tctl create -f auto-users.yaml
-# role 'auto-users' has been created
+      "app": "nginx"
 ```
 
-Each value of the `logins` field must conform to the username requirements
-of the Linux distribution being used. See [User/Group Name Syntax](https://systemd.io/USER_NAMES/) for requirements in common distributions.
+The `create_host_user_mode` field enables host user creation when the value is
+`keep`.  When a user with the `auto-users` role logs in to a server that matches
+the `app:nginx` label, the Teleport SSH Service creates a host user, adds it to
+the groups listed in `host_groups`, and gives it the sudoer permissions
+specified in the `host_sudoers` field. In this case, the new user receives
+permission to restart the Nginx service as root.
 
-<Admonition type="warning">
+{/*TODO (ptgott): We should move the information below into a reference guide*/}
+<Details title="Customizing host user creation">
 
-When a Teleport user accesses an SSH Service instance, Teleport checks each of the
-user's roles that match the instance. If at least one role matches the instance
-but does not set `create_host_user_mode`, automatic user creation will be disabled.
-Roles that do not match the server will not be checked.
-
-</Admonition>
-
-<Admonition type="warning">
+Each value of the `logins` field must conform to the username requirements of
+the Linux distribution being used. See [User/Group Name
+Syntax](https://systemd.io/USER_NAMES/) for requirements in common
+distributions.
 
 When multiple roles contain `host_sudoers` entries, the sudoers file
 will have the entries written to it ordered by role name
-
-</Admonition>
 
 If a role includes a `deny` rule that sets `host_sudoers` to `'*'`, the user will
 have all sudoers entries removed when accessing matching Nodes, otherwise `deny`
@@ -112,11 +132,11 @@ spec:
        "ALL=(ALL) NOPASSWD: ALL" # host_sudoers entries matching this are filtered out
     ]
     node_labels:
-      'env': 'devel'
+      "app": "nginx"
 ```
 
-If an SSH Node must never allow the automatic creation of transient Unix users
-you can set `disable_create_host_user` to `true` in the Node's configuration:
+If a server must never allow the automatic creation of transient Unix users you
+can set `disable_create_host_user` to `true` in the Node's configuration:
 
 ```yaml
 # teleport.yaml
@@ -128,7 +148,33 @@ ssh_service:
   disable_create_host_user: true
 ```
 
-(!docs/pages/includes/add-role-to-user.mdx role="auto-users"!)
+In low-security environments, you can also set `create_host_user_mode` to
+`insecure-drop`, which deletes users once the session ends. However, in this
+mode it is possible for a created user to get the same UID as a previously
+deleted user, which would give the new user access to all of the old user's
+files if they are not deleted. Use `keep` mode unless you really need users to
+be removed.
+
+</Details>
+
+Create the role:
+
+```code
+$ tctl create -f auto-users.yaml
+# role 'auto-users' has been created
+```
+
+### Create a Teleport user
+
+1. Run the following command to create a Teleport user with the `auto-users`
+   role:
+
+   ```code
+   $ tctl users add demo-user --roles=auto-users --logins=nginxrestarter
+   ```
+
+1. Follow the instructions in your terminal to visit the Teleport Web UI and
+   create the user.
 
 ## Step 2/3. [Optional] Configure the UID and GID for the created users
 
@@ -146,13 +192,12 @@ be created with the same login name as the user being created.
 ```yaml
 kind: user
 metadata:
-  name: some_teleport_user
+  name: demo-user
 spec:
   ...
   traits:
     logins:
-    - root
-    - alex
+    - nginxrestarter
     host_user_gid:
     # gid and uid values must be quoted.
     - "1234"
@@ -192,8 +237,8 @@ field.
 
 The Teleport SSH Service executes `useradd` to create new users on the host, and
 returns an error if it cannot find the `useradd` binary. The `useradd` command
-creates a new home directory with the name of the new host user and adds the
-user to the groups specified in the Teleport user's roles.
+adds the user to the groups specified in the Teleport user's roles, and Teleport
+separately creates a new home directory with the name of the new host user.
 
 The SSH Service executes
 `useradd --no-create-home --home-dir <home> <username> --groups <groups> --uid <uid> --gid <gid>`
@@ -206,12 +251,12 @@ The Teleport SSH Service also creates a file in `/etc/sudoers.d` with the
 contents of the `host_sudoers` file written with one entry per line, each
 prefixed with the username of the user that has logged in.
 
-The session can then proceed as usual, however once the SSH session ends, the user
-will be automatically removed and their home directory will be deleted with
-`userdel --remove <username>`, as the
-matching role specified they should be dropped. Files owned by the deleted user,
-created outside the home directory, will remain in place. Groups that were created
-will remain on the system after the session ends.
+The session can then proceed as usual. When the SSH session ends, the user
+and their home directory will be kept on the machine. It is possible to remove the user
+by setting `create_host_user_mode` to `insecure-drop` in the role definition. However,
+the potential for a user id to be reused on the system opens up a number of potential security risks,
+so we recommend using `keep` mode unless you have a specific need and understand
+the potential impacts.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
@@ -219,4 +264,4 @@ will be cleaned up at the next Teleport restart.
 ## Next steps
 
 - Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning.mdx).
-- Configure automatic user provisioning for [Desktop Access](../../desktop-access/rbac.mdx#automatic-user-creation).
+- Configure automatic user provisioning for [desktop access](../../desktop-access/reference/user-creation.mdx).

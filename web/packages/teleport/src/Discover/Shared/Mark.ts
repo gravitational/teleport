@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-export const Mark = styled.mark`
+export const Mark = styled.mark<{ light?: boolean }>`
   padding: 2px 5px;
   border-radius: 6px;
   font-family: ${props => props.theme.fonts.mono};

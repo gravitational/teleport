@@ -57,6 +57,40 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 	require.Empty(t, cmp.Diff(plugin, unmarshaled))
 }
 
+func TestUnmarshalPluginUnknownField(t *testing.T) {
+	t.Run("unknown field in plugin spec", func(t *testing.T) {
+		payload := `
+		{
+		  "kind": "plugin",
+		  "version": "v1",
+		  "metadata": { "Name": "plugin", "Namespace": "default" },
+		  "spec": { "slackAccessPlugin": { "fallbackChannel": "#access-requests", "unknownField": "val" }},
+		  "credentials": { "oauth2AccessToken": {"accessToken": "token", "refreshToken": "token" }}
+		  }
+		}`
+		plugin, err := UnmarshalPlugin([]byte(payload))
+		require.NoError(t, err)
+		require.Equal(t, "plugin", plugin.GetName())
+		require.Equal(t, types.PluginType(types.PluginTypeSlack), plugin.GetType())
+	})
+
+	t.Run("unknown plugin type", func(t *testing.T) {
+		payload := `
+		{
+		  "kind": "plugin",
+		  "version": "v1",
+		  "metadata": { "Name": "plugin", "Namespace": "default" },
+		  "spec": { "unknownPlugin": { }},
+		  "credentials": { "oauth2AccessToken": {"accessToken": "token", "refreshToken": "token" }}
+		  }
+		}`
+		plugin, err := UnmarshalPlugin([]byte(payload))
+		require.NoError(t, err)
+		require.Equal(t, "plugin", plugin.GetName())
+		require.Equal(t, types.PluginTypeUnknown, plugin.GetType())
+	})
+}
+
 func TestMarshalPluginWithStatus(t *testing.T) {
 	spec := types.PluginSpecV1{
 		Settings: &types.PluginSpecV1_SlackAccessPlugin{
