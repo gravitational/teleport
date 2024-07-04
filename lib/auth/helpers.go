@@ -439,9 +439,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: srv.ClusterName,
-		AccessPoint: srv.AuthServer,
-		LockWatcher: srv.LockWatcher,
+		ClusterName:         srv.ClusterName,
+		AccessPoint:         srv.AuthServer,
+		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
+		LockWatcher:         srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
