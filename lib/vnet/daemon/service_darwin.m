@@ -37,6 +37,7 @@
 - (id)init {
     // Launch daemons must configure their listener with the machServiceName
     // initializer.
+    NSLog(@"Starting daemon service label=%@", DaemonLabel());
     _listener = [[NSXPCListener alloc] initWithMachServiceName:DaemonLabel()];
     _listener.delegate = self;
     

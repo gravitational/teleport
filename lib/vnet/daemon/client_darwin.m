@@ -46,6 +46,7 @@ void RegisterDaemon(struct RegisterDaemonResult *result) {
         SMAppService *service;
         NSError *error;
         
+        NSLog(@"Registering daemon plist=%@", DaemonPlist());
         service = [SMAppService daemonServiceWithPlistName:(DaemonPlist())];
         
         result->ok = [service registerAndReturnError:(&error)];
