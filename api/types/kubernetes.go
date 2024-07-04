@@ -297,17 +297,17 @@ func (k *KubernetesClusterV3) SetGCPConfig(cfg KubeGCP) {
 
 // IsAzure indentifies if the KubeCluster contains Azure details.
 func (k *KubernetesClusterV3) IsAzure() bool {
-	return !protoKnownFieldsEqual(&k.Spec.Azure, &KubeAzure{})
+	return !deriveTeleportEqualKubeAzure(&k.Spec.Azure, &KubeAzure{})
 }
 
 // IsAWS indentifies if the KubeCluster contains AWS details.
 func (k *KubernetesClusterV3) IsAWS() bool {
-	return !protoKnownFieldsEqual(&k.Spec.AWS, &KubeAWS{})
+	return !deriveTeleportEqualKubeAWS(&k.Spec.AWS, &KubeAWS{})
 }
 
 // IsGCP indentifies if the KubeCluster contains GCP details.
 func (k *KubernetesClusterV3) IsGCP() bool {
-	return !protoKnownFieldsEqual(&k.Spec.GCP, &KubeGCP{})
+	return !deriveTeleportEqualKubeGCP(&k.Spec.GCP, &KubeGCP{})
 }
 
 // GetCloud gets the cloud this kube cluster is running on, or an empty string if it

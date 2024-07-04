@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -485,6 +486,20 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	_, cacheEnabled := as.getCache()
+
+	// cluster config ttl cache *must* be set up after `opts` has been applied to the server because
+	// the Cache field starts off as a pointer to the local backend services and is only switched
+	// over to being a proper cache during option processing.
+	as.ReadOnlyCache, err = readonly.NewCache(readonly.CacheConfig{
+		Upstream:    as.Cache,
+		Disabled:    !cacheEnabled,
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -813,6 +828,10 @@ type LoginHook func(context.Context, types.User) error
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
 
+// ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
+// where it would have a naming conflict with other types named Cache.
+type ReadOnlyCache = readonly.Cache
+
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
@@ -863,6 +882,11 @@ type Server struct {
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
 	authclient.Cache
+
+	// ReadOnlyCache is a specialized cache that provides read-only shared references
+	// in certain performance-critical paths where deserialization/cloning may be too
+	// expensive at scale.
+	*ReadOnlyCache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -1867,7 +1891,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(ctx)
+
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1890,7 +1915,7 @@ func (a *Server) generateHostCert(
 	default:
 		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
-	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
 	); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
@@ -2001,6 +2026,9 @@ type certRequest struct {
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2052,11 +2080,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("public key is empty")
 	}
 	if req.TTL == 0 {
-		cap, err := a.GetAuthPreference(ctx)
+		readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
 		}
-		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
+		req.TTL = proto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2604,13 +2632,13 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Verify locks right before we re-issue any certificates.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              opts.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
 		activeAccessRequests: x509Identity.ActiveRequests,
@@ -2743,13 +2771,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	// Reject the cert request if there is a matching lock in force.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              req.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
@@ -2778,7 +2806,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var allowedLogins []string
 
 	if req.ttl == 0 {
-		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+		req.ttl = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
@@ -2808,7 +2836,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2830,7 +2858,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 
 		var validateSerialNumber bool
-		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
+		hksnv, err := readOnlyAuthPref.GetHardwareKeySerialNumberValidation()
 		if err == nil {
 			validateSerialNumber = hksnv.Enabled
 		}
@@ -2944,6 +2972,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3039,6 +3068,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3619,7 +3649,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3667,7 +3697,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
-	switch sf := authPref.GetSecondFactor(); sf {
+	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices <= minDevices {
@@ -3688,7 +3718,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// It checks whether the credential to delete is a last passkey and whether
 	// the user has other valid local credentials.
 	canDeleteLastPasskey := func() (bool, error) {
-		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
 			return true, nil
 		}
 
@@ -3710,7 +3740,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Whether we take TOTPs into consideration or not depends on whether it's
 		// enabled.
-		switch sf := authPref.GetSecondFactor(); sf {
+		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 			if sfToCount[constants.SecondFactorOTP] >= 1 {
 				return true, nil

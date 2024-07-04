@@ -1,0 +1,14 @@
+---
+title: "Terraform resources index"
+description: "Index of all the datasources supported by the Teleport Terraform Provider"
+---
+
+{/*
+    This file will be renamed data-sources.mdx during build time.
+    The template name is reserved by tfplugindocs so we suffix with -index.
+*/}
+
+The Teleport Terraform provider supports the following resources:
+{{ range $key, $value := .ResourceFiles }}
+  - [`{{$key}}`](./resources/{{$value}}.mdx)
+{{- end }}
