@@ -40,7 +40,7 @@ const (
 	// records to be recorded in a bot instance's .Status.LatestAuthentications
 	// field.
 	AuthenticationHistoryLimit = 10
-  heartbeatHistoryLimit = 10
+	heartbeatHistoryLimit      = 10
 
 	// ExpiryMargin is the duration added to bot instance expiration times to
 	// ensure the instance remains accessible until shortly after the last
@@ -166,7 +166,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
 	botName := authCtx.Identity.GetIdentity().BotName
-	botInstanceID := authCtx.Identity.GetIdentity().BotInstance
+	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
 	switch {
 	case botName == "":
 		return nil, trace.AccessDenied("identity did not contain bot name")

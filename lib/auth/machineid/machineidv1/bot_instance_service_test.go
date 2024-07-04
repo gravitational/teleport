@@ -242,8 +242,8 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 	const botInstanceID = "123-456"
 
 	goodIdentity := tlsca.Identity{
-		BotName:     botName,
-		BotInstance: botInstanceID,
+		BotName:       botName,
+		BotInstanceID: botInstanceID,
 	}
 
 	tests := []struct {
@@ -275,7 +275,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				},
 			},
 			identity: tlsca.Identity{
-				BotInstance: botInstanceID,
+				BotInstanceID: botInstanceID,
 			},
 			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot name")
@@ -391,8 +391,8 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 			return &authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
 					return tlsca.Identity{
-						BotName:     botName,
-						BotInstance: botInstanceID,
+						BotName:       botName,
+						BotInstanceID: botInstanceID,
 					}
 				}),
 			}, nil
