@@ -202,7 +202,7 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 	}
 	switch m := startupMessageI.(type) {
 	case *pgproto3.StartupMessage:
-		e.Log.DebugContext(e.Context, "Received startup message.", "message", fmt.Sprintf("%#v", m))
+		e.Log.DebugContext(e.Context, "Received startup message.", "message", m)
 		// Pass startup parameters received from the client along (this is how the
 		// client sets default date style format for example), but remove database
 		// name and user from them.
