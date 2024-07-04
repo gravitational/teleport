@@ -22,13 +22,12 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
 
-import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
-import { getStyledComponentsConfig } from './styled';
 import { generateAppHashFile } from './apphash';
+import { reactPlugin } from './react.mjs';
 
 import type { UserConfig } from 'vite';
 
@@ -86,11 +85,7 @@ export function createViteConfig(
         },
       },
       plugins: [
-        react({
-          plugins: [
-            ['@swc/plugin-styled-components', getStyledComponentsConfig(mode)],
-          ],
-        }),
+        reactPlugin(mode),
         tsconfigPaths({
           // Asking vite to crawl the root directory (by defining the `root` object, rather than `projects`) causes vite builds to fail
           // with a:
