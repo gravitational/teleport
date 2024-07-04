@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 )
 
-// KubernetesSigner is a JWT signer that mimicks the Kubernetes one. This is used to mock Kubernetes and
-// be able to perform Kube joining locally. This is used for tests as this is currently the easiest
+// KubernetesSigner is a JWT signer that mimicks the Kubernetes one. The signer mock Kubernetes and
+// allows us to do Kube joining locally. This is useful in tests as this is currently the easiest
 // delegated join method we can use without having to rely on external infrastructure/providers.
 type KubernetesSigner struct {
 	key    *rsa.PrivateKey
