@@ -1386,7 +1386,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 		}
 	}()
 
-	if err := x11.Forward(ctx, cch, sch); err != nil {
+	if err := utils.ProxyConn(ctx, cch, sch); err != nil {
 		s.log.WithError(err).Debug("Encountered error during x11 forwarding")
 	}
 }

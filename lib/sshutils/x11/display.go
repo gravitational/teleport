@@ -19,7 +19,6 @@
 package x11
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -27,7 +26,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -71,53 +69,42 @@ func (d *Display) String() string {
 	return fmt.Sprintf("%s:%d.%d", d.HostName, d.DisplayNumber, d.ScreenNumber)
 }
 
-// Dial opens an XServer connection to the display
-func (d *Display) Dial() (XServerConn, error) {
-	var conn XServerConn
-
+func (d *Display) getNetAddr() (net.Addr, error) {
 	unixSock, unixErr := d.unixSocket()
 	if unixErr == nil {
-		if conn, unixErr = net.DialUnix("unix", nil, unixSock); unixErr == nil {
-			return conn, nil
-		}
+		return unixSock, nil
 	}
 
 	tcpSock, tcpErr := d.tcpSocket()
 	if tcpErr == nil {
-		if conn, tcpErr = net.DialTCP("tcp", nil, tcpSock); tcpErr == nil {
-			return conn, nil
-		}
+		return tcpSock, nil
 	}
 
 	return nil, trace.NewAggregate(unixErr, tcpErr)
 }
 
+// Dial opens an XServer connection to the display
+func (d *Display) Dial() (net.Conn, error) {
+	netAddr, err := d.getNetAddr()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := net.Dial(netAddr.Network(), netAddr.String())
+	return conn, trace.Wrap(err)
+}
+
 // Listen opens an XServer listener. It will attempt to listen on the display
 // address for both tcp and unix and return an aggregate error, unless one
 // results in an addr in use error.
-func (d *Display) Listen() (XServerListener, error) {
-	unixSock, unixErr := d.unixSocket()
-	if unixErr == nil {
-		var l *net.UnixListener
-		if l, unixErr = net.ListenUnix("unix", unixSock); unixErr == nil {
-			return &xserverUnixListener{l}, nil
-		} else if errors.Is(unixErr, syscall.EADDRINUSE) {
-			return nil, trace.Wrap(unixErr)
-		}
+func (d *Display) Listen() (net.Listener, error) {
+	netAddr, err := d.getNetAddr()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tcpSock, tcpErr := d.tcpSocket()
-	if tcpErr == nil {
-		var l *net.TCPListener
-		if l, tcpErr = net.ListenTCP("tcp", tcpSock); tcpErr == nil {
-			return &xserverTCPListener{l}, nil
-		} else if errors.Is(tcpErr, syscall.EADDRINUSE) {
-			return nil, trace.Wrap(tcpErr)
-		}
-
-	}
-
-	return nil, trace.NewAggregate(unixErr, tcpErr)
+	listener, err := net.Listen(netAddr.Network(), netAddr.String())
+	return listener, trace.Wrap(err)
 }
 
 // xserverUnixSocket returns the display's associated unix socket.

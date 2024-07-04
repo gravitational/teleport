@@ -20,7 +20,6 @@ package x11
 
 import (
 	"errors"
-	"io"
 	"math"
 	"net"
 	"os"
@@ -29,49 +28,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// XServerConn is a connection to an XServer through a direct or forwarded connection.
-// It can either be a tcp conn, unix conn, or an X11 channel.
-type XServerConn interface {
-	io.ReadWriteCloser
-	// must implement CloseWrite to prevent read loop from halting pre-maturely
-	CloseWrite() error
-}
-
-// XServerListener is a proxy XServer listener used to forward XServer requests.
-// to an actual XServer. The underlying listener may be a unix or tcp listener.
-type XServerListener interface {
-	// Accept waits for and returns the next connection to the listener.
-	Accept() (XServerConn, error)
-
-	// Close closes the listener.
-	// Any blocked Accept operations will be unblocked and return errors.
-	Close() error
-
-	// Addr returns the listener's network address.
-	Addr() net.Addr
-}
-
-type xserverUnixListener struct {
-	*net.UnixListener
-}
-
-func (l *xserverUnixListener) Accept() (XServerConn, error) {
-	return l.AcceptUnix()
-}
-
-type xserverTCPListener struct {
-	*net.TCPListener
-}
-
-func (l *xserverTCPListener) Accept() (XServerConn, error) {
-	return l.AcceptTCP()
-}
-
 // OpenNewXServerListener opens an XServerListener for the first available Display.
 // displayOffset will determine what display number to start from when searching for
 // an open display unix socket, and maxDisplays in optional limit for the number of
 // display sockets which can be opened at once.
-func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (XServerListener, Display, error) {
+func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (net.Listener, Display, error) {
 	if displayOffset > maxDisplay {
 		return nil, Display{}, trace.BadParameter("displayOffset (%d) cannot be larger than maxDisplay (%d)", displayOffset, maxDisplay)
 	} else if maxDisplay > MaxDisplayNumber {
