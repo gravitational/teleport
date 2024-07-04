@@ -49,12 +49,16 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ## Step 4/7. Create teleport-event-handler credentials
 
-In order for the Event Handler plugin to forward events from your Teleport cluster, 
-it needs signed credentials from the cluster's certificate authority. The teleport-event-handler 
-user cannot request this itself, and should use Teleport Machine ID to obtain the credentials.
+### Enable issuing of credentials for the Event Handler role
 
-Teleport Machine ID bot should leverage the `teleport-event-handler` role to request the credentials.
-Machine ID already impersonates roles when requesting credentials from the Teleport cluster.  
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export an identity file for the Event Handler plugin user
 
