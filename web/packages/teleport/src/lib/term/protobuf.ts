@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Buffer } from 'buffer/';
-
 /**
  * convenience constant equal to 2^32.
  */
@@ -103,7 +101,7 @@ export class Protobuf {
     buffer.push(messageFields.payload.code);
 
     // encode payload
-    var uintArray = this._textToUintArray(text);
+    var uintArray = this.textToUintArray(text);
     this.encodeVarint(buffer, uintArray.length);
     for (var i = 0; i < uintArray.length; i++) {
       buffer.push(uintArray[i]);
@@ -181,7 +179,7 @@ export class Protobuf {
       startsAt,
       startsAt + payloadLength
     );
-    return this._uintArrayToText(payloadBytes);
+    return this.uintArrayToText(payloadBytes);
   }
 
   decodeVarint(uintArray) {
@@ -202,17 +200,12 @@ export class Protobuf {
     throw new Error('unable to decode varint: empty array');
   }
 
-  _textToUintArray(text) {
-    return Buffer(text);
+  private textToUintArray(text: string): Uint8Array {
+    return new TextEncoder().encode(text);
   }
 
-  _uintArrayToText(uintArray) {
-    // use native TextDecoder if supported
-    if (window.TextDecoder) {
-      return new TextDecoder('utf-8').decode(uintArray);
-    } else {
-      return Buffer(uintArray).toString();
-    }
+  private uintArrayToText(uintArray: Uint8Array): string {
+    return new TextDecoder('utf-8').decode(uintArray);
   }
 }
 
