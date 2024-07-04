@@ -24,7 +24,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
-	"math"
 	"sync"
 	"time"
 
@@ -32,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -225,6 +223,10 @@ func (s *identityService) Run(ctx context.Context) error {
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 
+	// Determine where the bot should write its internal data (renewable cert
+	// etc)
+	storageDestination := s.cfg.Storage.Destination
+
 	s.log.InfoContext(
 		ctx,
 		"Beginning bot identity renewal loop",
@@ -232,66 +234,19 @@ func (s *identityService) Run(ctx context.Context) error {
 		"interval", s.cfg.RenewalInterval,
 	)
 
-	// Determine where the bot should write its internal data (renewable cert
-	// etc)
-	storageDestination := s.cfg.Storage.Destination
-
-	ticker := time.NewTicker(s.cfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-		case <-reloadCh:
-		}
-
-		var err error
-		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
-			s.log.InfoContext(
-				ctx,
-				"Attempting to renewing bot identity",
-				"attempt", attempt,
-				"retry_limit", botIdentityRenewalRetryLimit,
-			)
-			err = s.renew(
-				ctx, storageDestination,
-			)
-			if err == nil {
-				break
-			}
-
-			if attempt != botIdentityRenewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				s.log.ErrorContext(
-					ctx,
-					"Bot identity renewal attempt failed. Waiting to retry.",
-					"error", err,
-					"attempt", attempt,
-					"retry_limit", botIdentityRenewalRetryLimit,
-					"backoff", backoffTime,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			s.log.ErrorContext(
-				ctx,
-				"All bot identity renewal attempts exhausted. Exiting",
-				"error", err,
-				"retry_limit", botIdentityRenewalRetryLimit,
-			)
-			return trace.Wrap(err)
-		}
-		s.log.InfoContext(ctx, "Renewed bot identity. Waiting to renew again", "wait", s.cfg.RenewalInterval)
-	}
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		name: "bot-identity-renewal",
+		f: func(ctx context.Context) error {
+			return s.renew(ctx, storageDestination)
+		},
+		interval:             s.cfg.RenewalInterval,
+		exitOnRetryExhausted: true,
+		retryLimit:           botIdentityRenewalRetryLimit,
+		log:                  s.log,
+		reloadCh:             reloadCh,
+		waitBeforeFirstRun:   true,
+	})
+	return trace.Wrap(err)
 }
 
 func (s *identityService) renew(

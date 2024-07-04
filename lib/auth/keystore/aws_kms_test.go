@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/x509"
 	"fmt"
 	"slices"
 	"strconv"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -67,8 +69,9 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 	opts := &Options{
-		ClusterName: clusterName,
-		HostUUID:    "uuid",
+		ClusterName:          clusterName,
+		HostUUID:             "uuid",
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 		CloudClients: &cloud.TestCloudClients{
 			KMS: fakeKMS,
 			STS: &fakeAWSSTSClient{
@@ -82,8 +85,8 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 
 	totalKeys := pageSize * 3
 	for i := 0; i < totalKeys; i++ {
-		_, err := keyStore.NewSSHKeyPair(ctx)
-		require.NoError(t, err)
+		_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+		require.NoError(t, err, trace.DebugReport(err))
 	}
 
 	// Newly created keys should not be deleted.
@@ -104,6 +107,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	// Insert a key created by a different Teleport cluster, it should not be
 	// deleted by the keystore.
 	output, err := fakeKMS.CreateKey(&kms.CreateKeyInput{
+		KeySpec: aws.String(kms.KeySpecEccNistP256),
 		Tags: []*kms.Tag{
 			&kms.Tag{
 				TagKey:   aws.String(clusterTagKey),
@@ -137,8 +141,9 @@ func TestAWSKMS_WrongAccount(t *testing.T) {
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 	opts := &Options{
-		ClusterName: clusterName,
-		HostUUID:    "uuid",
+		ClusterName:          clusterName,
+		HostUUID:             "uuid",
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 		CloudClients: &cloud.TestCloudClients{
 			KMS: newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
 			STS: &fakeAWSSTSClient{
@@ -169,8 +174,9 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 	opts := &Options{
-		ClusterName: clusterName,
-		HostUUID:    "uuid",
+		ClusterName:          clusterName,
+		HostUUID:             "uuid",
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 		CloudClients: &cloud.TestCloudClients{
 			KMS: kms,
 			STS: &fakeAWSSTSClient{
@@ -188,7 +194,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		clock.BlockUntil(2)
 		clock.Advance(kms.keyPendingDuration)
 	}()
-	_, err = manager.NewSSHKeyPair(ctx)
+	_, err = manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 	require.NoError(t, err)
 
 	// Test with two retries required.
@@ -199,7 +205,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		clock.BlockUntil(2)
 		clock.Advance(kms.keyPendingDuration / 2)
 	}()
-	_, err = manager.NewSSHKeyPair(ctx)
+	_, err = manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 	require.NoError(t, err)
 
 	// Test a timeout.
@@ -210,7 +216,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		clock.BlockUntil(2)
 		clock.Advance(pendingKeyTimeout)
 	}()
-	_, err = manager.NewSSHKeyPair(ctx)
+	_, err = manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 	require.Error(t, err)
 }
 
@@ -236,6 +242,7 @@ func newFakeAWSKMSService(t *testing.T, clock clockwork.Clock, account string, r
 
 type fakeAWSKMSKey struct {
 	arn          string
+	privKeyPEM   []byte
 	tags         []*kms.Tag
 	creationDate time.Time
 	state        string
@@ -254,8 +261,25 @@ func (f *fakeAWSKMSService) CreateKey(input *kms.CreateKeyInput) (*kms.CreateKey
 	if f.keyPendingDuration > 0 {
 		state = "Pending"
 	}
+	var privKeyPEM []byte
+	switch aws.StringValue(input.KeySpec) {
+	case kms.KeySpecRsa2048:
+		privKeyPEM = testRSAPrivateKeyPEM
+	case kms.KeySpecEccNistP256:
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privKeyPEM, err = keys.MarshalPrivateKey(signer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("unsupported KeySpec %v", input.KeySpec)
+	}
 	f.keys = append(f.keys, &fakeAWSKMSKey{
 		arn:          a.String(),
+		privKeyPEM:   privKeyPEM,
 		tags:         input.Tags,
 		creationDate: f.clock.Now(),
 		state:        state,
@@ -276,8 +300,16 @@ func (f *fakeAWSKMSService) GetPublicKeyWithContext(ctx context.Context, input *
 	if key.state != "Enabled" {
 		return nil, trace.NotFound("key %q is not enabled", aws.StringValue(input.KeyId))
 	}
+	privateKey, err := keys.ParsePrivateKey(key.privKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &kms.GetPublicKeyOutput{
-		PublicKey: testRawPublicKeyDER,
+		PublicKey: der,
 	}, nil
 }
 
@@ -289,18 +321,18 @@ func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) 
 	if key.state != "Enabled" {
 		return nil, trace.NotFound("key %q is not enabled", aws.StringValue(input.KeyId))
 	}
+	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var opts crypto.SignerOpts
 	switch aws.StringValue(input.SigningAlgorithm) {
-	case "RSASSA_PKCS1_V1_5_SHA_256":
+	case kms.SigningAlgorithmSpecRsassaPkcs1V15Sha256, kms.SigningAlgorithmSpecEcdsaSha256:
 		opts = crypto.SHA256
-	case "RSASSA_PKCS1_V1_5_SHA_512":
+	case kms.SigningAlgorithmSpecRsassaPkcs1V15Sha512:
 		opts = crypto.SHA512
 	default:
 		return nil, trace.BadParameter("unsupported SigningAlgorithm %q", aws.StringValue(input.SigningAlgorithm))
-	}
-	signer, err := keys.ParsePrivateKey(testRawPrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	signature, err := signer.Sign(rand.Reader, input.Message, opts)
 	if err != nil {

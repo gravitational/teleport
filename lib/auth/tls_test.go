@@ -1403,8 +1403,8 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-		Clock:     clockwork.NewFakeClock(),
+		TrustS: clt,
+		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
 }
@@ -4102,7 +4102,7 @@ func TestEvents(t *testing.T) {
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     testSrv.Auth(),
-		CAS:           testSrv.Auth(),
+		TrustS:        testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
 		UsersS:        clt,
@@ -4865,7 +4865,6 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		key, err := jwt.New(&jwt.Config{
 			Clock:       clock,
 			PublicKey:   publicKey,
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: clusterName,
 		})
 		if err != nil {
@@ -4899,7 +4898,6 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		key, err := jwt.New(&jwt.Config{
 			Clock:       clock,
 			PublicKey:   publicKey,
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: clusterName,
 		})
 		if err != nil {

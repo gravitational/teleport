@@ -1626,16 +1626,16 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		create: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
-			return p.presenceS.GetTunnelConnections(clusterName)
+			return p.trustS.GetTunnelConnections(clusterName)
 		},
 		cacheList: func(ctx context.Context) ([]types.TunnelConnection, error) {
 			return p.cache.GetTunnelConnections(clusterName)
 		},
-		update: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		update: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllTunnelConnections()
+			return p.trustS.DeleteAllTunnelConnections()
 		},
 	})
 }
@@ -1730,11 +1730,11 @@ func TestRemoteClusters(t *testing.T) {
 			return types.NewRemoteCluster(name)
 		},
 		create: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.presenceS.CreateRemoteCluster(ctx, rc)
+			_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 			return err
 		},
 		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.presenceS.GetRemoteClusters(ctx)
+			return p.trustS.GetRemoteClusters(ctx)
 		},
 		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
 			return p.cache.GetRemoteCluster(ctx, name)
@@ -1743,11 +1743,11 @@ func TestRemoteClusters(t *testing.T) {
 			return p.cache.GetRemoteClusters(ctx)
 		},
 		update: func(ctx context.Context, rc types.RemoteCluster) error {
-			_, err := p.presenceS.UpdateRemoteCluster(ctx, rc)
+			_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 			return err
 		},
 		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllRemoteClusters(ctx)
+			return p.trustS.DeleteAllRemoteClusters(ctx)
 		},
 	})
 }

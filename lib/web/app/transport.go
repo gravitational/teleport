@@ -289,7 +289,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	clientJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -304,7 +303,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	wsJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PrivateKey:  wsPrivateKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {

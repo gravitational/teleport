@@ -183,7 +183,7 @@ func TestStartNewParker(t *testing.T) {
 	}
 }
 
-func newSocketPair(t *testing.T) (localConn *uds.Conn, remoteFD *os.File) {
+func newSocketPair(t *testing.T) (localConn *net.UnixConn, remoteFD *os.File) {
 	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -233,7 +233,7 @@ func TestLocalPortForwardCommand(t *testing.T) {
 		Transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
 				dialConn, dialFD := newSocketPair(t)
-				if _, _, err := controlConn.WriteWithFDs([]byte(addr), []*os.File{dialFD}); err != nil {
+				if _, _, err := uds.WriteWithFDs(controlConn, []byte(addr), []*os.File{dialFD}); err != nil {
 					return nil, trace.Wrap(err)
 				}
 				return dialConn, nil
@@ -272,10 +272,10 @@ func testRemotePortForwardCommand(t *testing.T, login string) {
 
 	// Request a listener from the forwarder.
 	replyConn, replyFD := newSocketPair(t)
-	_, _, err = controlConn.WriteWithFDs([]byte("127.0.0.1:0"), []*os.File{replyFD})
+	_, _, err = uds.WriteWithFDs(controlConn, []byte("127.0.0.1:0"), []*os.File{replyFD})
 	require.NoError(t, err)
 	var fbuf [1]*os.File
-	_, fn, err := replyConn.ReadWithFDs(nil, fbuf[:])
+	_, fn, err := uds.ReadWithFDs(replyConn, nil, fbuf[:])
 	require.NoError(t, err)
 	require.Equal(t, 1, fn)
 	listener, err := net.FileListener(fbuf[0])

@@ -142,6 +142,7 @@ The IAM policy includes the following directives:
         "eks:ListAccessEntries",
         "eks:ListAccessPolicies",
         "eks:ListAssociatedAccessPolicies",
+        "eks:DescribeAccessEntry",
 
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
@@ -176,7 +177,11 @@ The IAM policy includes the following directives:
         "iam:GetPolicyVersion",
         "iam:ListRolePolicies",
         "iam:ListAttachedRolePolicies",
-        "iam:GetRolePolicy"
+        "iam:GetRolePolicy",
+        "iam:ListSAMLProviders",
+        "iam:GetSAMLProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:GetOpenIDConnectProvider"
       ],
       "Resource": "*"
     }

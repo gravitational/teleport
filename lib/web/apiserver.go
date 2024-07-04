@@ -23,6 +23,7 @@ package web
 import (
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -74,7 +75,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -225,8 +225,8 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
-	// GetProxyIdentity returns the identity of the proxy.
-	GetProxyIdentity func() (*state.Identity, error)
+	// GetProxyClientTLSConfig returns the client TLS config of the proxy
+	GetProxyClientTLSConfig func(ciphersuites []uint16) (*tls.Config, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -982,13 +982,13 @@ func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
-// GetProxyIdentity returns the identity of the proxy
-func (h *Handler) GetProxyIdentity() (*state.Identity, error) {
-	if h.cfg.GetProxyIdentity == nil {
-		return nil, trace.BadParameter("GetProxyIdentity function is not set")
+// GetProxyClientTLSConfig returns the client TLS config of the proxy
+func (h *Handler) GetProxyClientTLSConfig(ciphersuites []uint16) (*tls.Config, error) {
+	if h.cfg.GetProxyClientTLSConfig == nil {
+		return nil, trace.BadParameter("GetProxyClientTLSConfig function is not set")
 	}
-	rsp, err := h.cfg.GetProxyIdentity()
-	return rsp, trace.Wrap(err)
+	tlsConfig, err := h.cfg.GetProxyClientTLSConfig(ciphersuites)
+	return tlsConfig, trace.Wrap(err)
 }
 
 // GetAccessPoint returns the caching access point.
@@ -1649,6 +1649,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	policy := clusterFeatures.GetPolicy()
 
+	// todo (michellescripts) entitlements phase 3: update webCfg
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,

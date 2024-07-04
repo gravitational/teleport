@@ -1545,13 +1545,13 @@ message ProvisionTokenSpecV2GCP {
   // Rule is a set of properties the GCP-ussued token might have to be allowed
   // to use this ProvisionToken.
   message Rule {
-    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    // ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
     repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
     // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
     // "us-west1-b").
     repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
     // ServiceAccounts is a list of service account emails (e.g.
-    // "<project-number>-compute@developer.gserviceaccount.com").
+    // `<project-number>-compute@developer.gserviceaccount.com`).
     repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
@@ -1988,6 +1988,10 @@ message AuthPreferenceSpecV2 {
 
   // HardwareKey are the settings for hardware key support.
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
+
+  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+  // The current default value is "legacy". This field is not yet fully supported.
+  SignatureAlgorithmSuite signature_algorithm_suite = 20;
 }
 
 // U2F defines settings for U2F device.
@@ -4494,7 +4498,7 @@ message SAMLConnectorSpecV2 {
   // SSO is the URL of the identity provider's SSO service.
   string SSO = 2 [(gogoproto.jsontag) = "sso"];
   // Cert is the identity provider certificate PEM.
-  // IDP signs <Response> responses using this certificate.
+  // IDP signs `<Response>` responses using this certificate.
   string Cert = 3 [(gogoproto.jsontag) = "cert"];
   // Display controls how this connector is displayed.
   string Display = 4 [(gogoproto.jsontag) = "display"];
@@ -4963,10 +4967,10 @@ message TrustedClusterSpecV2 {
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-  // it is derived from <metadata.name>:<default web proxy server port>.
+  // it is derived from `<metadata.name>:<default web proxy server port>`.
   string ProxyAddress = 4 [(gogoproto.jsontag) = "web_proxy_addr"];
   // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-  // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+  // not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
   string ReverseTunnelAddress = 5 [(gogoproto.jsontag) = "tunnel_addr"];
   // RoleMap specifies role mappings to remote roles.
   repeated RoleMapping RoleMap = 6 [
@@ -5767,6 +5771,30 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
+// SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.
+enum SignatureAlgorithmSuite {
+  // SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED represents an unspecified signature algorithm suite.
+  SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED = 0;
+  // SIGNATURE_ALGORITHM_SUITE_LEGACY is the original algorithm suite used in
+  // Teleport, it almost exclusively uses 2048-bit RSA.
+  SIGNATURE_ALGORITHM_SUITE_LEGACY = 1;
+  // SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 aims to strikes a balance between
+  // security, compatibility, and performance. It uses Ed25519 for most SSH
+  // keys, ECDSA on the NIST P256 curve for most TLS keys, and 2048-bit RSA
+  // where necessary for compatibility with third-party software.
+  SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 = 2;
+  // SIGNATURE_ALGORITHM_SUITE_FIPS_V1 is tailored for FIPS compliance. It is
+  // based on the BALANCED_V1 suite but replaces all instances of Ed25519 with
+  // ECDSA on the NIST P256 curve.
+  SIGNATURE_ALGORITHM_SUITE_FIPS_V1 = 3;
+  // SIGNATURE_ALGORITHM_SUITE_HSM_V1 is tailored for clusters using an HSM or
+  // KMS service to back CA private material. It is based on the BALANCED suite
+  // but replaces Ed25519 with ECDSA on the NIST P256 curve for CA keys only,
+  // not for server or client keys. It is also valid to use the LEGACY for FIPS
+  // suites if your cluster uses an HSM or KMS.
+  SIGNATURE_ALGORITHM_SUITE_HSM_V1 = 4;
+}
+
 // Plugin describes a single instance of a Teleport Plugin
 message PluginV1 {
   // kind is the plugin resource kind.
@@ -6097,6 +6125,7 @@ message PluginStatusV1 {
   oneof details {
     // gitlab is the status details for the Gitlab plugin.
     PluginGitlabStatusV1 gitlab = 4;
+    PluginEntraIDStatusV1 entra_id = 5;
   }
 }
 
@@ -6108,6 +6137,14 @@ message PluginGitlabStatusV1 {
   uint32 imported_groups = 2;
   // imported_projects is the number of projects imported from Gitlab.
   uint32 imported_projects = 3;
+}
+
+// PluginEntraIDStatusV1 is the status details for the Entra ID plugin.
+message PluginEntraIDStatusV1 {
+  // imported_users is the number of users imported from Entra ID.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Entra ID.
+  uint32 imported_groups = 2;
 }
 
 enum PluginStatusCode {
