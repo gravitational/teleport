@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { resolve } from 'node:path';
+import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
@@ -28,8 +28,8 @@ import { getConnectCsp } from './csp';
 
 import type { Plugin } from 'vite';
 
-const rootDirectory = resolve(__dirname, '../../..');
-const outputDirectory = resolve(__dirname, 'build', 'app');
+const rootDirectory = path.resolve(__dirname, '../../..');
+const outputDirectory = path.resolve(__dirname, 'build', 'app');
 
 // these dependencies don't play well unless they're externalized
 // if Vite complains about a dependency, add it here
@@ -46,15 +46,15 @@ const config = defineConfig(env => {
   const config: UserConfig = {
     main: {
       build: {
-        outDir: resolve(outputDirectory, 'main'),
+        outDir: path.resolve(outputDirectory, 'main'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/main.ts'),
-            sharedProcess: resolve(
+            index: path.resolve(__dirname, 'src/main.ts'),
+            sharedProcess: path.resolve(
               __dirname,
               'src/sharedProcess/sharedProcess.ts'
             ),
-            agentCleanupDaemon: resolve(
+            agentCleanupDaemon: path.resolve(
               __dirname,
               'src/agentCleanupDaemon/agentCleanupDaemon.js'
             ),
@@ -76,10 +76,10 @@ const config = defineConfig(env => {
     },
     preload: {
       build: {
-        outDir: resolve(outputDirectory, 'preload'),
+        outDir: path.resolve(outputDirectory, 'preload'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/preload.ts'),
+            index: path.resolve(__dirname, 'src/preload.ts'),
           },
           output: {
             manualChunks,
@@ -95,10 +95,10 @@ const config = defineConfig(env => {
     renderer: {
       root: '.',
       build: {
-        outDir: resolve(outputDirectory, 'renderer'),
+        outDir: path.resolve(outputDirectory, 'renderer'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'index.html'),
+            index: path.resolve(__dirname, 'index.html'),
           },
         },
       },
@@ -127,7 +127,7 @@ const config = defineConfig(env => {
         cert: readFileSync(process.env.VITE_HTTPS_CERT),
       };
     } else {
-      const certsDirectory = resolve(rootDirectory, 'web/certs');
+      const certsDirectory = path.resolve(rootDirectory, 'web/certs');
 
       if (!existsSync(certsDirectory)) {
         throw new Error(
@@ -135,8 +135,8 @@ const config = defineConfig(env => {
         );
       }
 
-      const keyPath = resolve(certsDirectory, 'server.key');
-      const certPath = resolve(certsDirectory, 'server.crt');
+      const keyPath = path.resolve(certsDirectory, 'server.key');
+      const certPath = path.resolve(certsDirectory, 'server.crt');
 
       config.renderer.server.https = {
         key: readFileSync(keyPath),
