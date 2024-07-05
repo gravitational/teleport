@@ -206,19 +206,26 @@ func getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
+	// TODO: AWS?
+	ws, err := client.CreateAppSession(ctx, types.CreateAppSessionRequest{
 		ClusterName: botIdentity.ClusterName,
-	}
-
-	// TODO (Joerger): DELETE IN v17.0.0
-	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
+		Username:    botIdentity.X509Cert.Subject.CommonName,
+		PublicAddr:  app.GetPublicAddr(),
+	})
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
 
-	return routeToApp, nil
+	err = authclient.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	return proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: botIdentity.ClusterName,
+	}, nil
 }
 
 func getApp(ctx context.Context, clt *authclient.Client, appName string) (types.Application, error) {
