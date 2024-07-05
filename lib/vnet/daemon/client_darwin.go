@@ -24,6 +24,7 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 	"unsafe"
@@ -48,14 +49,18 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		C.OpenSystemSettingsLoginItems()
 	}
 
-	status, err := register(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	if initialStatus != serviceStatusEnabled {
+		status, err := register(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if status != serviceStatusEnabled {
-		if err := waitForEnablement(ctx); err != nil {
-			return trace.Wrap(err, "waiting for the login item to get enabled")
+		// Once registered for the first time, the status is likely going to be serviceStatusRequiresApproval.
+		if status != serviceStatusEnabled {
+			fmt.Println("To start VNet, please enable the background item for tsh.app in the Login Items section of System Settings.\nWaiting for the background item to be enabled…")
+			if err := waitForEnablement(ctx); err != nil {
+				return trace.Wrap(err, "waiting for the login item to get enabled")
+			}
 		}
 	}
 

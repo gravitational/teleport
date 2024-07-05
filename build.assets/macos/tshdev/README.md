@@ -91,6 +91,18 @@ going to make launchd start the program listed under `BundleProgram`. Extra argu
 the program are under `ProgramArguments`. See `man launchd.plist` for more details behind individual
 plist properties.
 
+When there's no login item for a daemon and an app attempts to register it for the first time, macOS
+shows a notification about it which says "tsh.app added items that can run in the background for all
+users. Do you want to allow this?". When working on a launch daemon, at some point macOS is going to
+stop showing the notification. In Console.app, you're going to see this:
+
+```
+Exceeded max notifications for tsh. Please file a Feedback report or contact the developer.
+item=uuid=4DF802A6-A9DE-4EF8-A6FB-4B046E50E1DE, name=tsh, type=daemon, disposition=[enabled,
+disallowed, visible, not notified], identifier=com.goteleport.tshdev.vnetd,
+url=Contents/Library/LaunchDaemons/com.goteleport.tshdev.vnetd.plist -- file:///
+```
+
 ### Recompiling daemon
 
 Once a login item is enabled, you are free to update the binary advertised under `BundleProgram` as
