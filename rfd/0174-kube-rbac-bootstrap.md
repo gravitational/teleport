@@ -173,8 +173,17 @@ message KubeProvision {
 
 // KubeProvisionSpec is the spec for the kube provision message.
 message KubeProvisionSpec {
-  // resources_data is base64 encoded YAML definitions of the Kubernetes resources.
-  string resources_data = 3;
+  // cluster_roles contains definitions for ClusterRole Kubernetes resources to provision.
+  repeated ClusterRole cluster_roles = 1;
+
+  // cluster_role_bindings contains definitions for ClusterRoleBinding Kubernetes resources to provision.
+  repeated ClusterRoleBinding cluster_role_bindings = 2;
+
+  // roles contains definitions for Role Kubernetes resources to provision.
+  repeated Role roles = 3;
+
+  // role_bindings contains definitions for RoleBinding Kubernetes resources to provision.
+  repeated RoleBinding role_bindings = 4;
 }
 ```
 
