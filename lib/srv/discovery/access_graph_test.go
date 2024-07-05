@@ -88,7 +88,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "test updateDiscoveryConfigStatus with errpr",
+			name: "test updateDiscoveryConfigStatus with error",
 			args: args{
 				fetchers: []aws_sync.AWSSync{
 					&fakeFetcher{
@@ -125,7 +125,6 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 			args: args{
 				fetchers: []aws_sync.AWSSync{
 					&fakeFetcher{
-						count:               1,
 						discoveryConfigName: "test",
 					},
 				},
@@ -135,6 +134,43 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				"test": {
 					{
 						State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+						ErrorMessage:        nil,
+						DiscoveredResources: 0,
+						LastSyncTime:        clock.Now(),
+					},
+				},
+			},
+		},
+		{
+			name: "test multiple aws sync fetchers",
+			args: args{
+				fetchers: []aws_sync.AWSSync{
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						count:               1,
+					},
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						count:               1,
+					},
+					&fakeFetcher{
+						discoveryConfigName: "test2",
+						count:               1,
+					},
+				},
+			},
+			want: map[string][]discoveryconfig.Status{
+				"test1": {
+					{
+						State:               "DISCOVERY_CONFIG_STATE_RUNNING",
+						ErrorMessage:        nil,
+						DiscoveredResources: 2,
+						LastSyncTime:        clock.Now(),
+					},
+				},
+				"test2": {
+					{
+						State:               "DISCOVERY_CONFIG_STATE_RUNNING",
 						ErrorMessage:        nil,
 						DiscoveredResources: 1,
 						LastSyncTime:        clock.Now(),
@@ -154,7 +190,17 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				},
 				awsSyncStatus: awsSyncStatus{},
 			}
-			s.updateAWSSyncDiscoveryConfigStatus(tt.args.fetchers, tt.args.pushErr, tt.args.preRun)
+
+			if tt.args.preRun {
+				s.awsSyncStatus.iterationStarted(tt.args.fetchers, s.clock.Now())
+			} else {
+				s.awsSyncStatus.iterationFinished(tt.args.fetchers, tt.args.pushErr, s.clock.Now())
+			}
+
+			for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+				s.updateDiscoveryConfigStatus(discoveryConfigName)
+			}
+
 			require.Equal(t, tt.want, accessPoint.reports)
 		})
 	}

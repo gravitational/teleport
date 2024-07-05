@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
-	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -66,7 +65,12 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
-	s.updateAWSSyncDiscoveryConfigStatus(allFetchers, nil, true /* preRun */)
+
+	s.awsSyncStatus.iterationStarted(allFetchers, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -103,9 +107,14 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
-	err = push(stream, upsert, toDel)
-	s.updateAWSSyncDiscoveryConfigStatus(allFetchers, err, false /* preRun */)
-	if err != nil {
+	pushErr := push(stream, upsert, toDel)
+
+	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
+	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
+		s.updateDiscoveryConfigStatus(discoveryConfigName)
+	}
+
+	if pushErr != nil {
 		s.Log.WithError(err).Error("Error pushing TAGs")
 		return nil
 	}
@@ -455,22 +464,4 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 	}
 
 	return fetchers, trace.NewAggregate(errs...)
-}
-
-func buildAWSSyncFetcherStatus(fetcher aws_sync.AWSSync, pushErr error, lastUpdate time.Time) awsSyncResult {
-	count, err := fetcher.Status()
-	err = trace.NewAggregate(err, pushErr)
-	var errStr *string
-	state := discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING
-	if err != nil {
-		errStr = new(string)
-		*errStr = err.Error()
-		state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR
-	}
-	return awsSyncResult{
-		state:               state.String(),
-		errorMessage:        errStr,
-		lastSyncTime:        lastUpdate,
-		discoveredResources: count,
-	}
 }
