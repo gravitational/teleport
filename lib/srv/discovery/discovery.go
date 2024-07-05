@@ -360,7 +360,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
-		awsSyncStatus:              newAWSSyncStatus(),
+		awsSyncStatus:              awsSyncStatus{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 

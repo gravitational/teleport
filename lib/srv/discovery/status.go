@@ -50,43 +50,42 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	case trace.IsNotImplemented(err):
 		s.Log.Warn("UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
 	case err != nil:
-		s.Log.WithError(err).Infof("Error updating discovery config %q status", discoveryConfigName)
+		s.Log.WithError(err).WithField("discovery_config_name", discoveryConfigName).Info("Error updating discovery config status")
 	}
 }
 
-func newAWSSyncStatus() awsSyncStatus {
-	return awsSyncStatus{
-		awsSyncStatus: make(map[string]awsSyncResult),
-	}
-}
-
+// awsSyncStatus contains all the status for aws_sync Fetchers grouped by DiscoveryConfig.
 type awsSyncStatus struct {
-	mu            sync.RWMutex
+	mu sync.RWMutex
+	// awsSyncStatus maps the DiscoveryConfig name to a aws_sync result.
 	awsSyncStatus map[string]awsSyncResult
 }
 
+// awsSyncResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
 type awsSyncResult struct {
+	// state is the State for the DiscoveryConfigStatus.
+	// Allowed values are ERROR, RUNNING and SYNCING
 	state               string
 	errorMessage        *string
 	lastSyncTime        time.Time
 	discoveredResources uint64
 }
 
-func (d *awsSyncStatus) upsertStatus(discoveryConfig string, result awsSyncResult) {
+func (d *awsSyncStatus) upsertStatus(discoveryConfigName string, result awsSyncResult) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	if d.awsSyncStatus == nil {
 		d.awsSyncStatus = make(map[string]awsSyncResult)
 	}
-	d.awsSyncStatus[discoveryConfig] = result
+	d.awsSyncStatus[discoveryConfigName] = result
 }
 
-func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfig string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	awsStatus, found := d.awsSyncStatus[discoveryConfig]
+	awsStatus, found := d.awsSyncStatus[discoveryConfigName]
 	if !found {
 		return existingStatus
 	}
