@@ -64,7 +64,7 @@ export enum SamlServiceProviderPreset {
 }
 
 /**
- * GcpWorkforceMeta describes the fields for SAML
+ * SamlGcpWorkforce describes the fields for SAML
  * GCP workforce pool resource that needs to be
  * preserved throughout the flow.
  */

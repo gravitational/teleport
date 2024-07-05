@@ -553,9 +553,11 @@ export type AppMeta = BaseMeta & {
   app: App;
 };
 
-// SamlMeta describes the fields for SAML IdP
-// service provider resource that needs to be
-// preserved throughout the flow.
+/**
+ * SamlMeta describes the fields for SAML IdP
+ * service provider resource that needs to be
+ * preserved throughout the flow.
+ */
 export type SamlMeta = BaseMeta & SamlGcpWorkforce;
 
 export type AgentMeta =
