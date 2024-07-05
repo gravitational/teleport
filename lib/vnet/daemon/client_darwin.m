@@ -35,15 +35,15 @@ char *VNECopyNSString(NSString *val) {
 //
 // The filename and the value of the Label key in the plist file and the Mach
 // service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(void) {
-  NSBundle *main = [NSBundle mainBundle];
+NSString *DaemonLabel(NSString *bundlePath) {
+  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
   if (!main) {
     return @"";
   }
 
   NSString *bundleIdentifier = [main bundleIdentifier];
-  if ([bundleIdentifier length] == 0) {
-    return bundleIdentifier;
+  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
+    return @"";
   }
 
   return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
@@ -51,8 +51,8 @@ NSString *DaemonLabel(void) {
 
 // DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
 // if not empty.
-NSString *DaemonPlist(void) {
-  NSString *label = DaemonLabel();
+NSString *DaemonPlist(NSString *bundlePath) {
+  NSString *label = DaemonLabel(bundlePath);
   if ([label length] == 0) {
     return label;
   }
@@ -60,13 +60,12 @@ NSString *DaemonPlist(void) {
   return [NSString stringWithFormat:@"%@.plist", label];
 }
 
-// TODO: This needs to accept bundle_path as an argument in order to with symlinks.
-void RegisterDaemon(RegisterDaemonResult *outResult) {
+void RegisterDaemon(const char *bundle_path, RegisterDaemonResult *outResult) {
   if (@available(macOS 13, *)) {
     SMAppService *service;
     NSError *error;
 
-    service = [SMAppService daemonServiceWithPlistName:(DaemonPlist())];
+    service = [SMAppService daemonServiceWithPlistName:(DaemonPlist(@(bundle_path)))];
 
     outResult->ok = [service registerAndReturnError:(&error)];
     if (error) {
@@ -81,10 +80,10 @@ void RegisterDaemon(RegisterDaemonResult *outResult) {
   }
 }
 
-int DaemonStatus(void) {
+int DaemonStatus(const char *bundle_path) {
   if (@available(macOS 13, *)) {
     SMAppService *service;
-    service = [SMAppService daemonServiceWithPlistName:(DaemonPlist())];
+    service = [SMAppService daemonServiceWithPlistName:(DaemonPlist(@(bundle_path)))];
     return (int)service.status;
   } else {
     return -1;

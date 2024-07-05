@@ -25,13 +25,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -40,7 +44,12 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
 func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	initialStatus := daemonStatus()
+	bundlePath, err := bundlePath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.DebugContext(ctx, "Registering (if needed) and calling daemon", "bundle_path", bundlePath)
+	initialStatus := daemonStatus(bundlePath)
 	// If the status is equal to "requires approval" before RegisterAndCall called register, it means
 	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
 	// going to show the notification about a new login item. Instead, we just open the login items
@@ -50,7 +59,7 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 	}
 
 	if initialStatus != serviceStatusEnabled {
-		status, err := register(ctx)
+		status, err := register(ctx, bundlePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -58,7 +67,7 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		// Once registered for the first time, the status is likely going to be serviceStatusRequiresApproval.
 		if status != serviceStatusEnabled {
 			fmt.Println("To start VNet, please enable the background item for tsh.app in the Login Items section of System Settings.\nWaiting for the background item to be enabled…")
-			if err := waitForEnablement(ctx); err != nil {
+			if err := waitForEnablement(ctx, bundlePath); err != nil {
 				return trace.Wrap(err, "waiting for the login item to get enabled")
 			}
 		}
@@ -67,13 +76,16 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 	return trace.NotImplemented("RegisterAndCall is not fully implemented yet")
 }
 
-func register(ctx context.Context) (serviceStatus, error) {
+func register(ctx context.Context, bundlePath string) (serviceStatus, error) {
+	cBundlePath := C.CString(bundlePath)
+	defer C.free(unsafe.Pointer(cBundlePath))
+
 	var result C.RegisterDaemonResult
 	defer func() {
 		C.free(unsafe.Pointer(result.error_description))
 	}()
 
-	C.RegisterDaemon(&result)
+	C.RegisterDaemon(cBundlePath, &result)
 
 	if !result.ok {
 		status := serviceStatus(result.service_status)
@@ -94,7 +106,7 @@ func register(ctx context.Context) (serviceStatus, error) {
 		}
 
 		log.DebugContext(ctx, "Registering the daemon has failed", "service_status", status)
-		return 0, trace.Errorf("registering daemon failed, %s", C.GoString(result.error_description))
+		return -1, trace.Errorf("registering daemon failed, %s", C.GoString(result.error_description))
 	}
 
 	return serviceStatus(result.service_status), nil
@@ -106,7 +118,7 @@ var waitingForEnablementTimeoutExceeded = errors.New("the login item was not ena
 
 // waitForEnablement periodically checks if the status of the daemon has changed to
 // [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
-func waitForEnablement(ctx context.Context) error {
+func waitForEnablement(ctx context.Context, bundlePath string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -118,7 +130,7 @@ func waitForEnablement(ctx context.Context) error {
 		case <-ctx.Done():
 			return context.Cause(ctx)
 		case <-ticker.C:
-			switch status := daemonStatus(); status {
+			switch status := daemonStatus(bundlePath); status {
 			case serviceStatusEnabled:
 				return nil
 			case serviceStatusRequiresApproval:
@@ -133,8 +145,11 @@ func waitForEnablement(ctx context.Context) error {
 	}
 }
 
-func daemonStatus() serviceStatus {
-	return serviceStatus(C.DaemonStatus())
+func daemonStatus(bundlePath string) serviceStatus {
+	cBundlePath := C.CString(bundlePath)
+	defer C.free(unsafe.Pointer(cBundlePath))
+
+	return serviceStatus(C.DaemonStatus(cBundlePath))
 }
 
 type serviceStatus int
@@ -160,4 +175,34 @@ func (s serviceStatus) String() string {
 	default:
 		return strconv.Itoa(int(s))
 	}
+}
+
+// bundlePath returns a path to the bundle that the current executable comes from.
+// If the current executable is a symlink, it resolves the symlink. This is to address a scenario
+// where tsh is installed from tsh.pkg and symlinked to /usr/local/bin/tsh, in which case the
+// mainBundle function from NSBundle incorrectly points to /usr/local/bin as the bundle path.
+// https://developer.apple.com/documentation/foundation/nsbundle/1410786-mainbundle
+//
+// Returns an error if the dir of the current executable doesn't end with "/Contents/MacOS", likely
+// because the executable is not in an app bundle.
+func bundlePath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	absExe, err := utils.NormalizePath(exe, true /* evaluateSymlinks */)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	dir := filepath.Dir(absExe)
+
+	const appBundleSuffix = "/Contents/MacOS"
+	if !strings.HasSuffix(dir, appBundleSuffix) {
+		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
+		return "", trace.NotFound("the current executable is not in an app bundle")
+	}
+
+	return strings.TrimSuffix(dir, appBundleSuffix), nil
 }
