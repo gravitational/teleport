@@ -63,6 +63,10 @@ func dial(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.Clie
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
 func grpcCredentials(config ServiceClientConfig, getCreds ClientCredentialsGetter) (grpc.DialOption, error) {
+	if getCreds == nil {
+		return nil, trace.BadParameter("missing credential getter")
+	}
+
 	var pool *x509.CertPool
 	if config.CA != "" {
 		pool = x509.NewCertPool()

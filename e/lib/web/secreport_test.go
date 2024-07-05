@@ -190,7 +190,7 @@ type mockPlugin struct {
 func (l mockPlugin) GetName() string                                    { return "mockPlugin" }
 func (l mockPlugin) RegisterProxyWebHandlers(handler interface{}) error { return nil }
 func (l mockPlugin) RegisterAuthWebHandlers(service interface{}) error  { return nil }
-func (l mockPlugin) RegisterAuthServices(ctx context.Context, server interface{}) error {
+func (l mockPlugin) RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error {
 	authServer, ok := server.(*auth.GRPCServer)
 	if !ok {
 		return trace.BadParameter("unsupported auth server type %T", server)

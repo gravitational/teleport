@@ -48,6 +48,8 @@ const (
 	pluginName = "web.enterprise"
 )
 
+type getCertFunc = func() (*tls.Certificate, error)
+
 // AccessGraphConfig holds the configuration for AccessGraph if it's enabled in the proxy.
 type AccessGraphConfig struct {
 	// Addr is the Access Graph listener address
@@ -162,7 +164,7 @@ func (p *Plugin) GetHighLimiter() func(fn httplib.HandlerFunc) httprouter.Handle
 }
 
 // RegisterAuthServices registers GRPC services
-func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer interface{}) error {
+func (p *Plugin) RegisterAuthServices(ctx context.Context, grpcServer any, getClientCert getCertFunc) error {
 	return nil
 }
 

@@ -2,11 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -19,7 +15,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -29,8 +24,6 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -52,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
@@ -66,6 +58,8 @@ const (
 )
 
 var log = logrus.WithField(teleport.ComponentKey, pluginName)
+
+type getCertFunc = func() (*tls.Certificate, error)
 
 // License is an interface for checking if a license is disabled.
 type License interface {
@@ -165,7 +159,7 @@ func (p *Plugin) PluginStaticCredentialsService() services.PluginStaticCredentia
 }
 
 // RegisterAuthServices registers Auth Services (GRPC)
-func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) error {
+func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error {
 	var ok bool
 	p.authServer, ok = server.(*auth.GRPCServer)
 	if !ok {
@@ -318,7 +312,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	go accessListSvc.ReportCompliance(ctx)
 
-	if err := p.registerAccessGraphService(ctx, p.authServer.AuthServer, gRPCServer); err != nil {
+	if err := p.registerAccessGraphService(ctx, p.authServer.AuthServer, gRPCServer, getClientCert); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -389,50 +383,15 @@ func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.Service
 // registerAccessGraphService registers gRPC AccessGraphService in Auth.
 // Proxy services call Auth rather than TAG directly, since only Auth holds the Cloud license
 // which is required to authenticate to the external TAG service.
-func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *auth.Server, service grpc.ServiceRegistrar) error {
+func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *auth.Server, service grpc.ServiceRegistrar, getClientCert getCertFunc) error {
 	if !p.Config.AccessGraph.Enabled {
 		return nil
 	}
 
 	log.Info("Access Graph Enabled.")
 
-	// TeleportProcess does not exist yet, so we can't use process.GetIdentity here.
-	// Ask Auth to generate a host certificate. This is probably not the best approach.
 	// TODO(justinas): remove Access Graph relay gRPC service from auth altogether,
 	// see https://github.com/gravitational/access-graph/issues/362
-	// TODO(espadolini): use credentials from a connector from the
-	// TeleportProcess which definitely exists already at this point, the chain
-	// is NewTeleport -> process.initAuthService -> NewTLSServer ->
-	// registry.RegisterAuthServices -> plugin.RegisterAuthServices ->
-	// plugin.registerAccessGraphService
-	key, err := native.GeneratePrivateKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsPubDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsPub := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: tlsPubDER})
-	tlsPriv := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key.Signer.(*rsa.PrivateKey)),
-	})
-	cert, err := authServer.GenerateHostCerts(ctx, &proto.HostCertsRequest{
-		HostID:       authServer.ServerID,
-		NodeName:     fmt.Sprintf("access-graph.%v", authServer.AuthServiceName),
-		Role:         types.RoleAdmin,
-		PublicTLSKey: tlsPub,
-		PublicSSHKey: key.MarshalSSHPublicKey(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsCert, err := keys.X509KeyPair(cert.TLS, tlsPriv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	agConn, err := accessgraph.NewAccessGraphClient(
 		ctx,
 		accessgraph.ServiceClientConfig{
@@ -440,7 +399,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 			CA:       p.Config.AccessGraph.CA,
 			Insecure: p.Config.AccessGraph.Insecure,
 		},
-		func() (*tls.Certificate, error) { return &tlsCert, nil },
+		getClientCert,
 	)
 	if err != nil {
 		return trace.Wrap(err)
