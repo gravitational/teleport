@@ -25,7 +25,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"time"
 	"unsafe"
 
@@ -36,41 +35,6 @@ import (
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
-
-// Taken from manual for codesign.
-const codesignExitCodeVerificationFailed = 1
-
-func IsSigned(ctx context.Context) (bool, error) {
-	var result C.BundlePathResult
-	defer func() {
-		C.free(unsafe.Pointer(result.bundlePath))
-	}()
-	C.BundlePath(&result)
-
-	bundlePath := C.GoString(result.bundlePath)
-	if bundlePath == "" {
-		return false, nil
-	}
-
-	if err := exec.CommandContext(ctx, "codesign", "--verify", bundlePath).Run(); err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			log.DebugContext(ctx, "codesign --verify returned with non-zero exit code",
-				"exit_code", exitError.ExitCode(), "bundle_path", bundlePath)
-
-			if exitError.ExitCode() == codesignExitCodeVerificationFailed {
-				return false, nil
-			}
-
-			// Returning a custom error instead of wrapping err because err is just a cryptic "exit status 2".
-			return false, trace.Errorf("failed to check the signature of tsh, codesign returned with exit code %d", exitError.ExitCode())
-		}
-
-		return false, trace.Wrap(err, "failed to check the signature of tsh")
-	}
-
-	return true, nil
-}
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.

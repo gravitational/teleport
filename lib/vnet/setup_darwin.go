@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 // receiveTUNDevice is a blocking call which waits for the admin subcommand to pass over the socket
@@ -51,23 +50,8 @@ func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	return tunDevice, trace.Wrap(err, "creating TUN device from file descriptor")
 }
 
-func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	// TODO(ravicious): Remove the feature env var after the daemon gets implemented.
-	if os.Getenv("VNET_DAEMON") == "1" {
-		// SMAppService that we use to manage the launch daemon works only with signed app bundles.
-		isSigned, err := daemon.IsSigned(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if isSigned {
-			return trace.Wrap(daemon.RegisterAndCall(ctx, socketPath, ipv6Prefix, dnsAddr))
-		}
-	}
-
-	return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
-}
-
+// execAdminSubcommand starts an osascript wrapper that starts tsh vnet-daemon as root.
+// Used in execAdminProcess when vnetdaemon tag is not supplied.
 func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	executableName, err := os.Executable()
 	if err != nil {

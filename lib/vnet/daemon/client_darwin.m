@@ -18,20 +18,6 @@
 
 #include "client_darwin.h"
 
-void BundlePath(struct BundlePathResult *result) {
-  // From the docs:
-  // > This method may return a valid bundle object even for unbundled apps.
-  // > It may also return nil if the bundle object could not be created,
-  // > so always check the return value.
-  NSBundle *main = [NSBundle mainBundle];
-  if (!main) {
-    result->bundlePath = strdup("");
-    return;
-  }
-
-  result->bundlePath = VNECopyNSString([main bundlePath]);
-}
-
 NSString *DaemonLabel(void) {
   NSBundle *main = [NSBundle mainBundle];
   if (!main) {
