@@ -24,7 +24,7 @@ import "C"
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -64,24 +64,24 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 
 func register(ctx context.Context) (serviceStatus, error) {
 	var result C.RegisterDaemonResult
-
-	C.RegisterDaemon(&result)
 	defer func() {
 		C.free(unsafe.Pointer(result.error_description))
 	}()
 
+	C.RegisterDaemon(&result)
+
 	if !result.ok {
 		status := serviceStatus(result.service_status)
-		// Docs for registerAndReturnError [1] don't seem to cover a situation in which the user adds
-		// the launch daemon for the first time. In that case, that method returns "Operation not permitted"
-		// error (Code=1, Domain=SMAppServiceErrorDomain). That error doesn't seem to exist in Service
-		// Management Errors [2]. However, all this means is that the launch daemon was added to the
-		// login items and the user must now enable the corresponding login item.
+		// Docs for [registerAndReturnError][1] don't seem to cover a situation in which the user adds
+		// the launch daemon for the first time. In that case, that method returns "Operation not
+		// permitted" error (Code=1, Domain=SMAppServiceErrorDomain). That error doesn't seem to exist
+		// in [Service Management Errors][2]. However, all this means is that the launch daemon was
+		// added to the login items and the user must now enable the corresponding login item.
 		//
 		// We can confirm this by looking at the returned service status.
 		//
-		// [1] https://developer.apple.com/documentation/servicemanagement/smappservice/register()?language=objc
-		// [2] https://developer.apple.com/documentation/servicemanagement/service-management-errors?language=objc
+		// [1]: https://developer.apple.com/documentation/servicemanagement/smappservice/register()?language=objc
+		// [2]: https://developer.apple.com/documentation/servicemanagement/service-management-errors?language=objc
 		if status == serviceStatusRequiresApproval {
 			log.DebugContext(ctx, "Daemon successfully added, but it requires approval",
 				"ignored_error", C.GoString(result.error_description))
@@ -136,10 +136,10 @@ type serviceStatus int
 
 // https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
 const (
-	serviceStatusNotRegistered    serviceStatus = 0
-	serviceStatusEnabled          serviceStatus = 1
-	serviceStatusRequiresApproval serviceStatus = 2
-	serviceStatusNotFound         serviceStatus = 3
+	serviceStatusNotRegistered serviceStatus = iota
+	serviceStatusEnabled
+	serviceStatusRequiresApproval
+	serviceStatusNotFound
 )
 
 func (s serviceStatus) String() string {
@@ -153,6 +153,6 @@ func (s serviceStatus) String() string {
 	case serviceStatusNotFound:
 		return "not found"
 	default:
-		return fmt.Sprintf("%d", int(s))
+		return strconv.Itoa(int(s))
 	}
 }

@@ -13,11 +13,28 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#import <Foundation/Foundation.h>
-#import <ServiceManagement/ServiceManagement.h>
 
 #include "client_darwin.h"
 
+#import <Foundation/Foundation.h>
+#import <ServiceManagement/ServiceManagement.h>
+
+// VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
+// The caller is expected to free the returned pointer.
+char *VNECopyNSString(NSString *val) {
+  if (val) {
+    return strdup([val UTF8String]);
+  }
+  return strdup("");
+}
+
+// Returns the label for the daemon by getting the identifier of the bundle
+// this executable is shipped in and appending ".vnetd" to it.
+//
+// The returned string might be empty if the executable is not in a bundle.
+//
+// The filename and the value of the Label key in the plist file and the Mach
+// service of of the daemon must match the string returned from this function.
 NSString *DaemonLabel(void) {
   NSBundle *main = [NSBundle mainBundle];
   if (!main) {
@@ -32,6 +49,8 @@ NSString *DaemonLabel(void) {
   return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
 }
 
+// DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
+// if not empty.
 NSString *DaemonPlist(void) {
   NSString *label = DaemonLabel();
   if ([label length] == 0) {
@@ -41,23 +60,24 @@ NSString *DaemonPlist(void) {
   return [NSString stringWithFormat:@"%@.plist", label];
 }
 
-void RegisterDaemon(struct RegisterDaemonResult *result) {
+// TODO: This needs to accept bundle_path as an argument in order to with symlinks.
+void RegisterDaemon(RegisterDaemonResult *outResult) {
   if (@available(macOS 13, *)) {
     SMAppService *service;
     NSError *error;
 
     service = [SMAppService daemonServiceWithPlistName:(DaemonPlist())];
 
-    result->ok = [service registerAndReturnError:(&error)];
+    outResult->ok = [service registerAndReturnError:(&error)];
     if (error) {
-      result->error_description = VNECopyNSString([error description]);
+      outResult->error_description = VNECopyNSString([error description]);
     }
 
     // Grabbing the service status for debugging purposes, no matter if
     // [service registerAndReturnError] succeeded or failed.
-    result->service_status = (int)service.status;
+    outResult->service_status = (int)service.status;
   } else {
-    result->error_description = strdup("Service Management APIs are available on macOS 13.0+");
+    outResult->error_description = strdup("Service Management APIs only available on macOS 13.0+");
   }
 }
 
@@ -75,11 +95,4 @@ void OpenSystemSettingsLoginItems(void) {
   if (@available(macOS 13, *)) {
     [SMAppService openSystemSettingsLoginItems];
   }
-}
-
-char *VNECopyNSString(NSString *val) {
-  if (val) {
-    return strdup([val UTF8String]);
-  }
-  return strdup("");
 }

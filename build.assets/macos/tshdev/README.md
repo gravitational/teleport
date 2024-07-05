@@ -36,8 +36,7 @@ $skel/sign.sh tsh                  # sign tsh binary
 security find-identity -vp codesigning      # list codesign identities
 security cms -D -i /path/to/profile         # inspect provisioning profile
 codesign -d --entitlements /path/to/binary  # shows binary entitlements
-codesign --verify --verbose                 # verifies code signatures
-codesign -dv --verbose=4                    # verifies code signatures with verbose output
+codesign -dv --verbose=4                    # verifies code signatures
 
 # Extract plist and certificate from profile
 security cms -D -i /path/to/my.provisionprofile -o my.plist

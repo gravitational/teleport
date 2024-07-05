@@ -1,20 +1,7 @@
-#ifndef client_darwin_h
-#define client_darwin_h
+#ifndef TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
+#define TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_
 
 #import <Foundation/Foundation.h>
-
-// Returns the label for the daemon by getting the identifier of the bundle
-// this executable is shipped in and appending ".vnetd" to it.
-//
-// The returned string might be empty if the executable is not in a bundle.
-//
-// The filename and the value of the Label key in the plist file and the Mach
-// service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(void);
-
-// DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
-// if not empty.
-NSString *DaemonPlist(void);
 
 typedef struct RegisterDaemonResult {
   bool ok;
@@ -27,16 +14,20 @@ typedef struct RegisterDaemonResult {
 // RegisterDaemon attempts to register the daemon. After the registration attempt,
 // it fetches the daemon status.
 // Pretty much a noop if the daemon is already registered and enabled.
-void RegisterDaemon(struct RegisterDaemonResult *result);
+//
+// The caller should check outResult.ok to see if the call succeeded.
+void RegisterDaemon(RegisterDaemonResult *outResult);
 
 // DaemonStatus returns the current status of the daemon's service in SMAppService.
 // Returns -1 if the given macOS version doesn't support SMAppService.
+// The rest of values directly corresponds to values from SMAppServiceStatus enum.
+// See client_darwin.go for a direct mapping.
+// https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
 int DaemonStatus(void);
 
+// OpenSystemSettingsLoginItems opens the Login Items section of system settings.
+// Should be used in conjunction with a message guiding the user towards enabling
+// the login item for the daemon.
 void OpenSystemSettingsLoginItems(void);
 
-// VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
-// The caller is expected to free the returned pointer.
-char *VNECopyNSString(NSString *val);
-
-#endif /* client_darwin_h */
+#endif /* TELEPORT_LIB_VNET_DAEMON_CLIENT_DARWIN_H_ */
