@@ -29,18 +29,26 @@ and we will not allow them to be provisioned. Although other resources might be 
 
 ## Details
 
-### Exposing the default Kubernetes user facing cluster roles (cluster-admin, view, edit)
+### Improving Day 1 experience - Exposing the default Kubernetes user facing cluster roles (cluster-admin, view, edit)
 
 Kubernetes clusters have default user-facing cluster roles: cluster-admin, view, edit. By default they are not usable, because
-they are not exposed through role bindings to any subjects (the cluster-admin role has internal Kubernetes bindings). 
+they are not exposed through role bindings to any subjects (the cluster-admin role has internal Kubernetes bindings to "system:masters" group). 
 Currently, we only expose the cluster-admin role on GKE
 installations, since system:masters group is not available for impersonation there. We will expand on this and when
 discovering a cluster/installing kube-agent/creating a service account, we will
 create cluster role bindings for those roles, accordingly linking them to the groups "default-cluster-admin", "default-view" and
 "default-edit". It will give users an opportunity to always have standard set of Kubernetes permissions which they can use together
 with Teleport's fine-grained RBAC definitions for Kubernetes. This will make enrolling and starting using Kubernetes clusters
-into Teleport a much simpler process, since user will be able to setup RBAC completely in Teleport if they want. For example,
-role giving read-only access to staging namespace pods might look like this:
+into Teleport a much simpler process, since user will be able to setup RBAC completely in Teleport if they want. We will also be able
+to amend our documentation to make our guides simpler, which will also help users to start with Teleport more easily. 
+
+#### UX
+
+Let's look at an example user story. Alice is a system administrator and she explores Teleport capabilities.
+She doesn't know much about Teleport yet, except for basic foundation (agents, roles). She just enrolled her first Kubernetes cluster into Teleport.
+This cluster contains the staging environment and she wants to give read-only pod access to the developers in an app namespace.
+When she was enrolling Kubernetes cluster, she saw that she can rely on `default-view` group for giving a readonly access, so she goes to the UI 
+and creates a new role, putting this content into it:
 
 ```yaml
 kind: role
@@ -50,11 +58,10 @@ version: v7
 spec:
   allow:
     kubernetes_labels:
-      'region': '*'
-      'platform': 'aws'
+      'env': 'staging'
     kubernetes_resources:
       - kind: pod
-        namespace: "staging"
+        namespace: "main-company-app"
         name: "*"
     kubernetes_groups:
     - default-view
@@ -63,8 +70,15 @@ spec:
   deny: {}
 ```
 
-Users will not need to create a separate role binding in Kubernetes for it to work - once the cluster is enrolled in Teleport, the default-view is already there.
-We will add an option to the teleport-kube-agent chart and to our
+After that Alice assigns this role to the developers she wants to try out and at this point she is done. Alice will not need to create a 
+separate role binding in Kubernetes for it to work - once the cluster is enrolled in Teleport, the default-view group binding is already there.
+
+#### Upgrade path
+
+Default roles will be exposed on the new Kubernetes clusters enrollments. To expose those roles in an already enrolled Kubernetes cluster users will 
+need to perform a manual helm chart upgrade by `helm upgrade ...` command (or manually create bindings).
+
+For users who want to avoid this default behaviour, we will add an option to the teleport-kube-agent chart and to our
 kubeconfig generation script to not create those cluster role bindings, but it will be enabled by default. 
 In the teleport-kube-agent Helm chart we will add another field to the `rbac` section, `bindDefaultRoles`, that would control whether we expose the default
 roles through cluster bindings or not.
