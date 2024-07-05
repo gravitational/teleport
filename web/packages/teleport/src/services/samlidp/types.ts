@@ -62,3 +62,15 @@ export enum SamlServiceProviderPreset {
   Grafana = 'grafana',
   GcpWorkforce = 'gcp-workforce',
 }
+
+/**
+ * GcpWorkforceMeta describes the fields for SAML
+ * GCP workforce pool resource that needs to be
+ * preserved throughout the flow.
+ */
+export type SamlGcpWorkforce = {
+  isAutoConfig: boolean;
+  orgId: string;
+  poolName: string;
+  poolProviderName: string;
+};
