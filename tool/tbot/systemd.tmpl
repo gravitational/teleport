@@ -10,7 +10,7 @@ Group={{ .Group }}
 Restart=always
 RestartSec=5
 Environment="TELEPORT_ANONYMOUS_TELEMETRY={{ if .AnonymousTelemetry }}1{{ else }}0{{ end }}"
-ExecStart=/usr/local/bin/tbot start -c {{ .ConfigPath }}
+ExecStart={{ .TBotPath }} start -c {{ .ConfigPath }}
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/{{ .UnitName }}.pid
 LimitNOFILE=524288
