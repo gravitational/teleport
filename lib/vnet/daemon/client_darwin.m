@@ -19,9 +19,11 @@
 #import <Foundation/Foundation.h>
 #import <ServiceManagement/ServiceManagement.h>
 
+#include <string.h>
+
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.
-char *VNECopyNSString(NSString *val) {
+const char *VNECopyNSString(NSString *val) {
   if (val) {
     return strdup([val UTF8String]);
   }
