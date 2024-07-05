@@ -115,7 +115,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	}
 
 	if pushErr != nil {
-		s.Log.WithError(err).Error("Error pushing TAGs")
+		s.Log.WithError(pushErr).Error("Error pushing TAGs")
 		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
