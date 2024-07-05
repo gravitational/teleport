@@ -195,7 +195,11 @@ separate resources managed by Teleport and those managed by the user manually.
 
 Resource labels will be taken into account when doing the reconciliation - users will be able to match different
 Kubernetes clusters for different KubeProvision resources. If a KubeProvision resource doesn't have any labels defined it
-will not match any clusters, effectively being disabled.
+will not match any clusters, effectively being disabled. If a Kubernetes cluster has label `teleport.dev/kube-provision-disabled`, 
+we will exclude this cluster from the provisioning resources, even if some resources will match it.
+
+Existing clusters will not be affected by this feature by default, since there will be not KubeProvision resources to process. User 
+will need to make decision and create KubeProvisions resources to actively start using this feature.
 
 In order to be able to reconcile the state, Teleport will need to perform CRUD operations on Kubernetes RBAC resources.
 When performing CRUD operations, Teleport will impersonate the "default-cluster-admin" group, that was described in the previous
@@ -210,7 +214,8 @@ itself, however it introduces a new vector of attack for a malicious actor.
 Teleport user with sufficient permissions to create/edit KubeProvision resources
 will be able to amend RBAC setup on all Kubernetes clusters enrolled in Teleport.
 We will emphasize in the user documentation the need to be vigilant when giving out
-the necessary permissions.
+the necessary permissions. We will also add new special label `teleport.dev/kube-provision-dsiabled`, that can
+exclude a Kubernetes cluster from the provisioning, selectively turning off this feature for the cluster.
 
 Even though we will always run the reconciliation loop, by default it will be a no-op, since three will
 be no resources to provision, so users need to explicitly create KubeProvision resources to start actively using this new feature.
