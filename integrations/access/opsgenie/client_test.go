@@ -70,8 +70,8 @@ func TestCreateAlert(t *testing.T) {
 		Alias:       "teleport-access-request/someRequestID",
 		Description: "someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\nReason: someReason\n\n",
 		Responders: []Responder{
-			{Type: "schedule", ID: "responder@example.com"},
-			{Type: "team", ID: "MyOpsGenieTeam"},
+			{Type: "schedule", Name: "responder@example.com", ID: "responder@example.com"},
+			{Type: "team", Name: "MyOpsGenieTeam", ID: "MyOpsGenieTeam"},
 		},
 		Priority: "somePriority",
 	}
