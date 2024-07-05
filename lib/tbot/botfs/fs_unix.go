@@ -1,5 +1,5 @@
-//go:build darwin
-// +build darwin
+//go:build unix && !linux
+// +build unix,!linux
 
 /*
  * Teleport
