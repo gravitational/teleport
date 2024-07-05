@@ -1011,7 +1011,10 @@ func setupConfig(t *testing.T) InitConfig {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
-	processStorage, err := storage.NewProcessStorage(context.Background(), filepath.Join(tempDir, teleport.ComponentProcess))
+	processStorage, err := storage.NewProcessStorage(
+		context.Background(),
+		filepath.Join(tempDir, teleport.ComponentProcess),
+	)
 	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -1019,12 +1022,17 @@ func setupConfig(t *testing.T) InitConfig {
 	})
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		bk.Close()
+		processStorage.Close()
+	})
+
 	return InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
-		ProcessStorage:          processStorage,
 		Backend:                 bk,
+		ProcessStorage:          processStorage,
 		Authority:               testauthority.New(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
@@ -1781,8 +1789,6 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 }
 
 func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
-	t.Parallel()
-
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
@@ -1791,6 +1797,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		initialVersion  string
 		expectedVersion string
 		expectError     bool
+		skipCheck       bool
 	}{
 		{
 			name:            "first-launch",
@@ -1811,10 +1818,24 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			expectError:     true,
 		},
 		{
+			name:            "major-upgrade-with-dev-skip-check",
+			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectError:     false,
+			skipCheck:       true,
+		},
+		{
 			name:            "major-downgrade-fail",
 			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
 			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
 			expectError:     true,
+		},
+		{
+			name:            "major-downgrade-with-dev-skip-check",
+			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectError:     false,
+			skipCheck:       true,
 		},
 	}
 	for _, test := range tests {
@@ -1827,6 +1848,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			if test.initialVersion != "" {
 				err := authCfg.ProcessStorage.WriteTeleportVersion(ctx, test.initialVersion)
 				require.NoError(t, err)
+			}
+			if test.skipCheck {
+				t.Setenv(skipVersionUpgradeCheckEnv, "yes")
 			}
 
 			_, err := Init(ctx, authCfg)

@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -280,8 +282,15 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(cfg.Dir, teleport.ComponentProcess))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = NewServer(&InitConfig{
+		DataDir:                cfg.Dir,
 		Backend:                srv.Backend,
+		ProcessStorage:         processStorage,
 		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,

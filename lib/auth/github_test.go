@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -34,11 +35,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -76,9 +79,19 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 	})
 	require.NoError(t, err)
 
+	tempDir := t.TempDir()
+	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(tempDir, teleport.ComponentProcess))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tt.b.Close()
+		processStorage.Close()
+	})
+
 	authConfig := &InitConfig{
+		DataDir:                tempDir,
 		ClusterName:            clusterName,
 		Backend:                tt.b,
+		ProcessStorage:         processStorage,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

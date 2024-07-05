@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	insecurerand "math/rand"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -398,9 +400,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
+	tempDir := t.TempDir()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { bk.Close() })
+	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(tempDir, teleport.ComponentProcess))
+	require.NoError(t, err)
 
 	clusterName := "me.localhost"
 	if len(name) != 0 {
@@ -412,14 +416,22 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	})
 	require.NoError(t, err)
 	authConfig := &InitConfig{
+		DataDir:                tempDir,
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
+		ProcessStorage:         processStorage,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { a.Close() })
+
+	t.Cleanup(func() {
+		bk.Close()
+		processStorage.Close()
+		a.Close()
+	})
+
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)

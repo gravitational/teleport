@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"os"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -33,6 +34,10 @@ const (
 	// present in the storage, if not - we must refuse to start.
 	// TODO(vapopov): DELETE IN 18.0.0
 	majorVersionConstraint = 18
+
+	// skipVersionUpgradeCheckEnv is environment variable key for disabling the check
+	// major version upgrade check.
+	skipVersionUpgradeCheckEnv = "TELEPORT_SKIP_VERSION_UPGRADE_CHECK"
 )
 
 // validateAndUpdateTeleportVersion validates that the major version persistent in the backend
@@ -43,6 +48,10 @@ func validateAndUpdateTeleportVersion(
 	currentVersion *semver.Version,
 	firstTimeStart bool,
 ) error {
+	if skip := os.Getenv(skipVersionUpgradeCheckEnv); skip != "" {
+		return nil
+	}
+
 	lastKnownVersion, err := storage.GetTeleportVersion(ctx)
 	if trace.IsNotFound(err) {
 		// When this is not the first start, we have to ensure that previous versions,

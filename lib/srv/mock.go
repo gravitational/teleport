@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -38,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -128,11 +130,21 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
+	tempDir := t.TempDir()
+	processStorage, err := storage.NewProcessStorage(ctx, filepath.Join(tempDir, teleport.ComponentProcess))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		bk.Close()
+		processStorage.Close()
+	})
+
 	authCfg := &auth.InitConfig{
-		Backend:      bk,
-		Authority:    testauthority.New(),
-		ClusterName:  clusterName,
-		StaticTokens: staticTokens,
+		DataDir:        tempDir,
+		Backend:        bk,
+		ProcessStorage: processStorage,
+		Authority:      testauthority.New(),
+		ClusterName:    clusterName,
+		StaticTokens:   staticTokens,
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
