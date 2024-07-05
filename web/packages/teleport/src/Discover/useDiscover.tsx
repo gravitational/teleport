@@ -70,6 +70,7 @@ export interface DiscoverContextState<T = any> {
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
+  isUpdateFlow?: boolean;
 }
 
 type EventState = {
@@ -88,11 +89,22 @@ type CustomEventInput = {
   discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
+export type DiscoverUpdateProps = {
+  // resourceSpecForUpdate specifies ResourceSpec which should be used to
+  // start a Discover flow.
+  resourceSpec: ResourceSpec;
+  // agentMetaForUpdate includes data that will be used to prepopulate input fields
+  // in the respective Discover compnents.
+  agentMeta: AgentMeta;
+};
+
 type DiscoverProviderProps = {
   // mockCtx used for testing purposes.
   mockCtx?: DiscoverContextState;
   // Extra view configs that are passed in. This is used to add view configs from Enterprise.
   eViewConfigs?: EViewConfigs;
+  // updateFlow holds properties used in Discover update flow.
+  updateFlow?: DiscoverUpdateProps;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -117,6 +129,7 @@ export function DiscoverProvider({
   mockCtx,
   children,
   eViewConfigs = [],
+  updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
@@ -161,7 +174,7 @@ export function DiscoverProvider({
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
-          id: id || custom.id,
+          id: id || custom?.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
@@ -228,6 +241,14 @@ export function DiscoverProvider({
       },
     });
   }
+
+  // trigger update Discover flow.
+  useEffect(() => {
+    if (updateFlow) {
+      onSelectResource(updateFlow.resourceSpec);
+      updateAgentMeta(updateFlow.agentMeta);
+    }
+  }, [updateFlow]);
 
   // If a location.state.discover was provided, that means the user is
   // coming back from another location to resume the flow.
@@ -453,6 +474,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
+    isUpdateFlow: Boolean(updateFlow),
   };
 
   return (
