@@ -811,3 +811,59 @@ IAM permissions. The Teleport Database Service must be able to assume these
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="keyspaces-access-role"!)
 
 (!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
+
+## DocumentDB
+
+(!docs/pages/includes/database-access/reference/aws-db-brief.mdx db="DocumentDB" !)
+
+### DocumentDB auto-discovery
+
+The following IAM permissions are required for the Teleport service that
+performs auto-discovery:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBClusters",
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
+
+### DocumentDB access
+
+DocumentDB access is provided by IAM roles as MongoDB users that use
+`MONGODB-AWS` mechanism. The Teleport Database Service must be able to assume
+these "access" IAM roles.
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="db-service-role" role2="docdb-access-role"!)
+
+In addition to assuming IAM roles, heres is a list of IAM permissions used by
+Database Service to gather information about the registered DocumentDB
+clusters:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBClusters",
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+(!docs/pages/includes/database-access/reference/boundary-policy-note.mdx!)
