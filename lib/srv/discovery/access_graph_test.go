@@ -178,6 +178,55 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "merge two errors",
+			args: args{
+				fetchers: []aws_sync.AWSSync{
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						err:                 fmt.Errorf("error in fetcher 1"),
+					},
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						err:                 fmt.Errorf("error in fetcher 2"),
+					},
+				},
+			},
+			want: map[string][]discoveryconfig.Status{
+				"test1": {
+					{
+						State:        "DISCOVERY_CONFIG_STATE_ERROR",
+						ErrorMessage: stringPointer("error in fetcher 1\nerror in fetcher 2"),
+						LastSyncTime: clock.Now(),
+					},
+				},
+			},
+		},
+		{
+			name: "reports error if at least one fetcher fails",
+			args: args{
+				fetchers: []aws_sync.AWSSync{
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						err:                 fmt.Errorf("error in fetcher 1"),
+					},
+					&fakeFetcher{
+						discoveryConfigName: "test1",
+						count:               2,
+					},
+				},
+			},
+			want: map[string][]discoveryconfig.Status{
+				"test1": {
+					{
+						State:               "DISCOVERY_CONFIG_STATE_ERROR",
+						ErrorMessage:        stringPointer("error in fetcher 1"),
+						DiscoveredResources: 2,
+						LastSyncTime:        clock.Now(),
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -204,6 +253,10 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 			require.Equal(t, tt.want, accessPoint.reports)
 		})
 	}
+}
+
+func stringPointer(s string) *string {
+	return &s
 }
 
 type fakeFetcher struct {

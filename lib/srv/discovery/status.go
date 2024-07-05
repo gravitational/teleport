@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -106,8 +107,8 @@ func (d *awsSyncStatus) iterationFinished(fetchers []aws_sync.AWSSync, pushErr e
 }
 
 func (d *awsSyncStatus) discoveryConfigs() []string {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	ret := make([]string, 0, len(d.awsSyncResults))
 	for k := range d.awsSyncResults {
@@ -136,19 +137,6 @@ func (d *awsSyncStatus) iterationStarted(fetchers []aws_sync.AWSSync, lastUpdate
 	}
 }
 
-func mergeErrorMessage(existing *string, currentFetcherMessage *string) *string {
-	if existing == nil {
-		return currentFetcherMessage
-	}
-
-	if currentFetcherMessage == nil {
-		return existing
-	}
-
-	newErrorMessage := *existing + "\n" + *currentFetcherMessage
-	return &newErrorMessage
-}
-
 func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -158,12 +146,18 @@ func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existi
 		return existingStatus
 	}
 
+	var statusErrorMessages []string
+	if existingStatus.ErrorMessage != nil {
+		statusErrorMessages = append(statusErrorMessages, *existingStatus.ErrorMessage)
+	}
 	for _, fetcher := range awsStatusFetchers {
 		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + fetcher.discoveredResources
 
 		// Each DiscoveryConfigStatus has a global State and Error Message, but those are produced per Fetcher.
 		// We choose to keep the most informative states by favoring error states/messages.
-		existingStatus.ErrorMessage = mergeErrorMessage(existingStatus.ErrorMessage, fetcher.errorMessage)
+		if fetcher.errorMessage != nil {
+			statusErrorMessages = append(statusErrorMessages, *fetcher.errorMessage)
+		}
 
 		if existingStatus.State != discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String() {
 			existingStatus.State = fetcher.state
@@ -173,6 +167,11 @@ func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existi
 		if existingStatus.LastSyncTime.After(fetcher.lastSyncTime) {
 			existingStatus.LastSyncTime = fetcher.lastSyncTime
 		}
+	}
+
+	if len(statusErrorMessages) > 0 {
+		newErrorMessage := strings.Join(statusErrorMessages, "\n")
+		existingStatus.ErrorMessage = &newErrorMessage
 	}
 
 	return existingStatus
