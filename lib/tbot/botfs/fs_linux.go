@@ -474,3 +474,32 @@ func HasSecureWriteSupport() bool {
 
 	return true
 }
+
+// GetOwner attempts to retrieve the owner of the given file. This is not
+// supported on all platforms and will return a trace.NotImplemented in that
+// case.
+func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")
+	}
+
+	user, err := user.LookupId(strconv.Itoa(int(info.Uid)))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return user, nil
+}
+
+// IsOwnedBy checks that the file at the given path is owned by the given user.
+// Returns a trace.NotImplemented() on unsupported platforms.
+func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
+	}
+
+	// Our files are 0600, so don't bother checking gid.
+	return strconv.Itoa(int(info.Uid)) == user.Uid, nil
+}

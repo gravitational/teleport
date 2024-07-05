@@ -1,5 +1,5 @@
-//go:build !linux
-// +build !linux
+//go:build windows
+// +build windows
 
 /*
  * Teleport
@@ -24,6 +24,7 @@ package botfs
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os/user"
 	"sync"
 
@@ -132,4 +133,10 @@ func HasACLSupport() bool {
 // catch-all implementation just returns false.
 func HasSecureWriteSupport() bool {
 	return false
+}
+
+// IsOwnedBy checks that the file at the given path is owned by the given user.
+// Returns a trace.NotImplemented() on unsupported platforms.
+func IsOwnedBy(_ fs.FileInfo, _ *user.User) (bool, error) {
+	return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
 }
