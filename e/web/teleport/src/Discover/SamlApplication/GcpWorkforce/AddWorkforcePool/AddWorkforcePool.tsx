@@ -2,10 +2,7 @@ import React from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Box, Link, Text } from 'design';
 
-import {
-  useDiscover,
-  SamlGcpWorkforceMeta,
-} from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -16,12 +13,14 @@ import {
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
+
 export function Container() {
   const { idpService } = useTeleportE();
   const { attempt, run } = useAttempt('');
   const { prevStep, nextStep, updateAgentMeta, agentMeta, resourceSpec } =
     useDiscover();
-  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
 
   const createSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
     spConfig.preset = resourceSpec.samlMeta?.preset;

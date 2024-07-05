@@ -27,12 +27,9 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import { useAttemptNext } from 'shared/hooks';
 
-import {
-  SamlGcpWorkforceMeta,
-  useDiscover,
-} from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -40,12 +37,14 @@ import { ConfigureServiceProvider } from 'e-teleport/Discover/SamlApplication/Ge
 
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
+
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
 export function Container() {
   const { prevStep, nextStep, agentMeta, updateAgentMeta, resourceSpec } =
     useDiscover();
-  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
 
   const { idpService } = useTeleportE();
 
@@ -66,8 +65,8 @@ export type ConfigurePoolProps = {
   prevStep: () => void;
   resourceSpec: ResourceSpec;
   fetchMetadata: () => Promise<SAMLIdPMetadataResponse>;
-  agentMeta?: SamlGcpWorkforceMeta;
-  updateAgentMeta?: (meta: SamlGcpWorkforceMeta) => void;
+  agentMeta?: SamlGcpWorkforce;
+  updateAgentMeta?: (meta: SamlGcpWorkforce) => void;
 };
 
 export function ConfigurePool({
@@ -184,8 +183,8 @@ export function ConfigurePool({
 
 type ScriptGenPropTypes = {
   genWorkforceConfigScript: (validator: Validator) => void;
-  agentMeta?: SamlGcpWorkforceMeta;
-  updateAgentMeta?: (meta: SamlGcpWorkforceMeta) => void;
+  agentMeta?: SamlGcpWorkforce;
+  updateAgentMeta?: (meta: SamlGcpWorkforce) => void;
 };
 
 export function ScriptGenInput({

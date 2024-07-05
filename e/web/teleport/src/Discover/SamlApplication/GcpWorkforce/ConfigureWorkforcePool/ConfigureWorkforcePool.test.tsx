@@ -6,14 +6,13 @@ import { ContextProvider } from 'teleport';
 import {
   DiscoverContextState,
   DiscoverProvider,
-  SamlGcpWorkforceMeta,
 } from 'teleport/Discover/useDiscover';
 
 import cfg from 'teleport/config';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
@@ -25,6 +24,8 @@ import {
 
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 describe('Configure GCP workforce pool', () => {
   const Provider = props => {
@@ -38,7 +39,7 @@ describe('Configure GCP workforce pool', () => {
         poolName: '',
         poolProviderName: '',
       },
-      updateAgentMeta: SamlGcpWorkforceMeta => SamlGcpWorkforceMeta,
+      updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
       resourceSpec: {
         samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
       } as ResourceSpec,
@@ -78,7 +79,7 @@ describe('Configure GCP workforce pool', () => {
     render(
       <Provider>
         <ConfigurePool
-          agentMeta={{} as SamlGcpWorkforceMeta}
+          agentMeta={{} as SamlGcpWorkforce}
           updateAgentMeta={jest.fn()}
           resourceSpec={
             {

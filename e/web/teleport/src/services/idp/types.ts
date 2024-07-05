@@ -1,4 +1,7 @@
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource';
+import type {
+  AttributeMapping,
+  SamlServiceProviderPreset,
+} from 'teleport/services/samlidp/types';
 
 export type CreateSamlIdpServiceProviderRequest = {
   name: string;
@@ -7,12 +10,6 @@ export type CreateSamlIdpServiceProviderRequest = {
   entityDescriptor: string;
   attributeMapping?: AttributeMapping[];
   preset?: SamlServiceProviderPreset;
-};
-
-export type AttributeMapping = {
-  name: string;
-  value: string;
-  nameFormat?: string;
 };
 
 export type CreateSamlIdpServiceProviderResponse = {

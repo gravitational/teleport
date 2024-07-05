@@ -6,10 +6,9 @@ import cfg from 'teleport/config';
 import {
   DiscoverProvider,
   DiscoverContextState,
-  SamlGcpWorkforceMeta,
 } from 'teleport/Discover/useDiscover';
 
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { ContextProvider } from 'teleport';
 
@@ -21,12 +20,14 @@ import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
+
 export default {
   title: 'TeleportE/Discover/SAML Application/GCP Workforce',
 };
 
 export const ConfigureWorkforcePool = () => {
-  const [agentMeta, setAgentMeta] = useState<SamlGcpWorkforceMeta>({
+  const [agentMeta, setAgentMeta] = useState<SamlGcpWorkforce>({
     isAutoConfig: true,
     orgId: '',
     poolName: '',
@@ -79,7 +80,7 @@ const props: ConfigurePoolProps = {
   nextStep: () => null,
   prevStep: () => null,
   fetchMetadata: () => Promise.resolve({} as SAMLIdPMetadataResponse),
-  updateAgentMeta: SamlGcpWorkforceMeta => SamlGcpWorkforceMeta,
+  updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
   resourceSpec: {
     samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
   } as ResourceSpec,

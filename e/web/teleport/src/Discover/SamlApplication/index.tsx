@@ -1,7 +1,7 @@
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ResourceKind } from 'teleport/Discover/Shared';
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { DownloadMetadata, AddServiceProvider } from './Generic';
 import { Finished } from './Finished';

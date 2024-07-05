@@ -6,16 +6,17 @@ import cfg from 'teleport/config';
 import {
   DiscoverProvider,
   DiscoverContextState,
-  SamlGcpWorkforceMeta,
 } from 'teleport/Discover/useDiscover';
 
-import { SamlServiceProviderPreset } from 'teleport/Discover/SelectResource/types';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { ContextProvider } from 'teleport';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { Container as AddWorkforcePoolToTeleport } from './AddWorkforcePool';
+
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/GCP Workforce',
@@ -43,7 +44,7 @@ const Provider = props => {
       orgId: '123456',
       poolName: 'test-pool-name',
       poolProviderName: 'test-provider-name',
-    } as SamlGcpWorkforceMeta,
+    } as SamlGcpWorkforce,
     exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],

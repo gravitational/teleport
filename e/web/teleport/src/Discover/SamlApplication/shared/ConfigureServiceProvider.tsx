@@ -15,19 +15,20 @@ import {
 
 import FieldInput from 'shared/components/FieldInput';
 
-import { AgentMeta, SamlGcpWorkforceMeta } from 'teleport/Discover/useDiscover';
-import {
-  SamlServiceProviderPreset,
-  type ResourceSpec,
-} from 'teleport/Discover/SelectResource/types';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { type ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { AttributeMapping } from './AttributeMapping';
 import { AddEntityDescriptor } from './EntityDescriptorEditor';
 
 import type {
   AttributeMapping as AttributeMappingType,
-  CreateSamlIdpServiceProviderRequest,
-} from 'e-teleport/services/idp/types';
+  SamlGcpWorkforce,
+} from 'teleport/services/samlidp/types';
+
+import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
 /**
  * ConfigureServiceProvider is used for adding a generic SAML app as well as specific ones such as Grafana SAML app.
@@ -127,7 +128,7 @@ export function ConfigureServiceProvider({
     if (
       resourceSpec?.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
     ) {
-      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
       if (gcpWorkforceMeta?.isAutoConfig) {
         const entityIdAndAcsUrl = genEntityIDAndAcsUrlForGcpWorkforce(
           gcpWorkforceMeta.poolName,
@@ -209,7 +210,7 @@ export function AddMetadataGeneric({
     if (
       resourceSpec?.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
     ) {
-      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+      const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
       if (gcpWorkforceMeta?.isAutoConfig) {
         setDisabled(true);
         setSPConfig({ ...spConfig, name: gcpWorkforceMeta?.poolProviderName });

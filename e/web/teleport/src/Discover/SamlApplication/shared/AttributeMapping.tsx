@@ -10,11 +10,12 @@ import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import styled from 'styled-components';
 
-import { AgentMeta, SamlGcpWorkforceMeta } from 'teleport/Discover/useDiscover';
-import {
-  SamlServiceProviderPreset,
-  type ResourceSpec,
-} from 'teleport/Discover/SelectResource/types';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { type ResourceSpec } from 'teleport/Discover/SelectResource/types';
+
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+
+import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
@@ -62,7 +63,7 @@ export function AttributeMapping({
         // TODO(sshah): create a pre-populated GcpWorkforce preset
         // so we can get length of attributes instead of using hardcoded
         // zero index value.
-        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
         return gcpWorkforceMeta?.isAutoConfig && index == 0;
     }
   }
@@ -72,7 +73,7 @@ export function AttributeMapping({
   function subHeading() {
     switch (resourceSpec?.samlMeta?.preset) {
       case SamlServiceProviderPreset.GcpWorkforce:
-        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforceMeta;
+        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
         if (gcpWorkforceMeta?.isAutoConfig) {
           return (
             <Text typography="subtitle1" mb={4}>
