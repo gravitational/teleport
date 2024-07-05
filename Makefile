@@ -803,7 +803,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -855,6 +855,17 @@ test-go-touch-id: FLAGS ?= -race -shuffle on
 test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
 test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
+	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+endif
+
+# Make sure untagged vnetdaemon code build/tests.
+.PHONY: test-go-vnet-daemon
+test-go-vnet-daemon: FLAGS ?= -race -shuffle on
+test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
+test-go-vnet-daemon:
+ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
