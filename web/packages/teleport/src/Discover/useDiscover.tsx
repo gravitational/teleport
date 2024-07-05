@@ -55,7 +55,7 @@ import type {
   Regions,
 } from 'teleport/services/integrations';
 
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
+import type { SamlGcpWorkforce, SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -580,8 +580,10 @@ export type AppMeta = BaseMeta & {
  * service provider resource that needs to be
  * preserved throughout the flow.
  */
-export type SamlMeta = BaseMeta & SamlGcpWorkforce;
-
+export type SamlMeta = BaseMeta & {
+  SamlGeneric: SamlIdpServiceProvider
+  SamlGcpWorkforce: SamlGcpWorkforce
+}
 export type AgentMeta =
   | DbMeta
   | NodeMeta
