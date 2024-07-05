@@ -77,11 +77,11 @@ func NewKubernetesSigner(clock clockwork.Clock) (*KubernetesSigner, error) {
 	}, nil
 }
 
-// GetMarshalledJWKS returns the KuberbetesSigner's JWKS marshalled in a string.
+// GetMarshaledJWKS returns the KuberbetesSigner's JWKS marshaled in a string.
 // The JWKS can then be directly passed into the JWKS field of a Kube Provision Token.
 // This makes Teleport trust the KubernetesSigner. The signer can then issue tokens
 // that ca be used to join Teleport.
-func (s *KubernetesSigner) GetMarshalledJWKS() (string, error) {
+func (s *KubernetesSigner) GetMarshaledJWKS() (string, error) {
 	jwksData, err := json.Marshal(s.jwks)
 	return string(jwksData), err
 }
