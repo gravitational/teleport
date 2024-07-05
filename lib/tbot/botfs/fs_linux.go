@@ -29,7 +29,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
