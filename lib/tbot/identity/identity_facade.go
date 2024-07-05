@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -203,4 +204,16 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// Expiry returns the credential expiry.
+func (f *Facade) Expiry() (time.Time, bool) {
+	if len(f.identity.TLSCert.Certificate) == 0 {
+		return time.Time{}, false
+	}
+	cert, err := x509.ParseCertificate(f.identity.TLSCert.Certificate[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
 }

@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -47,6 +48,10 @@ type Credentials interface {
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+	// Expiry returns the Credentials expiry if it's possible to know its expiry.
+	// When expiry can be determined returns true, else returns false.
+	// If the Credentials don't expire, returns the zero time.
+	Expiry() (time.Time, bool)
 }
 
 // CredentialsWithDefaultAddrs additionally provides default addresses sourced
@@ -87,6 +92,12 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+// Expiry returns the credential expiry. As the tlsConfigCreds are built from an existing tlsConfig
+// we have no way of knowing which certificate will be returned and if it's expired.
+func (c *tlsConfigCreds) Expiry() (time.Time, bool) {
+	return time.Time{}, false
+}
+
 // LoadKeyPair is used to load Credentials from a certicate keypair on disk.
 //
 // KeyPair Credentials can only be used to connect directly to a Teleport Auth server.
@@ -115,7 +126,7 @@ type keypairCreds struct {
 
 // TLSConfig returns TLS configuration.
 func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(c.certFile, c.keyFile)
+	cert, err := keys.LoadX509KeyPair(c.certFile, c.keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,6 +150,19 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 // SSHClientConfig returns SSH configuration.
 func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
+}
+
+// Expiry returns the credential expiry.
+func (c *keypairCreds) Expiry() (time.Time, bool) {
+	certPEMBlock, err := os.ReadFile(c.certFile)
+	if err != nil {
+		return time.Time{}, false
+	}
+	cert, err := x509.ParseCertificate(certPEMBlock)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
 }
 
 // LoadIdentityFile is used to load Credentials from an identity file on disk.
@@ -192,6 +216,14 @@ func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsFile) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from persistent storage.
@@ -258,6 +290,15 @@ func (c *identityCredsString) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// Expiry returns the credential expiry.
+func (c *identityCredsString) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+
+	return c.Expiry()
 }
 
 // load is used to lazy load the identity file from a string.
@@ -327,6 +368,13 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+func (c *profileCreds) Expiry() (time.Time, bool) {
+	if err := c.load(); err != nil {
+		return time.Time{}, false
+	}
+	return c.profile.Expiry()
 }
 
 // DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
