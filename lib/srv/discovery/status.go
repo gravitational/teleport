@@ -58,62 +58,110 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 type awsSyncStatus struct {
 	mu sync.RWMutex
 	// awsSyncStatus maps the DiscoveryConfig name to a aws_sync result.
-	awsSyncStatus map[string]awsSyncResult
+	// Each DiscoveryConfig might have multiple `aws_sync` matchers.
+	awsSyncStatus map[string][]awsSyncResult
 }
 
 // awsSyncResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
 type awsSyncResult struct {
 	// state is the State for the DiscoveryConfigStatus.
-	// Allowed values are ERROR, RUNNING and SYNCING
+	// Allowed values are:
+	// - DISCOVERY_CONFIG_STATE_SYNCING
+	// - DISCOVERY_CONFIG_STATE_ERROR
+	// - DISCOVERY_CONFIG_STATE_RUNNING
 	state               string
 	errorMessage        *string
 	lastSyncTime        time.Time
 	discoveredResources uint64
 }
 
-func (d *awsSyncStatus) upsertStatus(discoveryConfigName string, result awsSyncResult) {
+func (d *awsSyncStatus) iterationFinished(fetchers []aws_sync.AWSSync, pushErr error, lastUpdate time.Time) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.awsSyncStatus == nil {
-		d.awsSyncStatus = make(map[string]awsSyncResult)
-	}
-	d.awsSyncStatus[discoveryConfigName] = result
-}
-
-func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	awsStatus, found := d.awsSyncStatus[discoveryConfigName]
-	if !found {
-		return existingStatus
-	}
-
-	existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + awsStatus.discoveredResources
-	existingStatus.ErrorMessage = awsStatus.errorMessage
-	existingStatus.State = awsStatus.state
-	existingStatus.LastSyncTime = awsStatus.lastSyncTime
-
-	return existingStatus
-}
-
-// updateAWSSyncDiscoveryConfigStatus updates the status for each DiscoveryConfig that originated the Fetchers.
-// It updates the internal state and updates the Status in the cluster.
-func (s *Server) updateAWSSyncDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushErr error, preRun bool) error {
-	lastUpdate := s.clock.Now()
+	d.awsSyncStatus = make(map[string][]awsSyncResult)
 	for _, fetcher := range fetchers {
 		// Only update the status for fetchers that are from the discovery config.
 		if !fetcher.IsFromDiscoveryConfig() {
 			continue
 		}
 
-		status := buildAWSSyncFetcherStatus(fetcher, pushErr, lastUpdate)
-		if preRun {
-			status.state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String()
+		count, statusErr := fetcher.Status()
+		statusAndPushErr := trace.NewAggregate(statusErr, pushErr)
+
+		fetcherResult := awsSyncResult{
+			state:               discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING.String(),
+			lastSyncTime:        lastUpdate,
+			discoveredResources: count,
 		}
-		s.awsSyncStatus.upsertStatus(fetcher.DiscoveryConfigName(), status)
-		s.updateDiscoveryConfigStatus(fetcher.DiscoveryConfigName())
+
+		if statusAndPushErr != nil {
+			errorMessage := statusAndPushErr.Error()
+			fetcherResult.errorMessage = &errorMessage
+			fetcherResult.state = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String()
+		}
+
+		d.awsSyncStatus[fetcher.DiscoveryConfigName()] = append(d.awsSyncStatus[fetcher.DiscoveryConfigName()], fetcherResult)
 	}
-	return nil
+}
+
+func (d *awsSyncStatus) discoveryConfigs() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	ret := make([]string, 0, len(d.awsSyncStatus))
+	for k := range d.awsSyncStatus {
+		ret = append(ret, k)
+	}
+	return ret
+}
+
+func (d *awsSyncStatus) iterationStarted(fetchers []aws_sync.AWSSync, lastUpdate time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.awsSyncStatus = make(map[string][]awsSyncResult)
+	for _, fetcher := range fetchers {
+		// Only update the status for fetchers that are from the discovery config.
+		if !fetcher.IsFromDiscoveryConfig() {
+			continue
+		}
+
+		fetcherResult := awsSyncResult{
+			state:        discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
+			lastSyncTime: lastUpdate,
+		}
+
+		d.awsSyncStatus[fetcher.DiscoveryConfigName()] = append(d.awsSyncStatus[fetcher.DiscoveryConfigName()], fetcherResult)
+	}
+}
+
+func (d *awsSyncStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	awsStatusFetchers, found := d.awsSyncStatus[discoveryConfigName]
+	if !found {
+		return existingStatus
+	}
+
+	for _, fetcher := range awsStatusFetchers {
+		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + fetcher.discoveredResources
+
+		// Each DiscoveryConfigStatus has a global State and Error Message, but those are produced per Fetcher.
+		// We choose to keep the most informative states by favoring error states/messages.
+		if existingStatus.ErrorMessage == nil || *existingStatus.ErrorMessage == "" {
+			existingStatus.ErrorMessage = fetcher.errorMessage
+		}
+		if existingStatus.State != discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_ERROR.String() {
+			existingStatus.State = fetcher.state
+		}
+
+		// Keep the earliest sync time.
+		if existingStatus.LastSyncTime.After(fetcher.lastSyncTime) {
+			existingStatus.LastSyncTime = fetcher.lastSyncTime
+		}
+	}
+
+	return existingStatus
 }
