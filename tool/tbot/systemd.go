@@ -31,13 +31,12 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 func setupInstallSystemdCmd(
 	rootCmd *kingpin.Application,
-) (string, func(ctx context.Context, log *slog.Logger, cf config.CLIConf) error) {
+) (string, func(ctx context.Context, log *slog.Logger, configPath string,
+	getExecutablePath func() (string, error)) error) {
 	installCmd := rootCmd.Command("install", "Helper commands for installing Machine ID")
 	installSystemdCmd := installCmd.Command("systemd", "Install systemd unit file")
 	unitName := installSystemdCmd.Flag("name", "Name for the systemd unit").Default("tbot").String()
@@ -47,17 +46,23 @@ func setupInstallSystemdCmd(
 	systemdDirectory := installSystemdCmd.Flag("systemd-directory", "Directory to install systemd unit file").Default("/etc/systemd/system").String()
 	anonymousTelemetry := installSystemdCmd.Flag("anonymous-telemetry", "Enable anonymous telemetry").Bool()
 
-	return installSystemdCmd.FullCommand(), func(ctx context.Context, log *slog.Logger, cf config.CLIConf) error {
+	return installSystemdCmd.FullCommand(), func(
+		ctx context.Context,
+		log *slog.Logger,
+		configPath string,
+		getExecutablePath func() (string, error),
+	) error {
 		return onInstallSystemdCmd(
 			ctx,
 			log,
-			cf,
 			*unitName,
 			*force,
 			*systemdDirectory,
 			*user,
 			*group,
 			*anonymousTelemetry,
+			configPath,
+			getExecutablePath,
 		)
 	}
 }
@@ -74,36 +79,46 @@ type systemdTemplateParams struct {
 	Group              string
 	AnonymousTelemetry bool
 	ConfigPath         string
+	TBotPath           string
 }
 
 func onInstallSystemdCmd(
 	ctx context.Context,
 	log *slog.Logger,
-	cf config.CLIConf,
 	unitName string,
 	force bool,
 	systemdDirectory string,
 	user string,
 	group string,
 	anonymousTelemetry bool,
+	configPath string,
+	getExecutablePath func() (string, error),
 ) error {
 	switch {
-	case cf.ConfigPath == "":
+	case configPath == "":
 		return trace.BadParameter("missing required parameter --config")
 	case unitName == "":
 		return trace.BadParameter("missing required parameter --name")
 	}
 
-	// TODO: Determine path to executable
-	// TODO: Normalize path to config
+	tbotPath, err := getExecutablePath()
+	if err != nil {
+		return trace.Wrap(err, "determining path to current executable")
+	}
+
+	configPath, err = filepath.Abs(configPath)
+	if err != nil {
+		return trace.Wrap(err, "determining absolute path to config")
+	}
 
 	buf := bytes.NewBuffer(nil)
-	err := systemdTemplate.Execute(buf, systemdTemplateParams{
+	err = systemdTemplate.Execute(buf, systemdTemplateParams{
 		UnitName:           unitName,
 		User:               user,
 		Group:              group,
 		AnonymousTelemetry: anonymousTelemetry,
-		ConfigPath:         cf.ConfigPath,
+		ConfigPath:         configPath,
+		TBotPath:           tbotPath,
 	})
 	if err != nil {
 		return trace.Wrap(err)
