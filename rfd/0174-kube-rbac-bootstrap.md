@@ -217,7 +217,7 @@ be no resources to provision, so users need to explicitly create KubeProvision r
 We also will explicitly require labels to be present for the resource to be provisioned to the Kubernetes cluster, making it 
 more difficult to accidentally misuse the feature.
 
-## Alternative
+## Alternatives
 
 Alternatively, we could take a bit of a different approach regarding permissions and default roles exposure.
 We could directly add permissions required to perform CRUD operations on Kubernetes RBAC resources to 
@@ -228,6 +228,14 @@ they would need to set labels on that resource. They can then use these roles wi
 in Teleport roles. This is a more conservative scenario that will require more explicit decision-making from the user. 
 To expose the default Kubernetes user-facing roles, users would need to add labels to the default resource we provide,
 and KubeProvisioning will only be active for clusters where Teleport has the required permissions added to its credentials.
+
+We could also alternatively reverse targeting labels direction for Kube Provisioning. Instead of KubeProvision resource's labels
+selecting Kubernetes clusters for provisioning we could add a new field to the Kube service config, `kubeProvisionLabels`, 
+and these labels would select which resources should be provisioned to this cluster. E.g. if you don't have any `kubeProvisionLabels`
+setup on the Kube service, it won't "pull" any resources, which might be a bit more secure approach. But this also introduced more complexity
+in management, since the user can't easily change targeting just by creating/editing KubeProvision resource, they need to change config on every
+Kube service. This also looses granularity of control when doing discovery and proxying dynamic clusters, since all cluster will have same
+`kubeProvisionLabels` setup and user might need to run multiple Kube service to get the granularity back.
 
 ## Future work
 
