@@ -99,13 +99,58 @@ enterprise: true
 
 If either `rbac.create` or `rbac.bindDefaultRoles` is false, we won't expose the default roles.
 
-### Automatically provisioning RBAC resources to Kubernetes clusters.
+### Improving Day 2 experience - Automatically provisioning RBAC resources to Kubernetes clusters.
 
 We will add a new type of resources, called "KubeProvision", where user will be able to specify Kubernetes RBAC resources they want to
-be provisioned onto their Kubernetes clusters.
-clusters. A single Teleport resource of that type can define multiple Kubernetes RBAC resources. There's a limit on size of a resource Teleport
-can save on the backend, therefore, if some users would have unusually large amount of Kubernetes RBAC resources they want to provision, they would
-need to split it into two KubeProvision resources.
+be provisioned onto their Kubernetes clusters. This can be helpful for users with more complicated RBAC setup and who want to manage
+Teleport roles linking to Kubernetes RBAC more easily, without relying on the third-party tools.
+
+#### UX
+
+Bob is an administrator of Teleport resources and access. He works in a large company that has hundreds of engineers/support staff etc and also
+has multiple Kubernetes clusters which those users need to access. The Kubernetes clusters might be dynamically created or destroyed, RBAC access patters
+can change etc, so Bob wants all the help to make it easier to manage. If some access patterns change and Bob amends Kubernetes groups used in the
+Teleport roles he needs to make sure Kubernetes clusters RBAC is amended correctly as well. Right now Kubernetes clusters themselves are managed by different people, so
+syncing RBAC resources state often takes a long time and increases the possibility of security incidents. With the new KubeProvision resource Bob can centralize control
+of the access in Teleport, without depending on another team. Bob can export RBAC resources to the new KubeProvision resources, set labels accordingly, so
+Kubernetes clusters in every type of environment have desired set of RBAC resources set up. Bow will login to Teleport on tsh, then will use tctl to create 
+a new resource:
+
+```bash
+$ cat kube_provision_staging.yaml
+
+kind: kube_provision
+version: v1
+metadata:
+  name: staging-rbac
+  labels:
+    env: staging
+spec:
+  clusterRoles:
+  - metadata:
+      name: tech-support
+    rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/exec", "secrets"]
+      verbs: ["create", "get", "update","watch", "list"]
+  - metadata
+    name: developers
+    ...
+  clusterRoleBindings:
+  ...
+  
+$ tctl create -f kube_provision_staging.yaml
+kube provision "staging-rabc" had been created.
+```
+
+To edit provisioned resource later Bob can use `tctl edit kube_provisions/staging-brac`.
+
+A single Teleport resource of that type can define multiple Kubernetes RBAC resources. There might be limit on size of a resource Teleport
+can save on the backend (DynamoDB has a limit of 400kb), therefore, if some users would have an unusually large amount of Kubernetes RBAC resources they 
+want to provision, they would need to split it into two KubeProvision resources.
+
+
+#### Technical details
 
 ```protobuf
 import "teleport/header/v1/metadata.proto";
