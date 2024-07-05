@@ -99,7 +99,13 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context, usersByE
 		return trace.Wrap(err)
 	}
 
-	return trace.NewAggregate(alReconciler.Reconcile(ctx), memberReconciler.Reconcile(ctx))
+	err = trace.NewAggregate(alReconciler.Reconcile(ctx), memberReconciler.Reconcile(ctx))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	r.importedGroups = len(entraAccessLists)
+	return nil
 }
 
 func listTeleportAccessLists(ctx context.Context, svc accessListAccessPoint) (map[string]*accesslist.AccessList, error) {

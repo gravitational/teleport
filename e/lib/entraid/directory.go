@@ -42,6 +42,14 @@ type DirectoryReconciler struct {
 	ssoConnectorID string
 	// tenantID specifies the Entra Tenant ID
 	tenantID string
+
+	// importedUsers is the number of users imported as of the most recent reconciliation.
+	// If reconciling users fails, this number is not updated.
+	importedUsers int
+
+	// importedGroups is the number of groups imported as of the most recent reconciliation.
+	// If reconciling groups fails, this number is not updated.
+	importedGroups int
 }
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
@@ -111,6 +119,16 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ImportedUsers returns the total number of users imported as of the most recent reconciliation.
+func (r *DirectoryReconciler) ImportedUsers() int {
+	return r.importedUsers
+}
+
+// ImportedUsers returns the total number of groups imported as of the most recent reconciliation.
+func (r *DirectoryReconciler) ImportedGroups() int {
+	return r.importedGroups
 }
 
 func matchByLabel[T types.Resource](resource T) bool {

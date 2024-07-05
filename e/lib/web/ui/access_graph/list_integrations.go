@@ -107,6 +107,7 @@ type PluginStatus struct {
 // PluginDetails is the details of the plugin.
 type PluginDetails struct {
 	Gitlab *GitlabDetails `json:"gitlab,omitempty"`
+	Entra  *EntraDetails  `json:"entra,omitempty"`
 }
 
 // GitlabDetails is the details of the Gitlab plugin.
@@ -117,6 +118,14 @@ type GitlabDetails struct {
 	ImportedGroups uint32 `json:"imported_groups"`
 	// ImportedProjects is the count of imported projects.
 	ImportedProjects uint32 `json:"imported_projects"`
+}
+
+// EntraDetails is the details of the Entra plugin.
+type EntraDetails struct {
+	// ImportedUsers is the count of imported users.
+	ImportedUsers uint32 `json:"imported_users"`
+	// ImportedGroups is the count of imported groups.
+	ImportedGroups uint32 `json:"imported_groups"`
 }
 
 // Metadata is the metadata of the integration.
@@ -189,6 +198,14 @@ func newPlugin(pl *types.PluginV1) *Plugin {
 				ImportedUsers:    gitlab.ImportedUsers,
 				ImportedGroups:   gitlab.ImportedGroups,
 				ImportedProjects: gitlab.ImportedProjects,
+			},
+		}
+	}
+	if entra := pl.Status.GetEntraId(); entra != nil {
+		p.Status.Details = &PluginDetails{
+			Entra: &EntraDetails{
+				ImportedUsers:  entra.ImportedUsers,
+				ImportedGroups: entra.ImportedGroups,
 			},
 		}
 	}

@@ -28,6 +28,8 @@ const (
 
 type directoryReconciler interface {
 	Reconcile(ctx context.Context) error
+	ImportedUsers() int
+	ImportedGroups() int
 }
 
 type accessGraphSynchronizer interface {
@@ -186,6 +188,21 @@ func (s *Service) runDirectoryReconciler(ctx context.Context) error {
 		err := s.directoryReconciler.Reconcile(ctx)
 		if err != nil {
 			s.log.ErrorContext(ctx, "Entra directory reconciler failed.", "error", err)
+		}
+
+		code, msg := getErrorDetails(err)
+		if s.pluginStatusSink != nil {
+			s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+				Code:         code,
+				LastSyncTime: s.clock.Now(),
+				ErrorMessage: msg,
+				Details: &types.PluginStatusV1_EntraId{
+					EntraId: &types.PluginEntraIDStatusV1{
+						ImportedUsers:  uint32(s.directoryReconciler.ImportedUsers()),
+						ImportedGroups: uint32(s.directoryReconciler.ImportedGroups()),
+					},
+				},
+			})
 		}
 		select {
 		case <-ctx.Done():

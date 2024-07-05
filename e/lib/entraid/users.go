@@ -51,6 +51,10 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context) (map[entraUniq
 			// if Entra user clashes with a local user, do not overwrite
 			if trace.IsAlreadyExists(err) {
 				slog.InfoContext(ctx, "user already exists in teleport as a non-entra user, not overwriting", "user", u)
+
+				// Delete from the lookup map, since the Teleport user by this name is not an Entra user.
+				delete(usersByEntraID, entraUniqueID(u.GetMetadata().Labels[types.EntraUniqueIDLabel]))
+
 				return nil
 			}
 			return trace.Wrap(err)
@@ -67,7 +71,13 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context) (map[entraUniq
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return usersByEntraID, trace.Wrap(backend.Reconcile(ctx))
+
+	if err := backend.Reconcile(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r.importedUsers = len(usersByEntraID)
+	return usersByEntraID, nil
 }
 
 func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]types.User, error) {

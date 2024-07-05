@@ -52,6 +52,30 @@
         },
         {
             "kind": "plugin",
+            "subKind": "",
+            "version": "v1",
+            "metadata": {
+                "name": "entra-id",
+                "labels": null
+            },
+            "spec": {
+                "type": "entra-id",
+                "endpoint": ""
+            },
+            "status": {
+                "state": "running",
+                "last_error_message":"fake error",
+                "last_sync_time":"1984-04-04T00:00:00Z",
+                "details":{
+                    "entra":{
+                        "imported_users":200,
+                        "imported_groups":100
+                    }
+                }
+            }
+        },
+        {
+            "kind": "plugin",
             "subKind": "accessgraph",
             "version": "v1",
             "metadata": {

@@ -288,6 +288,39 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 
 	require.NoError(t, err)
 
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			Kind: types.KindPlugin,
+			Metadata: types.Metadata{
+				Name:   "entra-id",
+				Labels: map[string]string{},
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_EntraId{
+					EntraId: &types.PluginEntraIDSettings{
+						SyncSettings: &types.PluginEntraIDSyncSettings{
+							DefaultOwners:  []string{"admin"},
+							SsoConnectorId: "foo",
+						},
+					},
+				},
+			},
+			Status: types.PluginStatusV1{
+				LastSyncTime: s.clock.Now(),
+				Code:         types.PluginStatusCode_RUNNING,
+				ErrorMessage: "fake error",
+				Details: &types.PluginStatusV1_EntraId{
+					EntraId: &types.PluginEntraIDStatusV1{
+						ImportedGroups: 100,
+						ImportedUsers:  200,
+					},
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
 	endpoint := webPack.clt.Endpoint("enterprise", "accessgraph", "integrations")
 	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 	require.NoError(t, err)
