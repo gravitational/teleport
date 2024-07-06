@@ -42,9 +42,6 @@ import (
 
 type mockMessagingBot struct {
 	lastReminderRecipients []common.Recipient
-	isBatchTest            bool
-	numSentSingleReminders int
-	numSentBatchReminders  int
 	recipients             map[string]*common.Recipient
 	mutex                  sync.Mutex
 }
@@ -53,19 +50,10 @@ func (m *mockMessagingBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
+func (m *mockMessagingBot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
-	m.numSentSingleReminders += 1
-	return nil
-}
-
-func (m *mockMessagingBot) SendBatchedReviewReminder(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.lastReminderRecipients = append(m.lastReminderRecipients, recipient)
-	m.numSentBatchReminders += 1
 	return nil
 }
 
@@ -79,8 +67,6 @@ func (m *mockMessagingBot) resetLastRecipients() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.lastReminderRecipients = make([]common.Recipient, 0)
-	m.numSentBatchReminders = 0
-	m.numSentSingleReminders = 0
 }
 
 func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
@@ -239,7 +225,6 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	})
 
 	bot := &mockMessagingBot{
-		isBatchTest: true,
 		recipients: map[string]*common.Recipient{
 			"owner1": {Name: "owner1", ID: "owner1"},
 			"owner2": {Name: "owner2", ID: "owner2"},
@@ -403,10 +388,4 @@ func advanceAndLookForRecipients(t *testing.T,
 	clock.BlockUntil(1)
 
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
-
-	if bot.isBatchTest {
-		require.Equal(t, len(expectedRecipients), bot.numSentBatchReminders, "batched reminders")
-	} else {
-		require.Equal(t, len(expectedRecipients), bot.numSentSingleReminders, "single reminders")
-	}
 }
