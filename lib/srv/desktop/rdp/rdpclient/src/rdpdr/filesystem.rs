@@ -82,6 +82,13 @@ impl FilesystemBackend {
             _ => TdpErrCode::Failed,
         };
 
+        if err_code == TdpErrCode::Failed {
+            warn!(
+                "Directory sharing failed, server sent error {:?}",
+                res.result_code
+            )
+        }
+
         self.send_tdp_sd_acknowledge(tdp::SharedDirectoryAcknowledge {
             err_code,
             directory_id: res.device_id,
@@ -940,7 +947,7 @@ impl FilesystemBackend {
         self.send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
-    /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
+    /// Sends a [`tdp::SharedDirectoryAcknowledge`] to the browser.
     fn send_tdp_sd_acknowledge(
         &self,
         mut tdp_req: tdp::SharedDirectoryAcknowledge,
