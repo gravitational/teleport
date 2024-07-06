@@ -112,27 +112,19 @@ func (b Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessList *accesslist.AccessList) error {
-	var result ChatMsgResponse
-	_, err := b.client.NewRequest().
-		SetContext(ctx).
-		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListReminderMsgSection(accessList)}).
-		SetResult(&result).
-		Post("chat.postMessage")
-	return trace.Wrap(err)
-}
+func (b Bot) SendReviewReminders(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
+	var blockItem []BlockItem
 
-// SendBatchedReviewReminder will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendBatchedReviewReminder(ctx context.Context, recipient common.Recipient, accessLists []*accesslist.AccessList) error {
-	// Sort by earliest date due.
-	slices.SortFunc(accessLists, func(a, b *accesslist.AccessList) int {
-		return a.Spec.Audit.NextAuditDate.Compare(b.Spec.Audit.NextAuditDate)
-	})
+	if len(accessLists) > 1 {
+		blockItem = b.slackAccessListBatchedReminderMsgSection(accessLists)
+	} else if len(accessLists) == 1 {
+		blockItem = b.slackAccessListReminderMsgSection(accessLists[0])
+	}
 
 	var result ChatMsgResponse
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
-		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackAccessListBatchedReminderMsgSection(accessLists)}).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: blockItem}).
 		SetResult(&result).
 		Post("chat.postMessage")
 	return trace.Wrap(err)
@@ -340,17 +332,17 @@ func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.
 
 	if b.clock.Now().After(earliestNextAuditDate) {
 		daysSinceDue := int(b.clock.Since(earliestNextAuditDate).Hours() / 24)
-		dueDate = fmt.Sprintf("Earliest of which is %d day(s) past due. Please review!",
+		dueDate = fmt.Sprintf("earliest of which is %d day(s) past due. Please review!",
 			daysSinceDue)
 	} else {
 		dueDate = fmt.Sprintf(
-			"Earliest of which is due by %s. Please review them soon!",
+			"earliest of which is due by %s. Please review them soon!",
 			accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly))
 	}
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews. %s\n%s", numOfReviewsRequired, dueDate, link)}),
+			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link)}),
 		}),
 	}
 

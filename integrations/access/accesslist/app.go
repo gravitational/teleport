@@ -150,8 +150,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 
 	var nextToken string
 	var err error
-	remindersLookup := make(map[string][]*accesslist.AccessList)
-	recipientLookup := make(map[string]common.Recipient)
+	remindersLookup := make(map[common.Recipient][]*accesslist.AccessList)
 	for {
 		var accessLists []*accesslist.AccessList
 		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
@@ -171,17 +170,17 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		for _, accessList := range accessLists {
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
 			if err != nil {
-				log.WithError(err).Warn("Error notifying for access list reviews")
+				log.WithError(err).Warn("Error getting recipients to notify for access list reviews")
+				continue
 			}
 
 			// Store all recipients and the accesslist needing review
 			// for later processing.
 			for _, recipient := range recipients {
-				if _, ok := remindersLookup[recipient.ID]; !ok {
-					remindersLookup[recipient.ID] = []*accesslist.AccessList{}
+				if _, ok := remindersLookup[recipient]; !ok {
+					remindersLookup[recipient] = []*accesslist.AccessList{}
 				}
-				remindersLookup[recipient.ID] = append(remindersLookup[recipient.ID], accessList)
-				recipientLookup[recipient.ID] = recipient
+				remindersLookup[recipient] = append(remindersLookup[recipient], accessList)
 			}
 		}
 
@@ -192,15 +191,8 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 
 	// Send reminders for each collected recipients.
 	var errs []error
-	for recipientID, accessLists := range remindersLookup {
-		if len(accessLists) > 1 {
-			if err := a.bot.SendBatchedReviewReminder(ctx, recipientLookup[recipientID], accessLists); err != nil {
-				errs = append(errs, err)
-			}
-			continue
-		}
-		// Send as invididual reminder.
-		if err := a.bot.SendReviewReminders(ctx, recipientLookup[recipientID], accessLists[0]); err != nil {
+	for recipient, accessLists := range remindersLookup {
+		if err := a.bot.SendReviewReminders(ctx, recipient, accessLists); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -253,7 +245,7 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 		return nil, trace.Wrap(err)
 	}
 
-	return recipients, err
+	return recipients, nil
 }
 
 // fetchRecipients will return all recipients.

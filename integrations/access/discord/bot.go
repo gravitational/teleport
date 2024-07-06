@@ -118,13 +118,8 @@ func (b DiscordBot) SupportedApps() []common.App {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
-}
-
-// SendBatchedReviewReminder will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) SendBatchedReviewReminder(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
-	return trace.NotImplemented("access list batched review reminder is not yet implemented")
 }
 
 // BroadcastAccessRequestMessage posts request info to Discord.
