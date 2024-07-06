@@ -760,6 +760,7 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	logger := log.StandardLogger()
+	logutils.CloseFileSharedWriter()
 
 	var w io.Writer
 	switch loggerConfig.Output {

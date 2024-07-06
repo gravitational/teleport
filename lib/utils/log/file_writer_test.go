@@ -42,15 +42,14 @@ func TestFileSharedWriterNotify(t *testing.T) {
 
 	t.Cleanup(func() {
 		cancel()
-		logFile.Close()
-		fileSharedWriter = nil
+		CloseFileSharedWriter()
 	})
 
 	logWriter, err := InitFileSharedWriter(logFile, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	signal := make(chan struct{})
-	err = GetFileSharedWriter().RunWatcherFunc(ctx, func() error {
+	err = GetFileSharedWriter().runWatcherFunc(ctx, func() error {
 		err := GetFileSharedWriter().Reopen()
 		signal <- struct{}{}
 		return err
