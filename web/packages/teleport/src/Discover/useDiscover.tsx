@@ -55,7 +55,10 @@ import type {
   Regions,
 } from 'teleport/services/integrations';
 
-import type { SamlGcpWorkforce, SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
+import type {
+  SamlGcpWorkforce,
+  SamlIdpServiceProvider,
+} from 'teleport/services/samlidp/types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -246,9 +249,9 @@ export function DiscoverProvider({
 
   // trigger update Discover flow.
   useEffect(() => {
-    if (updateFlow) {
-      onSelectResource(updateFlow.resourceSpec);
+    if (updateFlow && updateFlow.agentMeta) {
       updateAgentMeta(updateFlow.agentMeta);
+      onSelectResource(updateFlow.resourceSpec);
     }
   }, [updateFlow]);
 
@@ -581,9 +584,10 @@ export type AppMeta = BaseMeta & {
  * preserved throughout the flow.
  */
 export type SamlMeta = BaseMeta & {
-  SamlGeneric: SamlIdpServiceProvider
-  SamlGcpWorkforce: SamlGcpWorkforce
-}
+  SamlGeneric?: SamlIdpServiceProvider;
+  SamlGcpWorkforce?: SamlGcpWorkforce;
+};
+
 export type AgentMeta =
   | DbMeta
   | NodeMeta
