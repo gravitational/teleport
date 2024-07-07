@@ -1,31 +1,24 @@
 ---
-title: Guide to hardening against IdP compromises
+title: Harden your Cluster Against IdP Compromises
 description: Implement cluster-wide hardening measures.
 ---
 
-Protecting your organization against Identity Provider (IdP) compromises is more critical than ever. 
 This guide aims to help you fortify your identity infrastructure and mitigate the risks associated with IdP weaknesses.
-
-## Understanding IdP compromise
 
 An IdP compromise occurs when an attacker gains unauthorized access to your identity management 
 system, potentially allowing them to impersonate legitimate users, escalate privileges, or access 
 sensitive information. This can happen through various means, such as exploiting software vulnerabilities, 
 stealing credentials, or social engineering attacks.
 
-## Current security measures may fall short
-
 While many organizations have implemented basic security measures like single sign-on (SSO) and multi-factor authentication (MFA), 
 these alone may not be sufficient to protect against sophisticated attacks targeting your IdP. 
 Attackers are constantly evolving their techniques, and traditional security measures may have limitations 
 or vulnerabilities that can be exploited.
 
-## Hardening measures
-
 ### Prerequisites
 
 - A running Teleport cluster version 16.0.0-dev or above. If you want to get started with Teleport, 
-[sign up](https://goteleport.com/signup) for a free trial or [set up a demo environment](../../index.mdx).
+[sign up](https://goteleport.com/signup) for a free trial.
 
 - The `tctl` admin tool and `tsh` client tool.
 
@@ -248,7 +241,8 @@ $ tsh login --proxy=example.teleport.sh
   SSO users should configure multi-factor authentication in their SSO provider.
 </Admonition>
 
-### Establish cluster-wide per-session MFA
+## Configure per-session MFA
+
 Ensure that multi-factor authentication is required for each session, not just at initial login, 
 to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
 against compromised on-disk certificates. It requires additional MFA checks when initiating new SSH, Kubernetes, database, or desktop sessions.
@@ -269,7 +263,7 @@ when starting new:
   to improve security.
 </Notice>
 
-## Configure per-session MFA
+## Step 1/1. Enforce MFA checks
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -308,8 +302,6 @@ spec:
   require_session_mfa: true
 version: v2
 ```
-
-Create the resource:
 
 ```code
 $ tctl create -f cap.yaml
@@ -378,7 +370,7 @@ databases, Kubernetes clusters, and first MFA device enrollment. The latter help
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-### Register a trusted device
+## Step 1/3. Register a trusted device
 
 The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
@@ -443,7 +435,7 @@ Asset Tag    OS    Enroll Status Device ID
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
 
-### Create a device enrollment token
+## Step 2/3. Create a device enrollment token
 
 A registered device becomes a trusted device after it goes through the
 enrollment ceremony. To enroll the device, a device enrollment token is
@@ -459,7 +451,7 @@ Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
 tsh device enroll --token=(=devicetrust.enroll_token=)
 ```
 
-### Enroll a trusted device
+## Step 3/3. Enroll a trusted device
 
 To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
@@ -607,7 +599,7 @@ Examples of administrative actions include, but are not limited to:
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
-### Enable MFA for admin actions
+## Enable MFA for admin actions
 
 <Tabs>
   <TabItem label="Dynamic Resources" scope={["team", "cloud"]}>
@@ -618,7 +610,7 @@ their on-disk Teleport certificates.
   $ tctl edit cap
   ```
 
-  Update the `cluster_auth_preference` definition to include the following content:
+Update the `cluster_auth_preference` definition to include the following content:
 
   ```yaml
   kind: cluster_auth_preference
