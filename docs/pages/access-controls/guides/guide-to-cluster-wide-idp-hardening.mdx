@@ -484,7 +484,7 @@ Teleport supports auto-enrollment. When enabled, auto-enrollment automatically
 enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
-- A device must be registered. Registration may be [manual](#register-a-trusted-device) or performed using an
+- A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or performed using an
 integration, like the [Jamf Pro integration](../device-trust/jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
 - User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
