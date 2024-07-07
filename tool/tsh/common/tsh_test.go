@@ -2345,6 +2345,17 @@ func TestSSHCommands(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
+	tmpHomePath := t.TempDir()
+	rootAuth := rootServer.GetAuthServer()
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", rootProxyAddr.String(),
+		"--user", user.Username,
+	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name      string
 		cmd       []string
@@ -2400,16 +2411,6 @@ func TestSSHCommands(t *testing.T) {
 		ctx := context.Background()
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			tmpHomePath := t.TempDir()
-			rootAuth := rootServer.GetAuthServer()
-
-			err = Run(ctx, []string{
-				"login",
-				"--insecure",
-				"--proxy", rootProxyAddr.String(),
-				"--user", user.Username,
-			}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth, accessUser, connector.GetName()))
-			require.NoError(t, err)
 
 			stdout := &output{buf: bytes.Buffer{}}
 			stderr := &output{buf: bytes.Buffer{}}
