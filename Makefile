@@ -343,14 +343,12 @@ $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
-$(BUILDDIR)/tbot: CGO_ENABLED ?= 0
+# tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
+$(BUILDDIR)/tbot: CGO_ENABLED ?= $(if $(filter windows,$(OS)),1,0)
+# Build mode pie requires CGO
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(filter 1,$(CGO_ENABLED)), -buildmode=pie)
 $(BUILDDIR)/tbot:
-# The -buildmode=pie flag requires external cgo linking.
-ifeq ("$(CGO_ENABLED)", "1")
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ./tool/tbot
-else
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
-endif
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
