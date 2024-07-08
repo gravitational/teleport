@@ -99,7 +99,7 @@ func TestNewSessionV1(t *testing.T) {
 			integration: "myawsintegration",
 			expectedErr: require.NoError,
 			sessionValidator: func(t *testing.T, s *session.Session) {
-				require.Equal(t, aws.String(""), s.Config.Region)
+				require.Equal(t, "", aws.StringValue(s.Config.Region))
 			},
 		},
 		{
