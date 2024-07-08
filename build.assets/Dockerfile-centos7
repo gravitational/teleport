@@ -47,20 +47,9 @@ RUN yum groupinstall -y 'Development Tools' && \
 FROM base AS git2
 
 ARG BUILDARCH
-ARG TARGETARCH
-ARG DEVTOOLSET
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y \
+RUN yum install -y \
     ca-certificates  \
     curl-devel  \
     expat-devel  \
@@ -70,9 +59,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     perl-CPAN  \
     perl-devel wget && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-    centos-release-scl && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
@@ -98,20 +84,7 @@ FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDAR
 # Build libfido2 separately for isolation, speed and flexibility.
 FROM base AS libfido2
 
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum install -y centos-release-scl-rh && \
+RUN yum install -y epel-release && \
     yum update -y && \
     yum install -y \
         cmake3 \
@@ -176,24 +149,10 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 FROM base AS libbpf
 
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-        centos-release-scl \
         elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
@@ -216,26 +175,12 @@ RUN mkdir -p /opt && cd /opt && \
 
 FROM base AS libpcsclite
 
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
+RUN yum update -y && \
     yum install -y \
         autoconf-archive \
         libudev-devel \
-        scl-utils \
-        centos-release-scl \
+        scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
@@ -271,21 +216,9 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
     # required by libbpf
     elfutils-libelf-devel-static \
     net-tools \

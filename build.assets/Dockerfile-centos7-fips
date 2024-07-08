@@ -45,25 +45,10 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 FROM base AS libbpf
 
-ARG BUILDARCH
-ARG TARGETARCH
-ARG DEVTOOLSET
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-        centos-release-scl \
         elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
@@ -98,22 +83,10 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
     # required by Clang/LLVM
     cmake3 \
     # required by libbpf
