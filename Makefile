@@ -352,11 +352,11 @@ $(BUILDDIR)/tsh:
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
-$(BUILDDIR)/tbot: CGO_ENABLED ?= $(if $(filter windows,$(OS)),1,0)
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
 # Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(filter 1,$(CGO_ENABLED)), -buildmode=pie)
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=$(CGO_ENABLED) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
