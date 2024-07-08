@@ -84,7 +84,7 @@ func (e *Engine) SendError(err error) {
 
 	jsonBody, err := json.Marshal(cause)
 	if err != nil {
-		e.Log.WithError(err).Error("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "failed to marshal error response", "error", err)
 		return
 	}
 
@@ -100,7 +100,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.Errorf("elasticsearch error: %+v", trace.Unwrap(err))
+		e.Log.ErrorContext(e.Context, "elasticsearch error", "error", err)
 		return
 	}
 }
@@ -210,7 +210,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint3
 
 	source := req.URL.Query().Get("source")
 	if len(source) > 0 {
-		e.Log.Infof("'source' parameter found, overriding request body.")
+		e.Log.InfoContext(e.Context, "'source' parameter found, overriding request body.")
 		body = []byte(source)
 		contentType = req.URL.Query().Get("source_content_type")
 	}

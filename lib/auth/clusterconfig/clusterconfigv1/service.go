@@ -31,6 +31,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 // Cache is used by the [Service] to query cluster config resources.
@@ -38,6 +39,13 @@ type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+}
+
+// ReadOnlyCache abstracts over the required methods of [readonly.Cache].
+type ReadOnlyCache interface {
+	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
+	GetReadOnlyClusterNetworkingConfig(ctx context.Context) (readonly.ClusterNetworkingConfig, error)
+	GetReadOnlySessionRecordingConfig(ctx context.Context) (readonly.SessionRecordingConfig, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.
@@ -57,11 +65,12 @@ type Backend interface {
 
 // ServiceConfig contain dependencies required to create a [Service].
 type ServiceConfig struct {
-	Cache       Cache
-	Backend     Backend
-	Authorizer  authz.Authorizer
-	Emitter     apievents.Emitter
-	AccessGraph AccessGraphConfig
+	Cache         Cache
+	Backend       Backend
+	Authorizer    authz.Authorizer
+	Emitter       apievents.Emitter
+	AccessGraph   AccessGraphConfig
+	ReadOnlyCache ReadOnlyCache
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -83,11 +92,12 @@ type AccessGraphConfig struct {
 type Service struct {
 	clusterconfigpb.UnimplementedClusterConfigServiceServer
 
-	cache       Cache
-	backend     Backend
-	authorizer  authz.Authorizer
-	emitter     apievents.Emitter
-	accessGraph AccessGraphConfig
+	cache         Cache
+	backend       Backend
+	authorizer    authz.Authorizer
+	emitter       apievents.Emitter
+	accessGraph   AccessGraphConfig
+	readOnlyCache ReadOnlyCache
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -103,7 +113,17 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("emitter is required")
 	}
 
-	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph}, nil
+	if cfg.ReadOnlyCache == nil {
+		readOnlyCache, err := readonly.NewCache(readonly.CacheConfig{
+			Upstream: cfg.Cache,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.ReadOnlyCache = readOnlyCache
+	}
+
+	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph, readOnlyCache: cfg.ReadOnlyCache}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.
@@ -117,12 +137,12 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	pref, err := s.cache.GetAuthPreference(ctx)
+	pref, err := s.readOnlyCache.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authPrefV2, ok := pref.(*types.AuthPreferenceV2)
+	authPrefV2, ok := pref.Clone().(*types.AuthPreferenceV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected auth preference type %T (expected %T)", pref, authPrefV2))
 	}
@@ -397,12 +417,12 @@ func (s *Service) GetClusterNetworkingConfig(ctx context.Context, _ *clusterconf
 		}
 	}
 
-	netConfig, err := s.cache.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.readOnlyCache.GetReadOnlyClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	cfgV2, ok := netConfig.Clone().(*types.ClusterNetworkingConfigV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", netConfig, cfgV2))
 	}
@@ -697,12 +717,12 @@ func (s *Service) GetSessionRecordingConfig(ctx context.Context, _ *clusterconfi
 		}
 	}
 
-	netConfig, err := s.cache.GetSessionRecordingConfig(ctx)
+	netConfig, err := s.readOnlyCache.GetReadOnlySessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cfgV2, ok := netConfig.(*types.SessionRecordingConfigV2)
+	cfgV2, ok := netConfig.Clone().(*types.SessionRecordingConfigV2)
 	if !ok {
 		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", netConfig, cfgV2))
 	}
