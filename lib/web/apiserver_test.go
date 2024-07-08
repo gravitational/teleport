@@ -121,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -4573,12 +4574,13 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:    true,
-		ProxyClusterName:   env.server.ClusterName(),
-		IsCloud:            false,
-		AutomaticUpgrades:  false,
-		JoinActiveSessions: true,
-		Edition:            modules.BuildOSS, // testBuildType is empty
+		CanJoinSessions:           true,
+		ProxyClusterName:          env.server.ClusterName(),
+		IsCloud:                   false,
+		AutomaticUpgrades:         false,
+		JoinActiveSessions:        true,
+		Edition:                   modules.BuildOSS, // testBuildType is empty
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.
@@ -4691,11 +4693,12 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:              true,
-		IsIGSEnabled:        true,
-		IsStripeManaged:     true,
-		Questionnaire:       true,
-		IsUsageBasedBilling: true,
+		IsTeam:                    true,
+		IsIGSEnabled:              true,
+		IsStripeManaged:           true,
+		Questionnaire:             true,
+		IsUsageBasedBilling:       true,
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
 	}
 
 	// Make a request.
