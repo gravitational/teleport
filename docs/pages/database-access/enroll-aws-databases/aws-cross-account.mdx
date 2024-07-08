@@ -167,7 +167,7 @@ AWS IAM identity and the external AWS IAM role:
   [AWS cross-account policy evaluation](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html#policy-eval-cross-account).
 </Details>
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx attachToRole="teleport-db-service" attachToUser="teleport-db-service"!)
+(!docs/pages/includes/database-access/aws-bootstrap.mdx attachToRole="teleport-db-service" !)
 
 Specifically, the Teleport Database Service's AWS IAM identity must be granted
 `sts:AssumeRole` permission for the external AWS IAM role. For example:
