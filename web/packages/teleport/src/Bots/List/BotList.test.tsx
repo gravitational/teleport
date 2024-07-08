@@ -72,7 +72,7 @@ test('renders View options if type is github actions ssh', async () => {
   const props = makeProps();
   props.bots = [bot];
   render(<BotList {...props} />);
-  await fireEvent.click(await screen.findByText('OPTIONS'));
+  fireEvent.click(await screen.findByText('OPTIONS'));
   expect(screen.getByText('View...')).toBeInTheDocument();
 });
 
@@ -95,6 +95,6 @@ test('doesnt renders View options if bot type is not github actions', async () =
   const props = makeProps();
   props.bots = [bot];
   render(<BotList {...props} />);
-  await fireEvent.click(await screen.findByText('OPTIONS'));
+  fireEvent.click(await screen.findByText('OPTIONS'));
   expect(screen.queryByText('View...')).not.toBeInTheDocument();
 });
