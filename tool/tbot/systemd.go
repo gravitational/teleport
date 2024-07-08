@@ -24,6 +24,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -33,38 +34,51 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func setupInstallSystemdCmd(
-	rootCmd *kingpin.Application,
-) (string, func(ctx context.Context, log *slog.Logger, configPath string,
-	getExecutablePath func() (string, error)) error) {
-	installCmd := rootCmd.Command("install", "Helper commands for installing Machine ID")
-	installSystemdCmd := installCmd.Command("systemd", "Install systemd unit file")
-	unitName := installSystemdCmd.Flag("name", "Name for the systemd unit").Default("tbot").String()
-	group := installSystemdCmd.Flag("group", "The group that the service should run as").Default("teleport").String()
-	user := installSystemdCmd.Flag("user", "The user that the service should run as").Default("teleport").String()
-	force := installSystemdCmd.Flag("force", "Overwrite existing systemd unit file if present").Bool()
-	systemdDirectory := installSystemdCmd.Flag("systemd-directory", "Directory to install systemd unit file").Default("/etc/systemd/system").String()
-	anonymousTelemetry := installSystemdCmd.Flag("anonymous-telemetry", "Enable anonymous telemetry").Bool()
+type onInstallSystemdCmdFunc func(
+	ctx context.Context,
+	log *slog.Logger,
+	configPath string,
+	getExecutablePath func() (string, error),
+	stdout io.Writer) error
 
-	return installSystemdCmd.FullCommand(), func(
+func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
+	string,
+	onInstallSystemdCmdFunc,
+) {
+	installCmd := rootCmd.Command("install", "Helper commands for installing Machine ID.")
+	installSystemdCmd := installCmd.Command("systemd", "Generates and installs a systemd unit file for a specified tbot configuration file.")
+	unitName := installSystemdCmd.Flag("name", "Name for the systemd unit. Defaults to 'tbot'.").Default("tbot").String()
+	group := installSystemdCmd.Flag("group", "The group that the service should run as. Defaults to 'teleport'.").Default("teleport").String()
+	user := installSystemdCmd.Flag("user", "The user that the service should run as. Defaults to 'teleport'.").Default("teleport").String()
+	force := installSystemdCmd.Flag("force", "Overwrite existing systemd unit file if present.").Bool()
+	write := installSystemdCmd.Flag("write", "Write the systemd unit file. If not specified, this command runs in a dry-run mode that outputs the generated content to stdout.").Bool()
+	systemdDirectory := installSystemdCmd.Flag("systemd-directory", "Path to the directory that the systemd unit file should be written. Defaults to '/etc/systemd/system'.").Default("/etc/systemd/system").String()
+	anonymousTelemetry := installSystemdCmd.Flag("anonymous-telemetry", "Enable anonymous telemetry.").Bool()
+
+	f := onInstallSystemdCmdFunc(func(
 		ctx context.Context,
 		log *slog.Logger,
 		configPath string,
 		getExecutablePath func() (string, error),
+		stdout io.Writer,
 	) error {
 		return onInstallSystemdCmd(
 			ctx,
 			log,
 			*unitName,
 			*force,
+			*write,
 			*systemdDirectory,
 			*user,
 			*group,
 			*anonymousTelemetry,
 			configPath,
 			getExecutablePath,
+			stdout,
 		)
-	}
+	})
+
+	return installSystemdCmd.FullCommand(), f
 }
 
 var (
@@ -87,12 +101,14 @@ func onInstallSystemdCmd(
 	log *slog.Logger,
 	unitName string,
 	force bool,
+	write bool,
 	systemdDirectory string,
 	user string,
 	group string,
 	anonymousTelemetry bool,
 	configPath string,
 	getExecutablePath func() (string, error),
+	stdout io.Writer,
 ) error {
 	switch {
 	case configPath == "":
@@ -124,9 +140,19 @@ func onInstallSystemdCmd(
 		return trace.Wrap(err)
 	}
 	generated := buf.Bytes()
+	path := filepath.Join(systemdDirectory, fmt.Sprintf("%s.service", unitName))
+
+	if !write {
+		_, _ = fmt.Fprintf(
+			stdout,
+			"Dry-run mode is active. Use '--write' to enable writes.\nThe following would have been written to '%s':\n\n%s",
+			path,
+			string(generated),
+		)
+		return nil
+	}
 
 	// Before writing, check if it exists, and if it does, check if it matches
-	path := filepath.Join(systemdDirectory, fmt.Sprintf("%s.service", unitName))
 	existingData, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Wrap(err)
@@ -149,9 +175,13 @@ func onInstallSystemdCmd(
 		return trace.Wrap(err, "writing unit file")
 	}
 
+	msg := fmt.Sprintf(
+		"Wrote systemd unit file. Reload systemd with 'systemctl daemon-reload' and then enable and start the service with 'systemctl enable --now %s'",
+		unitName,
+	)
 	log.InfoContext(
 		ctx,
-		fmt.Sprintf("Wrote systemd unit file. Reload systemd with 'systemctl daemon-reload' and then enable and start the service with 'systemctl enable --now %s'", unitName),
+		msg,
 		"path", path,
 	)
 	return nil

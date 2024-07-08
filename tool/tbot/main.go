@@ -316,7 +316,7 @@ func Run(args []string, stdout io.Writer) error {
 	case sshMultiplexProxyCmd.FullCommand():
 		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable)
+		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable, os.Stdout)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
