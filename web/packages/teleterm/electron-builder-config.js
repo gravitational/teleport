@@ -214,4 +214,5 @@ module.exports = {
     buildResources: 'build_resources',
     output: 'build/release',
   },
+  nativeRebuilder: 'legacy',
 };
