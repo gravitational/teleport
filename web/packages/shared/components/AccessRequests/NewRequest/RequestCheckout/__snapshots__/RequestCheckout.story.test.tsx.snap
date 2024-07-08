@@ -98,7 +98,8 @@ exports[`failed state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -107,30 +108,49 @@ exports[`failed state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 50px;
 }
 
-.c21:hover,
-.c21:focus {
-  background: rgba(255,255,255,0.07);
+.c21:focus-visible,
+.teleport-button__force-focus-visible .c21 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c21:active {
-  background: rgba(255,255,255,0.13);
+.c21:hover,
+.teleport-button__force-hover .c21 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c21:active,
+.teleport-button__force-active .c21 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c21:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -141,7 +161,8 @@ exports[`failed state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -150,30 +171,50 @@ exports[`failed state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c45:hover,
-.c45:focus {
-  background: #B29DFF;
+.c45:focus-visible,
+.teleport-button__force-focus-visible .c45 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c45:active {
-  background: #C5B6FF;
+.c45:hover,
+.teleport-button__force-hover .c45 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c45:active,
+.teleport-button__force-active .c45 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c45:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -184,7 +225,8 @@ exports[`failed state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -193,30 +235,50 @@ exports[`failed state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c46:hover,
-.c46:focus {
-  background: rgba(255,255,255,0.13);
+.c46:focus-visible,
+.teleport-button__force-focus-visible .c46 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c46:active {
-  background: rgba(255,255,255,0.18);
+.c46:hover,
+.teleport-button__force-hover .c46 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c46:active,
+.teleport-button__force-active .c46 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c46:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1174,7 +1236,7 @@ exports[`failed state 1`] = `
                 </div>
                 <button
                   class="c21"
-                  kind="border"
+                  fill="border"
                   width="50px"
                 >
                   Add
@@ -1393,14 +1455,14 @@ exports[`failed state 1`] = `
           >
             <button
               class="c45"
-              kind="primary"
+              fill="filled"
               width="100%"
             >
               Submit Request
             </button>
             <button
               class="c46"
-              kind="secondary"
+              fill="filled"
               width="100%"
             >
               Cancel
@@ -1506,7 +1568,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1515,30 +1578,49 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 50px;
 }
 
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.07);
+.c24:focus-visible,
+.teleport-button__force-focus-visible .c24 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c24:active {
-  background: rgba(255,255,255,0.13);
+.c24:hover,
+.teleport-button__force-hover .c24 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c24:active,
+.teleport-button__force-active .c24 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c24:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1549,7 +1631,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1558,30 +1641,50 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c51:hover,
-.c51:focus {
-  background: #B29DFF;
+.c51:focus-visible,
+.teleport-button__force-focus-visible .c51 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c51:active {
-  background: #C5B6FF;
+.c51:hover,
+.teleport-button__force-hover .c51 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c51:active,
+.teleport-button__force-active .c51 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c51:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1592,7 +1695,8 @@ exports[`loaded state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1601,30 +1705,50 @@ exports[`loaded state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   width: 100%;
   text-transform: none;
 }
 
-.c52:hover,
-.c52:focus {
-  background: rgba(255,255,255,0.13);
+.c52:focus-visible,
+.teleport-button__force-focus-visible .c52 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c52:active {
-  background: rgba(255,255,255,0.18);
+.c52:hover,
+.teleport-button__force-hover .c52 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c52:active,
+.teleport-button__force-active .c52 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c52:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -2813,7 +2937,7 @@ exports[`loaded state 1`] = `
                 </div>
                 <button
                   class="c24"
-                  kind="border"
+                  fill="border"
                   width="50px"
                 >
                   Edit
@@ -3143,14 +3267,14 @@ exports[`loaded state 1`] = `
           >
             <button
               class="c51"
-              kind="primary"
+              fill="filled"
               width="100%"
             >
               Submit Request
             </button>
             <button
               class="c52"
-              kind="secondary"
+              fill="filled"
               width="100%"
             >
               Cancel
@@ -3192,7 +3316,8 @@ exports[`success state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3201,31 +3326,51 @@ exports[`success state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.175px;
   margin-bottom: 16px;
   margin-top: 32px;
   width: 100%;
 }
 
-.c11:hover,
-.c11:focus {
-  background: #B29DFF;
+.c11:focus-visible,
+.teleport-button__force-focus-visible .c11 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c11:active {
-  background: #C5B6FF;
+.c11:hover,
+.teleport-button__force-hover .c11 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c11:active,
+.teleport-button__force-active .c11 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c11:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3236,7 +3381,8 @@ exports[`success state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -3245,26 +3391,48 @@ exports[`success state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: none;
-  text-transform: none;
+  background-color: transparent;
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c12:focus-visible,
+.teleport-button__force-focus-visible .c12 {
+  background-color: transparent;
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c12:hover,
-.c12:focus {
-  background: none;
-  text-decoration: underline;
+.teleport-button__force-hover .c12 {
+  background-color: rgba(255,255,255,0.07);
+  border-color: transparent;
+  color: rgba(255,255,255,0.72);
+  box-shadow: none;
+}
+
+.c12:active,
+.teleport-button__force-active .c12 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c12:disabled {
-  background: none;
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -3398,8 +3566,9 @@ exports[`success state 1`] = `
         >
           <a
             class="c11"
+            fill="filled"
             href="/web/requests"
-            kind="primary"
+            intent="primary"
             mb="3"
             mt="5"
             width="100%"
@@ -3408,7 +3577,7 @@ exports[`success state 1`] = `
           </a>
           <button
             class="c12"
-            kind="text"
+            fill="minimal"
           >
             Make Another Request
           </button>
