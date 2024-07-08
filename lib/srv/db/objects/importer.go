@@ -41,7 +41,7 @@ type singleDatabaseImporter struct {
 	objects map[string]*objWithExpiry
 }
 
-// objWithExpiry holds an object separate to its expiry time.
+// objWithExpiry holds an object separate to its expiry time, avoiding the need for custom equality method for db objects and making the expiry checks explicit.
 type objWithExpiry struct {
 	obj    *dbobjectv1.DatabaseObject
 	expiry time.Time
@@ -99,6 +99,7 @@ func (i *singleDatabaseImporter) start(ctx context.Context) {
 func (i *singleDatabaseImporter) scan(ctx context.Context) {
 	objectsNew, err := i.fetchObjects(ctx)
 	if err != nil {
+		i.cfg.Log.ErrorContext(ctx, "Error fetching objects", "error", err)
 		return
 	}
 
