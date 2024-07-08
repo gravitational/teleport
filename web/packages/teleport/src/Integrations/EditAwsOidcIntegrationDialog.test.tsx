@@ -67,7 +67,9 @@ test('user acknowledging script was ran when s3 bucket fields are edited', async
   //  - checkbox to confirm user has ran command
   //  - edit button replaces generate command button
   //  - save button still disabled
-  await userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await userEvent.click(
+    screen.getByRole('button', { name: /generate command/i })
+  );
   await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
   expect(
@@ -139,7 +141,9 @@ test('render warning on save when leaving s3 fields empty', async () => {
   expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
-  await userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await userEvent.click(
+    screen.getByRole('button', { name: /generate command/i })
+  );
   await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
@@ -205,7 +209,9 @@ test('render warning on save when deleting existing s3 fields', async () => {
   expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
-  await userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await userEvent.click(
+    screen.getByRole('button', { name: /generate command/i })
+  );
   await screen.findByRole('button', { name: /edit/i });
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
@@ -248,7 +254,9 @@ test('edit invalid fields', async () => {
     ).toBeEnabled()
   );
 
-  await userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await userEvent.click(
+    screen.getByRole('button', { name: /generate command/i })
+  );
   await screen.findByText(/invalid role ARN format/i);
 });
 
@@ -283,7 +291,9 @@ test('edit submit called with proper fields', async () => {
     ).toBeEnabled()
   );
 
-  await userEvent.click(screen.getByRole('button', { name: /generate command/i }));
+  await userEvent.click(
+    screen.getByRole('button', { name: /generate command/i })
+  );
   await screen.findByRole('button', { name: /edit/i });
 
   await userEvent.click(screen.getByLabelText(/I ran the command/i));
