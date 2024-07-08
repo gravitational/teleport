@@ -54,7 +54,7 @@ describe('email', () => {
       screen.queryByText('Email format is invalid')
     ).not.toBeInTheDocument();
 
-    userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Email format is invalid');
   });
 });

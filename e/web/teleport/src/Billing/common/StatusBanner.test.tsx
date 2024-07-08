@@ -46,7 +46,7 @@ describe('statusBanner', () => {
       screen.getByRole('button', { name: 'Cancel Plan' })
     ).toBeInTheDocument();
 
-    userEvent.click(screen.getByRole('button', { name: 'Cancel Plan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel Plan' }));
     await screen.findByText('Close Teleport Account');
   });
 

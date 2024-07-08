@@ -1,5 +1,4 @@
 import React from 'react';
-import { cleanup } from '@testing-library/react';
 import {
   fireEvent,
   render,
@@ -36,7 +35,6 @@ const entityDescriptorLabelText =
 describe('configure SAML service provider', () => {
   afterEach(() => {
     jest.clearAllMocks();
-    cleanup();
   });
 
   const tests: Array<{
@@ -164,7 +162,6 @@ describe('configure SAML service provider', () => {
 describe('configure SAML service provider with errors', () => {
   afterEach(() => {
     jest.clearAllMocks();
-    cleanup();
   });
   const tests: Array<{
     name: string;
@@ -291,7 +288,6 @@ describe('configure SAML service provider with errors', () => {
 describe('add another attribute mapping with errors', () => {
   afterEach(() => {
     jest.clearAllMocks();
-    cleanup();
   });
   const tests: Array<{
     name: string;
@@ -376,7 +372,6 @@ describe('add another attribute mapping with errors', () => {
 describe('metadada and attribute mapping renders based on resourceSpec preset', () => {
   afterEach(() => {
     jest.clearAllMocks();
-    cleanup();
   });
 
   const poolName = 'test-pool';

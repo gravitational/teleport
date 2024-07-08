@@ -54,7 +54,7 @@ describe('purchaseOrder', () => {
       )
     ).not.toBeInTheDocument();
 
-    userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText(
       'Purchase order format is invalid. Prefix must be 3–12 letters or numbers.'
     );

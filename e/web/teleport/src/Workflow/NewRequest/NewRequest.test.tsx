@@ -2,7 +2,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import { within, cleanup, waitFor } from '@testing-library/react';
+import { within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as service from 'teleport/services/userPreferences/userPreferences';
 
@@ -112,7 +112,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   jest.resetAllMocks();
 
   cfg.isStripeManaged = defaultIsStripeManaged;
