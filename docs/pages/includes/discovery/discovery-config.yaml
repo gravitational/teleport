@@ -1,10 +1,13 @@
 discovery_service:
     enabled: "yes"
     # discovery_group is used to group discovered resources into different
-    # sets. This is useful when you have multiple Teleport Discovery services
-    # running in the same cluster but polling different cloud providers or cloud
-    # accounts. It prevents discovered services from colliding in Teleport when
+    # sets. This is required when you have multiple Teleport Discovery services
+    # running. It prevents discovered services from colliding in Teleport when
     # managing discovered resources.
+    # If two Discovery Services match the same resources, they must be in the
+    # same discovery group.
+    # If two Discovery Services match different resources, they must be in
+    # different discovery groups.
     discovery_group: "disc-group"
     # poll_interval is the cadence at which the discovery server will run each of its
     # discovery cycles. The default is 5m.
@@ -51,6 +54,11 @@ discovery_service:
         # executed when installing teleport on matching nodes
         # Optional, defaults to: "TeleportDiscoveryInstaller".
         document_name: "TeleportDiscoveryInstaller"
+      # Optional role for which the Discovery Service should create the EKS access entry.
+      # If not set, the Discovery Service will attempt to create the access
+      # entry using its own identity.
+      # If used, the role must match the role configured for a Teleport Kubernetes Service.
+      setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
     # Matchers for discovering Azure-hosted resources.
     azure:
       # Azure resource types. Valid options are:

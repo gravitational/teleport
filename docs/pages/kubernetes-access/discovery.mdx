@@ -80,6 +80,12 @@ discovery_service:
        # Optional section: Defaults to "*":"*"
        tags:
          "env": "prod"
+       # AWS role to assume when discovering resources in the AWS Account.
+       # This value is an optional AWS role ARN to assume when polling EKS clusters
+       assume_role_arn: arn:aws:iam::123456789012:role/iam-discovery-role
+       # External ID is an optional value that should be set when accessing
+       # your AWS account from a third-party service (delegated access).
+       external_id: "example-external-id"
     # Matchers for discovering Azure-hosted resources.
     azure:
       # Azure resource types. Valid options are:
