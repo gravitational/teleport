@@ -23,10 +23,11 @@ package tbot
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/trace"
 	"net"
 	"os"
 	"syscall"
+
+	"github.com/gravitational/trace"
 )
 
 // ConnectToSSHMultiplex connects to the SSH multiplexer and sends the target
