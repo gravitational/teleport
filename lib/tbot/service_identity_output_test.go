@@ -133,21 +133,27 @@ func Test_renderSSHConfig(t *testing.T) {
 			TLSRouting: true,
 		},
 		{
-			Name:       "latest OpenSSH no tls routing",
-			Version:    "9.0.0",
+			Name:    "latest OpenSSH no tls routing",
+			Version: "9.0.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "new",
+			},
 			TLSRouting: false,
 		},
 		{
-			Name:        "latest OpenSSH with alpn upgrade",
-			Version:     "9.0.0",
+			Name:    "latest OpenSSH with alpn upgrade",
+			Version: "9.0.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "new",
+			},
 			ALPNUpgrade: true,
 			TLSRouting:  true,
 		},
 		{
-			Name:    "latest OpenSSH with legacy proxycommand",
+			Name:    "latest OpenSSH with new proxycommand",
 			Version: "9.0.0",
 			Env: map[string]string{
-				sshConfigProxyModeEnv: "legacy",
+				sshConfigProxyModeEnv: "new",
 			},
 			TLSRouting: true,
 		},
