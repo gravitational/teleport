@@ -107,6 +107,9 @@ func (c *AuditConfig) Check() error {
 	if c.Component == "" {
 		c.Component = "db:audit"
 	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
 	return nil
 }
 
