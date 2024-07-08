@@ -319,24 +319,7 @@ func renderSSHConfig(
 
 	sshConf := openssh.NewSSHConfig(getOpenSSHVersion, nil)
 
-	if getEnv(sshConfigProxyModeEnv) == "legacy" {
-		// Deprecated: this block will be removed in v17. It exists so users can
-		// revert to the old behavior if necessary.
-		// TODO(strideynet) DELETE IN 17.0.0
-		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
-			AppName:             openssh.TbotApp,
-			ClusterNames:        clusterNames,
-			KnownHostsPath:      knownHostsPath,
-			IdentityFilePath:    identityFilePath,
-			CertificateFilePath: certificateFilePath,
-			ProxyHost:           proxyHost,
-			ProxyPort:           proxyPort,
-			ExecutablePath:      executablePath,
-			DestinationDir:      absDestPath,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
+	if getEnv(sshConfigProxyModeEnv) == "new" {
 		// Test if ALPN upgrade is required, this will only be necessary if we
 		// are using TLS routing.
 		connUpgradeRequired := false
@@ -371,6 +354,23 @@ func renderSSHConfig(
 			// configurable at a later date if we discover reasons for this to
 			// be disabled.
 			Resume: true,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// Deprecated: this block will be removed in v17. It exists so users can
+		// revert to the old behavior if necessary.
+		// TODO(strideynet) DELETE IN 17.0.0
+		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
+			AppName:             openssh.TbotApp,
+			ClusterNames:        clusterNames,
+			KnownHostsPath:      knownHostsPath,
+			IdentityFilePath:    identityFilePath,
+			CertificateFilePath: certificateFilePath,
+			ProxyHost:           proxyHost,
+			ProxyPort:           proxyPort,
+			ExecutablePath:      executablePath,
+			DestinationDir:      absDestPath,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
