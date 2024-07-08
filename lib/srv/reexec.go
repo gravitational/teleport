@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -585,8 +586,37 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		defer pamContext.Close()
 	}
 
-	if _, err := user.Lookup(c.Login); err != nil {
+	// Once the PAM stack is called with parent process permissions, set the process uid
+	// and gid to the requested user. This way, the user's networking requests will be
+	// done with the user's permissions.
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+	}
+
+	cred, err := getCmdCredential(localUser)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	if !cred.NoSetGroups {
+		groups := make([]int, len(cred.Groups))
+		for i, g := range cred.Groups {
+			groups[i] = int(g)
+		}
+		if err := unix.Setgroups(groups); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+		}
+	}
+	if err := unix.Setgid(int(cred.Gid)); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+	}
+	if err := unix.Setuid(int(cred.Uid)); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+	}
+
+	// Ensure that the working directory is one that the local user has access to.
+	if err := unix.Chdir("/"); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
 	}
 
 	// build forwarder from first extra file that was passed to command
@@ -826,7 +856,7 @@ func RunAndExit(commandType string) {
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
+		s := fmt.Sprintf("Failed to launch: %v.\r\n", trace.DebugReport(err))
 		io.Copy(w, bytes.NewBufferString(s))
 	}
 	os.Exit(code)
@@ -1085,29 +1115,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// Add extra files if applicable.
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// For remote port forwarding, the child needs to run as the user to
-	// create listeners with the correct permissions.
-	if subCommand == teleport.NetworkingSubCommand {
-		localUser, err := user.Lookup(ctx.Identity.Login)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Ensure that the working directory is one that the child has access to.
-		cmd.Dir = "/"
-		credential, err := getCmdCredential(localUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log := slog.With("uid", credential.Uid, "gid", credential.Gid, "groups", credential.Groups)
-		if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
-			cmd.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
-			log.DebugContext(ctx.Context, "Creating process with new credentials.")
-		} else {
-			log.DebugContext(ctx.Context, "Creating process with environment credentials.")
-		}
 	}
 
 	// Perform OS-specific tweaks to the command.
