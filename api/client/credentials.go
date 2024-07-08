@@ -51,6 +51,9 @@ type Credentials interface {
 	// Expiry returns the Credentials expiry if it's possible to know its expiry.
 	// When expiry can be determined returns true, else returns false.
 	// If the Credentials don't expire, returns the zero time.
+	// If the Credential is dynamically refreshed or reloaded, (e.g filesystem
+	// reload or tbot renewal), Expiry returns the expiry of the currently active
+	// Credentials.
 	Expiry() (time.Time, bool)
 }
 
@@ -158,7 +161,7 @@ func (c *keypairCreds) Expiry() (time.Time, bool) {
 	if err != nil {
 		return time.Time{}, false
 	}
-	cert, err := x509.ParseCertificate(certPEMBlock)
+	cert, _, err := keys.X509Certificate(certPEMBlock)
 	if err != nil {
 		return time.Time{}, false
 	}
@@ -298,7 +301,7 @@ func (c *identityCredsString) Expiry() (time.Time, bool) {
 		return time.Time{}, false
 	}
 
-	return c.Expiry()
+	return c.identityFile.Expiry()
 }
 
 // load is used to lazy load the identity file from a string.
@@ -610,4 +613,21 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		User: "-teleport-internal-join",
 	}
 	return cfg, nil
+}
+
+// Expiry returns the current credential expiry.
+func (d *DynamicIdentityFileCreds) Expiry() (time.Time, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.tlsCert == nil || len(d.tlsCert.Certificate) == 0 {
+		return time.Time{}, false
+	}
+
+	x509Cert, err := x509.ParseCertificate(d.tlsCert.Certificate[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	return x509Cert.NotAfter, true
 }

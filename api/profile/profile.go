@@ -156,7 +156,7 @@ func (p *Profile) Expiry() (time.Time, bool) {
 	if err != nil {
 		return time.Time{}, false
 	}
-	cert, err := x509.ParseCertificate(certPEMBlock)
+	cert, _, err := keys.X509Certificate(certPEMBlock)
 	if err != nil {
 		return time.Time{}, false
 	}

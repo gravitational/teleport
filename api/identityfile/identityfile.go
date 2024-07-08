@@ -119,7 +119,7 @@ func (i *IdentityFile) Expiry() (time.Time, bool) {
 	if i.Certs.TLS == nil {
 		return time.Time{}, false
 	}
-	cert, err := x509.ParseCertificate(i.Certs.TLS)
+	cert, _, err := keys.X509Certificate(i.Certs.TLS)
 	if err != nil {
 		return time.Time{}, false
 	}
