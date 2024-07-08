@@ -95,10 +95,10 @@ type CustomEventInput = {
 };
 
 export type DiscoverUpdateProps = {
-  // resourceSpecForUpdate specifies ResourceSpec which should be used to
+  // resourceSpec specifies ResourceSpec which should be used to
   // start a Discover flow.
   resourceSpec: ResourceSpec;
-  // agentMetaForUpdate includes data that will be used to prepopulate input fields
+  // agentMeta includes data that will be used to prepopulate input fields
   // in the respective Discover compnents.
   agentMeta: AgentMeta;
 };
@@ -479,7 +479,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
-    isUpdateFlow: Boolean(updateFlow),
+    isUpdateFlow: !!updateFlow,
   };
 
   return (
@@ -584,8 +584,8 @@ export type AppMeta = BaseMeta & {
  * preserved throughout the flow.
  */
 export type SamlMeta = BaseMeta & {
-  SamlGeneric?: SamlIdpServiceProvider;
-  SamlGcpWorkforce?: SamlGcpWorkforce;
+  samlGeneric?: SamlIdpServiceProvider;
+  samlGcpWorkforce?: SamlGcpWorkforce;
 };
 
 export type AgentMeta =

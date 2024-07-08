@@ -43,26 +43,15 @@ import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 type Props = {
   resource: UnifiedResource;
-  setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
   setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
 };
 
-export const ResourceActionButton = ({
-  resource,
-  setUpdateDialogOpen,
-  setResourceSpec,
-}: Props) => {
+export const ResourceActionButton = ({ resource, setResourceSpec }: Props) => {
   switch (resource.kind) {
     case 'node':
       return <NodeConnect node={resource} />;
     case 'app':
-      return (
-        <AppLaunch
-          app={resource}
-          setUpdateDialogOpen={setUpdateDialogOpen}
-          setResourceSpec={setResourceSpec}
-        />
-      );
+      return <AppLaunch app={resource} setResourceSpec={setResourceSpec} />;
     case 'db':
       return <DatabaseConnect database={resource} />;
     case 'kube_cluster':
@@ -156,14 +145,9 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
 type AppLaunchProps = {
   app: App;
-  setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
   setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
 };
-const AppLaunch = ({
-  app,
-  setUpdateDialogOpen,
-  setResourceSpec,
-}: AppLaunchProps) => {
+const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
   const {
     name,
     launchUrl,
@@ -207,7 +191,6 @@ const AppLaunch = ({
     );
   }
   function handleSamlAppEditButtonClick() {
-    setUpdateDialogOpen(true);
     setResourceSpec({
       name: name,
       event: DiscoverEventResource.SamlApplication,
@@ -228,7 +211,7 @@ const AppLaunch = ({
         rel="noreferrer"
         textTransform="none"
         forwardedAs="a"
-        title="Log in to this SAML application"
+        title="Log in to SAML application"
       >
         <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
       </ButtonWithMenu>

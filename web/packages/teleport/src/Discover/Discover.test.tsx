@@ -268,13 +268,15 @@ test('update flow: renders single component based on resourceSpec', () => {
 
   renderUpdate({ resourceSpec: resourceSpec, agentMeta: { resourceName: '' } });
 
-  expect(screen.queryAllByTestId(ResourceKind.Server).length).toBeFalsy();
+  expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
 
-  expect(screen.queryAllByTestId(ResourceKind.Database).length).toBeFalsy();
+  expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
 
-  expect(screen.queryAllByTestId(ResourceKind.Application).length).toBeFalsy();
+  expect(
+    screen.queryByTestId(ResourceKind.Application)
+  ).not.toBeInTheDocument();
 
-  expect(screen.queryAllByTestId(ResourceKind.Kubernetes).length).toBeFalsy();
+  expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
 
   expect(screen.getByText('Sign In & Connect My Computer')).toBeInTheDocument();
 });
