@@ -151,54 +151,6 @@ type Presence interface {
 	// DeleteAllServerInfos deletes all ServerInfos.
 	DeleteAllServerInfos(ctx context.Context) error
 
-	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
-
-	// GetTrustedCluster returns a single TrustedCluster by name.
-	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
-
-	// GetTrustedClusters returns all TrustedClusters in the backend.
-	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
-
-	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
-	DeleteTrustedCluster(ctx context.Context, name string) error
-
-	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(types.TunnelConnection) error
-
-	// GetTunnelConnections returns tunnel connections for a given cluster
-	GetTunnelConnections(clusterName string, opts ...MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetAllTunnelConnections returns all tunnel connections
-	GetAllTunnelConnections(opts ...MarshalOption) ([]types.TunnelConnection, error)
-
-	// DeleteTunnelConnection deletes tunnel connection by name
-	DeleteTunnelConnection(clusterName string, connName string) error
-
-	// DeleteTunnelConnections deletes all tunnel connections for cluster
-	DeleteTunnelConnections(clusterName string) error
-
-	// DeleteAllTunnelConnections deletes all tunnel connections for cluster
-	DeleteAllTunnelConnections() error
-
-	// CreateRemoteCluster creates a remote cluster
-	CreateRemoteCluster(types.RemoteCluster) error
-
-	// UpdateRemoteCluster updates a remote cluster
-	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error
-
-	// GetRemoteClusters returns a list of remote clusters
-	GetRemoteClusters(opts ...MarshalOption) ([]types.RemoteCluster, error)
-
-	// GetRemoteCluster returns a remote cluster by name
-	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
-
-	// DeleteRemoteCluster deletes remote cluster by name
-	DeleteRemoteCluster(ctx context.Context, clusterName string) error
-
-	// DeleteAllRemoteClusters deletes all remote clusters
-	DeleteAllRemoteClusters() error
-
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// UpsertApplicationServer registers an application server.
