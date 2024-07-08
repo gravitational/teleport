@@ -499,7 +499,7 @@ func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
 func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
 	info, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
+		return false, trace.Errorf("unexpected type of file info on Linux: %T", fileInfo.Sys())
 	}
 
 	// Our files are 0600, so don't bother checking gid.
