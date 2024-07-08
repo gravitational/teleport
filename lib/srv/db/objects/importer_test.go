@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -32,9 +30,6 @@ import (
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/utils"
@@ -194,73 +189,6 @@ func TestCalculateUpdates(t *testing.T) {
 				require.Equal(t, elem.expiry, result[key].expiry)
 				require.Empty(t, cmp.Diff(elem.obj, result[key].obj, protocmp.Transform()))
 			}
-		})
-	}
-}
-
-type dummyObjectFetcher struct{}
-
-func (d *dummyObjectFetcher) FetchDatabaseObjects(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) ([]*dbobjectv1.DatabaseObject, error) {
-	return nil, nil
-}
-
-func TestStartDatabaseImporter(t *testing.T) {
-	cfg := Config{
-		AuthClient:   &authclient.Client{},
-		Auth:         struct{ common.Auth }{},
-		CloudClients: struct{ cloud.Clients }{},
-	}
-	require.NoError(t, cfg.CheckAndSetDefaults())
-
-	tests := []struct {
-		name       string
-		getFetcher ObjectFetcherFn
-		expectFunc func(importer databaseImporter, err error)
-	}{
-		{
-			name: "valid configuration",
-			getFetcher: func(ctx context.Context, db types.Database, cfg ObjectFetcherConfig) (ObjectFetcher, error) {
-				return &dummyObjectFetcher{}, nil
-			},
-			expectFunc: func(importer databaseImporter, err error) {
-				require.NoError(t, err)
-				require.IsType(t, &singleDatabaseImporter{}, importer)
-			},
-		},
-		{
-			name: "unsupported configuration",
-			getFetcher: func(ctx context.Context, db types.Database, cfg ObjectFetcherConfig) (ObjectFetcher, error) {
-				return nil, nil
-			},
-			expectFunc: func(importer databaseImporter, err error) {
-				require.NoError(t, err)
-				require.IsType(t, &noopImporter{}, importer)
-			},
-		},
-		{
-			name: "error returned from constructor",
-			getFetcher: func(ctx context.Context, db types.Database, cfg ObjectFetcherConfig) (ObjectFetcher, error) {
-				return nil, trace.NotImplemented("sorry")
-			},
-			expectFunc: func(importer databaseImporter, err error) {
-				require.Error(t, err)
-				require.Nil(t, importer)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeProto := "fakeProto-" + uuid.New().String()
-			RegisterObjectFetcher(tt.getFetcher, fakeProto)
-			t.Cleanup(func() { unregisterObjectFetcher(fakeProto) })
-
-			db := &types.DatabaseV3{}
-			db.SetName("dummy")
-			db.Spec.Protocol = fakeProto
-
-			importer, err := startDatabaseImporter(context.Background(), cfg, db)
-			tt.expectFunc(importer, err)
 		})
 	}
 }

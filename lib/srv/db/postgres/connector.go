@@ -19,12 +19,12 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
@@ -36,25 +36,13 @@ import (
 type connector struct {
 	auth         common.Auth
 	cloudClients libcloud.Clients
-	log          logrus.FieldLogger
+	log          *slog.Logger
 
 	certExpiry    time.Time
 	database      types.Database
 	databaseUser  string
 	databaseName  string
 	startupParams map[string]string
-}
-
-func (c *connector) copy() *connector {
-	return &connector{
-		auth:          c.auth,
-		cloudClients:  c.cloudClients,
-		certExpiry:    c.certExpiry,
-		database:      c.database,
-		databaseUser:  c.databaseUser,
-		databaseName:  c.databaseName,
-		startupParams: c.startupParams,
-	}
 }
 
 func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error) {
@@ -153,10 +141,10 @@ func (c *connector) connectAsAdmin(ctx context.Context, useDefaultDatabase bool)
 	if useDefaultDatabase && c.database.GetAdminUser().DefaultDatabase != "" {
 		loginDatabase = c.database.GetAdminUser().DefaultDatabase
 	} else {
-		c.log.WithField("database", loginDatabase).Info("Connecting to session database.")
+		c.log.InfoContext(ctx, "Connecting to session database.", "database", loginDatabase)
 	}
 
-	copied := c.copy()
+	copied := *c
 	copied.databaseUser = c.database.GetAdminUser().Name
 	copied.databaseName = loginDatabase
 	copied.startupParams = make(map[string]string)

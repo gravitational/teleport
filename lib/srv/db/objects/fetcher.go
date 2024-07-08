@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -32,6 +34,7 @@ import (
 
 // ObjectFetcherConfig provides static object fetcher configuration.
 type ObjectFetcherConfig struct {
+	AuthClient   *authclient.Client
 	Auth         common.Auth
 	CloudClients libcloud.Clients
 	Log          *slog.Logger
@@ -39,11 +42,16 @@ type ObjectFetcherConfig struct {
 
 // ObjectFetcher defines an interface for retrieving database objects.
 type ObjectFetcher interface {
-	// FetchDatabaseObjects fetches objects from the database.
-	// If database supports multiple named databases (e.g. Postgres), the dbNameFilter can be used to determine if a particular database can be skipped.
-	// Both the returned slice and error can be non-nil, indicating partial failures.
-	// To minimize backend load, ensure fetched objects remain consistent across calls.
-	FetchDatabaseObjects(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) ([]*dbobjectv1.DatabaseObject, error)
+	// FetchAll fetches objects from all databases whose names are accepted by dbNameFilter.
+	FetchAll(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) (map[string]FetchResult, error)
+	// FetchOneDatabase fetches all objects from a single named database.
+	FetchOneDatabase(ctx context.Context, dbName string) ([]*dbobjectv1.DatabaseObject, error)
+}
+
+// FetchResult contains fetch result for a single database.
+type FetchResult struct {
+	Objects []*dbobjectv1.DatabaseObject
+	Error   error
 }
 
 // ObjectFetcherFn is a database object fetcher constructor.
@@ -71,25 +79,73 @@ func unregisterObjectFetcher(names ...string) {
 	}
 }
 
-// getObjectFetcher returns a new object fetcher for given database.
-// The returned fetcher may be nil, which indicates that particular database configuration is not supported.
-func getObjectFetcher(ctx context.Context, db types.Database, cfg Config) (ObjectFetcher, error) {
+// GetObjectFetcher returns a new object fetcher for given database, respecting global import rules.
+func GetObjectFetcher(ctx context.Context, db types.Database, fetcherConfig ObjectFetcherConfig) (ObjectFetcher, error) {
 	name := db.GetProtocol()
 	objectFetchersMutex.RLock()
 	constructor, found := objectFetchers[name]
 	objectFetchersMutex.RUnlock()
 
 	if !found {
-		return nil, nil
+		return nil, trace.NotImplemented("fetcher not implemented for protocol %q", name)
 	}
 
-	imp, err := constructor(ctx, db, ObjectFetcherConfig{
-		Auth:         cfg.Auth,
-		CloudClients: cfg.CloudClients,
-		Log:          cfg.Log,
-	})
+	fetcher, err := constructor(ctx, db, fetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return imp, nil
+
+	// return wrapped fetcher to apply the object import rules.
+	return &applyRulesFetcher{
+		cfg:          fetcherConfig,
+		database:     db,
+		innerFetcher: fetcher,
+	}, nil
+}
+
+// applyRulesFetcher wraps an existing object fetcher and applies the import rules.
+type applyRulesFetcher struct {
+	cfg          ObjectFetcherConfig
+	database     types.Database
+	innerFetcher ObjectFetcher
+}
+
+func (a *applyRulesFetcher) FetchAll(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) (map[string]FetchResult, error) {
+	rules, err := a.cfg.AuthClient.GetDatabaseObjectImportRules(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	filterFromRules := databaseobjectimportrule.CalculateDatabaseNameFilter(rules, a.database)
+	fetched, err := a.innerFetcher.FetchAll(ctx, func(dbName string) bool { return dbNameFilter(dbName) && filterFromRules(dbName) })
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make(map[string]FetchResult)
+	for dbName, result := range fetched {
+		out[dbName] = FetchResult{
+			Objects: a.transform(ctx, dbName, rules, result.Objects),
+			Error:   result.Error,
+		}
+	}
+
+	return out, nil
+}
+
+func (a *applyRulesFetcher) FetchOneDatabase(ctx context.Context, dbName string) ([]*dbobjectv1.DatabaseObject, error) {
+	rules, err := a.cfg.AuthClient.GetDatabaseObjectImportRules(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fetched, err := a.innerFetcher.FetchOneDatabase(ctx, dbName)
+	return a.transform(ctx, dbName, rules, fetched), trace.Wrap(err)
+}
+
+func (a *applyRulesFetcher) transform(ctx context.Context, dbName string, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, fetched []*dbobjectv1.DatabaseObject) []*dbobjectv1.DatabaseObject {
+	transformed, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, a.cfg.Log, rules, a.database, fetched)
+	if errCount > 0 {
+		a.cfg.Log.WarnContext(ctx, "Failed to apply import rules to some objects.", "db_name", dbName, "error_count", errCount, "transformed", len(transformed), "fetched", len(fetched))
+	}
+	return transformed
 }

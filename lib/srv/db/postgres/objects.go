@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v4"
-	"github.com/sirupsen/logrus"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -39,35 +38,45 @@ type objectFetcher struct {
 var _ objects.ObjectFetcher = (*objectFetcher)(nil)
 
 func NewObjectFetcher(ctx context.Context, db types.Database, cfg objects.ObjectFetcherConfig) (objects.ObjectFetcher, error) {
-	if db.GetAdminUser().DefaultDatabase == "" || db.GetAdminUser().Name == "" {
-		cfg.Log.InfoContext(ctx, "No default database or admin user, database objects will not be fetched.")
-		return nil, nil
+	if db.GetAdminUser().Name == "" {
+		return nil, trace.BadParameter("no admin user")
 	}
 	return &objectFetcher{cfg: cfg, db: db}, nil
 }
 
-func (f *objectFetcher) FetchDatabaseObjects(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) ([]*dbobjectv1.DatabaseObject, error) {
+func (f *objectFetcher) FetchAll(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) (map[string]objects.FetchResult, error) {
 	names, err := f.getDatabaseNames(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var errs []error
-	var objsAll []*dbobjectv1.DatabaseObject
+	result := make(map[string]objects.FetchResult)
+
 	for _, dbName := range names {
 		if dbNameFilter(dbName) == false {
 			continue
 		}
-		objs, err := f.fetchObjects(ctx, dbName)
-		errs = append(errs, err)
-		objsAll = append(objsAll, objs...)
+		objs, fetchErr := f.fetchObjects(ctx, dbName)
+		result[dbName] = objects.FetchResult{
+			Objects: objs,
+			Error:   fetchErr,
+		}
 	}
 
-	return objsAll, trace.NewAggregate(errs...)
+	return result, nil
+}
+
+func (f *objectFetcher) FetchOneDatabase(ctx context.Context, dbName string) ([]*dbobjectv1.DatabaseObject, error) {
+	return f.fetchObjects(ctx, dbName)
 }
 
 func (f *objectFetcher) getDatabaseNames(ctx context.Context) ([]string, error) {
-	conn, err := f.connectAsAdmin(ctx, f.db.GetAdminUser().DefaultDatabase)
+	dbName := f.db.GetAdminUser().DefaultDatabase
+	if dbName == "" {
+		dbName = "postgres"
+		f.cfg.Log.WarnContext(ctx, "No default database configured, using default.", "db_name", dbName)
+	}
+	conn, err := f.connectAsAdmin(ctx, dbName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,8 +125,7 @@ func (f *objectFetcher) connectAsAdmin(ctx context.Context, databaseName string)
 	conn := &connector{
 		auth:         f.cfg.Auth,
 		cloudClients: f.cfg.CloudClients,
-		// TODO(Tener): switch to slog instance f.cfg.log
-		log: logrus.StandardLogger().WithField("db", f.db),
+		log:          f.cfg.Log,
 
 		certExpiry:   time.Now().Add(time.Hour),
 		database:     f.db,

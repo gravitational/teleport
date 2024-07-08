@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 )
 
 // connectAsAdmin connect to the database from db route as admin user.
@@ -197,33 +198,26 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("fine-grained database permissions and database roles are mutually exclusive, yet both were provided.")
 	}
 
-	rules, err := e.AuthClient.GetDatabaseObjectImportRules(ctx)
+	fetcher, err := objects.GetObjectFetcher(ctx, sessionCtx.Database, objects.ObjectFetcherConfig{
+		AuthClient:   e.AuthClient,
+		Auth:         e.Auth,
+		CloudClients: e.CloudClients,
+		Log:          e.Log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
-	if err != nil {
-		e.Log.ErrorContext(e.Context, "Failed to connect to the database.", "error", err)
-		return trace.Wrap(err)
-	}
-	defer conn.Close(ctx)
-
-	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx.Database, sessionCtx.DatabaseName, conn)
+	objsImported, err := fetcher.FetchOneDatabase(ctx, sessionCtx.DatabaseName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	counts, _ := permissions.CountObjectKinds(objsFetched)
-	e.Log.InfoContext(ctx, "Database objects fetched from the database.", "counts", counts, "total", len(objsFetched))
-
-	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(ctx, e.Log, rules, sessionCtx.Database, objsFetched)
-	counts, _ = permissions.CountObjectKinds(objsImported)
-	e.Log.InfoContext(ctx, "Database objects imported.", "counts", counts, "err_count", errCount, "total", len(objsFetched))
 
 	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, sessionCtx.Database, objsImported)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	summary, eventData := permissions.SummarizePermissions(permissionSet)
 	e.Log.InfoContext(ctx, "Calculated database permissions.", "summary", summary, "user", sessionCtx.DatabaseUser)
 	e.auditUserPermissions(sessionCtx, eventData)
@@ -232,6 +226,13 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
+	if err != nil {
+		e.Log.ErrorContext(ctx, "Failed to connect to the database.", "error", err)
+		return trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
 
 	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
 	// teleport_remove_permissions gets called by teleport_update_permissions as needed.

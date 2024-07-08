@@ -43,7 +43,8 @@ type Config struct {
 	CloudClients cloud.Clients
 
 	// ScanInterval specifies how often the database is scanned.
-	// A higher ScanInterval reduces the load on the database and database agent but increases the delay in detecting schema changes or updates from new import rules.
+	// A higher ScanInterval reduces the load on the database and database agent,
+	// but increases the delay in detecting schema changes or updates from new import rules.
 	ScanInterval time.Duration
 
 	// ObjectTTL defines TTL for a newly created object.
@@ -91,7 +92,7 @@ func (c *Config) CheckAndSetDefaults() error {
 type objects struct {
 	cfg Config
 
-	importers      map[string]databaseImporter
+	importerMap    map[string]context.CancelFunc
 	importersMutex sync.RWMutex
 }
 
@@ -101,8 +102,8 @@ func NewObjects(cfg Config) (Objects, error) {
 		return nil, trace.Wrap(err)
 	}
 	result := &objects{
-		cfg:       cfg,
-		importers: make(map[string]databaseImporter),
+		cfg:         cfg,
+		importerMap: make(map[string]context.CancelFunc),
 	}
 	return result, nil
 }
@@ -115,15 +116,17 @@ var _ Objects = (*objects)(nil)
 func (o *objects) StartImporter(ctx context.Context, database types.Database) error {
 	o.importersMutex.Lock()
 	defer o.importersMutex.Unlock()
-	if _, ok := o.importers[database.GetName()]; ok {
+
+	if _, ok := o.importerMap[database.GetName()]; ok {
 		return trace.AlreadyExists("importer for database %q already started", database.GetName())
 	}
-
-	imp, err := startDatabaseImporter(ctx, o.cfg, database)
+	stopImporterFunc, err := startDatabaseImporter(ctx, o.cfg, database)
 	if err != nil {
+		// register dummy "stop" function to avoid errors on shutdown.
+		o.importerMap[database.GetName()] = func() {}
 		return trace.Wrap(err)
 	}
-	o.importers[database.GetName()] = imp
+	o.importerMap[database.GetName()] = stopImporterFunc
 	return nil
 }
 
@@ -132,13 +135,13 @@ func (o *objects) StopImporter(database types.Database) error {
 	o.importersMutex.Lock()
 	defer o.importersMutex.Unlock()
 
-	imp, ok := o.importers[database.GetName()]
+	stopImporterFunc, ok := o.importerMap[database.GetName()]
 	if !ok {
 		return trace.NotFound("no importer found for database %q", database.GetName())
 	}
-	if imp != nil {
-		imp.stop()
+	if stopImporterFunc != nil {
+		stopImporterFunc()
 	}
-	delete(o.importers, database.GetName())
+	delete(o.importerMap, database.GetName())
 	return nil
 }

@@ -21,27 +21,19 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
-	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
-type databaseImporter interface {
-	stop()
-}
-
 // singleDatabaseImporter handles importing of objects from a single database.
 type singleDatabaseImporter struct {
-	cfg    Config
-	cancel context.CancelFunc
+	cfg Config
 
 	database types.Database
 	fetcher  ObjectFetcher
@@ -55,65 +47,53 @@ type objWithExpiry struct {
 	expiry time.Time
 }
 
-type noopImporter struct{}
-
-func (*noopImporter) stop() {}
-
-func startDatabaseImporter(ctx context.Context, cfg Config, database types.Database) (databaseImporter, error) {
+func startDatabaseImporter(ctx context.Context, cfg Config, database types.Database) (context.CancelFunc, error) {
 	cfg.Log = cfg.Log.With("database", database.GetName(), "protocol", database.GetProtocol())
 
-	fetcher, err := getObjectFetcher(ctx, database, cfg)
+	fetcher, err := GetObjectFetcher(ctx, database, ObjectFetcherConfig{
+		AuthClient:   cfg.AuthClient,
+		Auth:         cfg.Auth,
+		CloudClients: cfg.CloudClients,
+		Log:          cfg.Log,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// nil fetcher indicates unsupported configuration
-	if fetcher == nil {
-		return &noopImporter{}, nil
-	}
 
-	imp := startSingleDatabaseImporter(ctx, cfg, database, fetcher)
-	imp.start(ctx)
-	cfg.Log.InfoContext(ctx, "Successfully started database importer.", "database", database.GetName(), "protocol", database.GetProtocol())
-	return imp, nil
+	cancelCtx, cancel := context.WithCancel(ctx)
+	imp := newSingleDatabaseImporter(cfg, database, fetcher)
+	go imp.start(cancelCtx)
+	cfg.Log.InfoContext(ctx, "Successfully started database importer.")
+	return cancel, nil
 }
 
-func startSingleDatabaseImporter(ctx context.Context, cfg Config, database types.Database, fetcher ObjectFetcher) *singleDatabaseImporter {
-	cancelCtx, cancel := context.WithCancel(ctx)
-	imp := &singleDatabaseImporter{
+func newSingleDatabaseImporter(cfg Config, database types.Database, fetcher ObjectFetcher) *singleDatabaseImporter {
+	return &singleDatabaseImporter{
 		cfg:      cfg,
-		cancel:   cancel,
 		database: database,
 		fetcher:  fetcher,
 		objects:  make(map[string]*objWithExpiry),
 	}
-	imp.start(cancelCtx)
-	return imp
-}
-
-func (i *singleDatabaseImporter) stop() {
-	i.cancel()
 }
 
 func (i *singleDatabaseImporter) start(ctx context.Context) {
-	go func() {
-		i.cfg.Log.DebugContext(ctx, "Starting database importer")
-		ticker := interval.New(interval.Config{
-			Jitter:        retryutils.NewSeventhJitter(),
-			Duration:      i.cfg.ScanInterval * 7 / 6,
-			FirstDuration: retryutils.NewHalfJitter()(time.Second * 10),
-		})
-		defer ticker.Stop()
+	i.cfg.Log.DebugContext(ctx, "Starting database importer.")
+	ticker := interval.New(interval.Config{
+		Jitter:        retryutils.NewSeventhJitter(),
+		Duration:      i.cfg.ScanInterval * 7 / 6,
+		FirstDuration: retryutils.NewHalfJitter()(time.Second * 30),
+	})
+	defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.Next():
-				i.scan(ctx)
-			case <-ctx.Done():
-				i.cfg.Log.DebugContext(ctx, "Shutting down database importer")
-				return
-			}
+	for {
+		select {
+		case <-ticker.Next():
+			i.scan(ctx)
+		case <-ctx.Done():
+			i.cfg.Log.DebugContext(ctx, "Shutting down database importer.")
+			return
 		}
-	}()
+	}
 }
 
 func (i *singleDatabaseImporter) scan(ctx context.Context) {
@@ -140,7 +120,6 @@ func calculateDeleted(ctx context.Context, cfg Config, objects map[string]*objWi
 	}
 
 	cfg.Log.DebugContext(ctx, "Objects to delete", "count", len(deleted))
-
 	return deleted
 }
 
@@ -158,7 +137,7 @@ func (i *singleDatabaseImporter) deleteObjects(ctx context.Context, deleted []st
 	}
 
 	if len(errs) > 0 {
-		i.cfg.Log.ErrorContext(ctx, "Failed to delete some database objects: ", "error_count", len(errs), "errs", errs)
+		i.cfg.Log.ErrorContext(ctx, "Failed to delete some objects: ", "error_count", len(errs), "errs", errs)
 	}
 }
 
@@ -223,27 +202,18 @@ func (i *singleDatabaseImporter) updateObjects(ctx context.Context, updated map[
 	}
 
 	if len(errs) > 0 {
-		i.cfg.Log.ErrorContext(ctx, "Errors occurred when updating objects", "error_count", len(errs), "errs", errs)
+		i.cfg.Log.ErrorContext(ctx, "Errors occurred when updating objects", "error_count", len(errs), "errors", errs)
 	}
 }
 
 func (i *singleDatabaseImporter) fetchObjects(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-	rules, err := i.cfg.AuthClient.GetDatabaseObjectImportRules(ctx)
+	var objs []*dbobjectv1.DatabaseObject
+	results, err := i.fetcher.FetchAll(ctx, func(_ string) bool { return true })
 	if err != nil {
-		i.cfg.Log.ErrorContext(ctx, "Failed to fetch database object import rules", "err", err)
 		return nil, trace.Wrap(err)
 	}
-
-	dbNameFilter := databaseobjectimportrule.CalculateDatabaseNameFilter(rules, i.database)
-	objsFetched, err := i.fetcher.FetchDatabaseObjects(ctx, dbNameFilter)
-	if err != nil {
-		i.cfg.Log.WarnContext(ctx, "Error while fetching database objects", "err", err, "imported", len(objsFetched))
+	for _, result := range results {
+		objs = append(objs, result.Objects...)
 	}
-
-	// TODO(Tener): switch to cfg.log logger once ApplyDatabaseObjectImportRules is on slog too.
-	objsImported, errCount := databaseobjectimportrule.ApplyDatabaseObjectImportRules(logrus.WithContext(ctx).WithField("db", i.database), rules, i.database, objsFetched)
-	counts, _ := permissions.CountObjectKinds(objsImported)
-	i.cfg.Log.InfoContext(ctx, "Database objects imported", "counts", counts, "err_count", errCount, "total", len(objsImported))
-
-	return objsImported, nil
+	return objs, nil
 }
