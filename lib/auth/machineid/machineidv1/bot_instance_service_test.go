@@ -22,12 +22,16 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -221,6 +226,204 @@ func TestBotInstanceServiceReadDelete(t *testing.T) {
 
 	allInstances = listInstances(t, ctx, service, "")
 	require.Empty(t, allInstances)
+}
+
+type identityGetterFn func() tlsca.Identity
+
+func (f identityGetterFn) GetIdentity() tlsca.Identity {
+	return f()
+}
+
+func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const botName = "test-bot"
+	const botInstanceID = "123-456"
+
+	goodIdentity := tlsca.Identity{
+		BotName:       botName,
+		BotInstanceID: botInstanceID,
+	}
+
+	tests := []struct {
+		name              string
+		identity          tlsca.Identity
+		req               *machineidv1.SubmitHeartbeatRequest
+		createBotInstance bool
+		assertErr         assert.ErrorAssertionFunc
+		wantHeartbeat     bool
+	}{
+		{
+			name:              "success",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+			},
+			identity:      goodIdentity,
+			assertErr:     assert.NoError,
+			wantHeartbeat: true,
+		},
+		{
+			name:              "missing bot name",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+			},
+			identity: tlsca.Identity{
+				BotInstanceID: botInstanceID,
+			},
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot name")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "missing instance id",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+			},
+			identity: tlsca.Identity{
+				BotName: botName,
+			},
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot instance")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "bot instance does not exist",
+			createBotInstance: false,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+			},
+			identity: goodIdentity,
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:              "missing heartbeat",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: nil,
+			},
+			identity: goodIdentity,
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "heartbeat: must be non-nil")
+			},
+			wantHeartbeat: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backend := newBotInstanceBackend(t)
+			service, err := NewBotInstanceService(BotInstanceServiceConfig{
+				Backend: backend,
+				Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+					return &authz.Context{
+						Identity: identityGetterFn(func() tlsca.Identity {
+							return tt.identity
+						}),
+					}, nil
+				}),
+			})
+			require.NoError(t, err)
+
+			if tt.createBotInstance {
+				bi := newBotInstance(botName)
+				bi.Spec.InstanceId = botInstanceID
+				_, err := backend.CreateBotInstance(ctx, bi)
+				require.NoError(t, err)
+			}
+
+			_, err = service.SubmitHeartbeat(ctx, tt.req)
+			tt.assertErr(t, err)
+			if tt.createBotInstance {
+				bi, err := backend.GetBotInstance(ctx, botName, botInstanceID)
+				require.NoError(t, err)
+				if tt.wantHeartbeat {
+					assert.Empty(
+						t,
+						cmp.Diff(
+							bi.Status.InitialHeartbeat,
+							tt.req.Heartbeat,
+							protocmp.Transform()),
+					)
+					assert.Len(t, bi.Status.LatestHeartbeats, 1)
+					assert.Empty(
+						t,
+						cmp.Diff(
+							bi.Status.LatestHeartbeats[0],
+							tt.req.Heartbeat,
+							protocmp.Transform()),
+					)
+				} else {
+					assert.Nil(t, bi.Status.InitialHeartbeat)
+					assert.Empty(t, bi.Status.LatestHeartbeats)
+				}
+			}
+		})
+	}
+}
+
+func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const botName = "test-bot"
+	const botInstanceID = "123-456"
+
+	backend := newBotInstanceBackend(t)
+	service, err := NewBotInstanceService(BotInstanceServiceConfig{
+		Backend: backend,
+		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+			return &authz.Context{
+				Identity: identityGetterFn(func() tlsca.Identity {
+					return tlsca.Identity{
+						BotName:       botName,
+						BotInstanceID: botInstanceID,
+					}
+				}),
+			}, nil
+		}),
+	})
+	require.NoError(t, err)
+
+	bi := newBotInstance(botName)
+	bi.Spec.InstanceId = botInstanceID
+	_, err = backend.CreateBotInstance(ctx, bi)
+	require.NoError(t, err)
+
+	extraHeartbeats := 5
+	for i := 0; i < (heartbeatHistoryLimit + extraHeartbeats); i++ {
+		_, err = service.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
+			Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Hostname: strconv.Itoa(i),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	bi, err = backend.GetBotInstance(ctx, botName, botInstanceID)
+	require.NoError(t, err)
+	assert.Len(t, bi.Status.LatestHeartbeats, heartbeatHistoryLimit)
+	assert.Equal(t, "0", bi.Status.InitialHeartbeat.Hostname)
+	// Ensure we have the last 10 heartbeats
+	for i := 0; i < heartbeatHistoryLimit; i++ {
+		wantHostname := strconv.Itoa(i + extraHeartbeats)
+		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
+	}
 }
 
 var allAdminStates = map[authz.AdminActionAuthState]string{
