@@ -78,7 +78,7 @@ type InitConfig struct {
 	Backend backend.Backend
 
 	// ProcessStorage is a backend for local process
-	ProcessStorage *storage.ProcessStorage
+	ProcessStorage storage.Storage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority

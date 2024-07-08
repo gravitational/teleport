@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -1846,7 +1847,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			authCfg := setupConfig(t)
 
 			if test.initialVersion != "" {
-				err := authCfg.ProcessStorage.WriteTeleportVersion(ctx, test.initialVersion)
+				err := authCfg.ProcessStorage.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
@@ -1862,7 +1863,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 
 			lastKnownVersion, err := authCfg.ProcessStorage.GetTeleportVersion(ctx)
 			require.NoError(t, err)
-			require.Equal(t, test.expectedVersion, lastKnownVersion)
+			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
 		})
 	}
 }

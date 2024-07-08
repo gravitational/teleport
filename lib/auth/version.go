@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/auth/storage"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -37,14 +36,14 @@ const (
 
 	// skipVersionUpgradeCheckEnv is environment variable key for disabling the check
 	// major version upgrade check.
-	skipVersionUpgradeCheckEnv = "TELEPORT_SKIP_VERSION_UPGRADE_CHECK"
+	skipVersionUpgradeCheckEnv = "TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK"
 )
 
 // validateAndUpdateTeleportVersion validates that the major version persistent in the backend
 // meets our upgrade compatibility guide.
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
-	storage *storage.ProcessStorage,
+	storage storage.Storage,
 	currentVersion *semver.Version,
 	firstTimeStart bool,
 ) error {
@@ -65,7 +64,7 @@ func validateAndUpdateTeleportVersion(
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				currentVersion.String())
 		}
-		if err := storage.WriteTeleportVersion(ctx, currentVersion.String()); err != nil {
+		if err := storage.WriteTeleportVersion(ctx, currentVersion); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -73,25 +72,21 @@ func validateAndUpdateTeleportVersion(
 		return trace.Wrap(err)
 	}
 
-	lastKnownMajor, err := utils.MajorVersion(lastKnownVersion)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if currentVersion.Major-lastKnownMajor > 1 {
+	if currentVersion.Major-lastKnownVersion.Major > 1 {
 		return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
 			"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
 			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-			lastKnownVersion, currentVersion.String(), lastKnownMajor+1)
+			lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
 	}
-	if lastKnownMajor-currentVersion.Major > 1 {
+	if lastKnownVersion.Major-currentVersion.Major > 1 {
 		return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
 			"Teleport doesn't support major version downgrade.\n Please downgrade "+
 			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-			lastKnownVersion, currentVersion.String(), lastKnownMajor-1)
+			lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
 	}
-	if err := storage.WriteTeleportVersion(ctx, currentVersion.String()); err != nil {
+	if err := storage.WriteTeleportVersion(ctx, currentVersion); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -82,15 +82,6 @@ func MajorSemver(version string) (string, error) {
 	return fmt.Sprintf("%d.0.0", ver.Major), nil
 }
 
-// MajorVersion parses string to fetch major version number.
-func MajorVersion(version string) (int64, error) {
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return 0, trace.BadParameter("unsupported version format: %q: %v", version, err)
-	}
-	return v.Major, nil
-}
-
 func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
 	v1Semver, err := semver.NewVersion(ver1)
 	if err != nil {

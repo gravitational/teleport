@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -50,6 +51,24 @@ const (
 	// lastKnownVersion is a key for storing version of teleport
 	lastKnownVersion = "last-known-version"
 )
+
+// Storage interface for local process storage.
+type Storage interface {
+	// GetState reads rotation state from disk.
+	GetState(ctx context.Context, role types.SystemRole) (*state.StateV2, error)
+	// CreateState creates process state if it does not exist yet.
+	CreateState(role types.SystemRole, state state.StateV2) error
+	// WriteState writes local cluster state to the backend.
+	WriteState(role types.SystemRole, state state.StateV2) error
+	// ReadIdentity reads identity using identity name and role.
+	ReadIdentity(name string, role types.SystemRole) (*state.Identity, error)
+	// WriteIdentity writes identity to the backend.
+	WriteIdentity(name string, id state.Identity) error
+	// GetTeleportVersion reads the last known Teleport version from storage.
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	// WriteTeleportVersion writes the last known Teleport version to the storage.
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+}
 
 // stateBackend implements abstraction over local or remote storage backend methods
 // required for Identity/State storage.
@@ -208,19 +227,19 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 }
 
 // GetTeleportVersion reads the last known Teleport version from storage.
-func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (string, error) {
+func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (*semver.Version, error) {
 	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, lastKnownVersion))
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return string(item.Value), nil
+	return semver.NewVersion(string(item.Value))
 }
 
 // WriteTeleportVersion writes the last known Teleport version to the storage.
-func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version string) error {
+func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semver.Version) error {
 	item := backend.Item{
 		Key:   backend.Key(teleportPrefix, lastKnownVersion),
-		Value: []byte(version),
+		Value: []byte(version.String()),
 	}
 	_, err := p.stateStorage.Put(ctx, item)
 	if err != nil {
