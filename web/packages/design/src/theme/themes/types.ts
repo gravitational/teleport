@@ -20,7 +20,7 @@ import { fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 
-type TextAndBackgroundColors = {
+export type TextAndBackgroundColors = {
   text: string;
   background: string;
 };

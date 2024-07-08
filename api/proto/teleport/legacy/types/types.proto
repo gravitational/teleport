@@ -1086,12 +1086,7 @@ message CertAuthoritySpecV2 {
     (gogoproto.jsontag) = "type",
     (gogoproto.casttype) = "CertAuthType"
   ];
-  // DELETE IN(2.7.0) this field is deprecated,
-  // as resource name matches cluster name after migrations.
-  // and this property is enforced by the auth server code.
-  // ClusterName identifies cluster name this authority serves,
-  // for host authorities that means base hostname of all servers,
-  // for user authorities that means organization name
+  // ClusterName identifies the cluster name this authority serves.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -1105,15 +1100,23 @@ message CertAuthoritySpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "rotation,omitempty"
   ];
-  // SigningAlg is the algorithm used for signing new SSH certificates using
-  // SigningKeys.
+  // SigningAlgType is unused.
+  //
+  // Deprecated: SigningAlgType is unused.
   enum SigningAlgType {
+    option deprecated = true;
     UNKNOWN = 0;
     RSA_SHA1 = 1;
     RSA_SHA2_256 = 2;
     RSA_SHA2_512 = 3;
   }
-  SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
+  // SigningAlg is unused.
+  //
+  // Deprecated: SigningAlg is unused.
+  SigningAlgType SigningAlg = 9 [
+    (gogoproto.jsontag) = "signing_alg,omitempty",
+    deprecated = true
+  ];
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
