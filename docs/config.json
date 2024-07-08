@@ -2063,6 +2063,10 @@
           "title": "Trusted Clusters",
           "slug": "/architecture/trustedclusters/"
         },
+        {
+          "title": "CA Types in Teleport",
+          "slug": "/architecture/ca-types/"
+        },
 	{
 	  "title": "Teleport Agents",
 	  "slug": "/architecture/agents/"

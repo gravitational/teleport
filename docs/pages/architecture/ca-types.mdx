@@ -1,0 +1,144 @@
+---
+title: Certificate Authority Types in Teleport
+description: What each different CA type in Teleport is used for
+tocDepth: 3
+---
+
+This page provides a summary of what each CA type is used for in Teleport.
+
+## Viewing certificate authorities inside Teleport
+
+You can view the status of each CA inside Teleport with `tctl status`:
+
+```code
+root@ip-172-31-30-140:~# tctl status
+Cluster       teleport.example.com
+Version       16.0.3
+host CA       rotated Dec  3 2023 19:43:59 UTC
+user CA       rotated Dec  3 2023 19:43:59 UTC
+db CA         never updated
+db_client CA  never updated
+openssh CA    never updated
+jwt CA        rotated Dec  3 2023 19:43:59 UTC
+saml_idp CA   never updated
+oidc_idp CA   never updated
+spiffe CA     never updated
+CA pin        sha256:015c54b353210befba6e36480f0db89541b7a94d088c0cea21ffc2ea27848799
+```
+
+You can also get more detailed information about each CA using `tctl get cert_authority`:
+
+```yaml
+root@ip-172-31-30-140:~# tctl get cert_authority
+kind: cert_authority
+metadata:
+  name: teleport.example.com
+  revision: 00000000-0000-0000-0000-000000000000
+spec:
+  active_keys:
+    ssh:
+    - public_key: c3NoLXJzYSBBQUFBQjN...
+    tls:
+    - cert: LS0tLS1CRUdJTiBDRVJUSUZJQ...
+  additional_trusted_keys: {}
+  cluster_name: teleport.example.com
+  rotation:
+    current_id: 8b81073e-b474-40ea-8646-d8a66d1ee249
+    grace_period: 10m0s
+    last_rotated: "2023-12-03T19:43:59.014196449Z"
+    phase: standby
+    schedule:
+      standby: "0001-01-01T00:00:00Z"
+      update_clients: "0001-01-01T00:00:00Z"
+      update_servers: "0001-01-01T00:00:00Z"
+    started: "0001-01-01T00:00:00Z"
+    state: standby
+  signing_alg: 3
+  type: host
+sub_kind: host
+version: v2
+---
+...other CAs follow...
+```
+
+The `spec.type` field gives information about the type of CA, and the public keys are shown in the
+`spec.active_keys` output.
+
+During a CA rotation, there will be more than one key listed under each `spec.active_keys` section.
+
+## Certificate authority types
+
+### `host`
+
+Issues certificates to Teleport agents and OpenSSH hosts which join the cluster and are registered
+with the Teleport backend.
+
+Documentation references:
+- [tctl auth sign](../reference/cli/tctl.mdx#tctl-auth-sign)
+
+### `user`
+
+Issues short-lived certificates to users and/or bots who perform operations in the cluster (for example:
+`tsh login`, `tbot`, web UI logins)
+
+Documentation references:
+- [tsh login](../reference/cli/tsh.mdx#tsh-login)
+
+### `db`
+
+Issues certificates which can be installed on databases that teleport needs to trust on connection
+(i.e. the PostgreSQL server running on a host presents a cert from the `db` CA to a connecting Teleport
+`db_service` agent)
+
+Documentation references:
+- [Database CA rotations](../management/operations/db-ca-migrations.mdx)
+
+### `db_client`
+
+Issues short-lived certificates for connecting database clients should trust (for exmaple `psql` run by a
+user connecting to Teleport's database proxy sees a cert issued by the `db_client` CA)
+
+Documentation references:
+- [Database CA rotations](../management/operations/db-ca-migrations.mdx)
+
+### `openssh`
+
+The public key of this CA is installed onto OpenSSH hosts as `TrustedUserCAKeys` to trust users connecting
+from Teleport, then short-lived certs are issued from this CA whenever a user makes a connection through
+the Teleport proxy to a joined OpenSSH host.
+
+Documentation references:
+- [Using Teleport with OpenSSH in agentless mode](../server-access/openssh/openssh.mdx)
+- [Using Teleport with OpenSSH in agentless mode (manual installation)](../server-access/openssh/openssh-manual-install.mdx)
+
+### `jwt`
+
+Used to sign and issue certs for JWTs which are automatically sent in headers with requests from
+Teleport's app_service to downstream applications, this CA provides the JWT public key available
+at https://proxy-address/.well-known/jwks.json
+
+Documentation references:
+- [Use JWT Tokens With Application Access](../application-access/jwt/introduction.mdx)
+
+### `saml_idp`
+
+Used to sign requests when using Teleport as a SAML identity provider. This public key would be installed
+on the SAML application (SP/service provider) side in order to trust Teleport as an identity provider.
+
+Documentation references:
+- [Teleport as a SAML identity provider](../access-controls/idps/saml-guide.mdx)
+
+### `oidc_idp`
+
+Used to sign requests when using Teleport as an OIDC identity provider. This public key would be installed
+on the OIDC application side in order to trust Teleport as an identity provider.
+
+Documentation references:
+- [AWS OIDC Integration](../management/guides/awsoidc-integration.mdx)
+
+### `spiffe`
+
+Used to sign certificates issued with `tsh svid` and other SPIFFE-based operations inside the cluster.
+
+Documentation references:
+- [Workload Identity](../machine-id/workload-identity.mdx)

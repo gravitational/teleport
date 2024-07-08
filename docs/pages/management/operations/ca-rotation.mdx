@@ -70,7 +70,7 @@ Administrators can abort the rotation and revert all changes any time before
 the rotation is completed by entering the `rollback` phase.
 
 ```code
-$ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=rollback 
+$ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=rollback
 ```
 
 For example, if an admin has detected that some nodes failed to upgrade during
@@ -97,7 +97,7 @@ of the cluster.
 Initiate the manual rotation of host certificate authorities:
 
 ```code
-$ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init 
+$ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
@@ -340,4 +340,7 @@ authority is made active.
 
 ## Further reading
 
-How the [Teleport Certificate Authority](../../architecture/authentication.mdx) works.
+* How the [Teleport Certificate Authority](../../architecture/authentication.mdx) works.
+
+* The different [Certificate Authority Types in Teleport](../../architecture/ca-types.mdx) and
+  what they're used for.
