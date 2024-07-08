@@ -1,21 +1,18 @@
 ---
-title: Run Teleport Access Graph on Self-Hosted Clusters with Helm
+title: Run Teleport Policy Access Graph on Self-Hosted Clusters with Helm
 ---
 
 Using Access Graph with a self-hosted Teleport cluster requires
-setting up the Teleport Access Graph (TAG) service.
-TAG is a dedicated service which uses PostgreSQL as its backing storage
-and communicates with Auth Service and Proxy Service
+setting up the Access Graph (TAG) service. TAG is a dedicated service which uses PostgreSQL 
+as its backing storage and communicates with Auth Service and Proxy Service
 to collect information about resources and access.
 
-This guide will help you set up the TAG service
-in a Kubernetes cluster using a Helm Chart,
+This guide will help you set up the TAG service in a Kubernetes cluster using a Helm Chart,
 and enable the Access Graph feature in your Teleport cluster.
 
 The full listing of supported parameters can be found in the [`teleport-access-graph` Helm chart reference](../../reference/helm-reference/teleport-access-graph.mdx).
 
-Teleport Access Graph is a feature of the [Teleport
-Policy](https://goteleport.com/platform/policy/) product that is only available
+Teleport Policy’s Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is only available
 to Teleport Enterprise customers.
 
 ## Prerequisites
@@ -25,7 +22,7 @@ to Teleport Enterprise customers.
 - A running Teleport Enterprise cluster v14.3.6 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
     [using the `teleport-cluster` Helm chart](../../deploy-a-cluster/helm-deployments.mdx)
-    in the same Kubernetes cluster that will be used to deploy Teleport Access Graph.
+    in the same Kubernetes cluster that will be used to deploy Access Graph.
 - An updated `license.pem` with Teleport Policy enabled.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
@@ -42,7 +39,7 @@ to Teleport Enterprise customers.
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-## Step 2/4. Set up the Teleport Access Graph service
+## Step 2/4. Set up Teleport Policy Access Graph
 
 You will need a copy of your Teleport cluster's host certificate authority (CA).
 TAG requires incoming connections to be authenticated via host certificates that the host CA issues to the Auth Service and Proxy Service.
@@ -76,7 +73,7 @@ MIIDqjCCApKgAwIBAgIQMIK8/WiQ/rUOrjlmB0IHVTANBgkqhkiG9w0BAQsFADBv
 
 Then, create the namespace and required secrets for the TAG deployment.
 You can skip the final command if you are instead using cert-manager to issue the certificate,
-or otherwise have already provisioned the TLS certificate for Teleport Access Graph in your Kubernetes cluster.
+or otherwise have already provisioned the TLS certificate for Access Graph in your Kubernetes cluster.
 
 ```code
 $ kubectl create namespace teleport-access-graph 
@@ -147,7 +144,7 @@ $ kubectl -n teleport-access-graph rollout status deployment/teleport-access-gra
 
 ## Step 3/4. Update the Teleport Auth Service configuration
 
-To enable connectivity between the Teleport Auth Service and the Teleport Access Graph Service,
+To enable connectivity between the Teleport Auth Service and the Access Graph Service,
 the Auth Service configuration needs to be updated with:
 - The TAG service address
 - The path to the CA which issued the TAG service TLS certificate.
@@ -170,7 +167,7 @@ auth:
   teleportConfig:
     # <...>
 
-    # Add a section for configuring the Teleport Access Graph connection.
+    # Add a section for configuring the Access Graph connection.
     access_graph:
       enabled: true
       endpoint: teleport-access-graph.teleport-access-graph.svc.cluster.local:443
