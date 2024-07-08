@@ -132,11 +132,10 @@ function makeDatabaseRecording({
   db_service,
   db_protocol,
 }) {
-  const description = cfg.getPlayableDatabaseProtocols().includes(db_protocol) ? 'play' : 'non-interactive';
-  let { duration, durationText } = formatDuration(
-    session_start,
-    session_stop
-  );
+  const description = cfg.getPlayableDatabaseProtocols().includes(db_protocol)
+    ? 'play'
+    : 'non-interactive';
+  let { duration, durationText } = formatDuration(session_start, session_stop);
 
   // Older database session recordings won't have start/stop fields. For those
   // recordings we set the duration to the smallest number so we can still
