@@ -1633,6 +1633,24 @@ Kubernetes labels that should be applied to the `Deployment` or `StatefulSet` cr
       app.kubernetes.io/name: teleport-kube-agent
   ```
 
+## `extraLabels.job`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+
+Kubernetes labels that should be applied to the post-delete hook `Job` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  extraLabels:
+    job:
+      app.kubernetes.io/name: teleport-kube-agent
+  ```
+
 ## `extraLabels.pod`
 
 | Type     | Default value |
