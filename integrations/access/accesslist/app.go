@@ -170,16 +170,13 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		for _, accessList := range accessLists {
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
 			if err != nil {
-				log.WithError(err).Warn("Error getting recipients to notify for access list reviews")
+				log.WithError(err).Warn("Error getting recipients to notify for review due for access list %q", accessList.Spec.Title)
 				continue
 			}
 
 			// Store all recipients and the accesslist needing review
 			// for later processing.
 			for _, recipient := range recipients {
-				if _, ok := remindersLookup[recipient]; !ok {
-					remindersLookup[recipient] = []*accesslist.AccessList{}
-				}
 				remindersLookup[recipient] = append(remindersLookup[recipient], accessList)
 			}
 		}
@@ -197,7 +194,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		}
 	}
 
-	if err != nil {
+	if len(errs) > 0 {
 		log.WithError(trace.NewAggregate(errs...)).Warn("Error notifying for access list reviews")
 	}
 
