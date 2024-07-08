@@ -44,7 +44,7 @@ import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 type Props = {
   resource: UnifiedResource;
   setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
-  setResourceSpec?: (resourceSpec: ResourceSpec) => void;
+  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
 };
 
 export const ResourceActionButton = ({
@@ -157,7 +157,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 type AppLaunchProps = {
   app: App;
   setUpdateDialogOpen?: Dispatch<SetStateAction<boolean>>;
-  setResourceSpec?: (resourceSpec: ResourceSpec) => void;
+  setResourceSpec?: Dispatch<SetStateAction<ResourceSpec>>;
 };
 const AppLaunch = ({
   app,
@@ -213,7 +213,9 @@ const AppLaunch = ({
       event: DiscoverEventResource.SamlApplication,
       kind: ResourceKind.SamlApplication,
       samlMeta: { preset: samlAppPreset },
-    } as ResourceSpec);
+      icon: 'Application',
+      keywords: 'saml',
+    });
   }
   if (samlApp) {
     return (
@@ -228,7 +230,7 @@ const AppLaunch = ({
         forwardedAs="a"
         title="Log in to this SAML application"
       >
-        <MenuItem onClick={() => handleSamlAppEditButtonClick()}>Edit</MenuItem>
+        <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
       </ButtonWithMenu>
     );
   }
