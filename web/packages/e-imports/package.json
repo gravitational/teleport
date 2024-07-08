@@ -12,7 +12,6 @@
     "@uiw/react-codemirror": "^4.21.20",
     "d3-time-format": "^4.1.0",
     "d3-scale": "^4.0.2",
-    "react-highlight": "^0.15.0",
-    "d3-dag": "^1.0.0-ts4"
+    "react-highlight": "^0.15.0"
   }
 }
