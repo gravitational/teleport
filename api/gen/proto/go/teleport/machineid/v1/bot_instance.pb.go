@@ -341,7 +341,9 @@ type BotInstanceStatusAuthentication struct {
 	// the counter in the certificate does not match the counter of the last
 	// authentication.
 	Generation int32 `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
-	// The public key of the Bot instance.
+	// The public key of the Bot instance. This must be a PEM wrapped, PKIX DER
+	// encoded public key. This provides consistency and supports multiple types
+	// of public key algorithm.
 	PublicKey []byte `protobuf:"bytes,6,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 }
 

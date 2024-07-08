@@ -35,11 +35,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // legacyValidateGenerationLabel validates and updates a generation label.
@@ -151,6 +153,14 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 	certReq.generation = newGeneration
 
 	return nil
+}
+
+func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keys.MarshalPublicKey(cryptoPubKey)
 }
 
 // commitGenerationCounterToBotUser updates the legacy generation counter label
@@ -278,9 +288,17 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
+	// req.PublicKey is in SSH Authorized Keys format. For consistency, we
+	// only store public keys in PEM wrapped PKIX, DER format within
+	// BotInstances.
+	pkixPEM, err := sshPublicKeyToPKIXPEM(req.publicKey)
+	if err != nil {
+		return trace.Wrap(err, "converting key")
+	}
+
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
-		PublicKey:       req.publicKey,
+		PublicKey:       pkixPEM,
 
 		// Note: This is presumed to be a token join. If not, a
 		// `templateAuthRecord` should be provided to override this value.
@@ -401,7 +419,7 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err = a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
