@@ -189,12 +189,16 @@ func LoadIdentityFile(path string) Credentials {
 
 // identityCredsFile use an identity file to provide client credentials.
 type identityCredsFile struct {
+	// mutex protects identityFile
+	mutex        sync.Mutex
 	identityFile *identityfile.IdentityFile
 	path         string
 }
 
 // TLSConfig returns TLS configuration.
 func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -209,6 +213,8 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration.
 func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,6 +229,8 @@ func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 
 // Expiry returns the credential expiry.
 func (c *identityCredsFile) Expiry() (time.Time, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
 		return time.Time{}, false
 	}
