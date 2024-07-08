@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -39,6 +40,7 @@ const (
 	// records to be recorded in a bot instance's .Status.LatestAuthentications
 	// field.
 	AuthenticationHistoryLimit = 10
+	heartbeatHistoryLimit      = 10
 
 	// ExpiryMargin is the duration added to bot instance expiration times to
 	// ensure the instance remains accessible until shortly after the last
@@ -154,6 +156,53 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 
 // SubmitHeartbeat records heartbeat information for a bot
 func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
-	// TODO: to be implemented in follow-up PR alongside bot instance creation.
-	return nil, trace.NotImplemented("TODO")
+	authCtx, err := b.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.Heartbeat == nil {
+		return nil, trace.BadParameter("heartbeat: must be non-nil")
+	}
+
+	// Enforce that the connecting client is a bot and has a bot instance ID.
+	botName := authCtx.Identity.GetIdentity().BotName
+	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
+	switch {
+	case botName == "":
+		return nil, trace.AccessDenied("identity did not contain bot name")
+	case botInstanceID == "":
+		return nil, trace.AccessDenied("identity did not contain bot instance ID")
+	}
+
+	b.logger.DebugContext(
+		ctx,
+		"Received bot instance heartbeat",
+		"bot_name", botName,
+		"bot_instance", botInstanceID,
+		"heartbeat", logutils.StringerAttr(req.Heartbeat),
+	)
+	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+		if instance.Status == nil {
+			instance.Status = &pb.BotInstanceStatus{}
+		}
+		// Set initial heartbeat if not set.
+		if instance.Status.InitialHeartbeat == nil {
+			instance.Status.InitialHeartbeat = req.Heartbeat
+		}
+		// If we're at or above the limit, remove enough of the front
+		// elements to make room for the new one at the end.
+		if len(instance.Status.LatestHeartbeats) >= heartbeatHistoryLimit {
+			toRemove := len(instance.Status.LatestHeartbeats) - heartbeatHistoryLimit + 1
+			instance.Status.LatestHeartbeats = instance.Status.LatestHeartbeats[toRemove:]
+		}
+		// Append the new heartbeat to the end.
+		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
+
+		return instance, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "patching bot instance")
+	}
+
+	return &pb.SubmitHeartbeatResponse{}, nil
 }

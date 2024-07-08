@@ -39,10 +39,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -128,6 +130,7 @@ func (b *Bot) BotIdentity() *identity.Identity {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	startedAt := time.Now()
 
 	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
 		return trace.Wrap(err)
@@ -238,6 +241,24 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			),
 		})
 	}
+
+	// Gate heartbeating behind the workload identity experiment for now.
+	if experiment.Enabled() {
+		services = append(services, &heartbeatService{
+			now:       time.Now,
+			botCfg:    b.cfg,
+			startedAt: startedAt,
+			log: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+			),
+			heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+				b.botIdentitySvc.GetClient().GetConnection(),
+			),
+			interval:   time.Minute * 30,
+			retryLimit: 5,
+		})
+	}
+
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
 		botClient:      b.botIdentitySvc.GetClient(),
