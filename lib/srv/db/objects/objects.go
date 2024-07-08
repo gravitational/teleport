@@ -19,6 +19,7 @@ package objects
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -59,7 +60,47 @@ type Config struct {
 	Log   *slog.Logger
 }
 
-func (c *Config) CheckAndSetDefaults() error {
+func (c *Config) loadEnvVar(ctx context.Context, name string) (bool, time.Duration) {
+	envVar := os.Getenv(name)
+	if envVar == "" {
+		return false, 0
+	}
+	if envVar == "never" {
+		return true, 0
+	}
+
+	interval, err := time.ParseDuration(envVar)
+	if err != nil {
+		c.Log.ErrorContext(ctx, "Failed to parse env var, override not applied.", "name", name, "value", envVar)
+	}
+
+	return true, interval
+}
+
+func (c *Config) loadEnvVarOverrides(ctx context.Context) {
+	needInfo := false
+	// overriding scan interval modifies the other variables, but not the other way around.
+	if found, value := c.loadEnvVar(ctx, "TELEPORT_UNSTABLE_DB_OBJECTS_SCAN_INTERVAL"); found {
+		c.ScanInterval = value
+		c.ObjectTTL = value * 12
+		c.RefreshThreshold = value * 3
+		needInfo = true
+	}
+	if found, value := c.loadEnvVar(ctx, "TELEPORT_UNSTABLE_DB_OBJECTS_OBJECT_TTL"); found {
+		c.ObjectTTL = value
+		needInfo = true
+	}
+	if found, value := c.loadEnvVar(ctx, "TELEPORT_UNSTABLE_DB_OBJECTS_REFRESH_THRESHOLD"); found {
+		c.RefreshThreshold = value
+		needInfo = true
+	}
+
+	if needInfo {
+		c.Log.InfoContext(ctx, "Applied env var overrides.", "scan_interval", c.ScanInterval, "object_ttl", c.ObjectTTL, "refresh_threshold", c.RefreshThreshold)
+	}
+}
+
+func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.AuthClient == nil {
 		return trace.BadParameter("missing parameter AuthClient")
 	}
@@ -75,7 +116,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-
 	if c.ScanInterval == 0 {
 		c.ScanInterval = time.Minute * 5
 	}
@@ -85,6 +125,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.RefreshThreshold == 0 {
 		c.RefreshThreshold = time.Minute * 15
 	}
+
+	c.loadEnvVarOverrides(ctx)
 
 	return nil
 }
@@ -96,14 +138,17 @@ type objects struct {
 	importersMutex sync.RWMutex
 }
 
-func NewObjects(cfg Config) (Objects, error) {
-	err := cfg.CheckAndSetDefaults()
+func NewObjects(ctx context.Context, cfg Config) (Objects, error) {
+	err := cfg.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	result := &objects{
 		cfg:         cfg,
 		importerMap: make(map[string]context.CancelFunc),
+	}
+	if result.disabled() {
+		cfg.Log.WarnContext(ctx, "Objects importer is disabled through config.")
 	}
 	return result, nil
 }
@@ -114,6 +159,10 @@ var _ Objects = (*objects)(nil)
 // An error will be returned only in case of interface misuse, e.g. attempt to start the importer for same database twice.
 // If the database configuration (protocol/type/parameters) is not supported, no error will be returned.
 func (o *objects) StartImporter(ctx context.Context, database types.Database) error {
+	if o.disabled() {
+		return nil
+	}
+
 	o.importersMutex.Lock()
 	defer o.importersMutex.Unlock()
 
@@ -132,6 +181,10 @@ func (o *objects) StartImporter(ctx context.Context, database types.Database) er
 
 // StopImporter stops the running importer for a given database.
 func (o *objects) StopImporter(database types.Database) error {
+	if o.disabled() {
+		return nil
+	}
+
 	o.importersMutex.Lock()
 	defer o.importersMutex.Unlock()
 
@@ -144,4 +197,8 @@ func (o *objects) StopImporter(database types.Database) error {
 	}
 	delete(o.importerMap, database.GetName())
 	return nil
+}
+
+func (o *objects) disabled() bool {
+	return o.cfg.ObjectTTL == 0
 }

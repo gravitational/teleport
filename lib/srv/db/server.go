@@ -259,7 +259,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.DatabaseObjects == nil {
-		c.DatabaseObjects, err = objects.NewObjects(objects.Config{
+		c.DatabaseObjects, err = objects.NewObjects(ctx, objects.Config{
 			AuthClient:   c.AuthClient,
 			Auth:         c.Auth,
 			CloudClients: c.CloudClients,
