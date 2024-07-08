@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"strconv"
 	"time"
@@ -183,14 +181,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pkix, err := x509.MarshalPKIXPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  keys.PKIXPublicKeyType,
-		Bytes: pkix,
-	}), nil
+	return keys.MarshalPublicKey(cryptoPubKey)
 }
 
 // updateBotInstance updates the bot instance associated with the context
