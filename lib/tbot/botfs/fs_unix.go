@@ -38,9 +38,7 @@ import (
 var unsupportedPlatformWarning sync.Once
 
 // Create attempts to create the given file or directory without
-// evaluating symlinks. This is only supported on recent Linux kernel versions
-// (5.6+). The resulting file permissions are unspecified; Chmod should be
-// called afterward.
+// evaluating symlinks.
 func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	if symlinksMode == SymlinksSecure {
 		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
