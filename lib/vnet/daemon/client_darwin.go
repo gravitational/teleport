@@ -157,10 +157,10 @@ type serviceStatus int
 
 // https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
 const (
-	serviceStatusNotRegistered serviceStatus = iota
-	serviceStatusEnabled
-	serviceStatusRequiresApproval
-	serviceStatusNotFound
+	serviceStatusNotRegistered    serviceStatus = 0
+	serviceStatusEnabled          serviceStatus = 1
+	serviceStatusRequiresApproval serviceStatus = 2
+	serviceStatusNotFound         serviceStatus = 3
 )
 
 func (s serviceStatus) String() string {
