@@ -1062,6 +1062,7 @@ matches snapshot for log-extra.yaml:
               output: json
             output: /var/lib/teleport/test.log
             severity: DEBUG
+            watch_log_file: true
           proxy_server: proxy.example.com:3080
         version: v3
     kind: ConfigMap
@@ -1188,6 +1189,7 @@ matches snapshot for pdb.yaml:
               output: json
             output: /var/lib/teleport/test.log
             severity: DEBUG
+            watch_log_file: true
           proxy_server: proxy.example.com:3080
         version: v3
     kind: ConfigMap

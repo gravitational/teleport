@@ -1282,8 +1282,8 @@ matches snapshot for log-extra.yaml:
             - caller
             output: json
           output: /var/lib/teleport/test.log
-          watch_log_file: true
           severity: DEBUG
+          watch_log_file: true
       version: v3
 matches snapshot for log-legacy.yaml:
   1: |
