@@ -61,7 +61,7 @@ test('create app access', async () => {
   renderCreateAppAccess(ctx, discoverCtx);
   await screen.findByText(/bash/i);
 
-  userEvent.click(screen.getByRole('button', { name: /next/i }));
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);
   expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
