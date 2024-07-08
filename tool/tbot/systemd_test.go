@@ -19,6 +19,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -49,14 +50,23 @@ func TestInstallSystemdCmd(t *testing.T) {
 
 		wantUnitName string
 		wantErr      string
+		wantStdout   bool
 	}{
 		{
-			name:   "success - defaults",
-			params: []string{},
+			name: "success - defaults",
+			params: []string{
+				"--write",
+			},
+		},
+		{
+			name:       "success - defaults and dry run",
+			params:     []string{},
+			wantStdout: true,
 		},
 		{
 			name: "success - overrides",
 			params: []string{
+				"--write",
 				"--name", "my-farm-bot",
 				"--group", "llamas",
 				"--user", "llama",
@@ -67,6 +77,7 @@ func TestInstallSystemdCmd(t *testing.T) {
 		{
 			name: "fails prexisting",
 			params: []string{
+				"--write",
 				"--group", "llamas",
 				"--user", "llama",
 			},
@@ -76,6 +87,7 @@ func TestInstallSystemdCmd(t *testing.T) {
 		{
 			name: "succeeds prexisting with force",
 			params: []string{
+				"--write",
 				"--group", "llamas",
 				"--user", "llama",
 				"--force",
@@ -101,19 +113,31 @@ func TestInstallSystemdCmd(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, installSystemdCmdStr, cmd)
 
+			stdout := bytes.NewBuffer(nil)
+
 			err = installSystemdCmd(ctx, log, "/etc/tbot.yaml", func() (string, error) {
 				return "/usr/local/bin/tbot", nil
-			})
+			}, stdout)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
 
-			data, err := os.ReadFile(
-				path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
-			)
-			require.NoError(t, err)
+			var data []byte
+			if tt.wantStdout {
+				// Ensure that in dry run, no actual output is written!
+				_, err = os.ReadFile(
+					path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+				)
+				require.ErrorIs(t, err, os.ErrNotExist)
+				data = stdout.Bytes()
+			} else {
+				data, err = os.ReadFile(
+					path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+				)
+				require.NoError(t, err)
+			}
 
 			if golden.ShouldSet() {
 				golden.Set(t, data)
