@@ -129,7 +129,7 @@ function makeDatabaseRecording({
   session_stop,
   user,
   sid,
-  db_name,
+  db_service,
   db_protocol,
 }) {
   const description = cfg.getPlayableDatabaseProtocols().includes(db_protocol) ? 'play' : 'non-interactive';
@@ -140,9 +140,9 @@ function makeDatabaseRecording({
 
   // Older database session recordings won't have start/stop fields. For those
   // recordings we set the duration to the smallest number so we can still
-  // them.
-  // As a side effect, the progress bar to not work properly, showing always as
-  // completed. Also, navigating through it won't work.
+  // play them.
+  // As a side effect, the progress bar does not work properly, showing always
+  // as completed. Also, navigating through it won't work.
   if (duration === 0) {
     duration = 1;
     durationText = '-';
@@ -154,7 +154,7 @@ function makeDatabaseRecording({
     sid,
     createdDate: time,
     users: user,
-    hostname: db_name,
+    hostname: db_service,
     description,
     recordingType: 'database',
     playable: description === 'play',
