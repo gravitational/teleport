@@ -4,7 +4,7 @@
 ARG BUILDARCH
 FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
-# Set up a base container from centos:7 adjusted for using valut.centos.org
+# Set up a base container from centos:7 adjusted for using vault.centos.org
 FROM centos:7 AS base
 
 ARG BUILDARCH
