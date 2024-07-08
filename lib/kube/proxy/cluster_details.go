@@ -177,6 +177,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 		Clock:  cfg.clock,
 	})
 	if err != nil {
+		k.Close()
 		return nil, trace.Wrap(err)
 	}
 
