@@ -25,11 +25,11 @@
 import react from '@vitejs/plugin-react-swc';
 
 /** @param {string} mode */
-export const reactPlugin = mode => {
+export function reactPlugin(mode) {
   return react({
     plugins: [['@swc/plugin-styled-components', getStyledComponentsConfig(mode)]],
   });
-};
+}
 
 /** @param {string} mode */
 function getStyledComponentsConfig(mode) {
