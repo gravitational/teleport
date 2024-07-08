@@ -36,7 +36,8 @@
     "**/@types/react-dom": "^18.2.17",
     "**/trim": "0.0.3",
     "webpack": "^5.88.2",
-    "x-default-browser": "^0.5.2"
+    "x-default-browser": "^0.5.2",
+    "node-gyp": "^10.0.1"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
