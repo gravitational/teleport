@@ -101,7 +101,9 @@ message BotInstanceStatusAuthentication {
   // the counter in the certificate does not match the counter of the last
   // authentication.
   int32 generation = 5;
-  // The public key of the Bot instance.
+  // The public key of the Bot instance. This must be a PEM wrapped, PKIX DER
+  // encoded public key. This provides consistency and supports multiple types
+  // of public key algorithm.
   bytes public_key = 6;
 
   reserved 7;
