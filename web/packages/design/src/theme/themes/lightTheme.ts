@@ -145,7 +145,7 @@ const colors: ThemeColors = {
         { text: '#004570', background: 'rgba(0, 115, 186, 0.25)' },
       ],
       neutral: [
-        { text: '#000000', background: neutralColors[0] },
+        { text: 'rgba(0,0,0,0.72)', background: neutralColors[0] },
         { text: '#000000', background: neutralColors[1] },
         { text: '#000000', background: neutralColors[2] },
       ],

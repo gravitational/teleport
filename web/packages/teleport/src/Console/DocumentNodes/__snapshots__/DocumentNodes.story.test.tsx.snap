@@ -57,7 +57,8 @@ exports[`render DocumentNodes 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -66,31 +67,51 @@ exports[`render DocumentNodes 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  font-size: 10px;
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   padding-left: 8px;
   padding-right: 8px;
   text-transform: none;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.13);
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.18);
+.c8:hover,
+.teleport-button__force-hover .c8 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -101,7 +122,8 @@ exports[`render DocumentNodes 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -110,30 +132,49 @@ exports[`render DocumentNodes 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   height: 24px;
 }
 
-.c40:hover,
-.c40:focus {
-  background: rgba(255,255,255,0.07);
+.c40:focus-visible,
+.teleport-button__force-focus-visible .c40 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c40:active {
-  background: rgba(255,255,255,0.13);
+.c40:hover,
+.teleport-button__force-hover .c40 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c40:active,
+.teleport-button__force-active .c40 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c40:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -603,7 +644,7 @@ exports[`render DocumentNodes 1`] = `
         >
           <button
             class="c8 c9"
-            kind="secondary"
+            fill="filled"
           >
             Cluster: 
             cluster-1
@@ -859,8 +900,8 @@ exports[`render DocumentNodes 1`] = `
             >
               <button
                 class="c40"
+                fill="border"
                 height="24px"
-                kind="border"
               >
                 Connect
                 <span
@@ -913,8 +954,8 @@ exports[`render DocumentNodes 1`] = `
             >
               <button
                 class="c40"
+                fill="border"
                 height="24px"
-                kind="border"
               >
                 Connect
                 <span
@@ -972,8 +1013,8 @@ exports[`render DocumentNodes 1`] = `
             >
               <button
                 class="c40"
+                fill="border"
                 height="24px"
-                kind="border"
               >
                 Connect
                 <span
@@ -1031,8 +1072,8 @@ exports[`render DocumentNodes 1`] = `
             >
               <button
                 class="c40"
+                fill="border"
                 height="24px"
-                kind="border"
               >
                 Connect
                 <span
@@ -1109,8 +1150,8 @@ exports[`render DocumentNodes 1`] = `
             >
               <button
                 class="c40"
+                fill="border"
                 height="24px"
-                kind="border"
               >
                 Connect
                 <span

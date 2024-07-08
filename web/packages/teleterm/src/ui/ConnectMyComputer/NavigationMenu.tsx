@@ -174,7 +174,7 @@ interface MenuIconProps {
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
