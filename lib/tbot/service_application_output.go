@@ -223,6 +223,7 @@ func getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client *
 
 	return proto.RouteToApp{
 		Name:        app.GetName(),
+		SessionID:   ws.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: botIdentity.ClusterName,
 	}, nil
