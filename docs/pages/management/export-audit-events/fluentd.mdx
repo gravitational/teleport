@@ -61,9 +61,16 @@ key from the same certificate authority for the Teleport Event Handler to use.
 
 ## Step 4/6. Create teleport-event-handler credentials
 
-### Enable impersonation of the Fluentd plugin user
+### Enable issuing of credentials for the event handler role
 
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export an identity file for the Fluentd plugin user
 
