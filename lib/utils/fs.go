@@ -94,16 +94,8 @@ func NormalizePath(path string, evaluateSymlinks bool) (string, error) {
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-
 	if evaluateSymlinks {
 		s, err = filepath.EvalSymlinks(s)
-		if err != nil {
-			return "", trace.ConvertSystemError(err)
-		}
-
-		// If the symlink is relative, filepath.EvalSymlinks returns a path relative to the current dir.
-		// Resolve it to an absolute path to stay true to the godoc.
-		s, err = filepath.Abs(s)
 		if err != nil {
 			return "", trace.ConvertSystemError(err)
 		}
