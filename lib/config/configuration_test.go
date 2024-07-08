@@ -1179,6 +1179,63 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 	}
 }
 
+func TestUIConfig_ShowResources(t *testing.T) {
+	tests := []struct {
+		desc     string
+		fc       *FileConfig
+		expected constants.ShowResources
+		wantErr  bool
+	}{
+		{
+			desc: "show resources sets default value",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+					},
+				},
+			},
+			expected: constants.ShowResourcesRequestable,
+		},
+		{
+			desc: "show resources respects config setting",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+						ShowResources:   constants.ShowResourcesaccessibleOnly,
+					},
+				},
+			},
+			expected: constants.ShowResourcesaccessibleOnly,
+		},
+		{
+			desc: "show resources fails with bad setting",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+						ShowResources:   "bad",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, cfg.Proxy.UI.ShowResources)
+			}
+		})
+	}
+}
+
 func TestProxyMustJoinViaAuth(t *testing.T) {
 	cfg := servicecfg.MakeDefaultConfig()
 
