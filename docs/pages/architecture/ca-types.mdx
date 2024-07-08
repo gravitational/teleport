@@ -114,7 +114,7 @@ Documentation references:
 ### `jwt`
 
 Used to sign and issue certs for JWTs which are automatically sent in headers with requests from
-Teleport's app_service to downstream applications, this CA provides the JWT public key available
+Teleport's app_service to downstream applications. The public keys of this CA are available at https://proxy-address/.well-known/jwks.json
 at https://proxy-address/.well-known/jwks.json
 
 Documentation references:
