@@ -720,6 +720,12 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Update the agent forwarding socket dir with more restrictive permissions.
+		if err = os.Chmod(sockDir, teleport.PrivateDirMode); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
 
 		listener, err := newListener(ctx, "unix", socketPath)
@@ -730,11 +736,6 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 
 		listenerFD, err := getListenerFile(listener)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Update the agent forwarding socket with more restrictive permissions.
-		if err = os.Chmod(socketPath, teleport.FileMaskOwnerOnly); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
