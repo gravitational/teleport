@@ -77,9 +77,10 @@ spec:
   # agent updates are in place.
   agent_auto_update: true|false
 
-  # agent_auto_update_groups contains both "regular" or "critical" schedules.
+  # agent_auto_update_groups contains both "regular" and "critical" schedules.
   # The schedule used is determined by the agent_version_schedule associated
   # with the version in autoupdate_version.
+  # Groups are not configurable with the "immediate" schedule.
   agent_auto_update_groups:
     # schedule is "regular" or "critical"
     regular:
@@ -95,6 +96,10 @@ spec:
       # start_hour specifies the hour when the group may start upgrading.
       #  default: 0
       start_hour: 0-23
+      # jitter_seconds specifies a maximum jitter duration after the start hour.
+      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
+      #  default: 0
+      jitter_seconds: 0-60
       # max_in_flight specifies the maximum number of agents that may be upgraded at the same time.
       #  default: 100%
       max_in_flight: 0-100%
@@ -106,10 +111,6 @@ spec:
       # failed if the agent heartbeat stops before the upgrade is complete.
       #  default: 0
       failure_seconds: 0-900
-      # jitter_seconds specifies a maximum jitter duration after the start hour.
-      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
-      #  default: 0
-      jitter_seconds: 0-60
       # max_failed_before_halt specifies the percentage of clients that may fail before this group
       # and all dependent groups are halted.
       #  default: 0
@@ -124,7 +125,9 @@ spec:
   # ...
 ```
 
-Note the MVP version of this resource will not support host UUIDs, groups, or backpressure, and will use the following simplified UX.
+Note that cycles and dependency chains longer than a week will be rejected.
+
+Note the MVP version of this resource will not support host UUIDs, groups, or backpressure, and will use the following simplified UX with `agent_auto_update` field.
 This field will remain indefinitely, to cover agents that do not present a known host UUID, as well as connected agents that are not matched to a group.
 
 ```yaml
@@ -132,10 +135,17 @@ kind: cluster_maintenance_config
 spec:
   # ...
 
-  # agent_auto_update contains both "regular" or "critical" schedules.
+  # agent_auto_update contains "regular," "critical," and "immediate" schedules.
   # The schedule used is determined by the agent_version_schedule associated
   # with the version in autoupdate_version.
   agent_auto_update:
+    # The immediate schedule results in all agents updating simultaneously.
+    # Only client-side jitter is configurable.
+    immediate:
+      # jitter_seconds specifies a maximum jitter duration after the start hour.
+      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
+      #  default: 0
+      jitter_seconds: 0-60
     regular: # or "critical"
       # days specifies the days of the week when the group may be upgraded.
       #  default: ["*"] (all days)
@@ -172,8 +182,8 @@ spec:
   # agent_version is the version of the agent the cluster will advertise.
   agent_version: X.Y.Z
   # agent_version_schedule specifies the rollout schedule associated with the version.
-  # Currently, only critical and regular schedules are permitted.
-  agent_version_schedule: critical|regular
+  # Currently, only critical, regular, and immediate schedules are permitted.
+  agent_version_schedule: regular|critical|immediate
 
   # ...
 ```
