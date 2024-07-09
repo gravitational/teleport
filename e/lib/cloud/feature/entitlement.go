@@ -7,30 +7,44 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-// GetCloudEntitlement takes a cloud entitlement set and a feature, and returns an Entitlement for that feature populated with
-// information from the entitlement set
-func GetCloudEntitlement(f map[string]*cloudapi.EntitlementInfo, e entitlements.EntitlementKind) modules.EntitlementInfo {
-	al, ok := f[string(e)]
-	if !ok {
-		return modules.EntitlementInfo{}
+// GetCloudEntitlements takes a cloud entitlement set and returns a modules Entitlement set
+func GetCloudEntitlements(cloudEntitlements map[string]*cloudapi.EntitlementInfo) map[entitlements.EntitlementKind]modules.EntitlementInfo {
+	all := entitlements.AllEntitlements
+	result := make(map[entitlements.EntitlementKind]modules.EntitlementInfo, len(all))
+
+	for _, e := range all {
+		al, ok := cloudEntitlements[string(e)]
+		if !ok {
+			result[e] = modules.EntitlementInfo{}
+			continue
+		}
+
+		result[e] = modules.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
 	}
 
-	return modules.EntitlementInfo{
-		Enabled: al.Enabled,
-		Limit:   al.Limit,
-	}
+	return result
 }
 
-// GetLicenseEntitlement takes a license entitlement set and a feature, and returns an Entitlement for that feature populated with
-// information from the entitlement set
-func GetLicenseEntitlement(f map[string]types.EntitlementInfo, e entitlements.EntitlementKind) modules.EntitlementInfo {
-	al, ok := f[string(e)]
-	if !ok {
-		return modules.EntitlementInfo{}
+// GetLicenseEntitlements takes a license entitlement set and returns a modules Entitlement set
+func GetLicenseEntitlements(licenseEntitlements map[string]types.EntitlementInfo) map[entitlements.EntitlementKind]modules.EntitlementInfo {
+	all := entitlements.AllEntitlements
+	result := make(map[entitlements.EntitlementKind]modules.EntitlementInfo, len(all))
+
+	for _, e := range all {
+		al, ok := licenseEntitlements[string(e)]
+		if !ok {
+			result[e] = modules.EntitlementInfo{}
+			continue
+		}
+
+		result[e] = modules.EntitlementInfo{
+			Enabled: al.Enabled.Value(),
+			Limit:   al.Limit,
+		}
 	}
 
-	return modules.EntitlementInfo{
-		Enabled: al.Enabled.Value(),
-		Limit:   al.Limit,
-	}
+	return result
 }

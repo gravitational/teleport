@@ -32,33 +32,8 @@ func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.F
 		IsUsageBasedBilling: resp.IsUsageBased,
 		Questionnaire:       resp.Questionnaire,
 		SupportType:         proto.SupportType(resp.SupportType),
-
-		// Cloud Entitlements
-		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.AccessLists:            GetCloudEntitlement(resp.Entitlements, entitlements.AccessLists),
-			entitlements.AccessMonitoring:       GetCloudEntitlement(resp.Entitlements, entitlements.AccessMonitoring),
-			entitlements.AccessRequests:         GetCloudEntitlement(resp.Entitlements, entitlements.AccessRequests),
-			entitlements.App:                    GetCloudEntitlement(resp.Entitlements, entitlements.App),
-			entitlements.CloudAuditLogRetention: GetCloudEntitlement(resp.Entitlements, entitlements.CloudAuditLogRetention),
-			entitlements.DB:                     GetCloudEntitlement(resp.Entitlements, entitlements.DB),
-			entitlements.Desktop:                GetCloudEntitlement(resp.Entitlements, entitlements.Desktop),
-			entitlements.DeviceTrust:            GetCloudEntitlement(resp.Entitlements, entitlements.DeviceTrust),
-			entitlements.ExternalAuditStorage:   GetCloudEntitlement(resp.Entitlements, entitlements.ExternalAuditStorage),
-			entitlements.FeatureHiding:          GetCloudEntitlement(resp.Entitlements, entitlements.FeatureHiding),
-			entitlements.HSM:                    GetCloudEntitlement(resp.Entitlements, entitlements.HSM),
-			entitlements.Identity:               GetCloudEntitlement(resp.Entitlements, entitlements.Identity),
-			entitlements.JoinActiveSessions:     GetCloudEntitlement(resp.Entitlements, entitlements.JoinActiveSessions),
-			entitlements.K8s:                    GetCloudEntitlement(resp.Entitlements, entitlements.K8s),
-			entitlements.MobileDeviceManagement: GetCloudEntitlement(resp.Entitlements, entitlements.MobileDeviceManagement),
-			entitlements.OIDC:                   GetCloudEntitlement(resp.Entitlements, entitlements.OIDC),
-			entitlements.OktaSCIM:               GetCloudEntitlement(resp.Entitlements, entitlements.OktaSCIM),
-			entitlements.OktaUserSync:           GetCloudEntitlement(resp.Entitlements, entitlements.OktaUserSync),
-			entitlements.Policy:                 GetCloudEntitlement(resp.Entitlements, entitlements.Policy),
-			entitlements.SAML:                   GetCloudEntitlement(resp.Entitlements, entitlements.SAML),
-			entitlements.SessionLocks:           GetCloudEntitlement(resp.Entitlements, entitlements.SessionLocks),
-			entitlements.UpsellAlert:            GetCloudEntitlement(resp.Entitlements, entitlements.UpsellAlert),
-			entitlements.UsageReporting:         GetCloudEntitlement(resp.Entitlements, entitlements.UsageReporting),
-		},
+		// Entitlements
+		Entitlements: GetCloudEntitlements(resp.Entitlements),
 
 		// todo (michellescripts) remove deprecated features
 		ProductType:    modules.ProductType(resp.ProductType), // Use entitlements/settings

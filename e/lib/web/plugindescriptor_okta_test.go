@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -296,7 +297,9 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 				authSvc.DeleteSAMLConnector(s.ctx, oktaSSOConnectorName)
 			})
 
-			s.webPlugin.h.ClusterFeatures.IdentityGovernance = testCase.enableIGS
+			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+				string(entitlements.Identity): {Enabled: testCase.enableIGS},
+			}
 
 			form := url.Values{
 				"type":       {"okta"},
@@ -555,7 +558,9 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
 			})
 
-			s.webPlugin.h.ClusterFeatures.IdentityGovernance = testCase.igsEnabled
+			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+				string(entitlements.Identity): {Enabled: testCase.igsEnabled},
+			}
 
 			// When I invoke the installer via the web interface...
 			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
@@ -668,8 +673,11 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 	}
 
 	s, webPack, mockta := newTestOktaPluginFixture(t)
-	s.webPlugin.h.ClusterFeatures.IdentityGovernance = true
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+
+	s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+		string(entitlements.Identity): {Enabled: true},
+	}
 
 	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).
 		Maybe().

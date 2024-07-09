@@ -19,7 +19,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -144,7 +146,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 
 	// Only create the SCIM token credential if IGS is enabled
 	// todo (michellescripts) replace this with teleport.OktaSCIM
-	if args.clusterFeatures.GetIdentityGovernance() {
+	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.Identity).Enabled {
 		pluginCredentials = append(pluginCredentials, &types.PluginStaticCredentialsV1{
 			ResourceHeader: types.ResourceHeader{
 				Metadata: types.Metadata{
@@ -329,7 +331,8 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		return oktaPluginInputs{}, trace.Wrap(err, "invalid Okta config")
 	}
 
-	if args.clusterFeatures.GetIdentityGovernance() {
+	// todo (michellescripts) replace with teleport.OktaScim
+	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.Identity).Enabled {
 		params.enableAccessListSync = true
 
 		params.scimBearerToken = args.form.Get("scimToken")

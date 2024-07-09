@@ -11,80 +11,78 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-func TestGetCloudEntitlement(t *testing.T) {
-	f := map[string]*cloudapi.EntitlementInfo{
+func TestGetCloudEntitlements(t *testing.T) {
+	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessLists:            {Enabled: true},
+		entitlements.AccessMonitoring:       {Enabled: true, Limit: 1},
+		entitlements.AccessRequests:         {Enabled: false},
+		entitlements.App:                    {Enabled: false},
+		entitlements.CloudAuditLogRetention: {Enabled: false},
+		entitlements.DB:                     {Enabled: false},
+		entitlements.Desktop:                {Enabled: false},
+		entitlements.DeviceTrust:            {Enabled: true, Limit: 3},
+		entitlements.ExternalAuditStorage:   {Enabled: false},
+		entitlements.FeatureHiding:          {Enabled: false},
+		entitlements.HSM:                    {Enabled: false},
+		entitlements.Identity:               {Enabled: false},
+		entitlements.JoinActiveSessions:     {Enabled: false},
+		entitlements.K8s:                    {Enabled: false},
+		entitlements.MobileDeviceManagement: {Enabled: false},
+		entitlements.OIDC:                   {Enabled: false},
+		entitlements.OktaSCIM:               {Enabled: false},
+		entitlements.OktaUserSync:           {Enabled: false},
+		entitlements.Policy:                 {Enabled: false},
+		entitlements.SAML:                   {Enabled: false},
+		entitlements.SessionLocks:           {Enabled: false},
+		entitlements.UpsellAlert:            {Enabled: false},
+		entitlements.UsageReporting:         {Enabled: false},
+	}
+
+	e := map[string]*cloudapi.EntitlementInfo{
 		string(entitlements.AccessLists):      {Enabled: true},
 		string(entitlements.AccessMonitoring): {Enabled: true, Limit: 1},
 		string(entitlements.HSM):              {Enabled: false},
 		string(entitlements.DeviceTrust):      {Enabled: true, Limit: 3},
 	}
 
-	accessListEntitlement := GetCloudEntitlement(f, entitlements.AccessLists)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   0,
-	}, accessListEntitlement)
-
-	accessMonitoringEntitlement := GetCloudEntitlement(f, entitlements.AccessMonitoring)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   1,
-	}, accessMonitoringEntitlement)
-
-	HSMEntitlement := GetCloudEntitlement(f, entitlements.HSM)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: false,
-		Limit:   0,
-	}, HSMEntitlement)
-
-	DeviceTrustEntitlement := GetCloudEntitlement(f, entitlements.DeviceTrust)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   3,
-	}, DeviceTrustEntitlement)
-
-	unsetEntitlement := GetCloudEntitlement(f, entitlements.MobileDeviceManagement)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: false,
-		Limit:   0,
-	}, unsetEntitlement)
+	actual := GetCloudEntitlements(e)
+	require.Equal(t, expected, actual)
 }
 
-func TestGetLicenseEntitlement(t *testing.T) {
-	f := map[string]types.EntitlementInfo{
-		string(entitlements.AccessLists):      {Enabled: true},
-		string(entitlements.AccessMonitoring): {Enabled: true, Limit: 1},
-		string(entitlements.HSM):              {Enabled: false},
-		string(entitlements.DeviceTrust):      {Enabled: true, Limit: 3},
+func TestGetLicenseEntitlements(t *testing.T) {
+	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessLists:            {Enabled: true},
+		entitlements.AccessMonitoring:       {Enabled: true, Limit: 11},
+		entitlements.AccessRequests:         {Enabled: false},
+		entitlements.App:                    {Enabled: false},
+		entitlements.CloudAuditLogRetention: {Enabled: false},
+		entitlements.DB:                     {Enabled: false},
+		entitlements.Desktop:                {Enabled: false},
+		entitlements.DeviceTrust:            {Enabled: true, Limit: 33},
+		entitlements.ExternalAuditStorage:   {Enabled: false},
+		entitlements.FeatureHiding:          {Enabled: false},
+		entitlements.HSM:                    {Enabled: false},
+		entitlements.Identity:               {Enabled: false},
+		entitlements.JoinActiveSessions:     {Enabled: false},
+		entitlements.K8s:                    {Enabled: false},
+		entitlements.MobileDeviceManagement: {Enabled: false},
+		entitlements.OIDC:                   {Enabled: false},
+		entitlements.OktaSCIM:               {Enabled: false},
+		entitlements.OktaUserSync:           {Enabled: false},
+		entitlements.Policy:                 {Enabled: false},
+		entitlements.SAML:                   {Enabled: false},
+		entitlements.SessionLocks:           {Enabled: false},
+		entitlements.UpsellAlert:            {Enabled: false},
+		entitlements.UsageReporting:         {Enabled: false},
 	}
 
-	accessListEntitlement := GetLicenseEntitlement(f, entitlements.AccessLists)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   0,
-	}, accessListEntitlement)
+	e := map[string]types.EntitlementInfo{
+		string(entitlements.AccessLists):      {Enabled: true},
+		string(entitlements.AccessMonitoring): {Enabled: true, Limit: 11},
+		string(entitlements.HSM):              {Enabled: false},
+		string(entitlements.DeviceTrust):      {Enabled: true, Limit: 33},
+	}
 
-	accessMonitoringEntitlement := GetLicenseEntitlement(f, entitlements.AccessMonitoring)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   1,
-	}, accessMonitoringEntitlement)
-
-	HSMEntitlement := GetLicenseEntitlement(f, entitlements.HSM)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: false,
-		Limit:   0,
-	}, HSMEntitlement)
-
-	DeviceTrustEntitlement := GetLicenseEntitlement(f, entitlements.DeviceTrust)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: true,
-		Limit:   3,
-	}, DeviceTrustEntitlement)
-
-	unsetEntitlement := GetLicenseEntitlement(f, entitlements.MobileDeviceManagement)
-	require.Equal(t, modules.EntitlementInfo{
-		Enabled: false,
-		Limit:   0,
-	}, unsetEntitlement)
+	actual := GetLicenseEntitlements(e)
+	require.Equal(t, expected, actual)
 }

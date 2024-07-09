@@ -231,30 +231,7 @@ func getSelfHostedLicenseFeatures(license types.License) modules.Features {
 	// Set Entitlement values last; override features if present; use Modern license values
 	if license.GetEntitlements() != nil && len(license.GetEntitlements()) > 0 {
 		e := license.GetEntitlements()
-
-		f.Entitlements[entitlements.AccessLists] = feature.GetLicenseEntitlement(e, entitlements.AccessLists)
-		f.Entitlements[entitlements.AccessMonitoring] = feature.GetLicenseEntitlement(e, entitlements.AccessMonitoring)
-		f.Entitlements[entitlements.AccessRequests] = feature.GetLicenseEntitlement(e, entitlements.AccessRequests)
-		f.Entitlements[entitlements.App] = feature.GetLicenseEntitlement(e, entitlements.App)
-		f.Entitlements[entitlements.CloudAuditLogRetention] = feature.GetLicenseEntitlement(e, entitlements.CloudAuditLogRetention)
-		f.Entitlements[entitlements.DB] = feature.GetLicenseEntitlement(e, entitlements.DB)
-		f.Entitlements[entitlements.Desktop] = feature.GetLicenseEntitlement(e, entitlements.Desktop)
-		f.Entitlements[entitlements.DeviceTrust] = feature.GetLicenseEntitlement(e, entitlements.DeviceTrust)
-		f.Entitlements[entitlements.ExternalAuditStorage] = feature.GetLicenseEntitlement(e, entitlements.ExternalAuditStorage)
-		f.Entitlements[entitlements.FeatureHiding] = feature.GetLicenseEntitlement(e, entitlements.FeatureHiding)
-		f.Entitlements[entitlements.HSM] = feature.GetLicenseEntitlement(e, entitlements.HSM)
-		f.Entitlements[entitlements.Identity] = feature.GetLicenseEntitlement(e, entitlements.Identity)
-		f.Entitlements[entitlements.JoinActiveSessions] = feature.GetLicenseEntitlement(e, entitlements.JoinActiveSessions)
-		f.Entitlements[entitlements.K8s] = feature.GetLicenseEntitlement(e, entitlements.K8s)
-		f.Entitlements[entitlements.MobileDeviceManagement] = feature.GetLicenseEntitlement(e, entitlements.MobileDeviceManagement)
-		f.Entitlements[entitlements.OIDC] = feature.GetLicenseEntitlement(e, entitlements.OIDC)
-		f.Entitlements[entitlements.OktaSCIM] = feature.GetLicenseEntitlement(e, entitlements.OktaSCIM)
-		f.Entitlements[entitlements.OktaUserSync] = feature.GetLicenseEntitlement(e, entitlements.OktaUserSync)
-		f.Entitlements[entitlements.Policy] = feature.GetLicenseEntitlement(e, entitlements.Policy)
-		f.Entitlements[entitlements.SAML] = feature.GetLicenseEntitlement(e, entitlements.SAML)
-		f.Entitlements[entitlements.SessionLocks] = feature.GetLicenseEntitlement(e, entitlements.SessionLocks)
-		f.Entitlements[entitlements.UpsellAlert] = feature.GetLicenseEntitlement(e, entitlements.UpsellAlert)
-		f.Entitlements[entitlements.UsageReporting] = feature.GetLicenseEntitlement(e, entitlements.UsageReporting)
+		f.Entitlements = feature.GetLicenseEntitlements(e)
 	}
 
 	return f

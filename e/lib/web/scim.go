@@ -13,7 +13,9 @@ import (
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/e/lib/scim"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -74,7 +76,9 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 		p.Log.WithField(teleport.ComponentKey, "scim").Debugf("Handling %s %s", r.Method, r.URL)
 
 		var err error
-		if !p.h.ClusterFeatures.IdentityGovernance {
+		// todo (michellescripts) replace with OktaSCIM
+		identity := modules.GetProtoEntitlement(&p.h.ClusterFeatures, entitlements.Identity)
+		if !identity.Enabled {
 			err = trace.AccessDenied("SCIM support requires Teleport Identity")
 		} else {
 			err = fn(w, r, params)
