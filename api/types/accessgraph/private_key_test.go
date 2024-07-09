@@ -58,9 +58,8 @@ func TestPrivateKey(t *testing.T) {
 				PublicKeyFingerprint: "",
 				PublicKeyMode:        accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "PublicKeyFingerprint is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "PublicKeyFingerprint is unset")
 			},
 		},
 		{
@@ -70,9 +69,8 @@ func TestPrivateKey(t *testing.T) {
 				PublicKeyFingerprint: "",
 				PublicKeyMode:        accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE,
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "PublicKeyFingerprint is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "PublicKeyFingerprint is unset")
 			},
 		},
 		{
@@ -91,9 +89,8 @@ func TestPrivateKey(t *testing.T) {
 				PublicKeyFingerprint: "fingerprint",
 				PublicKeyMode:        500,
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "PublicKeyMode is invalid")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "PublicKeyMode is invalid")
 			},
 		},
 		{
@@ -102,9 +99,8 @@ func TestPrivateKey(t *testing.T) {
 				PublicKeyFingerprint: "fingerprint",
 				PublicKeyMode:        accessgraphv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED,
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "DeviceId is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "DeviceId is unset")
 			},
 		},
 	}

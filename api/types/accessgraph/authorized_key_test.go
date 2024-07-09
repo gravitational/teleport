@@ -49,9 +49,8 @@ func TestAuthorizedKey(t *testing.T) {
 				KeyFingerprint: "",
 				HostUser:       "user",
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "KeyFingerprint is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "KeyFingerprint is unset")
 			},
 		},
 		{
@@ -61,9 +60,8 @@ func TestAuthorizedKey(t *testing.T) {
 				KeyFingerprint: "fingerprint",
 				HostUser:       "",
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "HostUser is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "HostUser is unset")
 			},
 		},
 		{
@@ -72,9 +70,8 @@ func TestAuthorizedKey(t *testing.T) {
 				KeyFingerprint: "fingerprint",
 				HostUser:       "user",
 			},
-			errValidation: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "HostId is unset")
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "HostId is unset")
 			},
 		},
 	}

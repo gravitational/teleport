@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	// defaultKeyTTL is the default time-to-live for an authorized key.
-	defaultKeyTTL = 8 * time.Hour
+	authorizedKeyDefaultKeyTTL = 8 * time.Hour
 )
 
 // NewAuthorizedKey creates a new SSH authorized key resource.
@@ -41,7 +40,7 @@ func NewAuthorizedKey(spec *accessgraphv1pb.AuthorizedKeySpec) (*accessgraphv1pb
 		Metadata: &headerv1.Metadata{
 			Name: name,
 			Expires: timestamppb.New(
-				time.Now().Add(defaultKeyTTL),
+				time.Now().Add(authorizedKeyDefaultKeyTTL),
 			),
 		},
 		Spec: spec,
