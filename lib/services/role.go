@@ -288,7 +288,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
-			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
 			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
