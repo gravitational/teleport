@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 // SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
@@ -72,7 +74,15 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 	})
 
 	pm.AddCriticalBackgroundTask("admin process", func() error {
-		return trace.Wrap(execAdminProcess(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+		daemonConfig := daemon.Config{
+			SocketPath: socketPath,
+			IPv6Prefix: ipv6Prefix.String(),
+			DNSAddr:    dnsIPv6.String(),
+		}
+		if err := daemonConfig.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
 
 	recvTUNErr := make(chan error, 1)
@@ -189,23 +199,23 @@ func (pm *ProcessManager) Close() {
 }
 
 // AdminSetup is supposed to be ran as root. It creates and setups a TUN device and passses the file
-// descriptor for that device over the unix socket found at socketPath.
+// descriptor for that device over the unix socket found at config.socketPath.
 //
 // It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
-// up to date. It will stay running until the socket at [socketPath] is deleted or until encountering an
+// up to date. It will stay running until the socket at config.socketPath is deleted or until encountering an
 // unrecoverable error.
-func AdminSetup(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func AdminSetup(ctx context.Context, config daemon.Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tunName, err := createAndSendTUNDevice(ctx, socketPath)
+	tunName, err := createAndSendTUNDevice(ctx, config.SocketPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, ipv6Prefix, dnsAddr))
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
@@ -216,7 +226,7 @@ func AdminSetup(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) err
 	for {
 		select {
 		case <-ticker.C:
-			if _, err := os.Stat(socketPath); err != nil {
+			if _, err := os.Stat(config.SocketPath); err != nil {
 				slog.DebugContext(ctx, "failed to stat socket path, assuming parent exited")
 				cancel()
 				return trace.Wrap(<-errCh)

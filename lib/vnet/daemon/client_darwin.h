@@ -38,7 +38,7 @@ void OpenSystemSettingsLoginItems(void);
 
 typedef struct StartVnetRequest {
   const char *bundle_path;
-  VnetParams *vnet_params;
+  VnetConfig *vnet_config;
 } StartVnetRequest;
 
 typedef struct StartVnetResult {
@@ -49,7 +49,7 @@ typedef struct StartVnetResult {
 
 // StartVnet spawns the daemon process. Only the first call does that,
 // subsequent calls are noops. The daemon process exits after the socket file
-// in request.vnet_params.socket_path is removed. After that it can be spawned
+// in request.vnet_config.socket_path is removed. After that it can be spawned
 // again by calling StartVnet.
 //
 // Blocks until the daemon receives the message or until the client gets
@@ -65,7 +65,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult);
 void InvalidateDaemonClient(void);
 
 @interface VNEDaemonClient : NSObject
-- (void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError *error))completion;
+- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
 // invalidate executes all outstanding reply blocks, error handling blocks,
 // and invalidation blocks and forbids from sending or receiving new messages.
 - (void)invalidate;

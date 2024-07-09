@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type vnetCommand struct {
@@ -59,7 +60,8 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for communication with the parent process.
+	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
+	// the unprivileged process.
 	socketPath string
 	// ipv6Prefix is the IPv6 prefix for the VNet.
 	ipv6Prefix string
@@ -78,5 +80,14 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSetup(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
+	config := daemon.Config{
+		SocketPath: c.socketPath,
+		IPv6Prefix: c.ipv6Prefix,
+		DNSAddr:    c.dnsAddr,
+	}
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
 }
