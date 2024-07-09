@@ -93,6 +93,10 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleMu sync.Mutex
 }
 
+func (s *SPIFFEWorkloadAPIService) trustDomainID() string {
+	return fmt.Sprintf("spiffe://%s", s.trustDomain)
+}
+
 func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
 	s.trustBundleMu.Lock()
 	s.trustBundle = trustBundle
@@ -489,21 +493,10 @@ func filterSVIDRequests(
 	return filtered
 }
 
-// FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
-// It is a streaming RPC, and sends renewed SVIDs to the client before they
-// expire.
-// Implements the SPIFFE Workload API FetchX509SVID method.
-func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
-	_ *workloadpb.X509SVIDRequest,
-	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
-) error {
-	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
-	ctx := srv.Context()
-
+func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, *uds.Creds, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return trace.BadParameter("peer not found in context")
+		return nil, nil, trace.BadParameter("peer not found in context")
 	}
 	log := s.log
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
@@ -525,13 +518,32 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 			),
 		)
 	}
+	return log, authInfo.Creds, nil
+}
+
+// FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
+// It is a streaming RPC, and sends renewed SVIDs to the client before they
+// expire.
+// Implements the SPIFFE Workload API FetchX509SVID method.
+func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
+	_ *workloadpb.X509SVIDRequest,
+	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
+) error {
+	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
+	defer unsubscribe()
+	ctx := srv.Context()
+
+	log, creds, err := s.authenticateClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authenticating client")
+	}
 
 	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
 	defer log.InfoContext(ctx, "FetchX509SVID stream has closed")
 
 	// Before we issue the SVIDs to the workload, we need to complete workload
 	// attestation and determine which SVIDs to issue.
-	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, authInfo.Creds)
+	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
 
 	// The SPIFFE Workload API (5.2.1):
 	//
