@@ -53,10 +53,11 @@ type Config struct {
 
 type job struct {
 	lib.ServiceJob
-	config    Config
-	eventFunc EventFunc
-	events    types.Events
-	eventCh   chan *types.Event
+	config              Config
+	eventFunc           EventFunc
+	events              types.Events
+	eventCh             chan *types.Event
+	confirmedWatchKindsCh chan<- []types.WatchKind
 }
 
 type eventKey struct {
@@ -66,6 +67,21 @@ type eventKey struct {
 
 func NewJob(client teleport.Client, config Config, fn EventFunc) (lib.ServiceJob, error) {
 	return NewJobWithEvents(client, config, fn)
+}
+
+// NewJobWithConfirmedWatchKinds returns a new watcherJob and passes confirmed watch kinds
+// from the initialisation down confirmedWatchKindsCh.
+func NewJobWithConfirmedWatchKinds(client teleport.Client, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (lib.ServiceJob, error) {
+	serviceJob, err := NewJobWithEvents(client, config, fn)
+	if err != nil {
+		return nil, err
+	}
+	j, ok := serviceJob.(job)
+	if !ok {
+		return nil, trace.Errorf("unsupported type returned by NewJobWithEvents: %T", serviceJob)
+	}
+	j.confirmedWatchKindsCh = confirmedWatchKindsCh
+	return j, nil
 }
 
 func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.ServiceJob, error) {
@@ -179,10 +195,19 @@ func (job job) watchEvents(ctx context.Context) error {
 
 // waitInit waits for OpInit event be received on a stream.
 func (job job) waitInit(ctx context.Context, watcher types.Watcher, timeout time.Duration) error {
+	var confirmedWatchKinds []types.WatchKind
+	defer func() {
+		if job.confirmedWatchKindsCh != nil {
+			job.confirmedWatchKindsCh <- confirmedWatchKinds
+		}
+	}()
 	select {
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.ConnectionProblem(nil, "unexpected event type %q", event.Type)
+		}
+		if watchStatus, ok := event.Resource.(types.WatchStatus); ok {
+			confirmedWatchKinds = watchStatus.GetKinds()
 		}
 		return nil
 	case <-time.After(timeout):

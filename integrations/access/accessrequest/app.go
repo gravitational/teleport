@@ -122,20 +122,21 @@ func (a *App) Err() error {
 
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
-	ctx, log := logger.WithField(ctx, "plugin", a.pluginName)
 
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAccessMonitoringRule},
 	}
 
-	job, err := watcherjob.NewJob(
+	confirmedWatchKindsCh := make(chan []types.WatchKind, 1)
+	job, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		confirmedWatchKindsCh,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -148,8 +149,17 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-		log.WithError(err).Errorf("initialising Access Monitoring Rule cache")
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "context is closing")
+	case confirmedKinds := <-confirmedWatchKindsCh:
+		if slices.ContainsFunc(confirmedKinds, func(kind types.WatchKind) bool {
+			return kind.Kind == types.KindAccessMonitoringRule
+		}) {
+			if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+				return trace.Wrap(err, "initialising Access Monitoring Rule cache")
+			}
+		}
 	}
 
 	a.job.SetReady(ok)
