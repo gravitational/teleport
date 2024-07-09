@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // PostgresTranslator is responsible for converting PostgreSQL session recording
@@ -81,7 +82,9 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 		p.expectingResult = false
 	case *events.DatabaseSessionStart:
 		p.sessionStartAt = e.Time
+		return p.generatePrintEvent(e.Metadata, fmt.Sprintf("Session started to database %q at %s%s", e.DatabaseService, utils.HumanTimeFormat(e.Time), lineBreak))
 	case *events.DatabaseSessionEnd:
+		return p.generatePrintEvent(e.Metadata, lineBreak+"Session ended at "+utils.HumanTimeFormat(e.Time)+lineBreak)
 	}
 
 	return nil
