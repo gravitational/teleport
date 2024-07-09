@@ -53,7 +53,7 @@ func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 
 	cfg := (*config.BotConfig)(botConfig)
 	cfg.Storage = &config.StorageConfig{Destination: &config.DestinationMemory{}}
-	cfg.Outputs = []config.Output{credential}
+	cfg.Services = config.ServiceConfigs{credential}
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
