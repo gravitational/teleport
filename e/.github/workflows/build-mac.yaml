@@ -79,11 +79,13 @@ jobs:
 
       - name: Determine Toolchain Versions and cache paths
         run: |
-          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
-          echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -s -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH="$(make -s print-fido2-pkg-path)" >> $GITHUB_ENV
+          {
+            echo NODE_VERSION="$(make -s -C build.assets print-node-version)"
+            echo GOLANG_VERSION="$(make -s -C build.assets print-go-version | sed 's/^go//')"
+            echo RUST_VERSION="$(make -s -C build.assets print-rust-version)"
+            echo WASM_PACK_VERSION="$(make -s -C build.assets print-wasm-pack-version)"
+            echo PKG_CONFIG_PATH="$(make -s print-fido2-pkg-path)"
+          } >> "$GITHUB_ENV"
 
       - name: Print versions
         run: |
@@ -110,11 +112,11 @@ jobs:
 
       - name: Install Rust Toolchain
         run: |
-          make ARCH=${ARCH} RUST_VERSION=${RUST_VERSION} rustup-install-target-toolchain
+          make ARCH="${ARCH}" RUST_VERSION="${RUST_VERSION}" rustup-install-target-toolchain
 
       - name: Install wasm-pack
         run: |
-          cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
+          cargo install wasm-pack --locked --version "${WASM_PACK_VERSION}"
 
       - name: Setup keychain
         env:
@@ -128,7 +130,7 @@ jobs:
       # --- Build -------------------------------------------------------------
       - name: Build FIDO2
         run: |
-          make ARCH=${ARCH} build-fido2
+          make ARCH="${ARCH}" build-fido2
 
       - name: Build Teleport Tarball
         env:
@@ -137,7 +139,7 @@ jobs:
           ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          make release OS=darwin ARCH=${ARCH} FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          make release OS=darwin ARCH="${ARCH}" FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
       # Generate release server manifests
