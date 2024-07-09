@@ -29,11 +29,11 @@ import (
 )
 
 // SetupAndRun creates a network stack for VNet and runs it in the background. To do this, it also
-// needs to launch an admin subcommand in the background. It returns [ProcessManager] which controls
+// needs to launch an admin process in the background. It returns [ProcessManager] which controls
 // the lifecycle of both background tasks.
 //
 // The caller is expected to call Close on the process manager to close the network stack, clean
-// up any resources used by it and terminate the admin subcommand.
+// up any resources used by it and terminate the admin process.
 //
 // ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
 // process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
@@ -58,20 +58,20 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 		}
 	}()
 
-	// Create the socket that's used to receive the TUN device from the admin subcommand.
+	// Create the socket that's used to receive the TUN device from the admin process.
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	slog.DebugContext(ctx, "Created unix socket for admin subcommand", "socket", socketPath)
+	slog.DebugContext(ctx, "Created unix socket for admin process", "socket", socketPath)
 	pm.AddCriticalBackgroundTask("socket closer", func() error {
 		// Keep the socket open until the process context is canceled.
-		// Closing the socket signals the admin subcommand to terminate.
+		// Closing the socket signals the admin process to terminate.
 		<-processCtx.Done()
 		return trace.NewAggregate(processCtx.Err(), socket.Close())
 	})
 
-	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
+	pm.AddCriticalBackgroundTask("admin process", func() error {
 		return trace.Wrap(execAdminProcess(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
 	})
 
@@ -94,13 +94,13 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 		if err != nil {
 			if processCtx.Err() != nil {
 				// Both errors being present means that VNet failed to receive a TUN device because of a
-				// problem with the admin subcommand.
+				// problem with the admin process.
 				// Returning error from processCtx will be more informative to the user, e.g., the error
 				// will say "password prompt closed by user" instead of "read from closed socket".
 				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
 				return nil, trace.Wrap(context.Cause(processCtx))
 			}
-			return nil, trace.Wrap(err, "receiving TUN from admin subcommand")
+			return nil, trace.Wrap(err, "receiving TUN from admin process")
 		}
 	}
 
@@ -188,13 +188,13 @@ func (pm *ProcessManager) Close() {
 	pm.cancel()
 }
 
-// AdminSubcommand is the tsh subcommand that should run as root that will create and setup a TUN device and
-// pass the file descriptor for that device over the unix socket found at socketPath.
+// AdminSetup is supposed to be ran as root. It creates and setups a TUN device and passses the file
+// descriptor for that device over the unix socket found at socketPath.
 //
 // It also handles host OS configuration that must run as root, and stays alive to keep the host configuration
-// up to date. It will stay running until the socket at [socketPath] is deleting or encountering an
+// up to date. It will stay running until the socket at [socketPath] is deleted or until encountering an
 // unrecoverable error.
-func AdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func AdminSetup(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

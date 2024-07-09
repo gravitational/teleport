@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// receiveTUNDevice is a blocking call which waits for the admin subcommand to pass over the socket
+// receiveTUNDevice is a blocking call which waits for the admin process to pass over the socket
 // the name and fd of the TUN device.
 func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	tunName, tunFd, err := recvTUNNameAndFd(socket)

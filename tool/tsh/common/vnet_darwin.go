@@ -78,5 +78,5 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
+	return trace.Wrap(vnet.AdminSetup(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
 }
