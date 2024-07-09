@@ -91,11 +91,17 @@ func (k *PrivateKey) PrivateKeyPEM() []byte {
 	return k.keyPEM
 }
 
-// TLSCertificate parses the given TLS certificate(s) paired with the private key
-// to rerturn a tls.Certificate, ready to be used in a TLS handshake.
+// TLSCertificate parses the given TLS certificate(s) paired with the private
+// key to return a tls.Certificate, ready to be used in a TLS handshake.
 func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error) {
+	return TLSCertificateForSigner(k.Signer, certPEMBlock)
+}
+
+// TLSCertificate parses the given TLS certificate(s) paired with the given
+// signer to return a tls.Certificate, ready to be used in a TLS handshake.
+func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Certificate, error) {
 	cert := tls.Certificate{
-		PrivateKey: k.Signer,
+		PrivateKey: signer,
 	}
 
 	var skippedBlockTypes []string
@@ -125,7 +131,7 @@ func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	if keyPub, ok := k.Public().(cryptoPublicKeyI); !ok {
+	if keyPub, ok := signer.Public().(cryptoPublicKeyI); !ok {
 		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
 	} else if !keyPub.Equal(x509Cert.PublicKey) {
 		return tls.Certificate{}, trace.BadParameter("private key does not match certificate's public key")

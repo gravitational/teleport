@@ -619,6 +619,13 @@ message DatabaseTLS {
   // ServerName allows to provide custom hostname. This value will override the
   // servername/hostname on a certificate during validation.
   string ServerName = 3 [(gogoproto.jsontag) = "server_name,omitempty"];
+  // TrustSystemCertPool allows Teleport to trust certificate authorities
+  // available on the host system. If not set (by default), Teleport only
+  // trusts self-signed databases with TLS certificates signed by Teleport's
+  // Database Server CA or the ca_cert specified in this TLS setting. For
+  // cloud-hosted databases, Teleport downloads the corresponding required CAs
+  // for validation.
+  bool TrustSystemCertPool = 4 [(gogoproto.jsontag) = "trust_system_cert_pool,omitempty"];
 }
 
 // MySQLOptions are additional MySQL database options.
@@ -1079,12 +1086,7 @@ message CertAuthoritySpecV2 {
     (gogoproto.jsontag) = "type",
     (gogoproto.casttype) = "CertAuthType"
   ];
-  // DELETE IN(2.7.0) this field is deprecated,
-  // as resource name matches cluster name after migrations.
-  // and this property is enforced by the auth server code.
-  // ClusterName identifies cluster name this authority serves,
-  // for host authorities that means base hostname of all servers,
-  // for user authorities that means organization name
+  // ClusterName identifies the cluster name this authority serves.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -1098,15 +1100,23 @@ message CertAuthoritySpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "rotation,omitempty"
   ];
-  // SigningAlg is the algorithm used for signing new SSH certificates using
-  // SigningKeys.
+  // SigningAlgType is unused.
+  //
+  // Deprecated: SigningAlgType is unused.
   enum SigningAlgType {
+    option deprecated = true;
     UNKNOWN = 0;
     RSA_SHA1 = 1;
     RSA_SHA2_256 = 2;
     RSA_SHA2_512 = 3;
   }
-  SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
+  // SigningAlg is unused.
+  //
+  // Deprecated: SigningAlg is unused.
+  SigningAlgType SigningAlg = 9 [
+    (gogoproto.jsontag) = "signing_alg,omitempty",
+    deprecated = true
+  ];
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -1538,13 +1548,13 @@ message ProvisionTokenSpecV2GCP {
   // Rule is a set of properties the GCP-ussued token might have to be allowed
   // to use this ProvisionToken.
   message Rule {
-    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    // ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
     repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
     // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
     // "us-west1-b").
     repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
     // ServiceAccounts is a list of service account emails (e.g.
-    // "<project-number>-compute@developer.gserviceaccount.com").
+    // `<project-number>-compute@developer.gserviceaccount.com`).
     repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
@@ -1981,6 +1991,10 @@ message AuthPreferenceSpecV2 {
 
   // HardwareKey are the settings for hardware key support.
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
+
+  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+  // The current default value is "legacy". This field is not yet fully supported.
+  SignatureAlgorithmSuite signature_algorithm_suite = 20;
 }
 
 // U2F defines settings for U2F device.
@@ -3477,6 +3491,9 @@ message ExternalIdentity {
 
   // Username is username supplied by external identity provider
   string Username = 2 [(gogoproto.jsontag) = "username,omitempty"];
+
+  // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
+  string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -4484,7 +4501,7 @@ message SAMLConnectorSpecV2 {
   // SSO is the URL of the identity provider's SSO service.
   string SSO = 2 [(gogoproto.jsontag) = "sso"];
   // Cert is the identity provider certificate PEM.
-  // IDP signs <Response> responses using this certificate.
+  // IDP signs `<Response>` responses using this certificate.
   string Cert = 3 [(gogoproto.jsontag) = "cert"];
   // Display controls how this connector is displayed.
   string Display = 4 [(gogoproto.jsontag) = "display"];
@@ -4526,6 +4543,8 @@ message SAMLConnectorSpecV2 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
+  string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -4951,10 +4970,10 @@ message TrustedClusterSpecV2 {
   // Token is the authorization token provided by another cluster needed by this cluster to join.
   string Token = 3 [(gogoproto.jsontag) = "token"];
   // ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
-  // it is derived from <metadata.name>:<default web proxy server port>.
+  // it is derived from `<metadata.name>:<default web proxy server port>`.
   string ProxyAddress = 4 [(gogoproto.jsontag) = "web_proxy_addr"];
   // ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
-  // not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+  // not set, it is derived from `<metadata.name>:<default reverse tunnel port>`.
   string ReverseTunnelAddress = 5 [(gogoproto.jsontag) = "tunnel_addr"];
   // RoleMap specifies role mappings to remote roles.
   repeated RoleMapping RoleMap = 6 [
@@ -5755,6 +5774,30 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
+// SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.
+enum SignatureAlgorithmSuite {
+  // SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED represents an unspecified signature algorithm suite.
+  SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED = 0;
+  // SIGNATURE_ALGORITHM_SUITE_LEGACY is the original algorithm suite used in
+  // Teleport, it almost exclusively uses 2048-bit RSA.
+  SIGNATURE_ALGORITHM_SUITE_LEGACY = 1;
+  // SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 aims to strikes a balance between
+  // security, compatibility, and performance. It uses Ed25519 for most SSH
+  // keys, ECDSA on the NIST P256 curve for most TLS keys, and 2048-bit RSA
+  // where necessary for compatibility with third-party software.
+  SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 = 2;
+  // SIGNATURE_ALGORITHM_SUITE_FIPS_V1 is tailored for FIPS compliance. It is
+  // based on the BALANCED_V1 suite but replaces all instances of Ed25519 with
+  // ECDSA on the NIST P256 curve.
+  SIGNATURE_ALGORITHM_SUITE_FIPS_V1 = 3;
+  // SIGNATURE_ALGORITHM_SUITE_HSM_V1 is tailored for clusters using an HSM or
+  // KMS service to back CA private material. It is based on the BALANCED suite
+  // but replaces Ed25519 with ECDSA on the NIST P256 curve for CA keys only,
+  // not for server or client keys. It is also valid to use the LEGACY for FIPS
+  // suites if your cluster uses an HSM or KMS.
+  SIGNATURE_ALGORITHM_SUITE_HSM_V1 = 4;
+}
+
 // Plugin describes a single instance of a Teleport Plugin
 message PluginV1 {
   // kind is the plugin resource kind.
@@ -6095,6 +6138,37 @@ message PluginOAuth2AuthorizationCodeCredentials {
 // PluginStatus is the user-facing status for the plugin instance.
 message PluginStatusV1 {
   PluginStatusCode code = 1;
+  // error_message is a human-readable error message that can be displayed to the user.
+  string error_message = 2;
+  // last_sync_time is the last time the plugin was run.
+  google.protobuf.Timestamp last_sync_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  // details contains provider-specific plugin status details.
+  oneof details {
+    // gitlab is the status details for the Gitlab plugin.
+    PluginGitlabStatusV1 gitlab = 4;
+    PluginEntraIDStatusV1 entra_id = 5;
+  }
+}
+
+// PluginGitlabStatusV1 is the status details for the Gitlab plugin.
+message PluginGitlabStatusV1 {
+  // imported_users is the number of users imported from Gitlab.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Gitlab.
+  uint32 imported_groups = 2;
+  // imported_projects is the number of projects imported from Gitlab.
+  uint32 imported_projects = 3;
+}
+
+// PluginEntraIDStatusV1 is the status details for the Entra ID plugin.
+message PluginEntraIDStatusV1 {
+  // imported_users is the number of users imported from Entra ID.
+  uint32 imported_users = 1;
+  // imported_groups is the number of groups imported from Entra ID.
+  uint32 imported_groups = 2;
 }
 
 enum PluginStatusCode {

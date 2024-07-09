@@ -106,7 +106,7 @@ func (e *Engine) SendError(err error) {
 
 	jsonBody, err := json.Marshal(cause)
 	if err != nil {
-		e.Log.WithError(err).Error("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "Failed to marshal error response.", "error", err)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.WithError(err).Errorf("OpenSearch: failed to send an error to the client.")
+		e.Log.ErrorContext(e.Context, "Failed to send an error to the client.", "error", err)
 		return
 	}
 }
@@ -230,7 +230,7 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,7 +298,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint3
 
 	source := req.URL.Query().Get("source")
 	if len(source) > 0 {
-		e.Log.Infof("'source' parameter found, overriding request body.")
+		e.Log.InfoContext(e.Context, "'source' parameter found, overriding request body.")
 		body = []byte(source)
 		contentType = req.URL.Query().Get("source_content_type")
 	}

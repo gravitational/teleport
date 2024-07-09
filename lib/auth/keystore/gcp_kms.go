@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -105,27 +106,17 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
-// generateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for gcpKMSKeyStore encoded the full
-// GCP KMS key version name, and can be passed to getSigner later to get the same
-// crypto.Signer.
-func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...rsaKeyOption) ([]byte, crypto.Signer, error) {
-	options := &rsaKeyOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	var alg kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
-	switch options.digestAlgorithm {
-	case crypto.SHA256, 0:
-		alg = kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256
-	case crypto.SHA512:
-		alg = kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512
-	default:
-		return nil, nil, trace.BadParameter("unsupported digest algorithm: %v", options.digestAlgorithm)
+// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
+// later to get an equivalent crypto.Signer.
+func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, opts ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+	alg, err := gcpAlgorithm(algorithm, opts...)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	keyUUID := uuid.NewString()
+	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
@@ -155,6 +146,28 @@ func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...rsaKeyOption) 
 		return nil, nil, trace.Wrap(err)
 	}
 	return keyID.marshal(), signer, nil
+}
+
+func gcpAlgorithm(alg cryptosuites.Algorithm, opts ...rsaKeyOption) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
+	rsaOpts := &rsaKeyOptions{}
+	for _, opt := range opts {
+		opt(rsaOpts)
+	}
+
+	switch alg {
+	case cryptosuites.RSA2048:
+		switch rsaOpts.digestAlgorithm {
+		case crypto.SHA256, 0:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		case crypto.SHA512:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512, nil
+		default:
+			return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported digest algorithm: %v", rsaOpts.digestAlgorithm)
+		}
+	case cryptosuites.ECDSAP256:
+		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+	}
+	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.

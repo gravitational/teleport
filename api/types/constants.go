@@ -65,6 +65,8 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -740,6 +742,8 @@ const (
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
+	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
+	ReqAnnotationTeamsLabel = "/teams"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"

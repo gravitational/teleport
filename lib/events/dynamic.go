@@ -392,6 +392,15 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case CassandraExecuteEventCode:
 		e = &events.CassandraExecute{}
 
+	case DiscoveryConfigCreateCode:
+		e = &events.DiscoveryConfigCreate{}
+	case DiscoveryConfigUpdateCode:
+		e = &events.DiscoveryConfigUpdate{}
+	case DiscoveryConfigDeleteCode:
+		e = &events.DiscoveryConfigDelete{}
+	case DiscoveryConfigDeleteAllCode:
+		e = &events.DiscoveryConfigDeleteAll{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

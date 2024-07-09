@@ -25,6 +25,7 @@ import { StyledTable, StyledPanel } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,
+  PagerPosition,
   SearchableBasicTableProps,
   ServersideTableProps,
   TableProps,
@@ -232,7 +233,12 @@ function SearchableBasicTable<T>({
 }: SearchableBasicTableProps<T>) {
   return (
     <>
-      <InputSearch searchValue={searchValue} setSearchValue={setSearchValue} />
+      <Box mb={3}>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+      </Box>
       <StyledTable
         className={className}
         borderTopLeftRadius={0}
@@ -260,32 +266,19 @@ function PagedTable<T>({
   style,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
-  const isTopPager = pagerPosition === 'top';
+  const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
+    pagerPosition,
+    paginatedData[currentPage].length
+  );
 
-  const radiusProps = {
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-  };
-
-  if (isTopPager) {
-    radiusProps.borderTopLeftRadius = 0;
-    radiusProps.borderTopRightRadius = 0;
-  } else {
-    radiusProps.borderBottomLeftRadius = 0;
-    radiusProps.borderBottomRightRadius = 0;
-  }
   return (
     <>
-      {isTopPager && (
-        <>
-          <StyledPanel>
-            <InputSearch
-              searchValue={searchValue}
-              setSearchValue={setSearchValue}
-            />
-          </StyledPanel>
+      <StyledPanel>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+        {(showTopPager || showBothPager) && (
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -293,13 +286,13 @@ function PagedTable<T>({
             {...fetching}
             {...pagination}
           />
-        </>
-      )}
-      <StyledTable {...radiusProps} className={className} style={style}>
+        )}
+      </StyledPanel>
+      <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
       </StyledTable>
-      {!isTopPager && (
+      {(showBottomPager || showBothPager) && (
         <StyledPanel>
           <ClientSidePager
             nextPage={nextPage}
@@ -323,22 +316,36 @@ function ServersideTable<T>({
   style,
   serversideProps,
   fetchStatus,
+  pagination,
 }: ServersideTableProps<T>) {
+  const { showTopPager, showBothPager, showBottomPager } = getPagerPosition(
+    pagination?.pagerPosition,
+    data.length
+  );
   return (
     <>
-      {serversideProps.serversideSearchPanel}
-      <StyledTable className={className} style={style}>
-        {renderHeaders()}
-        {renderBody(data)}
-      </StyledTable>
-      {(nextPage || prevPage) && (
-        <StyledPanel>
+      <StyledPanel>
+        {serversideProps.serversideSearchPanel}
+        {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}
             prevPage={prevPage}
             isLoading={fetchStatus === 'loading'}
           />
-        </StyledPanel>
+        )}
+      </StyledPanel>
+      <StyledTable className={className} style={style}>
+        {renderHeaders()}
+        {renderBody(data)}
+      </StyledTable>
+      {(showBottomPager || showBothPager) && (
+        <Box mt={2}>
+          <ServerSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            isLoading={fetchStatus === 'loading'}
+          />
+        </Box>
       )}
     </>
   );
@@ -419,3 +426,25 @@ const LoadingIndicator = ({ colSpan }: { colSpan: number }) => (
     </tr>
   </tfoot>
 );
+
+/**
+ * Returns pager position flags.
+ *
+ * If pagerPosition is not defined, it defaults to:
+ *   - top pager only: if current dataLen < 5
+ *   - both top and bottom pager if dataLen > 5
+ */
+export function getPagerPosition(
+  pagerPosition: PagerPosition,
+  dataLen: number
+) {
+  const hasSufficientData = dataLen > 5;
+
+  const showBottomPager = pagerPosition === 'bottom';
+  const showTopPager =
+    pagerPosition === 'top' || (!pagerPosition && !hasSufficientData);
+  const showBothPager =
+    pagerPosition === 'both' || (!pagerPosition && hasSufficientData);
+
+  return { showBothPager, showBottomPager, showTopPager };
+}

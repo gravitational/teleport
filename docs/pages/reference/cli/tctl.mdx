@@ -242,6 +242,15 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 | `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
 
+### Examples
+
+```code
+$ tctl alerts list
+ID                                   Severity Expires In Message
+------------------------------------ -------- ---------- ----------------------------------------------------------------
+da36b401-5688-426f-95b8-d0dd1ef27785 LOW      57m0s      "The system is under maintenance, functionality may be limited."
+```
+
 ## tctl auth export
 
 Exports public cluster CA certificates. This is useful for configuring

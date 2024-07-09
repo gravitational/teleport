@@ -821,28 +821,28 @@ var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 type tunnelConnectionExecutor struct{}
 
 func (tunnelConnectionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.TunnelConnection, error) {
-	return cache.Presence.GetAllTunnelConnections()
+	return cache.Trust.GetAllTunnelConnections()
 }
 
 func (tunnelConnectionExecutor) upsert(ctx context.Context, cache *Cache, resource types.TunnelConnection) error {
-	return cache.presenceCache.UpsertTunnelConnection(resource)
+	return cache.trustCache.UpsertTunnelConnection(resource)
 }
 
 func (tunnelConnectionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllTunnelConnections()
+	return cache.trustCache.DeleteAllTunnelConnections()
 }
 
 func (tunnelConnectionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteTunnelConnection(resource.GetSubKind(), resource.GetName())
+	return cache.trustCache.DeleteTunnelConnection(resource.GetSubKind(), resource.GetName())
 }
 
 func (tunnelConnectionExecutor) isSingleton() bool { return false }
 
 func (tunnelConnectionExecutor) getReader(cache *Cache, cacheOK bool) tunnelConnectionGetter {
 	if cacheOK {
-		return cache.presenceCache
+		return cache.trustCache
 	}
-	return cache.Config.Presence
+	return cache.Config.Trust
 }
 
 type tunnelConnectionGetter interface {
@@ -855,36 +855,36 @@ var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectio
 type remoteClusterExecutor struct{}
 
 func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Presence.GetRemoteClusters(ctx)
+	return cache.Trust.GetRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
+	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
 			return trace.Wrap(err)
 		}
 	}
-	_, err = cache.presenceCache.CreateRemoteCluster(ctx, resource)
+	_, err = cache.trustCache.CreateRemoteCluster(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllRemoteClusters(ctx)
+	return cache.trustCache.DeleteAllRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
+	return cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 }
 
 func (remoteClusterExecutor) isSingleton() bool { return false }
 
 func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteClusterGetter {
 	if cacheOK {
-		return cache.presenceCache
+		return cache.trustCache
 	}
-	return cache.Config.Presence
+	return cache.Config.Trust
 }
 
 type remoteClusterGetter interface {

@@ -1843,6 +1843,9 @@ type DatabaseTLS struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// CACertFile is an optional path to the database CA certificate.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool `yaml:"trust_system_cert_pool,omitempty"`
 }
 
 // DatabaseMySQL are an additional MySQL database options.

@@ -21,7 +21,7 @@ import React, { useState } from 'react';
 import { Flex, Link } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { FetchStatus } from 'design/DataTable/types';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -165,7 +165,7 @@ function CheckboxCell({
   return (
     <Cell width="20px">
       <Flex alignItems="center" my={2} justifyContent="center">
-        <StyledCheckbox
+        <CheckboxInput
           id={item.id}
           onChange={e => {
             onChange(item, e);

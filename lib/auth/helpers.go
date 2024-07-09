@@ -439,9 +439,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: srv.ClusterName,
-		AccessPoint: srv.AuthServer,
-		LockWatcher: srv.LockWatcher,
+		ClusterName:         srv.ClusterName,
+		AccessPoint:         srv.AuthServer,
+		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
+		LockWatcher:         srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
@@ -844,6 +845,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
+	tlsCert := tlsConfig.Certificates[0]
 
 	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -851,12 +853,13 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 
 	srv.TLSServer, err = NewTLSServer(context.Background(), TLSServerConfig{
-		Listener:      srv.Listener,
-		AccessPoint:   srv.AuthServer.AuthServer.Cache,
-		TLS:           tlsConfig,
-		APIConfig:     *srv.APIConfig,
-		LimiterConfig: *srv.Limiter,
-		AcceptedUsage: cfg.AcceptedUsage,
+		Listener:             srv.Listener,
+		AccessPoint:          srv.AuthServer.AuthServer.Cache,
+		TLS:                  tlsConfig,
+		GetClientCertificate: func() (*tls.Certificate, error) { return &tlsCert, nil },
+		APIConfig:            *srv.APIConfig,
+		LimiterConfig:        *srv.Limiter,
+		AcceptedUsage:        cfg.AcceptedUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

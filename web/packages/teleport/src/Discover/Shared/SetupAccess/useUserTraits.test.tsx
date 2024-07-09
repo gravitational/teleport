@@ -33,6 +33,7 @@ import {
 } from 'teleport/Discover/Fixtures/fixtures';
 import TeleportContext from 'teleport/teleportContext';
 import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import { ExcludeUserField } from 'teleport/services/user';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -129,10 +130,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as KubeMeta;
@@ -216,14 +220,17 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        kubeGroups: ['dynamicKbGroup3', 'dynamicKbGroup4'],
-        kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          kubeGroups: ['dynamicKbGroup3', 'dynamicKbGroup4'],
+          kubeUsers: ['dynamicKbUser3', 'dynamicKbUser4'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 
   test('database', async () => {
@@ -292,10 +299,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as DbMeta;
@@ -368,14 +378,17 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        databaseNames: ['banana', 'carrot'],
-        databaseUsers: ['apple'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          databaseNames: ['banana', 'carrot'],
+          databaseUsers: ['apple'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 
   test('node', async () => {
@@ -436,10 +449,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: { ...mockUser.traits, ...expected },
-    });
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: { ...mockUser.traits, ...expected },
+      },
+      ExcludeUserField.AllTraits
+    );
 
     // Test that updating meta correctly updated the dynamic traits.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as NodeMeta;
@@ -521,13 +537,16 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...mockUser.traits,
-        awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...mockUser.traits,
+          awsRoleArns: [dynamicTraits.awsRoleArns[0]],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
 
     // Test that app's awsRoles field got updated with the dynamic trait.
     const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as AppMeta;
@@ -590,13 +609,16 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
-      ...mockUser,
-      traits: {
-        ...result.current.dynamicTraits,
-        logins: ['banana', 'carrot'],
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith(
+      {
+        ...mockUser,
+        traits: {
+          ...result.current.dynamicTraits,
+          logins: ['banana', 'carrot'],
+        },
       },
-    });
+      ExcludeUserField.AllTraits
+    );
   });
 });
 

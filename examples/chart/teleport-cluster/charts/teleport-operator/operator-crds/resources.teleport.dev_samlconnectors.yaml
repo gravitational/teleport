@@ -80,7 +80,7 @@ spec:
                 type: string
               cert:
                 description: Cert is the identity provider certificate PEM. IDP signs
-                  <Response> responses using this certificate.
+                  `<Response>` responses using this certificate.
                 type: string
               client_redirect_settings:
                 description: ClientRedirectSettings defines which client redirect
@@ -129,6 +129,10 @@ spec:
                     description: PrivateKey is a PEM encoded x509 private key.
                     type: string
                 type: object
+              single_logout_url:
+                description: SingleLogoutURL is the SAML Single log-out URL to initiate
+                  SAML SLO (single log-out). If this is not provided, SLO is disabled.
+                type: string
               sso:
                 description: SSO is the URL of the identity provider's SSO service.
                 type: string

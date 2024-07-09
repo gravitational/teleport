@@ -134,7 +134,7 @@ role 'redshift-serverless-access' has been created
 
 ## Step 3/4. Install and start the Teleport Database Service
 
-(!docs/pages/includes/database-access/token.mdx!)
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
@@ -160,7 +160,7 @@ Redshift Serverless database.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx attachToRole="teleport-redshift-serverless-node" attachToUser="teleport-redshift-serverless-access" !)
+(!docs/pages/includes/database-access/aws-bootstrap.mdx attachToRole="teleport-redshift-serverless-node" !)
 
 ### Start the Database service
 

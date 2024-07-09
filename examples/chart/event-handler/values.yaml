@@ -20,6 +20,16 @@ eventHandler:
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
+  # Optional setting to enable debug logging
+  # debug: true
+  # Optional setting for event types to forward
+  # types: ["TYPE1", "TYPE2"]
+  # Optional setting for event types to skip
+  # skipEventTypes: ["TYPE1"]
+  # Optional setting for session types to skip
+  # skipSessionTypes: ["TYPE1"]
+
+  
 
 fluentd:
   url: ""

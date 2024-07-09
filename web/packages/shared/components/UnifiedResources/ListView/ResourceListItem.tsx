@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -96,7 +96,7 @@ export function ResourceListItem({
           `}
           tipContent={selected ? 'Deselect' : 'Select'}
         >
-          <StyledCheckbox checked={selected} onChange={selectResource} />
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}

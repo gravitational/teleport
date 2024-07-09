@@ -34,6 +34,7 @@ import (
 	"github.com/digitorus/pkcs7"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -60,12 +62,13 @@ func renewBotCerts(
 	publicKey []byte,
 	privateKey []byte,
 ) (*authclient.Client, *proto.Certs, tls.Certificate, error) {
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 	client := srv.NewClientWithCert(tlsCert)
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: publicKey,
 		Username:  botUser,
-		Expires:   time.Now().Add(time.Hour),
+		Expires:   fakeClock.Now().Add(time.Hour),
 	})
 	if err != nil {
 		return nil, nil, tls.Certificate{}, trace.Wrap(err)
@@ -83,9 +86,18 @@ func renewBotCerts(
 // TestRegisterBotCertificateGenerationCheck ensures bot cert generation checks
 // work in ordinary conditions, with several rapid renewals.
 func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
-	t.Parallel()
+	// TODO: Enable parallel once the experiment is removed
+	//  t.Parallel()
+
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -131,27 +143,150 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
 
+	initialCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	initialIdent, err := tlsca.FromSubject(initialCert.Subject, initialCert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(1), initialIdent.Generation)
+	require.Equal(t, "test", initialIdent.BotName)
+	require.NotEmpty(t, initialIdent.BotInstanceID)
+
 	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
 	require.NoError(t, err)
 
 	// Renew the cert a bunch of times.
 	for i := 0; i < 10; i++ {
+		// Ensure the state of the bot instance before renewal is sane.
+		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		require.NoError(t, err)
+
+		// There should always be at least 1 entry as the initial join is
+		// duplicated in the list.
+		require.Len(t, bi.Status.LatestAuthentications, min(i+1, machineidv1.AuthenticationHistoryLimit))
+
+		// Generation starts at 1 for initial certs.
+		latest := bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
+		require.Equal(t, int32(i+1), latest.Generation)
+
+		lastExpires := bi.Metadata.Expires.AsTime()
+
+		// Advance the clock a bit.
+		fakeClock.Advance(time.Minute)
+
 		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
 		require.NoError(t, err)
 
 		// Parse the Identity
-		impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		renewedCert, err := tlsca.ParseCertificatePEM(certs.TLS)
 		require.NoError(t, err)
-		impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+		renewedIdent, err := tlsca.FromSubject(renewedCert.Subject, renewedCert.NotAfter)
 		require.NoError(t, err)
 
 		// Cert must be renewable.
-		require.True(t, impersonatedIdent.Renewable)
-		require.False(t, impersonatedIdent.DisallowReissue)
+		require.True(t, renewedIdent.Renewable)
+		require.False(t, renewedIdent.DisallowReissue)
 
 		// Initial certs have generation=1 and we start the loop with a renewal, so add 2
-		require.Equal(t, uint64(i+2), impersonatedIdent.Generation)
+		require.Equal(t, uint64(i+2), renewedIdent.Generation)
+
+		// Ensure the bot instance after renewal is sane.
+		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
+		require.NoError(t, err)
+
+		require.Len(t, bi.Status.LatestAuthentications, min(i+2, machineidv1.AuthenticationHistoryLimit))
+
+		latest = bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
+		require.Equal(t, int32(i+2), latest.Generation)
+
+		require.True(t, bi.Metadata.Expires.AsTime().After(lastExpires), "Metadata.Expires must be extended")
 	}
+}
+
+// TestRegisterBotInstance tests that bot instances are created properly on join
+func TestRegisterBotInstance(t *testing.T) {
+	// TODO: Enable parallel once the experiment is removed
+	//  t.Parallel()
+
+	experimentBefore := experiment.Enabled()
+	experiment.SetEnabled(true)
+	t.Cleanup(func() {
+		experiment.SetEnabled(experimentBefore)
+	})
+
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// Create a new bot.
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, token))
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	certs, err := join.Register(ctx, join.RegisterParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
+	})
+	require.NoError(t, err)
+
+	// The returned certs should have a bot instance ID.
+	cert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, ident.BotInstanceID)
+
+	// The instance ID should match a bot instance record.
+	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, ident.BotName, ident.BotInstanceID)
+	require.NoError(t, err)
+
+	require.Equal(t, ident.BotName, botInstance.GetSpec().BotName)
+	require.Equal(t, ident.BotInstanceID, botInstance.GetSpec().InstanceId)
+
+	// The initial authentication record should be sane
+	ia := botInstance.GetStatus().InitialAuthentication
+	require.NotNil(t, ia)
+	require.Equal(t, int32(1), ia.Generation)
+	require.Equal(t, string(types.JoinMethodToken), ia.JoinMethod)
+	require.Equal(t, token.GetSafeName(), ia.JoinToken)
+
+	// The latest authentications field should contain the same record (and
+	// only that record.)
+	require.Len(t, botInstance.GetStatus().LatestAuthentications, 1)
+	require.EqualExportedValues(t, ia, botInstance.GetStatus().LatestAuthentications[0])
 }
 
 // TestRegisterBotCertificateGenerationStolen simulates a stolen renewable

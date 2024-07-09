@@ -94,6 +94,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
@@ -486,14 +487,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 			return ctx, trace.Wrap(err)
 		}),
-		Router:               router,
-		HealthCheckAppServer: cfg.HealthCheckAppServer,
-		UI:                   cfg.uiConfig,
-		PresenceChecker:      cfg.presenceChecker,
-		GetProxyIdentity: func() (*state.Identity, error) {
-			return proxyIdentity, nil
-		},
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		Router:                  router,
+		HealthCheckAppServer:    cfg.HealthCheckAppServer,
+		UI:                      cfg.uiConfig,
+		PresenceChecker:         cfg.presenceChecker,
+		GetProxyClientTLSConfig: proxyIdentity.TLSConfig,
+		IntegrationAppHandler:   &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -4412,7 +4411,9 @@ func TestClusterAppsGet(t *testing.T) {
 func TestApplicationAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			App: false,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: false},
+			},
 		},
 	})
 
@@ -4663,17 +4664,15 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			ProductType:                modules.ProductTypeTeam,
-			IdentityGovernanceSecurity: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 5,
-			},
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				MaxReportRangeLimit: 10,
-			},
+			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
 			IsStripeManaged:     true,
 			Questionnaire:       true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity:         {Enabled: true},
+				entitlements.AccessLists:      {Enabled: true, Limit: 5},
+				entitlements.AccessMonitoring: {Enabled: true, Limit: 10},
+			},
 		},
 	})
 
@@ -8119,10 +8118,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
-		GetProxyIdentity: func() (*state.Identity, error) {
-			return proxyIdentity, nil
-		},
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		GetProxyClientTLSConfig:        proxyIdentity.TLSConfig,
+		IntegrationAppHandler:          &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -10375,4 +10372,18 @@ func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	out, err := io.ReadAll(stream)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func TestUnstartedServerShutdown(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	srv, err := NewServer(ServerConfig{
+		Server:  &http.Server{},
+		Handler: s.webHandler,
+	})
+
+	require.NoError(t, err)
+
+	// Shutdown the server before starting it shouldn't panic.
+	require.NoError(t, srv.Shutdown(context.Background()))
 }

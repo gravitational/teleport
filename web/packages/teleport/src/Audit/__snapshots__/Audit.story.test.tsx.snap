@@ -23,7 +23,8 @@ exports[`list of all events 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -32,30 +33,49 @@ exports[`list of all events 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 87px;
 }
 
-.c20:hover,
-.c20:focus {
-  background: rgba(255,255,255,0.07);
+.c20:focus-visible,
+.teleport-button__force-focus-visible .c20 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c20:active {
-  background: rgba(255,255,255,0.13);
+.c20:hover,
+.teleport-button__force-hover .c20 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c20:active,
+.teleport-button__force-active .c20 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c20:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -233,10 +253,6 @@ exports[`list of all events 1`] = `
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c17 tbody tr:hover {
@@ -264,9 +280,9 @@ exports[`list of all events 1`] = `
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
 .c14 svg {
@@ -333,15 +349,14 @@ exports[`list of all events 1`] = `
 .c1 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
 .c3 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -386,91 +401,91 @@ exports[`list of all events 1`] = `
         </div>
       </div>
     </div>
-  </nav>
-  <div
-    class="c6 c7"
-    width="100%"
-  >
     <div
-      class="c8 c9"
+      class="c6 c7"
+      width="100%"
     >
       <div
-        class="c10"
-        font-weight="500"
-        style="white-space: nowrap; letter-spacing: 0.15px;"
+        class="c8 c9"
       >
-        Showing 
-        <strong>
-          1
-        </strong>
-         - 
-        <strong>
-          242
-        </strong>
-         of
-         
-        <strong>
-          242
-        </strong>
+        <div
+          class="c10"
+          font-weight="500"
+          style="white-space: nowrap; letter-spacing: 0.15px;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            242
+          </strong>
+           of
+           
+          <strong>
+            242
+          </strong>
+        </div>
+        <button
+          class="c11"
+        >
+          Fetch More
+        </button>
       </div>
-      <button
-        class="c11"
+      <div
+        class="c12 c9"
       >
-        Fetch More
-      </button>
-    </div>
-    <div
-      class="c12 c9"
-    >
-      <button
-        class="c13 c14"
-        disabled=""
-        title="Previous page"
-      >
-        <span
-          class="c15 icon icon-circlearrowleft"
+        <button
+          class="c13 c14"
+          disabled=""
+          title="Previous page"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c15 icon icon-circlearrowleft"
           >
-            <path
-              d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
-            />
-            <path
-              clip-rule="evenodd"
-              d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
-      <button
-        class="c16 c14"
-        disabled=""
-        title="Next page"
-      >
-        <span
-          class="c15 icon icon-circlearrowright"
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c16 c14"
+          disabled=""
+          title="Next page"
         >
-          <svg
-            fill="currentColor"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
+          <span
+            class="c15 icon icon-circlearrowright"
           >
-            <path
-              clip-rule="evenodd"
-              d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
-              fill-rule="evenodd"
-            />
-          </svg>
-        </span>
-      </button>
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
     </div>
-  </div>
+  </nav>
   <table
     class="c17"
   >
@@ -583,7 +598,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -637,7 +652,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -691,7 +706,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -745,7 +760,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -799,7 +814,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -853,7 +868,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -901,7 +916,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -949,7 +964,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1003,7 +1018,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1062,7 +1077,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1116,7 +1131,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1170,7 +1185,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1224,7 +1239,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1278,7 +1293,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1332,7 +1347,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1380,7 +1395,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1434,7 +1449,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1482,7 +1497,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1536,7 +1551,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1584,7 +1599,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1638,7 +1653,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1686,7 +1701,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1740,7 +1755,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1794,7 +1809,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1848,7 +1863,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1902,7 +1917,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -1956,7 +1971,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2010,7 +2025,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2064,7 +2079,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2118,7 +2133,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2172,7 +2187,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2226,7 +2241,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2280,7 +2295,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2334,7 +2349,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2388,7 +2403,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2442,7 +2457,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2496,7 +2511,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2550,7 +2565,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2604,7 +2619,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2658,7 +2673,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2712,7 +2727,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2760,7 +2775,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2808,7 +2823,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2862,7 +2877,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2916,7 +2931,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -2970,7 +2985,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3024,7 +3039,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3078,7 +3093,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3132,7 +3147,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3186,7 +3201,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3240,7 +3255,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3294,7 +3309,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3348,7 +3363,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3402,7 +3417,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3456,7 +3471,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3510,7 +3525,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3564,7 +3579,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3618,7 +3633,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3672,7 +3687,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3726,7 +3741,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3780,7 +3795,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3834,7 +3849,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3888,7 +3903,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3942,7 +3957,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -3996,7 +4011,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4050,7 +4065,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4104,7 +4119,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4158,7 +4173,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4212,7 +4227,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4266,7 +4281,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4320,7 +4335,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4374,7 +4389,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4422,7 +4437,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4470,7 +4485,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4524,7 +4539,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4578,7 +4593,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4629,7 +4644,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4680,7 +4695,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4731,7 +4746,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4782,7 +4797,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4833,7 +4848,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4884,7 +4899,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4932,7 +4947,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -4980,7 +4995,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5028,7 +5043,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5076,7 +5091,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5124,7 +5139,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5172,7 +5187,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5220,7 +5235,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5268,7 +5283,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5322,7 +5337,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5376,7 +5391,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5424,7 +5439,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5472,7 +5487,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5520,7 +5535,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5574,7 +5589,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5628,7 +5643,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5682,7 +5697,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5730,7 +5745,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5778,7 +5793,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5826,7 +5841,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5874,7 +5889,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5922,7 +5937,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -5970,7 +5985,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6018,7 +6033,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6066,7 +6081,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6114,7 +6129,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6162,7 +6177,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6210,7 +6225,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6258,7 +6273,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6306,7 +6321,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6360,7 +6375,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6414,7 +6429,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6462,7 +6477,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6510,7 +6525,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6558,7 +6573,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6606,7 +6621,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6654,7 +6669,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6702,7 +6717,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6756,7 +6771,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6804,7 +6819,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6852,7 +6867,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6900,7 +6915,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6948,7 +6963,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -6996,7 +7011,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7044,7 +7059,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7092,7 +7107,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7140,7 +7155,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7199,7 +7214,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7247,7 +7262,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7301,7 +7316,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7355,7 +7370,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7403,7 +7418,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7451,7 +7466,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7499,7 +7514,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7547,7 +7562,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7595,7 +7610,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7649,7 +7664,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7703,7 +7718,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7757,7 +7772,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7805,7 +7820,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7853,7 +7868,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7901,7 +7916,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7949,7 +7964,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -7997,7 +8012,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8045,7 +8060,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8093,7 +8108,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8141,7 +8156,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8192,7 +8207,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8246,7 +8261,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8297,7 +8312,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8356,7 +8371,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8404,7 +8419,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8452,7 +8467,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8500,7 +8515,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8548,7 +8563,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8596,7 +8611,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8644,7 +8659,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8692,7 +8707,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8740,7 +8755,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8788,7 +8803,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8836,7 +8851,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8884,7 +8899,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8938,7 +8953,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -8992,7 +9007,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9040,7 +9055,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9094,7 +9109,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9148,7 +9163,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9196,7 +9211,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9250,7 +9265,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9304,7 +9319,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9358,7 +9373,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9412,7 +9427,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9466,7 +9481,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9520,7 +9535,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9574,7 +9589,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9628,7 +9643,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9682,7 +9697,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9736,7 +9751,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9790,7 +9805,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9844,7 +9859,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9898,7 +9913,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -9952,7 +9967,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10006,7 +10021,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10060,7 +10075,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10114,7 +10129,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10168,7 +10183,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10222,7 +10237,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10270,7 +10285,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10318,7 +10333,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10366,7 +10381,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10417,7 +10432,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10468,7 +10483,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10519,7 +10534,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10570,7 +10585,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10621,7 +10636,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10672,7 +10687,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10723,7 +10738,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10774,7 +10789,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10825,7 +10840,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10876,7 +10891,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10927,7 +10942,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -10978,7 +10993,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11029,7 +11044,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11080,7 +11095,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11131,7 +11146,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11182,7 +11197,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11233,7 +11248,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11284,7 +11299,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11335,7 +11350,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11386,7 +11401,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11437,7 +11452,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11488,7 +11503,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11539,7 +11554,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11590,7 +11605,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11641,7 +11656,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11692,7 +11707,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11743,7 +11758,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11794,7 +11809,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11845,7 +11860,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11896,7 +11911,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11947,7 +11962,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -11998,7 +12013,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12049,7 +12064,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12100,7 +12115,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12151,7 +12166,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12202,7 +12217,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12251,7 +12266,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12300,7 +12315,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12349,7 +12364,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12397,7 +12412,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12445,7 +12460,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12493,7 +12508,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12541,7 +12556,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12589,7 +12604,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12643,7 +12658,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12697,7 +12712,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12751,7 +12766,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12805,7 +12820,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12859,7 +12874,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12913,7 +12928,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12967,7 +12982,7 @@ exports[`list of all events 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -12976,6 +12991,89 @@ exports[`list of all events 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c0"
+  >
+    <div
+      class="c6 c7"
+      width="100%"
+    >
+      <div
+        class="c8 c9"
+      >
+        <div
+          class="c10"
+          font-weight="500"
+          style="white-space: nowrap; letter-spacing: 0.15px;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            242
+          </strong>
+           of
+           
+          <strong>
+            242
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c12 c9"
+      >
+        <button
+          class="c13 c14"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c15 icon icon-circlearrowleft"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+              />
+              <path
+                clip-rule="evenodd"
+                d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+        <button
+          class="c16 c14"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c15 icon icon-circlearrowright"
+          >
+            <svg
+              fill="currentColor"
+              height="24"
+              viewBox="0 0 24 24"
+              width="24"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                fill-rule="evenodd"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+  </nav>
 </div>
 `;
 
@@ -13004,7 +13102,8 @@ exports[`loaded audit log screen 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -13013,30 +13112,49 @@ exports[`loaded audit log screen 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 87px;
 }
 
-.c20:hover,
-.c20:focus {
-  background: rgba(255,255,255,0.07);
+.c20:focus-visible,
+.teleport-button__force-focus-visible .c20 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c20:active {
-  background: rgba(255,255,255,0.13);
+.c20:hover,
+.teleport-button__force-hover .c20 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c20:active,
+.teleport-button__force-active .c20 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c20:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -13326,10 +13444,6 @@ exports[`loaded audit log screen 1`] = `
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c16 tbody tr:hover {
@@ -13357,9 +13471,9 @@ exports[`loaded audit log screen 1`] = `
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 0 0 16px 0;
   max-height: 40px;
-  margin-bottom: 8px;
+  margin-top: 4px;
 }
 
 .c15 {
@@ -13396,15 +13510,14 @@ exports[`loaded audit log screen 1`] = `
 .c11 {
   border-radius: 200px;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 40px;
 }
 
 .c13 {
   border: none;
   outline: none;
   box-sizing: border-box;
-  font-size: 16px;
+  font-size: 14px;
   width: 100%;
   transition: all 0.2s;
   padding-left: 16px;
@@ -13495,9 +13608,6 @@ exports[`loaded audit log screen 1`] = `
       </div>
     </div>
   </div>
-  <div
-    class="c3"
-  />
   <nav
     class="c10"
   >
@@ -13634,7 +13744,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13688,7 +13798,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13736,7 +13846,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13784,7 +13894,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13838,7 +13948,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13892,7 +14002,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -13946,7 +14056,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -14000,7 +14110,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <button
             class="c20"
-            kind="border"
+            fill="border"
             width="87px"
           >
             Details
@@ -14009,5 +14119,8 @@ exports[`loaded audit log screen 1`] = `
       </tr>
     </tbody>
   </table>
+  <nav
+    class="c10"
+  />
 </div>
 `;

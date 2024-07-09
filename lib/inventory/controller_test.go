@@ -545,6 +545,18 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 	require.False(t, controller.instanceHBEnabled)
 }
 
+func TestServerKeepaliveDisabledEnv(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE", "yes")
+
+	controller := NewController(
+		&fakeAuth{},
+		usagereporter.DiscardUsageReporter{},
+	)
+	defer controller.Close()
+
+	require.False(t, controller.serverKeepAliveEnabled)
+}
+
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"

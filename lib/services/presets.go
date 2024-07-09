@@ -21,7 +21,6 @@ package services
 import (
 	"slices"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -176,6 +175,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAccessMonitoringRule, RW()),
 					types.NewRule(types.KindAppServer, RW()),
 					types.NewRule(types.KindVnetConfig, RW()),
+					types.NewRule(types.KindBotInstance, RW()),
 				},
 			},
 		},
@@ -281,11 +281,11 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindSecurityReport, append(RO(), types.VerbUse)),
 					types.NewRule(types.KindAuditQuery, append(RO(), types.VerbUse)),
+					types.NewRule(types.KindBotInstance, RO()),
 				},
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 

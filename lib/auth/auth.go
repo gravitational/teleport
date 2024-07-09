@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -90,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -108,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -335,6 +338,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -344,20 +353,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	keystoreOpts := &keystore.Options{
-		HostUUID:     cfg.HostUUID,
-		ClusterName:  cfg.ClusterName,
-		CloudClients: cfg.CloudClients,
+		HostUUID:             cfg.HostUUID,
+		ClusterName:          cfg.ClusterName,
+		CloudClients:         cfg.CloudClients,
+		AuthPreferenceGetter: cfg.ClusterConfiguration,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else {
@@ -419,6 +429,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 		ProvisioningStates:        cfg.ProvisioningStates,
 	}
 
@@ -478,6 +489,20 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, cacheEnabled := as.getCache()
+
+	// cluster config ttl cache *must* be set up after `opts` has been applied to the server because
+	// the Cache field starts off as a pointer to the local backend services and is only switched
+	// over to being a proper cache during option processing.
+	as.ReadOnlyCache, err = readonly.NewCache(readonly.CacheConfig{
+		Upstream:    as.Cache,
+		Disabled:    !cacheEnabled,
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -594,6 +619,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.BotInstance
 	services.ProvisioningStates
 }
 
@@ -815,6 +841,10 @@ type LoginHook func(context.Context, types.User) error
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
 
+// ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
+// where it would have a naming conflict with other types named Cache.
+type ReadOnlyCache = readonly.Cache
+
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
@@ -865,6 +895,11 @@ type Server struct {
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
 	authclient.Cache
+
+	// ReadOnlyCache is a specialized cache that provides read-only shared references
+	// in certain performance-critical paths where deserialization/cloning may be too
+	// expensive at scale.
+	*ReadOnlyCache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -1869,7 +1904,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(ctx)
+
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1892,7 +1928,7 @@ func (a *Server) generateHostCert(
 	default:
 		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
-	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
 	); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
@@ -2003,6 +2039,9 @@ type certRequest struct {
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2054,11 +2093,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("public key is empty")
 	}
 	if req.TTL == 0 {
-		cap, err := a.GetAuthPreference(ctx)
+		readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
 		}
-		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
+		req.TTL = proto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2606,13 +2645,13 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Verify locks right before we re-issue any certificates.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              opts.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
 		activeAccessRequests: x509Identity.ActiveRequests,
@@ -2745,13 +2784,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	// Reject the cert request if there is a matching lock in force.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              req.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
@@ -2780,7 +2819,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var allowedLogins []string
 
 	if req.ttl == 0 {
-		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+		req.ttl = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
@@ -2810,7 +2849,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2832,7 +2871,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 
 		var validateSerialNumber bool
-		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
+		hksnv, err := readOnlyAuthPref.GetHardwareKeySerialNumberValidation()
 		if err == nil {
 			validateSerialNumber = hksnv.Enabled
 		}
@@ -2946,6 +2985,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3041,6 +3081,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3621,7 +3662,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3669,7 +3710,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
-	switch sf := authPref.GetSecondFactor(); sf {
+	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices <= minDevices {
@@ -3690,7 +3731,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// It checks whether the credential to delete is a last passkey and whether
 	// the user has other valid local credentials.
 	canDeleteLastPasskey := func() (bool, error) {
-		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
 			return true, nil
 		}
 
@@ -3712,7 +3753,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Whether we take TOTPs into consideration or not depends on whether it's
 		// enabled.
-		switch sf := authPref.GetSecondFactor(); sf {
+		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 			if sfToCount[constants.SecondFactorOTP] >= 1 {
 				return true, nil
@@ -5361,7 +5402,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -6720,62 +6761,80 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 // Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
+
+	// Add SSH keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA:
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, sshCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA, types.DatabaseClientCA:
-		// Database CA only contains TLS cert.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.OpenSSHCA:
-		// OpenSSH CA only contains a SSH key pair.
-		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner, types.OIDCIdPCA:
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	case types.SAMLIDPCA:
-		// SAML IDP CA only contains TLS certs.
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.SPIFFECA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-		// Whilst we don't currently support JWT-SVIDs, we will eventually. So
-		// generate a JWT keypair.
-		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
-		if err != nil {
-			return keySet, trace.Wrap(err)
-		}
-		keySet.JWT = append(keySet.JWT, jwtKeyPair)
-	default:
-		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}
+
+	// Add TLS keys if necessary.
+	switch caID.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	}
+
+	// Add JWT keys if necessary.
+	switch caID.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
 	return keySet, nil
+}
+
+func sshCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCASSH
+	case types.HostCA:
+		return cryptosuites.HostCASSH
+	case types.OpenSSHCA:
+		return cryptosuites.OpenSSHCASSH
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.UserCA:
+		return cryptosuites.UserCATLS
+	case types.HostCA:
+		return cryptosuites.HostCATLS
+	case types.DatabaseCA:
+		return cryptosuites.DatabaseCATLS
+	case types.DatabaseClientCA:
+		return cryptosuites.DatabaseClientCATLS
+	case types.SAMLIDPCA:
+		return cryptosuites.SAMLIdPCATLS
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECATLS
+	}
+	return cryptosuites.KeyPurposeUnspecified
+}
+
+func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
+	switch caType {
+	case types.JWTSigner:
+		return cryptosuites.JWTCAJWT
+	case types.OIDCIdPCA:
+		return cryptosuites.OIDCIdPCAJWT
+	case types.SPIFFECA:
+		return cryptosuites.SPIFFECAJWT
+	}
+	return cryptosuites.KeyPurposeUnspecified
 }
 
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
@@ -6867,10 +6926,13 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
-		return nil // unlimited
+	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
+
+	if accessRequestsEntitlement.Limit == 0 {
+		return nil // unlimited access
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	monthlyLimit := accessRequestsEntitlement.Limit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -6878,7 +6940,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage >= monthlyLimit {
+	if usage >= int(monthlyLimit) {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 

@@ -63,6 +63,12 @@ const (
 	// failing (such as an unmet hardware key policy) and the first should be
 	// ignored.
 	LoginClose = "/web/msg/info/login_close"
+
+	// SAMLSingleLogoutFailedRedirectURL is the default redirect URL when an error was encountered during SAML Single Logout.
+	SAMLSingleLogoutFailedRedirectURL = "/web/msg/error/slo"
+
+	// DefaultLoginURL is the default login page.
+	DefaultLoginURL = "/web/login"
 )
 
 // Redirector handles SSH redirect flow with the Teleport server

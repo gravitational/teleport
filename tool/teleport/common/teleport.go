@@ -300,6 +300,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
 	dbConfigureCreate.Flag("dynamic-resources-labels", "Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching.").StringsVar(&dbConfigCreateFlags.DynamicResourcesRawLabels)
+	dbConfigureCreate.Flag("trust-system-cert-pool", "Allows Teleport to trust certificate authorities available on the host system for self-hosted databases.").BoolVar(&dbConfigCreateFlags.DatabaseTrustSystemCertPool)
 	dbConfigureCreate.Alias(dbCreateConfigExamples) // We're using "alias" section to display usage examples.
 
 	dbConfigureBootstrap := dbConfigure.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")

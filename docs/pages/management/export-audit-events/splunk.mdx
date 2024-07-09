@@ -69,9 +69,16 @@ We'll re-purpose the files generated for Fluentd in our Universal Forwarder conf
 
 (!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
-### Enable impersonation of the Teleport Event Handler plugin user
+### Enable issuing of credentials for the Event Handler role
 
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export the plugin identity
 

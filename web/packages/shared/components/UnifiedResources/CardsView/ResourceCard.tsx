@@ -20,7 +20,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
+import { CheckboxInput } from 'design/Checkbox';
 
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -176,7 +176,7 @@ export function ResourceCard({
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <StyledCheckbox
+            <CheckboxInput
               css={`
                 position: absolute;
                 top: 16px;
