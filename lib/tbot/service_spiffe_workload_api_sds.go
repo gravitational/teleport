@@ -21,7 +21,6 @@ package tbot
 import (
 	"context"
 	"encoding/pem"
-	"fmt"
 
 	corev3pb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
@@ -34,8 +33,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
-
-	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // Various code related to implementation of Envoy SDS API
@@ -46,7 +43,24 @@ import (
 // For now, we declare support for 1.18 and above since this version introduced
 // the SPIFFE-specific validator.
 
-func newTLSV3Certificate(svid *workloadpb.X509SVID) (*anyv1pb.Any, error) {
+// The following constants allow querying this API for SVIDs and trust bundles
+// without knowing their names. These special values are relied upon by tools
+// like Istio.
+const (
+	// envoyDefaultSVIDName indicates that the first available SVID should be
+	// returned.
+	envoyDefaultSVIDName = "default"
+	// envoyDefaultBundleName indicates that the default trust bundle should be
+	// returned, e.g the one for the trust domain that the workload is part of.
+	envoyDefaultBundleName = "ROOTCA"
+	// envoyAllBundlesName indicates that all available trust bundles,
+	// including federated ones, should be returned.
+	envoyAllBundlesName = "ALL"
+)
+
+func newTLSV3Certificate(
+	svid *workloadpb.X509SVID, overrideResourceName string,
+) (*anyv1pb.Any, error) {
 	// TODO: Support intermediate certificates
 	certBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
@@ -58,7 +72,7 @@ func newTLSV3Certificate(svid *workloadpb.X509SVID) (*anyv1pb.Any, error) {
 	})
 
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#envoy-v3-api-msg-extensions-transport-sockets-tls-v3-tlscertificate
-	return anypb.New(&tlsv3pb.Secret{
+	secret := &tlsv3pb.Secret{
 		// Must be SPIFFE ID
 		Name: svid.SpiffeId,
 		Type: &tlsv3pb.Secret_TlsCertificate{
@@ -77,12 +91,19 @@ func newTLSV3Certificate(svid *workloadpb.X509SVID) (*anyv1pb.Any, error) {
 				},
 			},
 		},
-	})
+	}
+	if overrideResourceName != "" {
+		secret.Name = overrideResourceName
+	}
+
+	return anypb.New(secret)
 }
 
 const envoySPIFFECertValidator = "envoy.tls.cert_validator.spiffe"
 
-func newTLSV3ValidationContext(tb *x509bundle.Bundle) (*anyv1pb.Any, error) {
+func newTLSV3ValidationContext(
+	tb *x509bundle.Bundle, overrideResourceName string,
+) (*anyv1pb.Any, error) {
 	caBytes, err := tb.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling trust bundle")
@@ -113,7 +134,7 @@ func newTLSV3ValidationContext(tb *x509bundle.Bundle) (*anyv1pb.Any, error) {
 	}
 
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-certificatevalidationcontext
-	return anypb.New(&tlsv3pb.Secret{
+	secret := &tlsv3pb.Secret{
 		// We intentionally use the full IDString here in contrast to the
 		// short name used in the TrustDomain config block.
 		Name: tb.TrustDomain().IDString(),
@@ -127,7 +148,12 @@ func newTLSV3ValidationContext(tb *x509bundle.Bundle) (*anyv1pb.Any, error) {
 				},
 			},
 		},
-	})
+	}
+	if overrideResourceName != "" {
+		secret.Name = overrideResourceName
+	}
+
+	return anypb.New(secret)
 }
 
 // FetchSecrets implements
@@ -145,10 +171,12 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 	log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request received from workload")
 	defer log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
+	tb := s.getTrustBundle()
+
 	// names holds all names requested by the client
 	// if this is nothing, we assume they want everything available to them.
 	// it's worth keeping in mind that there's some special names we need to
-	// handle. TODO: handle default names
+	// handle.
 	names := map[string]bool{}
 	for _, name := range req.ResourceNames {
 		// Ignore empty string
@@ -156,45 +184,80 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 			names[name] = true
 		}
 	}
-	wantAll := len(names) == 0
+	returnAll := len(names) == 0
 
 	var resources []*anyv1pb.Any
 
-	// Filter SVIDs down to those accessible to this workload, then filter down
-	// to those request by the client.
+	// Filter SVIDs down to those accessible to this workload
 	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
-	wantedSVIDs := make([]config.SVIDRequest, 0)
-	for _, svidReq := range availableSVIDs {
-		// TODO: Make this comparison cleaner...
-		// TODO: Handle default name.
-		if wantAll || names[fmt.Sprintf("spiffe://%s%s", s.trustDomain, svidReq.Path)] {
-			wantedSVIDs = append(wantedSVIDs, svidReq)
-		}
-	}
 	// Fetch the SVIDs and convert them into the SDS cert type.
-	svids, err := s.fetchX509SVIDs(ctx, log, wantedSVIDs)
+	svids, err := s.fetchX509SVIDs(ctx, log, availableSVIDs)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching X509 SVIDs")
 	}
-	for _, svid := range svids {
-		// TODO: Handle default name
-		secret, err := newTLSV3Certificate(svid)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating TLS certificate")
+	for i, svid := range svids {
+		// Now we need to filter the SVIDs down to those requested by the
+		// client.
+		// There's a special case here, if they've requested the default SVID,
+		// we want to ensure that the first SVID is returned and it's name
+		// overrridden.
+
+		switch {
+		case returnAll || names[svid.SpiffeId]:
+			secret, err := newTLSV3Certificate(svid, "")
+			if err != nil {
+				return nil, trace.Wrap(err, "creating TLS certificate")
+			}
+			resources = append(resources, secret)
+		case names[envoyDefaultSVIDName] && i == 0:
+			secret, err := newTLSV3Certificate(svid, envoyDefaultSVIDName)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating TLS certificate")
+			}
+			resources = append(resources, secret)
 		}
-		resources = append(resources, secret)
 	}
 
 	// Convert trust bundle to SDS validator type.
-	// TODO: Federation support!!
-	// TODO: Handle default name
-	if wantAll || names[s.trustBundle.TrustDomain().IDString()] {
-		validator, err := newTLSV3ValidationContext(s.trustBundle)
+	switch {
+	case returnAll || names[tb.TrustDomain().IDString()]:
+		// If this name was explicitly specified or no names were specified,
+		// we use the proper trust domain ID as the resource name.
+		validator, err := newTLSV3ValidationContext(
+			tb, "",
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating TLS validation context")
+		}
+		resources = append(resources, validator)
+	case names[envoyDefaultBundleName]:
+		// If they've requested the default bundle, we send the connected trust
+		// domain's bundle - but - we override the name to match what they
+		// expect.
+		validator, err := newTLSV3ValidationContext(
+			tb, envoyDefaultBundleName,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating TLS validation context")
+		}
+		resources = append(resources, validator)
+	case names[envoyAllBundlesName]:
+		// TODO: When federation support is added, the behavior of this case
+		// shall change to return the connected trust domain's bundle
+		// concatenated with all federated bundles. For now, we return the
+		// connected trust domain's bundle - but - we override the name to
+		// match what they expect.
+		validator, err := newTLSV3ValidationContext(
+			tb, envoyAllBundlesName,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating TLS validation context")
 		}
 		resources = append(resources, validator)
 	}
+
+	// TODO: When federation support is added, return any federated bundles
+	// if named or returnAll.
 
 	return &discoveryv3pb.DiscoveryResponse{
 		// Copy in requested type from req
