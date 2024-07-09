@@ -51,7 +51,7 @@ then update the resource in Teleport with `tctl`:
 $ tctl create -f foo-dev.yaml
 ```
 
-To remove the resource and delete all host users associated with it, run:
+To remove the resource and delete all host users associated with it, an admin will run:
 
 ```code
 $ tctl rm host_user/foo-dev
@@ -89,14 +89,26 @@ On startup, nodes will apply all available `static_host_user`s in the cache,
 then watch the cache for new and updated users. Nodes will use the labels in the
 `static_host_user`s to filter out those that don't apply to them, with the same
 logic that currently determines access with roles. Updated `static_host_user`s
-override the existing user. Delete events from the cache will signal the node
-to delete the created user.
+override the existing user.
+
+Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
+to true in their config) will ignore `static_host_user`s entirely.
+
+### Deletion
+
+Delete events from the cache will signal the node to delete a created user. If the user is still in use (i.e. someone is logged
+in as it), it will be added to the `teleport-delete` group. Teleport
+will periodically delete `teleport-delete` users as it does with
+expired `teleport-system` users. Teleport users will not be able to log in as a host user if it is marked for deletion.
 
 To facilitate deletion, `static_host_user`s will be keyed under their login in
 the backend, i.e. `hostUsers/<login>/<resource-name>`.
 
-Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
-to true in their config) will ignore `static_host_user`s entirely.
+### Product usage
+
+The session start PostHog event can be extended to include a flag
+indicating whether or not the host user for an SSH session was
+created by Teleport (for both static and non-static host users).
 
 ### Security
 
@@ -111,7 +123,8 @@ that are not in `teleport-created`.
 
 Consider nodes that do not support static host users but are connected to an
 auth server that does. These nodes will silently ignore static
-host users.
+host users. When these nodes are upgraded to a supporting
+version, they will create static host users as normal.
 
 ### Future work
 
