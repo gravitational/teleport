@@ -33,8 +33,8 @@ func NewServiceWrapper[T types.ResourceMetadata](
 	resourceKind string,
 	backendPrefix string,
 	marshalFunc MarshalFunc[T],
-	unmarshalFunc UnmarshalFunc[T]) (*ServiceWrapper[T], error) {
-
+	unmarshalFunc UnmarshalFunc[T],
+) (*ServiceWrapper[T], error) {
 	cfg := &ServiceConfig[resourceMetadataAdapter[T]]{
 		Backend:       backend,
 		ResourceKind:  resourceKind,
