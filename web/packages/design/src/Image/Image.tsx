@@ -21,16 +21,35 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import {
-  space,
-  color,
-  width,
-  height,
-  maxWidth,
-  maxHeight,
   alignSelf,
+  AlignSelfProps,
+  color,
+  ColorProps,
+  height,
+  HeightProps,
+  maxHeight,
+  MaxHeightProps,
+  maxWidth,
+  MaxWidthProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
 
-const Image = props => {
+interface ImageProps
+  extends SpaceProps,
+    ColorProps,
+    WidthProps,
+    HeightProps,
+    MaxWidthProps,
+    MaxHeightProps,
+    AlignSelfProps {
+  alt?: string;
+  style?: React.CSSProperties;
+}
+
+const Image = (props: ImageProps) => {
   return <StyledImg {...props} />;
 };
 
@@ -49,7 +68,7 @@ Image.displayName = 'Logo';
 
 export default Image;
 
-const StyledImg = styled.img`
+const StyledImg = styled.img<ImageProps>`
   display: block;
   outline: none;
   ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}

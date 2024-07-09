@@ -55,6 +55,7 @@ const Text = styled.div.withConfig({
 })<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   ${typography}
   ${fontSize}
   ${space}
@@ -64,9 +65,5 @@ const Text = styled.div.withConfig({
 `;
 
 Text.displayName = 'Text';
-
-Text.defaultProps = {
-  m: 0,
-};
 
 export default Text;

@@ -19,13 +19,16 @@
 import styled from 'styled-components';
 
 import { Flex } from 'design';
+import { flex, space } from 'styled-system';
 
-const DialogContent = styled(Flex)``;
-DialogContent.defaultProps = {
-  ...Flex.defaultProps,
-  mb: '5',
-  flex: '1',
-  flexDirection: 'column',
-};
+const DialogContent = styled(Flex)`
+  margin-bottom: ${props => props.theme.space[5]}px;
+  flex: 1;
+  flex-direction: column;
+
+  /* Allow overriding space and flex settings. */
+  ${space}
+  ${flex}
+`;
 
 export default DialogContent;
