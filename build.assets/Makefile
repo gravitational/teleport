@@ -107,6 +107,64 @@ build-binaries-fips: buildbox-centos7-fips webassets
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
 #
+# Build the buildbox thirdparty components. This rarely needs to be rebuilt and is
+# slow to build, so it is done separately from the main buildbox
+#
+.PHONY: buildbox-thirdparty
+buildbox-thirdparty:
+	docker buildx build \
+		--cache-from $(BUILDBOX_THIRDPARTY) \
+		--cache-to type=inline \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_THIRDPARTY) \
+		-f buildbox/Dockerfile-thirdparty \
+		buildbox
+
+#
+# A generic build rule to build a stage of Dockerfile-thirdparty based
+# on the $(STAGE) variable. These stage builds are used for development
+# of the thirdparty buildbox, whether to configure crosstool-NG
+# (see config/buildbox-ng), or when adding additional third party
+# libraries using either the compilers stage or tplibs stage.
+#
+.PHONY: buildbox-thirdparty-stage
+buildbox-thirdparty-stage:
+	docker buildx build \
+		--load \
+		--tag buildbox-thirdparty-$(STAGE):$(BUILDBOX_VERSION) \
+		-f buildbox/Dockerfile-thirdparty \
+		--target $(STAGE) \
+		buildbox
+
+.PHONY: buildbox-thirdparty-ctng
+buildbox-thirdparty-ctng: STAGE=ctng
+buildbox-thirdparty-ctng: buildbox-thirdparty-stage
+
+.PHONY: buildbox-thirdparty-compilers
+buildbox-thirdparty-compilers: STAGE=compilers
+buildbox-thirdparty-compilers: buildbox-thirdparty-stage
+
+.PHONY: buildbox-thirdparty-tplibs
+buildbox-thirdparty-tplibs: STAGE=tplibs
+buildbox-thirdparty-tplibs: buildbox-thirdparty-stage
+
+#
+# Build the buildbox-ng using the pre-built third party components from the
+# buildbox-thirdparty image
+#
+.PHONY: buildbox-ng
+buildbox-ng:
+	docker buildx build \
+		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--cache-from $(BUILDBOX_NG) \
+		--cache-to type=inline \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_NG) \
+		-f buildbox/Dockerfile \
+		buildbox
+
 # Builds a Docker container which is used for building official Teleport binaries
 # If running in CI and there is no image with the buildbox name:tag combination present locally,
 # the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
@@ -380,6 +438,58 @@ enter-root: buildbox
 	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
+#
+# Reconfigure crosstool-NG for the given ARCH via its menuconfig system.
+# e.g.
+# $ make config/buildbox-ng CTNG_ARCH=arm64
+#
+# After saving and exiting in the menuconfig, you should have an updated
+# defconfig file in build.assets/buildbox/ct-ng-configs
+#
+# You need to have a local copy of the configuration container image
+# created with: make buildbox-thirdparty-ctng
+#
+.PHONY: config/buildbox-ng
+config/buildbox-ng:
+	@: $(or $(CTNG_ARCH),$(error CTNG_ARCH variable must be set))
+	@: $(or $(wildcard buildbox/ct-ng-configs/$(CTNG_ARCH).defconfig),\
+		$(error No config for arch $(CTNG_ARCH)))
+	docker run -it --rm \
+		--hostname $(HOSTNAME) \
+		--volume $(shell pwd)/..:/home/teleport \
+		--volume /tmp:/tmp \
+		--workdir /home/teleport \
+		$(BUILDBOX_CTNG_CONFIG) \
+		make -C build.assets/buildbox -f ctng.mk ctng-menuconfig \
+		ARCH=$(CTNG_ARCH)
+
+
+#
+# Starts a shell in the buildbox-ng container
+# We don't use $(DOCKERFLAGS) as it contains stuff for the old buildbox which is
+# not relevant or incorrect for this one.
+.PHONY: enter/buildbox-ng
+enter/buildbox-ng:
+	docker run -it --rm \
+		--hostname $(HOSTNAME) \
+		--volume $(shell pwd)/..:/home/teleport \
+		--volume /tmp:/tmp \
+		--workdir /home/teleport \
+		--user $(shell id -u):$(shell id -g) \
+		$(BUILDBOX_NG)
+
+#
+# Starts a root shell in the buildbox-ng container
+#
+.PHONY: enter-root/buildbox-ng
+enter-root/buildbox-ng:
+	docker run -it --rm \
+		--hostname $(HOSTNAME) \
+		--volume $(shell pwd)/..:/home/teleport \
+		--volume /tmp:/tmp \
+		--workdir /home/teleport \
+		--user 0:0 \
+		$(BUILDBOX_NG)
 #
 # Starts shell inside the centos7 container
 #
