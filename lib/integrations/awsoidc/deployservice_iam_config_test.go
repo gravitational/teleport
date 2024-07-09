@@ -37,7 +37,7 @@ var alreadyExistsCheck = func(t require.TestingT, err error, msgAndArgs ...inter
 	require.True(t, trace.IsAlreadyExists(err), `expected "already exists", but got %v`, err)
 }
 
-var notFounCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
 
@@ -70,7 +70,6 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 				TaskRole:                           "taskrole",
 				partitionID:                        "aws",
 				IntegrationRoleDeployServicePolicy: "DeployService",
-				TaskRoleBoundaryPolicyName:         "taskroleBoundary",
 				ResourceCreationTags: AWSTags{
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "myintegration",
@@ -141,51 +140,38 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tt := range []struct {
-		name                 string
-		mockAccountID        string
-		mockExistingPolicies []string
-		mockExistingRoles    []string
-		req                  func() DeployServiceIAMConfigureRequest
-		errCheck             require.ErrorAssertionFunc
+		name              string
+		mockAccountID     string
+		mockExistingRoles []string
+		req               func() DeployServiceIAMConfigureRequest
+		errCheck          require.ErrorAssertionFunc
 	}{
 		{
-			name:                 "valid",
-			mockAccountID:        "123456789012",
-			mockExistingPolicies: []string{},
-			mockExistingRoles:    []string{"integrationrole"},
-			req:                  baseReq,
-			errCheck:             require.NoError,
+			name:              "valid",
+			mockAccountID:     "123456789012",
+			mockExistingRoles: []string{"integrationrole"},
+			req:               baseReq,
+			errCheck:          require.NoError,
 		},
 		{
-			name:                 "boundary policy already exists",
-			mockAccountID:        "123456789012",
-			mockExistingPolicies: []string{"taskroleBoundary"},
-			mockExistingRoles:    []string{"integrationrole"},
-			req:                  baseReq,
-			errCheck:             alreadyExistsCheck,
+			name:              "task role already exists",
+			mockAccountID:     "123456789012",
+			mockExistingRoles: []string{"integrationrole", "taskrole"},
+			req:               baseReq,
+			errCheck:          alreadyExistsCheck,
 		},
 		{
-			name:                 "task role already exists",
-			mockAccountID:        "123456789012",
-			mockExistingPolicies: []string{},
-			mockExistingRoles:    []string{"integrationrole", "taskrole"},
-			req:                  baseReq,
-			errCheck:             alreadyExistsCheck,
-		},
-		{
-			name:                 "integration role does not exist",
-			mockAccountID:        "123456789012",
-			mockExistingPolicies: []string{},
-			mockExistingRoles:    []string{},
-			req:                  baseReq,
-			errCheck:             notFounCheck,
+			name:              "integration role does not exist",
+			mockAccountID:     "123456789012",
+			mockExistingRoles: []string{},
+			req:               baseReq,
+			errCheck:          notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockDeployServiceIAMConfigClient{
-				accountID:        tt.mockAccountID,
-				existingPolicies: tt.mockExistingPolicies,
-				existingRoles:    tt.mockExistingRoles,
+				accountID:     tt.mockAccountID,
+				existingRoles: tt.mockExistingRoles,
 			}
 
 			err := ConfigureDeployServiceIAM(ctx, &clt, tt.req())
@@ -195,9 +181,8 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 }
 
 type mockDeployServiceIAMConfigClient struct {
-	accountID        string
-	existingPolicies []string
-	existingRoles    []string
+	accountID     string
+	existingRoles []string
 }
 
 // GetCallerIdentity returns information about the caller identity.
@@ -205,19 +190,6 @@ func (m *mockDeployServiceIAMConfigClient) GetCallerIdentity(ctx context.Context
 	return &sts.GetCallerIdentityOutput{
 		Account: &m.accountID,
 	}, nil
-}
-
-// CreatePolicy creates a new IAM Policy.
-func (m *mockDeployServiceIAMConfigClient) CreatePolicy(ctx context.Context, params *iam.CreatePolicyInput, optFns ...func(*iam.Options)) (*iam.CreatePolicyOutput, error) {
-	alreadyExistsMessage := fmt.Sprintf("Policy %q already exists.", *params.PolicyName)
-	if slices.Contains(m.existingPolicies, *params.PolicyName) {
-		return nil, &iamTypes.EntityAlreadyExistsException{
-			Message: &alreadyExistsMessage,
-		}
-	}
-
-	m.existingPolicies = append(m.existingPolicies, *params.PolicyName)
-	return nil, nil
 }
 
 // CreateRole creates a new IAM Role.

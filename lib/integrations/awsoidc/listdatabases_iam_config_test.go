@@ -84,7 +84,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 			name:              "integration role does not exist",
 			mockExistingRoles: []string{},
 			req:               baseReq,
-			errCheck:          notFounCheck,
+			errCheck:          notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
