@@ -29,7 +29,9 @@ type Config struct {
 	// IPv6Prefix is the IPv6 prefix for the VNet.
 	IPv6Prefix string
 	// DNSAddr is the IP address for the VNet DNS server.
-	DNSAddr    string
+	DNSAddr string
+	// HomePath points to TELEPORT_HOME that will be used by the admin process.
+	HomePath string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -43,6 +45,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.DNSAddr == "" {
 		return trace.BadParameter("missing DNS address")
+	}
+
+	if c.HomePath == "" {
+		return trace.BadParameter("missing home path")
 	}
 
 	return nil

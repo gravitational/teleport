@@ -20,10 +20,13 @@
 package common
 
 import (
+	"os"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
@@ -58,6 +61,11 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	return trace.Wrap(processManager.Wait())
 }
 
+// vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
+// vnetdaemon build tag. This is typically the case when running tsh in development where it's not
+// signed and bundled in tsh.app.
+//
+// This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
 	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
@@ -80,10 +88,17 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
+	homePath := os.Getenv(types.HomeEnvVar)
+	if homePath == "" {
+		// This runs as root so we need to be configured with the user's home path.
+		return trace.BadParameter("%s must be set", types.HomeEnvVar)
+	}
+
 	config := daemon.Config{
 		SocketPath: c.socketPath,
 		IPv6Prefix: c.ipv6Prefix,
 		DNSAddr:    c.dnsAddr,
+		HomePath:   homePath,
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

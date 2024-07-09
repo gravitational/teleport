@@ -34,7 +34,6 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
@@ -61,7 +60,7 @@ func execAdminSubcommand(ctx context.Context, config daemon.Config) error {
 
 	if homePath := os.Getenv(types.HomeEnvVar); homePath == "" {
 		// Explicitly set TELEPORT_HOME if not already set.
-		os.Setenv(types.HomeEnvVar, profile.FullProfilePath(""))
+		os.Setenv(types.HomeEnvVar, config.HomePath)
 	}
 
 	appleScript := fmt.Sprintf(`
