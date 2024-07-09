@@ -89,7 +89,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
-		installAutodiscoverNodeFlags     installAutodiscoverNodeFlags
+		installAutoDiscoverNodeFlags     installAutoDiscoverNodeFlags
 		waitFlags                        waitFlags
 		rawVersion                       bool
 	)
@@ -370,13 +370,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
 
 	// This command is hidden because it is only meant to be used by the AutoDiscover script.
-	installAutodiscoverNode := installCmd.Command("autodiscover-node", "Installs, configures and starts teleport as a Node (used in Server Auto Discovery).").Hidden()
-	installAutodiscoverNode.Flag("public-proxy-addr", "Teleport public proxy address. Eg https://example.teleport.sh").StringVar(&installAutodiscoverNodeFlags.ProxyPublicAddr)
-	installAutodiscoverNode.Flag("teleport-package", "Package name to install. Allowed: teleport or teleport-ent").StringVar(&installAutodiscoverNodeFlags.TeleportPackage)
-	installAutodiscoverNode.Flag("repo-channel", "Repository channel to use (eg stable/cloud, stable/rolling or stable/vX).").StringVar(&installAutodiscoverNodeFlags.RepositoryChannel)
-	installAutodiscoverNode.Flag("auto-upgrade", "Enables auto-upgrades. Allowed: true or false").StringVar(&installAutodiscoverNodeFlags.AutoUpgradesString)
-	installAutodiscoverNode.Flag("azure-client-id", "Azure Client ID when installing in an Azure VM with multiple assigned identities.").StringVar(&installAutodiscoverNodeFlags.AzureClientID)
-	installAutodiscoverNode.Arg("token", "Token to use to register with the cluster.").Required().StringVar(&installAutodiscoverNodeFlags.TokenName)
+	installAutoDiscoverNode := installCmd.Command("autodiscover-node", "Installs, configures and starts teleport as a Node (used in Server Auto Discovery).").Hidden()
+	installAutoDiscoverNode.Flag("public-proxy-addr", "Teleport public proxy address. Eg https://example.teleport.sh").StringVar(&installAutoDiscoverNodeFlags.ProxyPublicAddr)
+	installAutoDiscoverNode.Flag("teleport-package", "Package name to install. Allowed: teleport or teleport-ent").StringVar(&installAutoDiscoverNodeFlags.TeleportPackage)
+	installAutoDiscoverNode.Flag("repo-channel", "Repository channel to use (eg stable/cloud, stable/rolling or stable/vX).").StringVar(&installAutoDiscoverNodeFlags.RepositoryChannel)
+	installAutoDiscoverNode.Flag("auto-upgrade", "Enables auto-upgrades. Allowed: true or false").StringVar(&installAutoDiscoverNodeFlags.AutoUpgradesString)
+	installAutoDiscoverNode.Flag("azure-client-id", "Azure Client ID when installing in an Azure VM with multiple assigned identities.").StringVar(&installAutoDiscoverNodeFlags.AzureClientID)
+	installAutoDiscoverNode.Arg("token", "Token to use to register with the cluster.").Required().StringVar(&installAutoDiscoverNodeFlags.TokenName)
 
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
@@ -668,8 +668,8 @@ Examples:
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
-	case installAutodiscoverNode.FullCommand():
-		err = onInstallAutodiscoverNode(installAutodiscoverNodeFlags)
+	case installAutoDiscoverNode.FullCommand():
+		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)

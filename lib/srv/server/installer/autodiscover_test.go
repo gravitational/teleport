@@ -68,7 +68,7 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 	}, releaseMockFNs
 }
 
-func TestAutodiscoverNode(t *testing.T) {
+func TestAutoDiscoverNode(t *testing.T) {
 	ctx := context.Background()
 
 	mockRepoKeys := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +124,7 @@ func TestAutodiscoverNode(t *testing.T) {
 						}
 					}
 
-					installerConfig := &AutodiscoverNodeInstallerConfig{
+					installerConfig := &AutoDiscoverNodeInstallerConfig{
 						RepositoryChannel: "stable/rolling",
 						AutoUpgrades:      false,
 						ProxyPublicAddr:   "proxy.example.com",
@@ -138,7 +138,7 @@ func TestAutodiscoverNode(t *testing.T) {
 						aptPublicKeyEndpoint: mockRepoKeys.URL,
 					}
 
-					teleportInstaller, err := NewAutodiscoverNodeInstaller(installerConfig)
+					teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
 					require.NoError(t, err)
 
 					// One of the first things the install command does is to check if teleport is already installed.
@@ -231,7 +231,7 @@ func TestAutodiscoverNode(t *testing.T) {
 			}
 		}
 
-		installerConfig := &AutodiscoverNodeInstallerConfig{
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
 			RepositoryChannel: "stable/rolling",
 			AutoUpgrades:      true,
 			ProxyPublicAddr:   proxyPublicAddr,
@@ -246,7 +246,7 @@ func TestAutodiscoverNode(t *testing.T) {
 			autoUpgradesChannelURL: proxyServer.URL,
 		}
 
-		teleportInstaller, err := NewAutodiscoverNodeInstaller(installerConfig)
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
 		require.NoError(t, err)
 
 		// One of the first things the install command does is to check if teleport is already installed.
@@ -307,7 +307,7 @@ func TestAutodiscoverNode(t *testing.T) {
 			}
 		}
 
-		installerConfig := &AutodiscoverNodeInstallerConfig{
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
 			RepositoryChannel: "stable/rolling",
 			AutoUpgrades:      true,
 			ProxyPublicAddr:   proxyPublicAddr,
@@ -325,7 +325,7 @@ func TestAutodiscoverNode(t *testing.T) {
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 		}
 
-		teleportInstaller, err := NewAutodiscoverNodeInstaller(installerConfig)
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
 		require.NoError(t, err)
 
 		// One of the first things the install command does is to check if teleport is already installed.

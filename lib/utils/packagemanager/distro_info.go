@@ -20,8 +20,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/linux"
 )
 
 // PackageManagerForSystem returns the PackageManager for the current detected linux distro.
