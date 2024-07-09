@@ -194,6 +194,136 @@ func TestPostgresRecording(t *testing.T) {
 				nil,
 			},
 		},
+		"prepared statements with multiple portal bindings": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionStart{},
+				&events.PostgresParse{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Query:            "SELECT $1::varchar || ' ' || $2::varchar",
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello1",
+					Parameters:       []string{"hello", "first"},
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello2",
+					Parameters:       []string{"hello", "second"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello1",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello2",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+			},
+			expectedPrints: [][]byte{
+				nil,
+				nil,
+				nil,
+				nil,
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"first\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"second\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+			},
+		},
+		"prepared statements mixed name and unnamed portals": {
+			events: []events.AuditEvent{
+				&events.DatabaseSessionStart{},
+				&events.PostgresParse{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Query:            "SELECT $1::varchar || ' ' || $2::varchar",
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello1",
+					Parameters:       []string{"hello", "first"},
+				},
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					PortalName:       "hello2",
+					Parameters:       []string{"hello", "second"},
+				},
+				// unnamed bind
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Parameters:       []string{"hello", "unamed1"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// named hello1
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello1",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// unnamed 2 bind
+				&events.PostgresBind{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					StatementName:    "test",
+					Parameters:       []string{"hello", "unamed2"},
+				},
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+				// named hello2
+				&events.PostgresExecute{
+					DatabaseMetadata: events.DatabaseMetadata{DatabaseName: "test"},
+					PortalName:       "hello2",
+				},
+				&events.DatabaseSessionCommandResult{
+					Status:          events.Status{Success: true},
+					AffectedRecords: 1,
+				},
+			},
+			expectedPrints: [][]byte{
+				nil,
+				nil,
+				nil,
+				nil,
+				nil, // unnamed bind
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"unamed1\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"first\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				nil, // unnamed 2 bind
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"unamed2\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+				[]byte("\r\ntest=> SELECT $1::varchar || ' ' || $2::varchar ($1 = \"hello\", $2 = \"second\")\r\n"),
+				[]byte("SUCCESS\r\n(1 row affected)\r\n"),
+			},
+		},
 		"skip unexpected command results": {
 			events: []events.AuditEvent{
 				&events.DatabaseSessionStart{},
