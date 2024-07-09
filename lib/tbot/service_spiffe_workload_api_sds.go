@@ -277,6 +277,8 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 	// TODO: When federation support is added, return any federated bundles
 	// if named or returnAll.
 
+	// TODO: Error if requested identity which is not available.
+
 	return &discoveryv3pb.DiscoveryResponse{
 		// Copy in requested type from req
 		TypeUrl:     req.TypeUrl,
@@ -291,11 +293,53 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 func (s *SPIFFEWorkloadAPIService) StreamSecrets(
 	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
 ) error {
-	// TODO: Implement.
-	return status.Error(
-		codes.Unimplemented,
-		"method not implemented",
-	)
+	ctx := srv.Context()
+	log, creds, err := s.authenticateClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authenticating client")
+	}
+
+	reloadCh, unsubscribe := s.trustBundleBroadcast.subscribe()
+	defer unsubscribe()
+
+	// Push incoming messages into a chan for the main loop to handle
+	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
+	recvErrCh := make(chan error, 1)
+	go func() {
+		for {
+			req, err := srv.Recv()
+			if err != nil {
+				// It's worth noting that we'll receive an IOF/Cancelled error
+				// here once the main goroutine has exited or the client goes
+				// away.
+				select {
+				case recvErrCh <- err:
+				default:
+				}
+				return
+			}
+			recvCh <- req
+		}
+	}()
+
+	var renewTimerCh <-chan struct{}
+
+	for {
+		select {
+		case err := <-recvErrCh:
+			// If we receive an error from the read side, we should exit.
+			// This error could be an EOF/Cancelled error if the client
+			// goes away.
+			// TODO: Handle gracefully if EOF/Cancelled.
+			return trace.Wrap(err)
+		case req := <-recvCh:
+		// TODO: handle req from client
+		case <-reloadCh:
+		// Handle trust bundle reloads
+		case <-renewTimerCh:
+			// Handle renewal time!
+		}
+	}
 }
 
 // DeltaSecrets implements
