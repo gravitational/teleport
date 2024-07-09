@@ -20,7 +20,6 @@ package log
 
 import (
 	"context"
-	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -38,55 +37,47 @@ var (
 	// notification subscription on the changes.
 	fileSharedWriter *FileSharedWriter
 
-	// initLock protects global init of the file shared writer.
-	initLock sync.Mutex
+	// mu protects global setter/getter of the file shared writer.
+	mu sync.Mutex
 )
 
 // FileSharedWriter is similar to SharedWriter except that it requires a `os.File` instead of a `io.Writer`.
 // This is to allow the File reopen required by logrotate and similar tools.
 type FileSharedWriter struct {
 	logFile  atomic.Pointer[os.File]
-	watcher  atomic.Pointer[fsnotify.Watcher]
 	fileFlag int
 	fileMode fs.FileMode
 
 	lock sync.Mutex
 }
 
-// InitFileSharedWriter wraps the provided [os.File] in a writer that is thread safe,
-// with ability to enable filesystem notification watch and reopen file on specific events.
-func InitFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (io.Writer, error) {
-	initLock.Lock()
-	defer initLock.Unlock()
+// SetFileSharedWriter sets global file shared writer.
+func SetFileSharedWriter(sharedWriter *FileSharedWriter) {
+	mu.Lock()
+	defer mu.Unlock()
 
-	if fileSharedWriter != nil {
-		return nil, trace.BadParameter("file shared writer already initialized")
-	}
-	fileSharedWriter = &FileSharedWriter{fileFlag: flag, fileMode: mode}
-	fileSharedWriter.logFile.Store(logFile)
-
-	return fileSharedWriter, nil
+	fileSharedWriter = sharedWriter
 }
 
-// CloseFileSharedWriter closes the file shared writer and frees up resources.
-func CloseFileSharedWriter() {
-	initLock.Lock()
-	defer initLock.Unlock()
-
-	if fileSharedWriter != nil {
-		if err := fileSharedWriter.Close(); err != nil {
-			slog.ErrorContext(context.Background(), "Failed to close file shared writer", "error", err)
-		}
-		fileSharedWriter = nil
-	}
-}
-
-// GetFileSharedWriter returns instance of the file shared writer.
+// GetFileSharedWriter returns instance of the global file shared writer.
 func GetFileSharedWriter() *FileSharedWriter {
-	initLock.Lock()
-	defer initLock.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
 	return fileSharedWriter
+}
+
+// NewFileSharedWriter wraps the provided [os.File] in a writer that is thread safe,
+// with ability to enable filesystem notification watch and reopen file on specific events.
+func NewFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (*FileSharedWriter, error) {
+	if logFile == nil {
+		return nil, trace.BadParameter("log file is not set")
+	}
+
+	sharedWriter := &FileSharedWriter{fileFlag: flag, fileMode: mode}
+	sharedWriter.logFile.Store(logFile)
+
+	return sharedWriter, nil
 }
 
 // Write writes len(b) bytes from b to the File.
@@ -114,21 +105,11 @@ func (s *FileSharedWriter) Reopen() error {
 	return nil
 }
 
-// Close stops watcher loop and frees resources.
-func (s *FileSharedWriter) Close() error {
+// RunWatcherReopen runs a filesystem watcher for rename/remove events to reopen the log.
+func (s *FileSharedWriter) RunWatcherReopen(ctx context.Context) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if watcher := s.watcher.Swap(nil); watcher != nil {
-		return trace.Wrap(watcher.Close())
-	}
-	s.logFile.Swap(nil)
-
-	return nil
-}
-
-// RunWatcherReopen runs a filesystem watcher for rename/remove events to reopen the log.
-func (s *FileSharedWriter) RunWatcherReopen(ctx context.Context) error {
 	return s.runWatcherFunc(ctx, s.Reopen)
 }
 
@@ -153,9 +134,9 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 					return
 				}
 				if s.logFile.Load().Name() == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
-					slog.DebugContext(ctx, "Log file was moved/removed, reopen new one", "file", event.Name)
+					slog.DebugContext(ctx, "Log file was moved/removed", "file", event.Name)
 					if err := action(); err != nil {
-						slog.ErrorContext(ctx, "Failed to reopen new file", "error", err, "file", event.Name)
+						slog.ErrorContext(ctx, "Failed to take action", "error", err, "file", event.Name)
 						continue
 					}
 				}
@@ -171,11 +152,6 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 	logDirParent := filepath.Dir(s.logFile.Load().Name())
 	if err = watcher.Add(logDirParent); err != nil {
 		return trace.Wrap(err)
-	}
-
-	oldWatcher := s.watcher.Swap(watcher)
-	if oldWatcher != nil {
-		return trace.Wrap(oldWatcher.Close())
 	}
 
 	return nil
