@@ -8845,7 +8845,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Clock:         clockwork.NewRealClock(),
 			ClusterFeatures: func() authproto.Features {
 				return authproto.Features{
-					Kubernetes: true,
+					Entitlements: map[string]*authproto.EntitlementInfo{
+						string(entitlements.K8s): {Enabled: true},
+					},
 				}
 			},
 		},

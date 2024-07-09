@@ -25,13 +25,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
-	// devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func (s *TerraformSuiteEnterprise) TestTrustedDevices() {
+	deviceTrust := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.DeviceTrust)
 	require.True(s.T(),
-		s.teleportFeatures.GetDeviceTrust().GetEnabled(),
+		deviceTrust.Enabled,
 		"Test requires Device Trust",
 	)
 
@@ -92,8 +94,9 @@ func (s *TerraformSuiteEnterprise) TestTrustedDevices() {
 }
 
 func (s *TerraformSuiteEnterprise) TestImportTrustedDevices() {
+	deviceTrust := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.DeviceTrust)
 	require.True(s.T(),
-		s.teleportFeatures.GetDeviceTrust().GetEnabled(),
+		deviceTrust.Enabled,
 		"Test requires Device Trust",
 	)
 
