@@ -87,7 +87,6 @@ type SPIFFEWorkloadAPIService struct {
 	client *authclient.Client
 
 	trustDomain spiffeid.TrustDomain
-	clusterName string
 
 	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
 	// getTrustBundle to access it.
@@ -124,7 +123,7 @@ func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
 func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
 	ca, err := s.botClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
-		DomainName: s.clusterName,
+		DomainName: s.trustDomain.Name(),
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -179,15 +178,10 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 		}
 	}()
 
-	authPing, err := client.Ping(ctx)
+	s.trustDomain, err = spiffeid.TrustDomainFromString(facade.Get().ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.trustDomain, err = spiffeid.TrustDomainFromString(authPing.ClusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.clusterName = authPing.ClusterName
 
 	if err := s.fetchBundle(ctx); err != nil {
 		return trace.Wrap(err)
