@@ -209,6 +209,25 @@ const (
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
 
+	// MinTokenLength is the minimum token length.
+	MinTokenLength = 32
+
+	// MaxTokenLength is the maximum token length.
+	MaxTokenLength = 120
+
+	// MaxHashedTokenLength is the maximum length of a token that will
+	// be hashed by bcrypt. bcrypt does not accept inputs over 72
+	//characters in length.
+	MaxHashedTokenLength = 72
+
+	// MinTokenStrength is the minimum strength a token must have to be
+	// accepted. It was decided by generating millions of 16 character
+	// random strings, hex encoding them and then searching for the lowest
+	// token strength for all created strings. This is to ensure 32
+	// character long random tokens that are hex encoded will be
+	// accepted.
+	MinTokenStrength = 80.0
+
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
 
