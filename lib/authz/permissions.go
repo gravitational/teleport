@@ -1302,7 +1302,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 								builder.String(common.OriginAWSIdentityCenter),
 							).String(),
 						},
-						types.NewRule(types.KindProvisioningUserState, services.RW()),
+						types.NewRule(types.KindProvisioningState, services.RW()),
 					},
 				},
 			})

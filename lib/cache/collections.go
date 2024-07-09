@@ -229,7 +229,7 @@ type cacheCollections struct {
 	oktaAssignments          collectionReader[oktaAssignmentGetter]
 	oktaImportRules          collectionReader[oktaImportRuleGetter]
 	proxies                  collectionReader[services.ProxyGetter]
-	provisioningStates       collectionReader[provisioningUserStateGetter]
+	provisioningStates       collectionReader[provisioningStateGetter]
 	remoteClusters           collectionReader[remoteClusterGetter]
 	reverseTunnels           collectionReader[reverseTunnelGetter]
 	roles                    collectionReader[roleGetter]
@@ -734,11 +734,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
 
-		case types.KindProvisioningUserState:
+		case types.KindProvisioningState:
 			if c.ProvisioningStates == nil {
 				return nil, trace.BadParameter("missing parameter ProvisioningStates")
 			}
-			collections.provisioningStates = &genericCollection[*provisioningv1.UserState, provisioningUserStateGetter, provisioningUserStateExecutor]{
+			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
 				cache: c,
 				watch: watch,
 			}

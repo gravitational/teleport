@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package services
 
 import (
@@ -13,20 +29,20 @@ const (
 )
 
 type ProvisioningStates interface {
-	GetUserProvisioningState(context.Context, string) (*provisioningv1.UserState, error)
-	ListUserProvisioningStates(context.Context, PageToken) ([]*provisioningv1.UserState, PageToken, error)
-	CreateUserProvisioningState(context.Context, *provisioningv1.UserState) (*provisioningv1.UserState, error)
-	UpdateUserProvisioningState(context.Context, *provisioningv1.UserState) (*provisioningv1.UserState, error)
-	DeleteUserProvisioningState(context.Context, string) error
-	DeleteAllUserProvisioningStates(context.Context) error
+	GetProvisioningState(context.Context, string) (*provisioningv1.PrincipalState, error)
+	ListProvisioningStates(context.Context, PageToken) ([]*provisioningv1.PrincipalState, PageToken, error)
+	CreateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
+	UpdateProvisioningState(context.Context, *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error)
+	DeleteProvisioningState(context.Context, string) error
+	DeleteAllProvisioningStates(context.Context) error
 }
 
-// MarshalProvisioningUserState marshals the User State object into a JSON byte array.
-func MarshalProvisioningUserState(object *provisioningv1.UserState, opts ...MarshalOption) ([]byte, error) {
+// MarshalProvisioningState marshals the User State object into a JSON byte array.
+func MarshalProvisioningState(object *provisioningv1.PrincipalState, opts ...MarshalOption) ([]byte, error) {
 	return MarshalProtoResource(object, opts...)
 }
 
-// UnmarshalProvisioningUserState un-marshals the User State  object from a JSON byte array.
-func UnmarshalProvisioningUserState(data []byte, opts ...MarshalOption) (*provisioningv1.UserState, error) {
-	return UnmarshalProtoResource[*provisioningv1.UserState](data, opts...)
+// UnmarshalProvisioningState un-marshals the User State  object from a JSON byte array.
+func UnmarshalProvisioningState(data []byte, opts ...MarshalOption) (*provisioningv1.PrincipalState, error) {
+	return UnmarshalProtoResource[*provisioningv1.PrincipalState](data, opts...)
 }

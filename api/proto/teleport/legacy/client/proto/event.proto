@@ -170,6 +170,6 @@ message Event {
     // BotInstance is a Machine ID bot instance.
     teleport.machineid.v1.BotInstance BotInstance = 60;
 
-    teleport.provisioning.v1.UserState UserState = 99;
+    teleport.provisioning.v1.PrincipalState PrincipalState = 99;
   }
 }

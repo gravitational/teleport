@@ -86,9 +86,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_BotInstance{
 				BotInstance: r,
 			}
-		case *provisioningv1.UserState:
-			out.Resource = &proto.Event_UserState{
-				UserState: r,
+		case *provisioningv1.PrincipalState:
+			out.Resource = &proto.Event_PrincipalState{
+				PrincipalState: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -524,7 +524,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetUserState(); r != nil {
+	} else if r := in.GetPrincipalState(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

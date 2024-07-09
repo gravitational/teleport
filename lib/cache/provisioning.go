@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package cache
 
 import (
@@ -9,18 +25,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type provisioningUserStateGetter interface {
-	GetUserProvisioningState(context.Context, string) (*provisioningv1.UserState, error)
-	ListUserProvisioningStates(context.Context, services.PageToken) ([]*provisioningv1.UserState, services.PageToken, error)
+type provisioningStateGetter interface {
+	GetProvisioningState(context.Context, string) (*provisioningv1.PrincipalState, error)
+	ListProvisioningStates(context.Context, services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error)
 }
 
-type provisioningUserStateExecutor struct{}
+type provisioningStateExecutor struct{}
 
-func (provisioningUserStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.UserState, error) {
+func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
 	var nextPage services.PageToken
-	var resources []*provisioningv1.UserState
+	var resources []*provisioningv1.PrincipalState
 	for {
-		var page []*provisioningv1.UserState
+		var page []*provisioningv1.PrincipalState
 		var err error
 
 		if cache == nil {
@@ -31,7 +47,7 @@ func (provisioningUserStateExecutor) getAll(ctx context.Context, cache *Cache, l
 			panic("Cache ProvisioningStates is nil")
 		}
 
-		page, nextPage, err := cache.ProvisioningStates.ListUserProvisioningStates(ctx, nextPage)
+		page, nextPage, err := cache.ProvisioningStates.ListProvisioningStates(ctx, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -45,31 +61,31 @@ func (provisioningUserStateExecutor) getAll(ctx context.Context, cache *Cache, l
 	return resources, nil
 }
 
-func (provisioningUserStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.UserState) error {
-	_, err := cache.provisioningStatesCache.CreateUserProvisioningState(ctx, resource)
+func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.PrincipalState) error {
+	_, err := cache.provisioningStatesCache.CreateProvisioningState(ctx, resource)
 	if trace.IsAlreadyExists(err) {
-		_, err = cache.provisioningStatesCache.UpdateUserProvisioningState(ctx, resource)
+		_, err = cache.provisioningStatesCache.UpdateProvisioningState(ctx, resource)
 	}
 	return trace.Wrap(err)
 }
 
-func (provisioningUserStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.provisioningStatesCache.DeleteUserProvisioningState(ctx, resource.GetName()))
+func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.provisioningStatesCache.DeleteProvisioningState(ctx, resource.GetName()))
 }
 
-func (provisioningUserStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.provisioningStatesCache.DeleteAllUserProvisioningStates(ctx))
+func (provisioningStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.provisioningStatesCache.DeleteAllProvisioningStates(ctx))
 }
 
-func (provisioningUserStateExecutor) getReader(cache *Cache, cacheOK bool) provisioningUserStateGetter {
+func (provisioningStateExecutor) getReader(cache *Cache, cacheOK bool) provisioningStateGetter {
 	if cacheOK {
 		return cache.provisioningStatesCache
 	}
 	return cache.Config.ProvisioningStates
 }
 
-func (provisioningUserStateExecutor) isSingleton() bool {
+func (provisioningStateExecutor) isSingleton() bool {
 	return false
 }
 
-var _ executor[*provisioningv1.UserState, provisioningUserStateGetter] = provisioningUserStateExecutor{}
+var _ executor[*provisioningv1.PrincipalState, provisioningStateGetter] = provisioningStateExecutor{}

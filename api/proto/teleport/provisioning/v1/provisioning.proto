@@ -20,39 +20,58 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1;provisioningv1";
 
-// UserStateV1 describes the provisioning state of a Teleport user in a downstream
-// system
-message UserState {
+// PrincipalState describes the provisioning state of a Teleport user in a
+// downstream system
+message PrincipalState {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
-  UserStateSpec spec = 5;
-  UserStateStatus status = 6;
+  PrincipalStateSpec spec = 5;
+  PrincipalStateStatus status = 6;
 }
 
 // Status indicates the current stage of the provisioning pipeline a resource is
 // in.
 enum Status {
   STATUS_UNSPECIFIED = 0;
-  STATUS_PENDING = 1;
+  STATUS_STALE = 1;
   STATUS_PROCESSING = 2;
   STATUS_PROVISIONED = 3;
   STATUS_ERROR = 4;
 }
 
-// UserStateSpecV1 describes the current state of a provisioning operation. It
-// serves as a Teleport-local record of the downstream state.
-message UserStateSpec {
-  // DownstreamId identifies the downstream service that this state applies to.
-  string downstream_id = 1;
-  string user = 2;
-  string external_id = 3;
+// PrincipalType indicates the type of principal represented by a PrincipalState
+enum PrincipalType {
+  PRINCIPAL_TYPE_UNSPECIFIED = 0;
+  PRINCIPAL_TYPE_USER = 1;
+  PRINCIPAL_TYPE_ACCESS_LIST = 2;
 }
 
-// UserStateStatus contains the runtime-writable status block for the UserState
-// resource
-message UserStateStatus {
+// PrincipalStateSpec describes the current state of a provisioning operation. It
+// serves as a Teleport-local record of the downstream state.
+message PrincipalStateSpec {
+  // DownstreamId identifies the downstream service that this state applies to.
+  string downstream_id = 1;
+
+  // PrincipalId identifies what kind of principal this state applies to, either
+  // a User or a Group (i.e. AccessList)
+  PrincipalType principal_type = 2;
+
+  // PrincipalId identifies the Teleport User or Access List that this state
+  // applies to
+  string principal_id = 3;
+}
+
+// PrincipalStateStatus contains the runtime-writable status block for the
+// PrincipalState resource
+message PrincipalStateStatus {
   Status status = 1;
-  string error = 2;
+
+  // ExternalID holds the ID used by the downstream system to represent this
+  // principal
+  string external_id = 2;
+
+  // Error holds a description of the last provisioing error, if any.
+  string error = 3;
 }

@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package local
 
 import (
@@ -12,13 +28,13 @@ import (
 )
 
 const (
-	provisioningUserStatePrefix   = "provisioning_user_status"
-	provisioningUserStatePageSize = 100
+	provisioningStatePrefix   = "provisioning_status"
+	provisioningStatePageSize = 100
 )
 
 // ProvisioningStateService handles low-level CRUD operations for the provisioning status
 type ProvisioningStateService struct {
-	service *generic.ServiceWrapper[*provisioningv1.UserState]
+	service *generic.ServiceWrapper[*provisioningv1.PrincipalState]
 }
 
 var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
@@ -26,10 +42,10 @@ var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 func NewProvisioningStateService(backend backend.Backend) (*ProvisioningStateService, error) {
 	userStatusSvc, err := generic.NewServiceWrapper(
 		backend,
-		types.KindProvisioningUserState,
-		provisioningUserStatePrefix,
-		services.MarshalProvisioningUserState,
-		services.UnmarshalProvisioningUserState)
+		types.KindProvisioningState,
+		provisioningStatePrefix,
+		services.MarshalProvisioningState,
+		services.UnmarshalProvisioningState)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -41,7 +57,7 @@ func NewProvisioningStateService(backend backend.Backend) (*ProvisioningStateSer
 	return svc, nil
 }
 
-func (ss *ProvisioningStateService) CreateUserProvisioningState(ctx context.Context, state *provisioningv1.UserState) (*provisioningv1.UserState, error) {
+func (ss *ProvisioningStateService) CreateProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
 	createdState, err := ss.service.CreateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating new user state record")
@@ -49,7 +65,7 @@ func (ss *ProvisioningStateService) CreateUserProvisioningState(ctx context.Cont
 	return createdState, nil
 }
 
-func (ss *ProvisioningStateService) UpdateUserProvisioningState(ctx context.Context, state *provisioningv1.UserState) (*provisioningv1.UserState, error) {
+func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
 	updatedState, err := ss.service.UpdateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "updating new user state record")
@@ -57,7 +73,7 @@ func (ss *ProvisioningStateService) UpdateUserProvisioningState(ctx context.Cont
 	return updatedState, nil
 }
 
-func (ss *ProvisioningStateService) GetUserProvisioningState(ctx context.Context, name string) (*provisioningv1.UserState, error) {
+func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, name string) (*provisioningv1.PrincipalState, error) {
 	state, err := ss.service.GetResource(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user provisioning state")
@@ -65,18 +81,18 @@ func (ss *ProvisioningStateService) GetUserProvisioningState(ctx context.Context
 	return state, nil
 }
 
-func (ss *ProvisioningStateService) ListUserProvisioningStates(ctx context.Context, page services.PageToken) ([]*provisioningv1.UserState, services.PageToken, error) {
-	resp, nextPage, err := ss.service.ListResources(ctx, provisioningUserStatePageSize, string(page))
+func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, page services.PageToken) ([]*provisioningv1.PrincipalState, services.PageToken, error) {
+	resp, nextPage, err := ss.service.ListResources(ctx, provisioningStatePageSize, string(page))
 	if err != nil {
-		return nil, "", trace.Wrap(err, "listing user provisioning states")
+		return nil, "", trace.Wrap(err, "listing provisioning states")
 	}
 	return resp, services.PageToken(nextPage), nil
 }
 
-func (ss *ProvisioningStateService) DeleteUserProvisioningState(ctx context.Context, name string) error {
+func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context, name string) error {
 	return trace.Wrap(ss.service.DeleteResource(ctx, name))
 }
 
-func (ss *ProvisioningStateService) DeleteAllUserProvisioningStates(ctx context.Context) error {
+func (ss *ProvisioningStateService) DeleteAllProvisioningStates(ctx context.Context) error {
 	return trace.Wrap(ss.service.DeleteAllResources(ctx))
 }

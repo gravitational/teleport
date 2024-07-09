@@ -211,8 +211,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindBotInstance:
 			parser = newBotInstanceParser()
-		case types.KindProvisioningUserState:
-			parser = newProvisioningUserStateParser()
+		case types.KindProvisioningState:
+			parser = newProvisioningStateParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1658,22 +1658,22 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 	}
 }
 
-func newProvisioningUserStateParser() *provisioningUserStateParser {
-	return &provisioningUserStateParser{
-		baseParser: newBaseParser(backend.Key(provisioningUserStatePrefix)),
+func newProvisioningStateParser() *provisioningStateParser {
+	return &provisioningStateParser{
+		baseParser: newBaseParser(backend.Key(provisioningStatePrefix)),
 	}
 }
 
-type provisioningUserStateParser struct {
+type provisioningStateParser struct {
 	baseParser
 }
 
-func (p *provisioningUserStateParser) parse(event backend.Event) (types.Resource, error) {
+func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindProvisioningUserState, types.V1, 0)
+		return resourceHeader(event, types.KindProvisioningState, types.V1, 0)
 	case types.OpPut:
-		r, err := services.UnmarshalProvisioningUserState(event.Item.Value,
+		r, err := services.UnmarshalProvisioningState(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
