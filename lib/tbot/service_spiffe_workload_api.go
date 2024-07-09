@@ -19,7 +19,6 @@
 package tbot
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -37,7 +36,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -85,19 +86,16 @@ type SPIFFEWorkloadAPIService struct {
 	// client holds the impersonated client for the service
 	client *authclient.Client
 
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
+	clusterName string
 
 	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
 	// getTrustBundle to access it.
-	trustBundle   []byte
+	trustBundle   *x509bundle.Bundle
 	trustBundleMu sync.Mutex
 }
 
-func (s *SPIFFEWorkloadAPIService) trustDomainID() string {
-	return fmt.Sprintf("spiffe://%s", s.trustDomain)
-}
-
-func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
+func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle *x509bundle.Bundle) {
 	s.trustBundleMu.Lock()
 	s.trustBundle = trustBundle
 	s.trustBundleMu.Unlock()
@@ -105,29 +103,45 @@ func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
 	s.trustBundleBroadcast.broadcast()
 }
 
-func (s *SPIFFEWorkloadAPIService) getTrustBundle() []byte {
+func (s *SPIFFEWorkloadAPIService) getTrustBundle() *x509bundle.Bundle {
 	s.trustBundleMu.Lock()
 	defer s.trustBundleMu.Unlock()
 	return s.trustBundle
 }
 
+// trustBundleToRawCerts converts a trust bundle's certs to raw bytes.
+// What's particularly special is that the certs are not pem encoded and
+// are appended directly to one another. This is the way that the SPIFFE
+// workload API clients expect.
+func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
+	out := []byte{}
+	for _, cert := range bundle.X509Authorities() {
+		out = append(out, cert.Raw...)
+	}
+	return out
+}
+
 func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
-	cas, err := s.botClient.GetCertAuthorities(ctx, types.SPIFFECA, false)
+	ca, err := s.botClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: s.clusterName,
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustBundleBytes := &bytes.Buffer{}
-	for _, ca := range cas {
-		for _, cert := range services.GetTLSCerts(ca) {
-			// The values from GetTLSCerts are PEM encoded. We need them to be
-			// the bare ASN.1 DER encoded certificate.
-			block, _ := pem.Decode(cert)
-			trustBundleBytes.Write(block.Bytes)
+
+	bundle := x509bundle.New(s.trustDomain)
+	for _, certBytes := range services.GetTLSCerts(ca) {
+		block, _ := pem.Decode(certBytes)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return trace.Wrap(err, "parsing cert")
 		}
+		bundle.AddX509Authority(cert)
 	}
 
 	s.log.InfoContext(ctx, "Fetched new trust bundle")
-	s.setTrustBundle(trustBundleBytes.Bytes())
+	s.setTrustBundle(bundle)
 	return nil
 }
 
@@ -165,14 +179,19 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 		}
 	}()
 
-	if err := s.fetchBundle(ctx); err != nil {
-		return trace.Wrap(err)
-	}
 	authPing, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.trustDomain = authPing.ClusterName
+	s.trustDomain, err = spiffeid.TrustDomainFromString(authPing.ClusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.clusterName = authPing.ClusterName
+
+	if err := s.fetchBundle(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -360,6 +379,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
+	bundleRawCerts := trustBundleToRawCerts(trustBundle)
 
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
@@ -394,7 +414,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
-			Bundle: trustBundle,
+			Bundle: bundleRawCerts,
 			Hint:   svidRes.Hint,
 		}
 		cert, err := x509.ParseCertificate(svidRes.Certificate)
@@ -608,10 +628,11 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 
 	for {
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
+		tb := s.getTrustBundle()
 		err := srv.Send(&workloadpb.X509BundlesResponse{
 			// Bundles keyed by trust domain
 			Bundles: map[string][]byte{
-				s.trustDomain: s.getTrustBundle(),
+				tb.TrustDomain().IDString(): trustBundleToRawCerts(tb),
 			},
 		})
 		if err != nil {
