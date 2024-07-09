@@ -39,9 +39,6 @@ import (
 //
 // This effectively replaces the Workload API for Envoy, but functions in a
 // very similar way.
-//
-// For now, we declare support for 1.18 and above since this version introduced
-// the SPIFFE-specific validator.
 
 // The following constants allow querying this API for SVIDs and trust bundles
 // without knowing their names. These special values are relied upon by tools
@@ -57,6 +54,23 @@ const (
 	// including federated ones, should be returned.
 	envoyAllBundlesName = "ALL"
 )
+
+func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
+	// Envoy 1.18 introduced the SPIFFE specific tls context validator - so
+	// that's our minimum supported version.
+	buildVersion := req.Node.GetUserAgentBuildVersion()
+	// If not specified, let's assume that it's recent enough.
+	if buildVersion == nil {
+		return nil
+	}
+	if buildVersion.Version.MajorNumber > 1 {
+		return nil
+	}
+	if buildVersion.Version.MinorNumber >= 18 {
+		return nil
+	}
+	return trace.BadParameter("minimum supported version of envoy supported by the tbot SDS API is 1.18")
+}
 
 func newTLSV3Certificate(
 	svid *workloadpb.X509SVID, overrideResourceName string,
@@ -163,6 +177,10 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 	ctx context.Context,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
+	if err := enforceMinimumEnvoyVersion(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log, creds, err := s.authenticateClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "authenticating client")
@@ -271,7 +289,7 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 // envoy.service.secret.v3/SecretDiscoveryService.StreamSecrets.
 // This should return the current SVIDs and CAs, and stream any future updates.
 func (s *SPIFFEWorkloadAPIService) StreamSecrets(
-	_ secretv3pb.SecretDiscoveryService_StreamSecretsServer,
+	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
 ) error {
 	// TODO: Implement.
 	return status.Error(
@@ -283,7 +301,9 @@ func (s *SPIFFEWorkloadAPIService) StreamSecrets(
 // DeltaSecrets implements
 // envoy.service.secret.v3/SecretDiscoveryService.DeltaSecrets.
 // We do not implement this method.
-func (s *SPIFFEWorkloadAPIService) DeltaSecrets(_ secretv3pb.SecretDiscoveryService_DeltaSecretsServer) error {
+func (s *SPIFFEWorkloadAPIService) DeltaSecrets(
+	_ secretv3pb.SecretDiscoveryService_DeltaSecretsServer,
+) error {
 	return status.Error(
 		codes.Unimplemented,
 		"method not implemented",
