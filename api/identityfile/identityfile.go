@@ -115,6 +115,7 @@ func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return ssh, nil
 }
 
+// Expiry returns the credential expiry.
 func (i *IdentityFile) Expiry() (time.Time, bool) {
 	if i.Certs.TLS == nil {
 		return time.Time{}, false
