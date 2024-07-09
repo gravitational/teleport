@@ -1,9 +1,9 @@
+# syntax=docker/dockerfile:1
+
 ARG RUST_VERSION
 
-## GIT2 ###################################################################
-
-# git2 packages are not available on ARM64, so we need to build it from source.
-FROM centos:7 AS git2
+# Set up a base container from centos:7 adjusted for using vault.centos.org
+FROM centos:7 AS base
 
 ARG BUILDARCH
 ARG TARGETARCH
@@ -17,9 +17,39 @@ ENV DEVTOOLSET=${DEVTOOLSET} \
 RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
     echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
-# Install required dependencies.
+# mirrorlist is no longer available since CentOS 7 EOL. The software collection
+# stuff for arm64 (aarch64) is in /altarch not /centos on vault.centos.org.
+# Make the fixup a script as it needs to be run multiple times as installing
+# and updating centos-release-scl-rh leaves the old unavailable URLs.
+# https://serverfault.com/a/1161847
+RUN cat <<EOF > /tmp/fix-yum-repo-list.sh
+#!/bin/sh
+sed -e 's/mirror.centos.org/vault.centos.org/g' \
+    -e 's/^#.*baseurl=http/baseurl=http/g' \
+    -e 's/^mirrorlist=http/#mirrorlist=http/g' \
+    -i /etc/yum.repos.d/*.repo
+if [ "$(uname -m)" = 'aarch64' ]; then
+    sed 's|centos/7/sclo|altarch/7/sclo|' -i /etc/yum.repos.d/*.repo
+fi
+EOF
+RUN chmod 755 /tmp/fix-yum-repo-list.sh && \
+    /tmp/fix-yum-repo-list.sh
+
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
+        centos-release-scl-rh \
+        centos-release-scl && \
+    /tmp/fix-yum-repo-list.sh
+
+## GIT2 ###################################################################
+
+# git2 packages are not available on ARM64, so we need to build it from source.
+FROM base AS git2
+
+ARG BUILDARCH
+
+# Install required dependencies.
+RUN yum install -y \
     ca-certificates  \
     curl-devel  \
     expat-devel  \
@@ -29,9 +59,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     perl-CPAN  \
     perl-devel wget && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-    centos-release-scl && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
@@ -55,22 +82,9 @@ FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDAR
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM centos:7 AS libfido2
+FROM base AS libfido2
 
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum install -y centos-release-scl-rh && \
+RUN yum install -y epel-release && \
     yum update -y && \
     yum install -y \
         cmake3 \
@@ -133,26 +147,12 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM centos:7 AS libbpf
-
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
+FROM base AS libbpf
 
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-        centos-release-scl \
         elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
@@ -173,28 +173,14 @@ RUN mkdir -p /opt && cd /opt && \
 
 ## LIBPCSCLITE #####################################################################
 
-FROM centos:7 AS libpcsclite
-
-ARG DEVTOOLSET
-ARG TARGETARCH
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
+FROM base AS libpcsclite
 
 # Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
+RUN yum update -y && \
     yum install -y \
         autoconf-archive \
         libudev-devel \
-        scl-utils \
-        centos-release-scl \
+        scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
@@ -213,7 +199,7 @@ RUN git clone --depth=1 https://github.com/gravitational/PCSC.git -b ${LIBPCSCLI
 
 ## BUILDBOX ###################################################################
 
-FROM centos:7 AS buildbox
+FROM base AS buildbox
 
 ENV LANGUAGE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
@@ -230,21 +216,9 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
+RUN yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
     # required by libbpf
     elfutils-libelf-devel-static \
     net-tools \
