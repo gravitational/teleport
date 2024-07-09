@@ -1701,4 +1701,4 @@ create-release-notes: $(RELEASE_NOTES_GEN)
     --latest=false \
     --target=master \
     --verify-tag \
-    -F - "$$NOTES"
+    -F "$$NOTES"
