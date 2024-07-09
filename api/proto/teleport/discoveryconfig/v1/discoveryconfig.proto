@@ -99,14 +99,12 @@ message AWSEC2InstancesDiscovered {
   AWSEC2EnrollmentStatus enroll_status = 5;
   // EnrollMessage is an informational message used to further expand on the result of auto-enrolling this instance.
   string enroll_message = 6;
-  // AWSConsoleURL is the URL for this instance in AWS.
-  string aws_console_url = 7;
   // Name is the friendly name of the resource.
   // Might be empty.
-  string name = 8;
+  string name = 7;
   // SSMInvocationURL is the URL that points to the ssm:RunCommand invocation result.
   // This only present when auto-enrolling using the Script mode.
-  string ssm_invocation_url = 9;
+  string ssm_invocation_url = 8;
 }
 
 // AWSEC2EnrollmentStatus is the status of the discovery config EC2 instance enrollment.
@@ -116,10 +114,10 @@ enum AWSEC2EnrollmentStatus {
   AWSEC2_ENROLLMENT_STATUS_SYNCING = 1;
   // AWSEC2_ENROLLMENT_STATUS_SCRIPT_SUCCESS means that teleport successfully ran the script.
   AWSEC2_ENROLLMENT_STATUS_SCRIPT_SUCCESS = 2;
-  // AWSEC2_ENROLLMENT_STATUS_SCRIPT_FAILED means that the script failed to run.
-  AWSEC2_ENROLLMENT_STATUS_SCRIPT_FAILED = 3;
-  // AWSEC2_ENROLLMENT_STATUS_JOINED indicates that the instance joined teleport.
-  AWSEC2_ENROLLMENT_STATUS_JOINED = 4;
+  // AWSEC2_ENROLLMENT_STATUS_SCRIPT_ERROR means that the script failed to run.
+  AWSEC2_ENROLLMENT_STATUS_SCRIPT_ERROR = 3;
+  // AWSEC2_ENROLLMENT_STATUS_SUCCESS indicates that the instance joined teleport.
+  AWSEC2_ENROLLMENT_STATUS_SUCCESS = 4;
   // AWSEC2_ENROLLMENT_STATUS_ERROR indicates some other error when tryint to auto-enroll the instance.
   AWSEC2_ENROLLMENT_STATUS_ERROR = 5;
 }
