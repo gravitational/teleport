@@ -2196,7 +2196,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 		return nil
 	}
 
-	if req.Type != sshutils.X11ForwardRequest {
+	if req.Type != x11.ForwardRequest {
 		return trace.BadParameter("Unexpected request type %q", req.Type)
 	}
 
@@ -2205,7 +2205,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 	}
 
 	// start a fake X11 channel
-	xch, _, err := conn.OpenChannel(sshutils.X11ChannelRequest, nil)
+	xch, _, err := conn.OpenChannel(x11.ChannelRequest, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2546,11 +2546,11 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
-	xchs := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
+	xchs := clt.HandleChannelOpen(x11.ChannelRequest)
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
-	ok, err = sess.SendRequest(ctx, sshutils.X11ForwardRequest, true, nil)
+	ok, err = sess.SendRequest(ctx, x11.ForwardRequest, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -2562,7 +2562,7 @@ func TestX11ProxySupport(t *testing.T) {
 		require.Fail(t, "Timeout waiting for X11 channel open from %v", node.addr)
 	}
 	require.NotNil(t, xnc)
-	require.Equal(t, sshutils.X11ChannelRequest, xnc.ChannelType())
+	require.Equal(t, x11.ChannelRequest, xnc.ChannelType())
 
 	xch, _, err := xnc.Accept()
 	require.NoError(t, err)
