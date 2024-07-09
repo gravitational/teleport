@@ -91,6 +91,8 @@ on:
         type: string
         default: build-stage
 
+run-name: "Linux build ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
+
 jobs:
   setup:
     runs-on: ubuntu-latest
