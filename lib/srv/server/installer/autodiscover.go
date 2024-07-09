@@ -49,8 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
-// AutodiscoverNodeInstallerConfig installs and configures a Teleport Server into the current system.
-type AutodiscoverNodeInstallerConfig struct {
+// AutoDiscoverNodeInstallerConfig installs and configures a Teleport Server into the current system.
+type AutoDiscoverNodeInstallerConfig struct {
 	Logger *slog.Logger
 
 	// ProxyPublicAddr is the proxy public address that the instance will connect to.
@@ -94,7 +94,7 @@ type AutodiscoverNodeInstallerConfig struct {
 	imdsProviders []func(ctx context.Context) (imds.Client, error)
 }
 
-func (c *AutodiscoverNodeInstallerConfig) checkAndSetDefaults() error {
+func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	if c == nil {
 		return trace.BadParameter("install teleport config is required")
 	}
@@ -153,20 +153,20 @@ func (c *AutodiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// AutodiscoverNodeInstaller will install teleport in the current system.
+// AutoDiscoverNodeInstaller will install teleport in the current system.
 // It's meant to be used by the Server Auto Discover script.
-type AutodiscoverNodeInstaller struct {
-	*AutodiscoverNodeInstallerConfig
+type AutoDiscoverNodeInstaller struct {
+	*AutoDiscoverNodeInstallerConfig
 }
 
-// NewAutodiscoverNodeInstaller returns a new AutodiscoverNodeInstaller.
-func NewAutodiscoverNodeInstaller(cfg *AutodiscoverNodeInstallerConfig) (*AutodiscoverNodeInstaller, error) {
+// NewAutoDiscoverNodeInstaller returns a new AutoDiscoverNodeInstaller.
+func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDiscoverNodeInstaller, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ti := &AutodiscoverNodeInstaller{
-		AutodiscoverNodeInstallerConfig: cfg,
+	ti := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: cfg,
 	}
 
 	return ti, nil
@@ -189,7 +189,7 @@ var imdsClientTypeToJoinMethod = map[types.InstanceMetadataType]types.JoinMethod
 }
 
 // Install teleport in the current system.
-func (ani *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
+func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	// Ensure only one installer is running by locking the same file as the script installers.
 	lockFile := ani.buildAbsoluteFilePath(exclusiveInstallFileLock)
 	unlockFn, err := utils.FSTryWriteLock(lockFile)
@@ -238,7 +238,7 @@ func (ani *AutodiscoverNodeInstaller) Install(ctx context.Context) error {
 	return nil
 }
 
-func (ani *AutodiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client, teleportYamlConfigurationPath string) error {
+func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client, teleportYamlConfigurationPath string) error {
 	nodeLabels, err := fetchNodeAutoDiscoverLabels(ctx, imdsClient)
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,7 +283,7 @@ func (ani *AutodiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 	return nil
 }
 
-func (ani *AutodiscoverNodeInstaller) installTeleportFromRepo(ctx context.Context) error {
+func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Context) error {
 	// Read current system information.
 	linuxInfo, err := ani.linuxDistribution()
 	if err != nil {
@@ -329,7 +329,7 @@ func (ani *AutodiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 	return nil
 }
 
-func (ani *AutodiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.Client, error) {
+func (ani *AutoDiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.Client, error) {
 	// detect and fetch cloud provider metadata
 	imdsClient, err := cloud.DiscoverInstanceMetadata(ctx, ani.imdsProviders)
 	if err != nil {
@@ -342,7 +342,7 @@ func (ani *AutodiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.C
 	return imdsClient, nil
 }
 
-func (ani *AutodiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) string {
+func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) string {
 	upgradeURL, err := url.Parse(ani.autoUpgradesChannelURL)
 	if err != nil {
 		ani.Logger.WarnContext(ctx, "Failed to parse automatic upgrades default channel url, using api version",
@@ -437,14 +437,14 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (ani *AutodiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
+func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
 	return path.Join(ani.fsRootPrefix, filepath)
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.
 //
 // https://www.freedesktop.org/software/systemd/man/latest/os-release.html
-func (ani *AutodiscoverNodeInstaller) linuxDistribution() (*linux.OSRelease, error) {
+func (ani *AutoDiscoverNodeInstaller) linuxDistribution() (*linux.OSRelease, error) {
 	f, err := os.Open(ani.buildAbsoluteFilePath(etcOSReleaseFile))
 	if err != nil {
 		return nil, trace.Wrap(err)

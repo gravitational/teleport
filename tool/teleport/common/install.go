@@ -27,8 +27,8 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
-// installAutodiscoverNodeFlags contains the required flags used to install, configure and start a teleport process.
-type installAutodiscoverNodeFlags struct {
+// installAutoDiscoverNodeFlags contains the required flags used to install, configure and start a teleport process.
+type installAutoDiscoverNodeFlags struct {
 	// ProxyPublicAddr is the proxy public address that the instance will connect to.
 	// Eg, proxy.example.com
 	ProxyPublicAddr string
@@ -55,8 +55,8 @@ type installAutodiscoverNodeFlags struct {
 	TokenName string
 }
 
-// onInstallAutodiscoverNode is the handler of the "install autodiscover-node" CLI command.
-func onInstallAutodiscoverNode(cfg installAutodiscoverNodeFlags) error {
+// onInstallAutoDiscoverNode is the handler of the "install autodiscover-node" CLI command.
+func onInstallAutoDiscoverNode(cfg installAutoDiscoverNodeFlags) error {
 	ctx := context.Background()
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	libutils.InitLogger(libutils.LoggingForDaemon, slog.LevelInfo)
@@ -66,7 +66,7 @@ func onInstallAutodiscoverNode(cfg installAutodiscoverNodeFlags) error {
 		return trace.BadParameter("--auto-upgrade must be either true or false")
 	}
 
-	teleportInstaller, err := installer.NewAutodiscoverNodeInstaller(&installer.AutodiscoverNodeInstallerConfig{
+	teleportInstaller, err := installer.NewAutoDiscoverNodeInstaller(&installer.AutoDiscoverNodeInstallerConfig{
 		ProxyPublicAddr:   cfg.ProxyPublicAddr,
 		TeleportPackage:   cfg.TeleportPackage,
 		RepositoryChannel: cfg.RepositoryChannel,

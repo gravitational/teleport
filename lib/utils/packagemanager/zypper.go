@@ -23,8 +23,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/linux"
 )
 
 const (
