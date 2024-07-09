@@ -182,3 +182,32 @@ func (countdown *Countdown) Wait(ctx context.Context) error {
 		return trace.Wrap(ctx.Err())
 	}
 }
+
+// NewMockEventsProcessWithConfirmedWatchJobs creates a new mock process that passes confirmed watch kinds back.
+func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.T, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) *MockEventsProcess {
+	t.Helper()
+	process := MockEventsProcess{
+		Process: lib.NewProcess(ctx),
+	}
+	t.Cleanup(func() {
+		process.Terminate()
+		err := process.Shutdown(ctx)
+		assert.ErrorContains(t, err, context.Canceled.Error(), "if a non-nil error is returned, it should be canceled context")
+		process.Close()
+	})
+	var err error
+
+	process.eventsJob, err = NewJobWithConfirmedWatchKinds(&process.Events, config, fn, confirmedWatchKindsCh)
+	require.NoError(t, err)
+	process.SpawnCriticalJob(process.eventsJob)
+	require.NoError(t, process.Events.WaitSomeWatchers(ctx))
+	process.Events.Fire(types.Event{
+		Type: types.OpInit,
+		Resource: &types.WatchStatusV1{
+			Spec: types.WatchStatusSpecV1{
+				Kinds: config.Watch.Kinds,
+			},
+		}})
+
+	return &process
+}
