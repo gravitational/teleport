@@ -615,48 +615,53 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		go func() {
-			var req networking.Request
-			if err := json.Unmarshal(buf[:n], &req); err != nil {
-				slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
-				return
-			}
-			log := slog.With("request", req)
+		if fn == 0 {
+			slog.ErrorContext(ctx, "Networking request requires a control file.")
+			continue
+		}
 
-			if fn == 0 {
-				log.ErrorContext(ctx, "Networking request requires a control file.")
-				return
-			}
+		controlConn, err := uds.FromFile(fbuf[0])
+		_ = fbuf[0].Close()
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to get a connection from control file.")
+			continue
+		}
 
-			controlConn, err := uds.FromFile(fbuf[0])
-			_ = fbuf[0].Close()
-			if err != nil {
-				log.ErrorContext(ctx, "Failed to get a connection from control file.")
-				return
-			}
-			defer controlConn.Close()
-
-			log.Debug("Handling networking request")
-			netFile, err := handleNetworkingRequest(ctx, req)
-			if err != nil {
-				log.With("error", err).ErrorContext(ctx, "Error handling networking request.")
-				if _, err2 := controlConn.Write([]byte(err.Error())); err2 != nil {
-					log.With("error", err2.Error()).ErrorContext(ctx, "Failed to write error to control conn.")
-				}
-			}
-			defer netFile.Close()
-
-			if _, _, err := uds.WriteWithFDs(controlConn, nil, []*os.File{netFile}); err != nil {
-				log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
-			}
-		}()
+		go handleNetworkingRequest(ctx, controlConn, buf[:n])
 	}
 }
 
-func handleNetworkingRequest(ctx context.Context, req networking.Request) (*os.File, error) {
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, payload []byte) {
+	defer conn.Close()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	go func() {
+		defer cancel()
+		_, _ = conn.Read(make([]byte, 1))
+	}()
 
+	var req networking.Request
+	if err := json.Unmarshal(payload, &req); err != nil {
+		slog.With("error", err).ErrorContext(ctx, "Error parsing networking request.")
+		return
+	}
+
+	log := slog.With("request", req)
+	log.Debug("Handling networking request")
+
+	netFile, err := createNetworkingFile(ctx, req)
+	if err != nil {
+		log.With("error", err).ErrorContext(ctx, "Error creating networking file.")
+		conn.Write([]byte(err.Error()))
+		return
+	}
+	defer netFile.Close()
+
+	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
+		log.With("error", err.Error()).ErrorContext(ctx, "Failed to write networking file to control conn.")
+	}
+}
+
+func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, error) {
 	switch req.Operation {
 	case networking.NetworkingOperationDial:
 		var d net.Dialer

@@ -16,12 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Package networking handles ssh networking requests via the teleport networking subprocess,
+// including port forwarding, agent forwarding, and x11 forwarding.
+//
+// IPC protocol summary:
+//   - Start: The parent teleport process creates a unix socket pair and passes one side to the
+//     networking subprocess on start. This is used as a unidirectional pipe for the parent
+//     to make networking requests.
+//   - Request: The parent creates a new request-level socket pair and sends one side through the
+//     main pipe, along with the request payload (e.g. dial tcp 8080).
+//   - Handle: The subprocess watches for new requests on the main pipe. When a request is received,
+//     the subprocess prepares a networking file matching the request (e.g. tcp conn file) and writes
+//     it (or an error) to the request-level socket.
+//   - Response: The parent reads the networking file from the request-level socket, keeping the file
+//     and closing the request-level socket.
 package networking
 
 import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -36,8 +51,6 @@ import (
 type Process struct {
 	// Conn is the socket used to request a dialer or listener in the process.
 	Conn *net.UnixConn
-	// Done signals when the process completes.
-	Done <-chan struct{}
 	// Closer contains and extra io.Closer to run when the process as a whole
 	// is closed.
 	Closer io.Closer
@@ -172,70 +185,52 @@ func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListe
 	return unixListener, nil
 }
 
+const requestBufferSize = 1024
+
 // sendRequest sends a networking request to the networking process and waits
 // for a file corresponding to an open network connection or listener.
 func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteConn.Close()
-	defer localConn.Close()
-
-	remoteFD, err := remoteConn.File()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteFD.Close()
+	slog.With("request", req).Debug("Sending networking request to child process")
 
 	jsonReq, err := json.Marshal(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	context.AfterFunc(ctx, func() { localConn.Close() })
+
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		remoteConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	remoteConn.Close()
+
 	if _, _, err = uds.WriteWithFDs(p.Conn, jsonReq, []*os.File{remoteFD}); err != nil {
+		remoteFD.Close()
 		return nil, trace.Wrap(err)
 	}
+	remoteFD.Close()
 
-	fileCh := make(chan *os.File)
-	errC := make(chan error)
-	// Read in another goroutine so we can cancel it if the networking process stops.
-	go func() {
-		defer close(fileCh)
-
-		buf := make([]byte, 1024)
-		fbuf := make([]*os.File, 1)
-		n, fn, err := uds.ReadWithFDs(localConn, buf, fbuf)
-		if err != nil {
-			errC <- err
-		} else if fn == 0 {
-			if n > 0 {
-				// the networking process only ever writes to the request control
-				// conn if an error occurs.
-				errC <- trace.Errorf("error returned by networking process: %v", string(buf[:n]))
-			} else {
-				errC <- trace.BadParameter("networking process did not return a listener")
-			}
-		}
-
-		select {
-		case fileCh <- fbuf[0]:
-		case <-p.Done:
-			fbuf[0].Close()
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case <-p.Done:
-		return nil, trace.Errorf("networking process is closed")
-	case err := <-errC:
+	buf := make([]byte, requestBufferSize)
+	fbuf := make([]*os.File, 1)
+	n, fn, err := uds.ReadWithFDs(localConn, buf, fbuf)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	case listenerFD := <-fileCh:
-		return listenerFD, nil
+	} else if fn == 0 {
+		if n > 0 {
+			// the networking process only ever writes to the request conn if an error occurs.
+			return nil, trace.Errorf("error returned by networking process: %v", string(buf[:n]))
+		}
+		return nil, trace.BadParameter("networking process did not return a listener")
 	}
+
+	return fbuf[0], nil
 }
