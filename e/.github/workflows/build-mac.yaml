@@ -139,7 +139,7 @@ jobs:
           ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          make release OS=darwin ARCH="${ARCH}" FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          make release OS=darwin ARCH="${ARCH}" FIDO2=yes TOUCHID=yes PIV=yes VNETDAEMON=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
       # Generate release server manifests
