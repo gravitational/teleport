@@ -258,14 +258,14 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 ifeq ("$(OS)","linux")
 # True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq ($(IS_NATIVE_BUILD),"no")
+	ifeq (,$(IS_NATIVE_BUILD))
 		CGOFLAG += CC=aarch64-linux-gnu-gcc
 	endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
-ifeq ($(IS_NATIVE_BUILD),"no")
+ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
 endif
 
@@ -406,7 +406,7 @@ $(ER_BPF_BUILDDIR):
 
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 .PHONY: bpf-er-bytecode
