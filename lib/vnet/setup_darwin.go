@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 // receiveTUNDevice is a blocking call which waits for the admin process to pass over the socket
@@ -52,7 +53,7 @@ func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 
 // execAdminSubcommand starts an osascript wrapper that starts tsh vnet-daemon as root.
 // Used in execAdminProcess when vnetdaemon tag is not supplied.
-func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func execAdminSubcommand(ctx context.Context, config daemon.Config) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -74,7 +75,7 @@ do shell script quoted form of executableName & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
 		`" >/var/log/vnet.log 2>&1" `+
 		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
-		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
+		executableName, config.SocketPath, config.IPv6Prefix, config.DNSAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged

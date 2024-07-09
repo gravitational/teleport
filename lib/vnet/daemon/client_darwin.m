@@ -132,7 +132,7 @@ void OpenSystemSettingsLoginItems(void) {
   return _connection;
 }
 
-- (void)startVnet:(VnetParams *)vnetParams completion:(void (^)(NSError *))completion {
+- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *))completion {
   // This way of calling the XPC proxy ensures either the error handler or
   // the reply block gets called.
   // https://forums.developer.apple.com/forums/thread/713429
@@ -140,7 +140,7 @@ void OpenSystemSettingsLoginItems(void) {
     completion(error);
   }];
 
-  [(id<VNEDaemonProtocol>)proxy startVnet:vnetParams
+  [(id<VNEDaemonProtocol>)proxy startVnet:vnetConfig
                                completion:^(void) {
                                  completion(nil);
                                }];
@@ -163,7 +163,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
 
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 
-  [daemonClient startVnet:request->vnet_params
+  [daemonClient startVnet:request->vnet_config
                completion:^(NSError *error) {
                  if (error) {
                    outResult->error_domain = VNECopyNSString([error domain]);

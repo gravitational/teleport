@@ -45,13 +45,14 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
-func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
+func RegisterAndCall(ctx context.Context, config Config) error {
 	bundlePath, err := bundlePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	log.DebugContext(ctx, "Registering (if needed) and calling daemon", "bundle_path", bundlePath)
 	initialStatus := daemonStatus(bundlePath)
+
 	// If the status is equal to "requires approval" before RegisterAndCall called register, it means
 	// that it's not the first time the user tries to start the daemon. In that case, macOS is not
 	// going to show the notification about a new login item. Instead, we just open the login items
@@ -75,7 +76,7 @@ func RegisterAndCall(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string
 		}
 	}
 
-	if err := startByCalling(ctx, bundlePath, socketPath, ipv6Prefix, dnsAddr); err != nil {
+	if err := startByCalling(ctx, bundlePath, config); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -216,7 +217,7 @@ func bundlePath() (string, error) {
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
 }
 
-func startByCalling(ctx context.Context, bundlePath, socketPath, ipv6Prefix, dnsAddr string) error {
+func startByCalling(ctx context.Context, bundlePath string, config Config) error {
 	// C.StartVnet might hang if the daemon cannot be successfully spawned.
 	const daemonStartTimeout = 20 * time.Second
 	ctx, cancel := context.WithTimeoutCause(ctx, daemonStartTimeout,
@@ -233,21 +234,21 @@ func startByCalling(ctx context.Context, bundlePath, socketPath, ipv6Prefix, dns
 
 		req := C.StartVnetRequest{
 			bundle_path: C.CString(bundlePath),
-			vnet_params: &C.VnetParams{
-				socket_path: C.CString(socketPath),
-				ipv6_prefix: C.CString(ipv6Prefix),
-				dns_addr:    C.CString(dnsAddr),
+			vnet_config: &C.VnetConfig{
+				socket_path: C.CString(config.SocketPath),
+				ipv6_prefix: C.CString(config.IPv6Prefix),
+				dns_addr:    C.CString(config.DNSAddr),
 			},
 		}
 		defer func() {
 			C.free(unsafe.Pointer(req.bundle_path))
-			C.free(unsafe.Pointer(req.vnet_params.socket_path))
-			C.free(unsafe.Pointer(req.vnet_params.ipv6_prefix))
-			C.free(unsafe.Pointer(req.vnet_params.dns_addr))
+			C.free(unsafe.Pointer(req.vnet_config.socket_path))
+			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
+			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
 		}()
 		// Structs passed directly as arguments to cgo functions are automatically pinned.
 		// However, structs within structs have to be pinned by hand.
-		pinner.Pin(req.vnet_params)
+		pinner.Pin(req.vnet_config)
 
 		var res C.StartVnetResult
 		defer func() {
