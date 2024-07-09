@@ -20,13 +20,11 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -50,11 +48,10 @@ type osConfigurator struct {
 	tunIPv4            string
 }
 
-func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, error) {
-	homePath := os.Getenv(types.HomeEnvVar)
+func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string) (*osConfigurator, error) {
 	if homePath == "" {
 		// This runs as root so we need to be configured with the user's home path.
-		return nil, trace.BadParameter("%s must be set", types.HomeEnvVar)
+		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
 	}
 
 	// ipv6Prefix always looks like "fdxx:xxxx:xxxx::"

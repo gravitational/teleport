@@ -238,6 +238,7 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 				socket_path: C.CString(config.SocketPath),
 				ipv6_prefix: C.CString(config.IPv6Prefix),
 				dns_addr:    C.CString(config.DNSAddr),
+				home_path:   C.CString(config.HomePath),
 			},
 		}
 		defer func() {
@@ -245,6 +246,7 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 			C.free(unsafe.Pointer(req.vnet_config.socket_path))
 			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
 			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
+			C.free(unsafe.Pointer(req.vnet_config.home_path))
 		}()
 		// Structs passed directly as arguments to cgo functions are automatically pinned.
 		// However, structs within structs have to be pinned by hand.

@@ -7,6 +7,7 @@ typedef struct VnetConfig {
   const char *socket_path;
   const char *ipv6_prefix;
   const char *dns_addr;
+  const char *home_path;
 } VnetConfig;
 
 @protocol VNEDaemonProtocol

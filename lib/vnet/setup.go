@@ -27,6 +27,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
@@ -78,6 +80,7 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 			SocketPath: socketPath,
 			IPv6Prefix: ipv6Prefix.String(),
 			DNSAddr:    dnsIPv6.String(),
+			HomePath:   config.HomePath,
 		}
 		if err := daemonConfig.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -145,11 +148,18 @@ type SetupAndRunConfig struct {
 	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
 	// will be created.
 	ClusterConfigCache *ClusterConfigCache
+	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
+	// rules as HomeDir in tsh.
+	HomePath string
 }
 
 func (c *SetupAndRunConfig) CheckAndSetDefaults() error {
 	if c.AppProvider == nil {
 		return trace.BadParameter("missing AppProvider")
+	}
+
+	if c.HomePath == "" {
+		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 
 	return nil
@@ -215,7 +225,7 @@ func AdminSetup(ctx context.Context, config daemon.Config) error {
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr))
+		errCh <- trace.Wrap(osConfigurationLoop(ctx, tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath))
 	}()
 
 	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
@@ -260,8 +270,8 @@ func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, err
 
 // osConfigurationLoop will keep running until [ctx] is canceled or an unrecoverable error is encountered, in
 // order to keep the host OS configuration up to date.
-func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr string) error {
-	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr)
+func osConfigurationLoop(ctx context.Context, tunName, ipv6Prefix, dnsAddr, homePath string) error {
+	osConfigurator, err := newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath)
 	if err != nil {
 		return trace.Wrap(err, "creating OS configurator")
 	}
