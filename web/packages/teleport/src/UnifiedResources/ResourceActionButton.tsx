@@ -201,21 +201,37 @@ const AppLaunch = ({ app, setResourceSpec }: AppLaunchProps) => {
     });
   }
   if (samlApp) {
-    return (
-      <ButtonWithMenu
-        text="Log In"
-        width="123px"
-        size="small"
-        target="_blank"
-        href={samlAppSsoUrl}
-        rel="noreferrer"
-        textTransform="none"
-        forwardedAs="a"
-        title="Log in to SAML application"
-      >
-        <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
-      </ButtonWithMenu>
-    );
+    if (setResourceSpec) {
+      return (
+        <ButtonWithMenu
+          text="Log In"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+          forwardedAs="a"
+          title="Log in to SAML application"
+        >
+          <MenuItem onClick={handleSamlAppEditButtonClick}>Edit</MenuItem>
+        </ButtonWithMenu>
+      );
+    } else {
+      return (
+        <ButtonBorder
+          as="a"
+          width="123px"
+          size="small"
+          target="_blank"
+          href={samlAppSsoUrl}
+          rel="noreferrer"
+          textTransform="none"
+        >
+          Login
+        </ButtonBorder>
+      );
+    }
   }
   return (
     <ButtonBorder
