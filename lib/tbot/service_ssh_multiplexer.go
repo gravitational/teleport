@@ -865,7 +865,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 		return trace.BadParameter("expected stdout to be %T, got %T", outUnix, outConn)
 	}
 
-	c, err := new(net.Dialer).DialContext(ctx, "unix", socketPath)
+	c, err := uds.DialUnix(ctx, "unix", socketPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -875,7 +875,7 @@ func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string
 		return trace.Wrap(err)
 	}
 
-	rawC, err := c.(*net.UnixConn).SyscallConn()
+	rawC, err := c.SyscallConn()
 	if err != nil {
 		return trace.Wrap(err)
 	}

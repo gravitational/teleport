@@ -54,7 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/uds"
+	udscreds "github.com/gravitational/teleport/lib/uds"
+	utilsuds "github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -195,10 +196,7 @@ func createListener(ctx context.Context, log *slog.Logger, addr string) (net.Lis
 			log.WarnContext(ctx, "Failed to remove existing socket file", "error", err)
 		}
 
-		l, err := net.ListenUnix("unix", &net.UnixAddr{
-			Net:  "unix",
-			Name: absPath,
-		})
+		l, err := utilsuds.ListenUnix(ctx, "unix", absPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating unix socket", absPath)
 		}
@@ -250,7 +248,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 			// - Transport Layer Security MUST NOT be required
 			// TODO(noah): We should optionally provide TLS support here down
 			// the road.
-			uds.NewTransportCredentials(insecure.NewCredentials()),
+			udscreds.NewTransportCredentials(insecure.NewCredentials()),
 		),
 		grpc.ChainUnaryInterceptor(
 			recovery.UnaryServerInterceptor(),
@@ -423,7 +421,7 @@ func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	udsCreds *uds.Creds,
+	udsCreds *udscreds.Creds,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -506,7 +504,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		return trace.BadParameter("peer not found in context")
 	}
 	log := s.log
-	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+	authInfo, ok := p.AuthInfo.(udscreds.AuthInfo)
 	if ok && authInfo.Creds != nil {
 		log = log.With(
 			slog.Group("workload",
