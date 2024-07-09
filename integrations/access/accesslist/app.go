@@ -170,7 +170,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		for _, accessList := range accessLists {
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
 			if err != nil {
-				log.WithError(err).Warn("Error getting recipients to notify for review due for access list %q", accessList.Spec.Title)
+				log.WithError(err).Warnf("Error getting recipients to notify for review due for access list %q", accessList.Spec.Title)
 				continue
 			}
 
