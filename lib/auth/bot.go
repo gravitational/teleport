@@ -205,12 +205,9 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 	if req.tlsPublicKey != nil {
 		publicKeyPEM = req.tlsPublicKey
 	} else {
-		// At least one key will be set, this is validated by [req.check].
-		cryptoPubKey, err := sshutils.CryptoPublicKey(req.sshPublicKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		publicKeyPEM, err = keys.MarshalPublicKey(cryptoPubKey)
+		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
+		var err error
+		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -261,7 +258,7 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 		return nil
 	}
 
-	_, err = a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err := a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
