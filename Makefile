@@ -1699,6 +1699,6 @@ create-release-notes: $(RELEASE_NOTES_GEN)
 	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
     -t "Teleport $(VERSION)" \
     --latest=false \
-    --target=$$(git rev-parse HEAD) \
+    --target=master \
     --verify-tag \
     -F - "$$NOTES"
