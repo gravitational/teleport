@@ -1217,7 +1217,6 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 
 	return &networking.Process{
 		Conn:   localConn,
-		Done:   cdone,
 		Closer: processCloser,
 	}, nil
 }
