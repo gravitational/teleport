@@ -154,6 +154,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		WebSession:              cfg.Services.WebSessions(),
 		WebToken:                cfg.Services.WebTokens(),
 		KubeWaitingContainers:   cfg.Services,
+		ProvisioningStates:      cfg.Services.ProvisioningStatesClient(),
 		Component:               teleport.Component(component...),
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,

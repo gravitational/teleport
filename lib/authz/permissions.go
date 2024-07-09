@@ -1266,6 +1266,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 								builder.String(common.OriginAWSIdentityCenter),
 							).String(),
 						},
+						types.NewRule(types.KindProvisioningUserState, services.RW()),
 					},
 				},
 			})

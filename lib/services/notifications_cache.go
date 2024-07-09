@@ -400,16 +400,16 @@ func (c *GlobalNotificationCache) read(ctx context.Context) (*sortcache.SortCach
 
 // --- the below methods implement the resourceCollector interface ---
 
-// resourceKinds is part of the resourceCollector interface and is used to configure the event watcher
+// ResourceKinds is part of the resourceCollector interface and is used to configure the event watcher
 // that monitors for notification modifications.
-func (c *UserNotificationCache) resourceKinds() []types.WatchKind {
+func (c *UserNotificationCache) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{
 			Kind: types.KindNotification,
 		},
 	}
 }
-func (c *GlobalNotificationCache) resourceKinds() []types.WatchKind {
+func (c *GlobalNotificationCache) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{
 			Kind: types.KindGlobalNotification,
@@ -417,9 +417,9 @@ func (c *GlobalNotificationCache) resourceKinds() []types.WatchKind {
 	}
 }
 
-// getResourcesAndUpdateCurrent is part of the resourceCollector interface and is called when the
+// GetResourcesAndUpdateCurrent is part of the resourceCollector interface and is called when the
 // event stream for the cache has been initialized to trigger setup of the initial primary cache state.
-func (c *UserNotificationCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (c *UserNotificationCache) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	cache, err := c.fetch(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -430,7 +430,7 @@ func (c *UserNotificationCache) getResourcesAndUpdateCurrent(ctx context.Context
 	c.primaryCache = cache
 	return nil
 }
-func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (c *GlobalNotificationCache) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	cache, err := c.fetch(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -442,9 +442,9 @@ func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Conte
 	return nil
 }
 
-// processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
+// ProcessEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
-func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+func (c *UserNotificationCache) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
@@ -477,7 +477,7 @@ func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Contex
 	}
 }
 
-func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+func (c *GlobalNotificationCache) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
@@ -508,10 +508,10 @@ func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Cont
 	}
 }
 
-// notifyStale is part of the resourceCollector interface and is used to inform
+// NotifyStale is part of the resourceCollector interface and is used to inform
 // the notification cache that its view is outdated (presumably due to issues with
 // the event stream).
-func (c *UserNotificationCache) notifyStale() {
+func (c *UserNotificationCache) NotifyStale() {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	if c.primaryCache == nil {
@@ -520,7 +520,7 @@ func (c *UserNotificationCache) notifyStale() {
 	c.primaryCache = nil
 	c.initC = make(chan struct{})
 }
-func (c *GlobalNotificationCache) notifyStale() {
+func (c *GlobalNotificationCache) NotifyStale() {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	if c.primaryCache == nil {
@@ -530,14 +530,14 @@ func (c *GlobalNotificationCache) notifyStale() {
 	c.initC = make(chan struct{})
 }
 
-// initializationChan is part of the resourceCollector interface and gets the channel
+// InitializationChan is part of the resourceCollector interface and gets the channel
 // used to signal that the notification cache has been initialized.
-func (c *UserNotificationCache) initializationChan() <-chan struct{} {
+func (c *UserNotificationCache) InitializationChan() <-chan struct{} {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.initC
 }
-func (c *GlobalNotificationCache) initializationChan() <-chan struct{} {
+func (c *GlobalNotificationCache) InitializationChan() <-chan struct{} {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.initC

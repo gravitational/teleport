@@ -24,6 +24,7 @@ import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -165,5 +166,7 @@ message Event {
     teleport.crownjewel.v1.CrownJewel CrownJewel = 58;
     // DatabaseObject is a database object resource.
     teleport.dbobject.v1.DatabaseObject DatabaseObject = 59;
+
+    teleport.provisioning.v1.UserState UserState = 99;
   }
 }

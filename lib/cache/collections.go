@@ -33,6 +33,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -228,6 +229,7 @@ type cacheCollections struct {
 	oktaAssignments          collectionReader[oktaAssignmentGetter]
 	oktaImportRules          collectionReader[oktaImportRuleGetter]
 	proxies                  collectionReader[services.ProxyGetter]
+	provisioningStates       collectionReader[provisioningUserStateGetter]
 	remoteClusters           collectionReader[remoteClusterGetter]
 	reverseTunnels           collectionReader[reverseTunnelGetter]
 	roles                    collectionReader[roleGetter]
@@ -731,6 +733,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
+
+		case types.KindProvisioningUserState:
+			if c.ProvisioningStates == nil {
+				return nil, trace.BadParameter("missing parameter ProvisioningStates")
+			}
+			collections.provisioningStates = &genericCollection[*provisioningv1.UserState, provisioningUserStateGetter, provisioningUserStateExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.provisioningStates
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}

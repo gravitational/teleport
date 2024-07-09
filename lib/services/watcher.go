@@ -48,25 +48,25 @@ const (
 	eventBufferMaxSize = 2048
 )
 
-// resourceCollector is a generic interface for maintaining an up-to-date view
+// ResourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
-type resourceCollector interface {
-	// resourceKinds specifies the resource kind to watch.
-	resourceKinds() []types.WatchKind
-	// getResourcesAndUpdateCurrent is called when the resources should be
+type ResourceCollector interface {
+	// ResourceKinds specifies the resource kind to watch.
+	ResourceKinds() []types.WatchKind
+	// GetResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
-	getResourcesAndUpdateCurrent(context.Context) error
-	// processEventsAndUpdateCurrent is called when a watcher events are received. The event buffer
+	GetResourcesAndUpdateCurrent(context.Context) error
+	// ProcessEventsAndUpdateCurrent is called when a watcher events are received. The event buffer
 	// may be reused so implementers must not retain it, but implementers may mutate the buffer
 	// in place during the call, e.g. in order to filter out undesired events before passing them
 	// to a subsideary bulk-processor such as a fanout.
-	processEventsAndUpdateCurrent(context.Context, []types.Event)
-	// notifyStale is called when the maximum acceptable staleness (if specified)
+	ProcessEventsAndUpdateCurrent(context.Context, []types.Event)
+	// NotifyStale is called when the maximum acceptable staleness (if specified)
 	// is exceeded.
-	notifyStale()
-	// initializationChan is used to check if the initial state sync has
+	NotifyStale()
+	// InitializationChan is used to check if the initial state sync has
 	// been completed.
-	initializationChan() <-chan struct{}
+	InitializationChan() <-chan struct{}
 }
 
 func watchKindsString(kinds []types.WatchKind) string {
@@ -131,7 +131,7 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // newResourceWatcher returns a new instance of resourceWatcher.
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
-func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+func newResourceWatcher(ctx context.Context, collector ResourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +146,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.Log = cfg.Log.WithField("resource-kind", watchKindsString(collector.resourceKinds()))
+	cfg.Log = cfg.Log.WithField("resource-kind", watchKindsString(collector.ResourceKinds()))
 	ctx, cancel := context.WithCancel(ctx)
 	p := &resourceWatcher{
 		ResourceWatcherConfig: cfg,
@@ -165,7 +165,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 // to a set of resources.
 type resourceWatcher struct {
 	ResourceWatcherConfig
-	collector resourceCollector
+	collector ResourceCollector
 
 	// ctx is a context controlling the lifetime of this resourceWatcher
 	// instance.
@@ -202,7 +202,7 @@ func (p *resourceWatcher) Close() {
 // initialized.
 func (p *resourceWatcher) IsInitialized() bool {
 	select {
-	case <-p.collector.initializationChan():
+	case <-p.collector.InitializationChan():
 		return true
 	default:
 		return false
@@ -217,12 +217,12 @@ func (p *resourceWatcher) WaitInitialization() error {
 	defer t.Stop()
 	for {
 		select {
-		case <-p.collector.initializationChan():
+		case <-p.collector.InitializationChan():
 			return nil
 		case <-t.C:
 			p.Log.Debug("ResourceWatcher is not yet initialized.")
 		case <-p.ctx.Done():
-			return trace.BadParameter("ResourceWatcher %s failed to initialize.", watchKindsString(p.collector.resourceKinds()))
+			return trace.BadParameter("ResourceWatcher %s failed to initialize.", watchKindsString(p.collector.ResourceKinds()))
 		}
 	}
 }
@@ -262,7 +262,7 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if p.hasStaleView() {
 			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
-			p.collector.notifyStale()
+			p.collector.NotifyStale()
 		}
 
 		// Used for testing that the watch routine has exited and is about
@@ -298,7 +298,7 @@ func (p *resourceWatcher) watch() error {
 	watch := types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
-		Kinds:           p.collector.resourceKinds(),
+		Kinds:           p.collector.ResourceKinds(),
 	}
 
 	if p.QueueSize > 0 {
@@ -337,7 +337,7 @@ func (p *resourceWatcher) watch() error {
 		}
 	}
 
-	if err := p.collector.getResourcesAndUpdateCurrent(p.ctx); err != nil {
+	if err := p.collector.GetResourcesAndUpdateCurrent(p.ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	p.retry.Reset()
@@ -366,7 +366,7 @@ func (p *resourceWatcher) watch() error {
 					break CollectEvents
 				}
 			}
-			p.collector.processEventsAndUpdateCurrent(p.ctx, eventBuf)
+			p.collector.ProcessEventsAndUpdateCurrent(p.ctx, eventBuf)
 			clear(eventBuf)
 			eventBuf = eventBuf[:0]
 		case p.LoopC <- struct{}{}:
@@ -450,14 +450,14 @@ func (p *proxyCollector) GetCurrent() []types.Server {
 	return serverMapValues(p.current)
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (p *proxyCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (p *proxyCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindProxy}}
 }
 
-// getResourcesAndUpdateCurrent is called when the resources should be
+// GetResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
-func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (p *proxyCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	proxies, err := p.ProxyGetter.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -486,8 +486,8 @@ func (p *proxyCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (p *proxyCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *proxyCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.rw.Lock()
 	defer p.rw.Unlock()
 
@@ -541,7 +541,7 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (p *proxyCollector) initializationChan() <-chan struct{} {
+func (p *proxyCollector) InitializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
@@ -554,7 +554,7 @@ func (p *proxyCollector) isInitialized() bool {
 	}
 }
 
-func (p *proxyCollector) notifyStale() {}
+func (p *proxyCollector) NotifyStale() {}
 
 func serverMapValues(serverMap map[string]types.Server) []types.Server {
 	servers := make([]types.Server, 0, len(serverMap))
@@ -602,7 +602,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit(collector.resourceKinds())
+	collector.fanout.SetInit(collector.ResourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -699,20 +699,20 @@ func (p *lockCollector) GetCurrent() []types.Lock {
 	return lockMapValues(p.current)
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (p *lockCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (p *lockCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindLock}}
 }
 
-// initializationChan is used to check that the cache has done its initial
+// InitializationChan is used to check that the cache has done its initial
 // sync
-func (p *lockCollector) initializationChan() <-chan struct{} {
+func (p *lockCollector) InitializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
-// getResourcesAndUpdateCurrent is called when the resources should be
+// GetResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
-func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (p *lockCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	locks, err := p.LockGetter.GetLocks(ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -740,8 +740,8 @@ func (p *lockCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *lockCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
 	eventsToEmit := events[:0]
@@ -774,9 +774,9 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 	p.fanout.Emit(eventsToEmit...)
 }
 
-// notifyStale is called when the maximum acceptable staleness (if specified)
+// NotifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
-func (p *lockCollector) notifyStale() {
+func (p *lockCollector) NotifyStale() {
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
 
@@ -879,19 +879,19 @@ type databaseCollector struct {
 	once            sync.Once
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (p *databaseCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (p *databaseCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindDatabase}}
 }
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (p *databaseCollector) initializationChan() <-chan struct{} {
+func (p *databaseCollector) InitializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *databaseCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	databases, err := p.DatabaseGetter.GetDatabases(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -921,8 +921,8 @@ func (p *databaseCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -957,7 +957,7 @@ func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, e
 	}
 }
 
-func (*databaseCollector) notifyStale() {}
+func (*databaseCollector) NotifyStale() {}
 
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
@@ -1022,19 +1022,19 @@ type appCollector struct {
 	once            sync.Once
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (p *appCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (p *appCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindApp}}
 }
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (p *appCollector) initializationChan() <-chan struct{} {
+func (p *appCollector) InitializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *appCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	apps, err := p.AppGetter.GetApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1062,8 +1062,8 @@ func (p *appCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *appCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	for _, event := range events {
@@ -1099,7 +1099,7 @@ func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events
 	}
 }
 
-func (*appCollector) notifyStale() {}
+func (*appCollector) NotifyStale() {}
 
 func resourcesToSlice[T any](resources map[string]T) (slice []T) {
 	for _, resource := range resources {
@@ -1173,17 +1173,17 @@ type kubeCollector struct {
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (k *kubeCollector) initializationChan() <-chan struct{} {
+func (k *kubeCollector) InitializationChan() <-chan struct{} {
 	return k.initializationC
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (k *kubeCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (k *kubeCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindKubernetesCluster}}
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (k *kubeCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	clusters, err := k.KubernetesClusterGetter.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1214,8 +1214,8 @@ func (k *kubeCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 	for _, event := range events {
@@ -1251,7 +1251,7 @@ func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 	}
 }
 
-func (*kubeCollector) notifyStale() {}
+func (*kubeCollector) NotifyStale() {}
 
 // KubeServerWatcherConfig is an KubeServerWatcher configuration.
 type KubeServerWatcherConfig struct {
@@ -1368,17 +1368,17 @@ type kubeServersKey struct {
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (k *kubeServerCollector) initializationChan() <-chan struct{} {
+func (k *kubeServerCollector) InitializationChan() <-chan struct{} {
 	return k.initializationC
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (k *kubeServerCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (k *kubeServerCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindKubeServer}}
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (k *kubeServerCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (k *kubeServerCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	newCurrent, err := k.getResources(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1394,7 +1394,7 @@ func (k *kubeServerCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 	return nil
 }
 
-// getResourcesAndUpdateCurrent gets the list of current resources.
+// GetResourcesAndUpdateCurrent gets the list of current resources.
 func (k *kubeServerCollector) getResources(ctx context.Context) (map[kubeServersKey]types.KubeServer, error) {
 	servers, err := k.KubernetesServerGetter.GetKubernetesServers(ctx)
 	if err != nil {
@@ -1418,8 +1418,8 @@ func (k *kubeServerCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeServerCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 
@@ -1455,7 +1455,7 @@ func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context,
 	}
 }
 
-func (k *kubeServerCollector) notifyStale() {
+func (k *kubeServerCollector) NotifyStale() {
 	k.stale.Store(true)
 }
 
@@ -1538,7 +1538,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit(collector.resourceKinds())
+	collector.fanout.SetInit(collector.ResourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1596,19 +1596,19 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 	return sub, nil
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (c *caCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (c *caCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindCertAuthority, Filter: c.filter.IntoMap()}}
 }
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (c *caCollector) initializationChan() <-chan struct{} {
+func (c *caCollector) InitializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *caCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	var cas []types.CertAuthority
 
 	for _, t := range c.Types {
@@ -1644,8 +1644,8 @@ func (c *caCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (c *caCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -1698,7 +1698,7 @@ func (c *caCollector) watchingType(t types.CertAuthType) bool {
 	return false
 }
 
-func (c *caCollector) notifyStale() {}
+func (c *caCollector) NotifyStale() {}
 
 // NodeWatcherConfig is a NodeWatcher configuration.
 type NodeWatcherConfig struct {
@@ -1883,14 +1883,14 @@ func (n *nodeCollector) NodeCount() int {
 	return len(n.current)
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (n *nodeCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (n *nodeCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindNode}}
 }
 
-// getResourcesAndUpdateCurrent is called when the resources should be
+// GetResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
-func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (n *nodeCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	newCurrent, err := n.getNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1933,8 +1933,8 @@ func (n *nodeCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (n *nodeCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (n *nodeCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	n.rw.Lock()
 	defer n.rw.Unlock()
 
@@ -1961,11 +1961,11 @@ func (n *nodeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 	}
 }
 
-func (n *nodeCollector) initializationChan() <-chan struct{} {
+func (n *nodeCollector) InitializationChan() <-chan struct{} {
 	return n.initializationC
 }
 
-func (n *nodeCollector) notifyStale() {
+func (n *nodeCollector) NotifyStale() {
 	n.rw.Lock()
 	defer n.rw.Unlock()
 	n.stale = true
@@ -2036,19 +2036,19 @@ type accessRequestCollector struct {
 	once            sync.Once
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (p *accessRequestCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (p *accessRequestCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindAccessRequest}}
 }
 
 // isInitialized is used to check that the cache has done its initial
 // sync
-func (p *accessRequestCollector) initializationChan() <-chan struct{} {
+func (p *accessRequestCollector) InitializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *accessRequestCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	accessRequests, err := p.AccessRequestGetter.GetAccessRequests(ctx, p.Filter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2078,8 +2078,8 @@ func (p *accessRequestCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *accessRequestCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -2113,7 +2113,7 @@ func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Conte
 	}
 }
 
-func (*accessRequestCollector) notifyStale() {}
+func (*accessRequestCollector) NotifyStale() {}
 
 // OktaAssignmentWatcherConfig is a OktaAssignmentWatcher configuration.
 type OktaAssignmentWatcherConfig struct {
@@ -2201,18 +2201,18 @@ type oktaAssignmentCollector struct {
 	once            sync.Once
 }
 
-// resourceKinds specifies the resource kind to watch.
-func (*oktaAssignmentCollector) resourceKinds() []types.WatchKind {
+// ResourceKinds specifies the resource kind to watch.
+func (*oktaAssignmentCollector) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindOktaAssignment}}
 }
 
-// initializationChan is used to check if the initial state sync has been completed.
-func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
+// InitializationChan is used to check if the initial state sync has been completed.
+func (c *oktaAssignmentCollector) InitializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
-// getResourcesAndUpdateCurrent refreshes the list of current resources.
-func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+// GetResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *oktaAssignmentCollector) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	var oktaAssignments []types.OktaAssignment
 	var nextToken string
 	for {
@@ -2253,8 +2253,8 @@ func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventsAndUpdateCurrent is called when a watcher event is received.
-func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+// ProcessEventsAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -2291,4 +2291,4 @@ func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Cont
 	}
 }
 
-func (*oktaAssignmentCollector) notifyStale() {}
+func (*oktaAssignmentCollector) NotifyStale() {}

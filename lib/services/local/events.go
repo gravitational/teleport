@@ -208,6 +208,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGlobalNotificationParser()
 		case types.KindAccessMonitoringRule:
 			parser = newAccessMonitoringRuleParser()
+		case types.KindProvisioningUserState:
+			parser = newProvisioningUserStateParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1648,6 +1650,34 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newProvisioningUserStateParser() *provisioningUserStateParser {
+	return &provisioningUserStateParser{
+		baseParser: newBaseParser(backend.Key(provisioningUserStatePrefix)),
+	}
+}
+
+type provisioningUserStateParser struct {
+	baseParser
+}
+
+func (p *provisioningUserStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindProvisioningUserState, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalProvisioningUserState(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

@@ -331,9 +331,9 @@ func (c *AccessRequestCache) read(ctx context.Context) (*sortcache.SortCache[*ty
 
 // --- the below methods implement the resourceCollector interface ---
 
-// resourceKinds is part of the resourceCollector interface and is used to configure the event watcher
+// ResourceKinds is part of the resourceCollector interface and is used to configure the event watcher
 // that monitors for access request modifications.
-func (c *AccessRequestCache) resourceKinds() []types.WatchKind {
+func (c *AccessRequestCache) ResourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{
 			Kind: types.KindAccessRequest,
@@ -341,9 +341,9 @@ func (c *AccessRequestCache) resourceKinds() []types.WatchKind {
 	}
 }
 
-// getResourcesAndUpdateCurrent is part of the resourceCollector interface and is called one the
+// GetResourcesAndUpdateCurrent is part of the resourceCollector interface and is called one the
 // event stream for the cache has been initialized to trigger setup of the initial primary cache state.
-func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (c *AccessRequestCache) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	cache, err := c.fetch(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -355,9 +355,9 @@ func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) e
 	return nil
 }
 
-// processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
+// ProcessEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
-func (c *AccessRequestCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+func (c *AccessRequestCache) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
@@ -383,10 +383,10 @@ func (c *AccessRequestCache) processEventsAndUpdateCurrent(ctx context.Context, 
 	}
 }
 
-// notifyStale is part of the resourceCollector interface and is used to inform
+// NotifyStale is part of the resourceCollector interface and is used to inform
 // the access request cache that its view is outdated (presumably due to issues with
 // the event stream).
-func (c *AccessRequestCache) notifyStale() {
+func (c *AccessRequestCache) NotifyStale() {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	if c.primaryCache == nil {
@@ -396,9 +396,9 @@ func (c *AccessRequestCache) notifyStale() {
 	c.initC = make(chan struct{})
 }
 
-// initializationChan is part of the resourceCollector interface and gets the channel
+// InitializationChan is part of the resourceCollector interface and gets the channel
 // used to signal that the accessRequestCache has been initialized.
-func (c *AccessRequestCache) initializationChan() <-chan struct{} {
+func (c *AccessRequestCache) InitializationChan() <-chan struct{} {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 	return c.initC

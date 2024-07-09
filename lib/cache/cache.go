@@ -21,6 +21,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -179,6 +180,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
+		{Kind: types.KindProvisioningUserState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -516,6 +518,7 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	provisioningStatesCache      services.ProvisioningStates
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -733,6 +736,8 @@ type Config struct {
 	// EnableRelativeExpiry turns on purging expired items from the cache even
 	// if delete events have not been received from the backend.
 	EnableRelativeExpiry bool
+
+	ProvisioningStates services.ProvisioningStates
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -857,6 +862,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
 	if err != nil {
 		cancel()
@@ -963,6 +974,7 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		provisioningStatesCache:      provisioningStatesCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1070,7 +1082,7 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 func (c *Cache) validateWatchRequest(watch types.Watch) (kinds []types.WatchKind, highVolume bool, err error) {
 	c.rw.RLock()
 	cacheOK := c.ok
-	confirmedKinds := c.confirmedKinds
+	confirmedKinds := maps.Clone(c.confirmedKinds)
 	c.rw.RUnlock()
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))

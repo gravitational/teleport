@@ -423,7 +423,7 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	}
 }
 
-func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (c *UnifiedResourceCache) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	newNodes, err := c.getNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -606,7 +606,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
-		if err := fallbackCache.getResourcesAndUpdateCurrent(ctx); err != nil {
+		if err := fallbackCache.GetResourcesAndUpdateCurrent(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return fallbackCache, nil
@@ -630,13 +630,13 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 	return err
 }
 
-func (c *UnifiedResourceCache) notifyStale() {
+func (c *UnifiedResourceCache) NotifyStale() {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.stale = true
 }
 
-func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
+func (c *UnifiedResourceCache) InitializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
@@ -651,7 +651,7 @@ func (c *UnifiedResourceCache) IsInitialized() bool {
 	}
 }
 
-func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+func (c *UnifiedResourceCache) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 
@@ -677,8 +677,8 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 	}
 }
 
-// resourceKinds returns a list of resources to be watched.
-func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
+// ResourceKinds returns a list of resources to be watched.
+func (c *UnifiedResourceCache) ResourceKinds() []types.WatchKind {
 	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
 	for _, kind := range UnifiedResourceKinds {
 		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})

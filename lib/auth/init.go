@@ -289,6 +289,8 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	ProvisioningStates services.ProvisioningStates
 }
 
 // Init instantiates and configures an instance of AuthServer

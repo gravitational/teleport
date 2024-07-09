@@ -2505,6 +2505,10 @@ func (a accessPointWrapper) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return a.ClientI.DiscoveryConfigClient()
 }
 
+func (a accessPointWrapper) ProvisioningStatesClient() services.ProvisioningStates {
+	return a.ClientI.ProvisioningStatesClient()
+}
+
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt authclient.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accesspoint.AccessCacheConfig{

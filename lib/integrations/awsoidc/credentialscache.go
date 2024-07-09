@@ -122,6 +122,11 @@ func (cc *CredentialsCache) SetGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
 func (cc *CredentialsCache) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	cc.credsOrErrMu.RLock()
 	defer cc.credsOrErrMu.RUnlock()
+
+	if cc.credsOrErr.err != nil {
+		cc.log.WarnContext(ctx, "Returning error to AWS client", errorValue(cc.credsOrErr.err))
+	}
+
 	return cc.credsOrErr.creds, cc.credsOrErr.err
 }
 
@@ -130,7 +135,7 @@ func (cc *CredentialsCache) Run(ctx context.Context) {
 	select {
 	case <-cc.initialized:
 	case <-ctx.Done():
-		cc.log.Debug("Context canceled before initialized.")
+		cc.log.DebugContext(ctx, "Context canceled before initialized.")
 		return
 	}
 
@@ -143,13 +148,16 @@ func (cc *CredentialsCache) Run(ctx context.Context) {
 		case <-ticker.Chan():
 			cc.refreshIfNeeded(ctx)
 		case <-ctx.Done():
-			cc.log.Debug("Context canceled, stopping refresh loop.")
+			cc.log.DebugContext(ctx, "Context canceled, stopping refresh loop.")
 			return
 		}
 	}
 }
 
 func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
+	cc.log.DebugContext(ctx, "Entering credentialCache.refreshIfNeeded()")
+	defer cc.log.DebugContext(ctx, "Exiting credentialCache.refreshIfNeeded()")
+
 	credsFromCache, err := cc.Retrieve(ctx)
 	if err == nil &&
 		credsFromCache.HasKeys() &&
@@ -158,7 +166,7 @@ func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
 		// than refreshBeforeExpirationPeriod
 		return
 	}
-	cc.log.Debug("Refreshing credentials.")
+	cc.log.DebugContext(ctx, "Refreshing credentials.")
 
 	creds, err := cc.refresh(ctx)
 	if err != nil {
@@ -168,14 +176,16 @@ func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
 		// cache are still valid. If yes, just log debug, it will be retried on
 		// next interval check.
 		if credsFromCache.HasKeys() && now.Before(credsFromCache.Expires) {
-			cc.log.Debug("Using existing credentials",
+			cc.log.DebugContext(ctx, "Using existing credentials",
 				"ttl", ttlValue{now: now, expiry: credsFromCache.Expires})
 			return
 		}
 		// If existing creds are expired, update cached error.
+		cc.log.ErrorContext(ctx, "Setting cached error", "error", err)
 		cc.setCredsOrErr(credsOrErr{err: trace.Wrap(err)})
 		return
 	}
+
 	// Refresh went well, update cached creds.
 	cc.setCredsOrErr(credsOrErr{creds: creds})
 	cc.log.Debug("Successfully refreshed credentials",
@@ -199,8 +209,13 @@ func (cc *CredentialsCache) setCredsOrErr(coe credsOrErr) {
 }
 
 func (cc *CredentialsCache) refresh(ctx context.Context) (aws.Credentials, error) {
+	cc.log.InfoContext(ctx, "Refreshing AWS credentials")
+	defer cc.log.InfoContext(ctx, "Exiting AWS credentials refresh")
+
+	cc.log.InfoContext(ctx, "Generating Token", "integration", cc.integration)
 	oidcToken, err := cc.generateOIDCTokenFn(ctx, cc.integration)
 	if err != nil {
+		cc.log.ErrorContext(ctx, "Token generation failed", errorValue(err))
 		return aws.Credentials{}, trace.Wrap(err)
 	}
 
@@ -216,11 +231,20 @@ func (cc *CredentialsCache) refresh(ctx context.Context) (aws.Credentials, error
 	ctx, cancel := context.WithTimeout(ctx, retrieveTimeout)
 	defer cancel()
 
+	cc.log.InfoContext(ctx, "Retrieving AWS role credentials")
+
 	creds, err := roleProvider.Retrieve(ctx)
+	if err != nil {
+		cc.log.ErrorContext(ctx, "Role retrieval failed", errorValue(err))
+	}
+
 	return creds, trace.Wrap(err)
 }
 
 func (cc *CredentialsCache) WaitForFirstCredsOrErr(ctx context.Context) {
+	cc.log.InfoContext(ctx, "Entering wait on first credential refresh")
+	defer cc.log.InfoContext(ctx, "Exiting wait on first credential refresh")
+
 	select {
 	case <-ctx.Done():
 	case <-cc.gotFirstCredsOrErr:

@@ -316,6 +316,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.ProvisioningStates == nil {
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "Creating provisioning state service")
+		}
+	}
+
 	if cfg.CloudClients == nil {
 		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
@@ -412,6 +419,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		ProvisioningStates:        cfg.ProvisioningStates,
 	}
 
 	as := Server{
@@ -586,6 +594,7 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
+	services.ProvisioningStates
 }
 
 // SecReportsClient returns the security reports client.
@@ -655,6 +664,10 @@ func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContai
 
 // DatabaseObjectsClient returns the database objects client.
 func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
+	return r
+}
+
+func (r *Services) ProvisioningStatesClient() services.ProvisioningStates {
 	return r
 }
 
