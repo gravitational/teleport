@@ -1218,7 +1218,13 @@
         },
         {
           "title": "Databases",
-          "slug": "/auto-discovery/databases/"
+          "slug": "/auto-discovery/databases/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/databases/aws/"
+            }
+          ]
         },
         {
           "title": "Kubernetes Applications",
