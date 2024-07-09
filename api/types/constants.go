@@ -523,11 +523,11 @@ const (
 
 	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
 	// a Teleport SSH node type.
-	KindAccessGraphSecretAuthorizedKey = "authorized_key"
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
 
 	// KindAccessGraphSecretPrivateKey is a private key entry found in
 	// a managed device.
-	KindAccessGraphSecretPrivateKey = "private_key"
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
