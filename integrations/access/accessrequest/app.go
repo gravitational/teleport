@@ -157,7 +157,7 @@ func (a *App) run(ctx context.Context) error {
 			return kind.Kind == types.KindAccessMonitoringRule
 		}) {
 			if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-				return trace.Wrap(err, "initialising Access Monitoring Rule cache")
+				return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 			}
 		}
 	}

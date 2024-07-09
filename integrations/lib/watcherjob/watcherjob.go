@@ -53,10 +53,10 @@ type Config struct {
 
 type job struct {
 	lib.ServiceJob
-	config              Config
-	eventFunc           EventFunc
-	events              types.Events
-	eventCh             chan *types.Event
+	config                Config
+	eventFunc             EventFunc
+	events                types.Events
+	eventCh               chan *types.Event
 	confirmedWatchKindsCh chan<- []types.WatchKind
 }
 
@@ -71,20 +71,15 @@ func NewJob(client teleport.Client, config Config, fn EventFunc) (lib.ServiceJob
 
 // NewJobWithConfirmedWatchKinds returns a new watcherJob and passes confirmed watch kinds
 // from the initialisation down confirmedWatchKindsCh.
-func NewJobWithConfirmedWatchKinds(client teleport.Client, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (lib.ServiceJob, error) {
-	serviceJob, err := NewJobWithEvents(client, config, fn)
-	if err != nil {
-		return nil, err
-	}
-	j, ok := serviceJob.(job)
-	if !ok {
-		return nil, trace.Errorf("unsupported type returned by NewJobWithEvents: %T", serviceJob)
-	}
-	j.confirmedWatchKindsCh = confirmedWatchKindsCh
-	return j, nil
+func NewJobWithConfirmedWatchKinds(events types.Events, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (lib.ServiceJob, error) {
+	return newJobWithEvents(events, config, fn, confirmedWatchKindsCh)
 }
 
 func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.ServiceJob, error) {
+	return newJobWithEvents(events, config, fn, nil)
+}
+
+func newJobWithEvents(events types.Events, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (job, error) {
 	if config.MaxConcurrency == 0 {
 		config.MaxConcurrency = DefaultMaxConcurrency
 	}
@@ -94,15 +89,16 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.Ser
 	if flagVar := os.Getenv(failFastEnvVarName); !config.FailFast && flagVar != "" {
 		flag, err := strconv.ParseBool(flagVar)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to parse content '%s' of the %s environment variable", flagVar, failFastEnvVarName)
+			return job{}, trace.WrapWithMessage(err, "failed to parse content '%s' of the %s environment variable", flagVar, failFastEnvVarName)
 		}
 		config.FailFast = flag
 	}
 	job := job{
-		events:    events,
-		config:    config,
-		eventFunc: fn,
-		eventCh:   make(chan *types.Event, config.MaxConcurrency),
+		events:                events,
+		config:                config,
+		eventFunc:             fn,
+		eventCh:               make(chan *types.Event, config.MaxConcurrency),
+		confirmedWatchKindsCh: confirmedWatchKindsCh,
 	}
 	job.ServiceJob = lib.NewServiceJob(func(ctx context.Context) error {
 		process := lib.MustGetProcess(ctx)

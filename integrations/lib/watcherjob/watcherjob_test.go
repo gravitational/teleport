@@ -21,6 +21,7 @@ package watcherjob
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -110,4 +111,50 @@ func TestConcurrencyLimit(t *testing.T) {
 
 	timeAfter := time.Now()
 	assert.InDelta(t, 4*time.Second, timeAfter.Sub(timeBefore), float64(750*time.Millisecond))
+}
+
+// TestNewJobWithConfirmedWatchKinds checks that the watch kinds are passed back after init.
+func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+	}
+	config := Config{
+		MaxConcurrency: 4,
+		Watch: types.Watch{
+			Kinds: watchKinds,
+		},
+	}
+	countdown := NewCountdown(config.MaxConcurrency)
+	confirmedWatchKindsCh := make(chan []types.WatchKind, 1)
+	process := NewMockEventsProcessWithConfirmedWatchJobs(ctx, t, config, func(ctx context.Context, event types.Event) error {
+		defer countdown.Decrement()
+		time.Sleep(time.Second)
+		return trace.Wrap(ctx.Err())
+	}, confirmedWatchKindsCh)
+
+	select {
+	case <-ctx.Done():
+		t.Error(trace.Wrap(ctx.Err(), "context is closing"))
+	case confirmedKinds := <-confirmedWatchKindsCh:
+		if !slices.ContainsFunc(confirmedKinds, func(kind types.WatchKind) bool {
+			return kind.Kind == types.KindAccessRequest
+		}) {
+			t.Error("access request watch kind not returned after init: %V", confirmedKinds)
+		}
+		break
+	}
+	timeBefore := time.Now()
+	for i := 0; i < config.MaxConcurrency; i++ {
+		resource, err := types.NewAccessRequest("REQ-SAME", "foo", "admin")
+		require.NoError(t, err)
+		process.Events.Fire(types.Event{Type: types.OpPut, Resource: resource})
+	}
+	require.NoError(t, countdown.Wait(ctx))
+
+	timeAfter := time.Now()
+	assert.InDelta(t, 4*time.Second, timeAfter.Sub(timeBefore), float64(1000*time.Millisecond))
 }
