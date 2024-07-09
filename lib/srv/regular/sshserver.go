@@ -1185,7 +1185,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		defer localConn.Close()
 		// Ensure unexpected cmd failures get logged.
 		if err := cmd.Wait(); err != nil && !explicitlyClosed.Load() {
-			s.Logger.Warnf("Remote forwarder process exited early with unexpected error: %v", err)
+			s.Logger.Warnf("Networking process exited early with unexpected error: %v", err)
 		}
 	}()
 
@@ -1200,7 +1200,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		case <-cdone:
 		case <-time.After(time.Second * 3):
 			// forcibly kill the child.
-			s.Logger.Warn("Forcibly terminating remote forwarder subprocess.")
+			s.Logger.Warn("Forcibly terminating networking subprocess.")
 			cmd.Process.Kill()
 		}
 		return nil
@@ -1746,7 +1746,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(ctx, ch, req, serverContext)
-	case sshutils.X11ForwardRequest:
+	case x11.ForwardRequest:
 		return s.handleX11Forward(ch, req, serverContext)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
@@ -1859,16 +1859,16 @@ func (s *Server) handleAgentForwardProxy(_ *ssh.Request, ctx *srv.ServerContext)
 }
 
 // handleX11Forward handles an X11 forwarding request from the client.
-func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) (err error) {
+func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) (err error) {
 	event := &apievents.X11Forward{
 		Metadata: apievents.Metadata{
 			Type: events.X11ForwardEvent,
 			Code: events.X11ForwardCode,
 		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
-			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+			LocalAddr:  scx.ServerConn.LocalAddr().String(),
+			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
 		Status: apievents.Status{
 			Success: true,
@@ -1898,7 +1898,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 	}
 
 	// Check if the user's RBAC role allows X11 forwarding.
-	if err := s.authHandlers.CheckX11Forward(ctx); err != nil {
+	if err := s.authHandlers.CheckX11Forward(scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1907,7 +1907,22 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 		return trace.Wrap(err)
 	}
 
-	if err := ctx.OpenXServerListener(x11Req, s.x11.DisplayOffset, s.x11.MaxDisplay); err != nil {
+	proc, err := s.getNetworkingProcess(scx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	listener, err := proc.ListenX11(context.Background(), networking.X11Request{
+		ForwardRequestPayload: x11Req,
+		DisplayOffset:         s.x11.DisplayOffset,
+		MaxDisplay:            s.x11.MaxDisplay,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	scx.Parent().AddCloser(listener)
+
+	if err := scx.HandleX11Listener(listener, x11Req.SingleConnection); err != nil {
 		if trace.IsLimitExceeded(err) {
 			return trace.AccessDenied("The server cannot support any more X11 forwarding sessions at this time")
 		}

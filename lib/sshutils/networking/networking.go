@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -50,6 +51,8 @@ type Request struct {
 	Network string
 	// Address is a network address.
 	Address string
+	// X11Request contains additional info needed for x11 networking requests.
+	X11Request X11Request
 }
 
 // Operation is a networking operation.
@@ -62,7 +65,19 @@ const (
 	NetworkingOperationListen Operation = "listen"
 	// NetworkingOperationListenAgent is used to create a local ssh-agent listener.
 	NetworkingOperationListenAgent Operation = "listen-agent"
+	// NetworkingOperationListenX11 is used to create a local x11 listener.
+	NetworkingOperationListenX11 Operation = "listen-x11"
 )
+
+// X11Config contains information used by the child process to set up X11 forwarding.
+type X11Request struct {
+	x11.ForwardRequestPayload
+	// DisplayOffset is the first display that we should try to get a unix socket for.
+	DisplayOffset int
+	// MaxDisplay is the last display that we should try to get a unix socket for, if all
+	// displays before it are taken.
+	MaxDisplay int
+}
 
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
@@ -76,7 +91,7 @@ func (p *Process) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
-// Dial connects to a network address from the networking subprocess.
+// Dial requests a network connection from the networking subprocess.
 func (p *Process) Dial(ctx context.Context, network string, addr string) (net.Conn, error) {
 	connFD, err := p.sendRequest(ctx, Request{
 		Operation: NetworkingOperationDial,
@@ -91,7 +106,7 @@ func (p *Process) Dial(ctx context.Context, network string, addr string) (net.Co
 	return conn, trace.Wrap(err)
 }
 
-// Listen creates a local listener from the networking subprocess.
+// Listen requests a local listener from the networking subprocess.
 func (p *Process) Listen(ctx context.Context, network string, addr string) (net.Listener, error) {
 	listenerFD, err := p.sendRequest(ctx, Request{
 		Operation: NetworkingOperationListen,
@@ -110,7 +125,7 @@ func (p *Process) Listen(ctx context.Context, network string, addr string) (net.
 	return listener, trace.Wrap(err)
 }
 
-// ListenAgent creates a local ssh-agent listener from the networking subprocess.
+// ListenAgent requests a local ssh-agent listener from the networking subprocess.
 func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 	listenerFD, err := p.sendRequest(ctx, Request{
 		Operation: NetworkingOperationListenAgent,
@@ -119,7 +134,27 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateListenerSocket(listenerFD); err != nil {
+	listener, err := net.FileListener(listenerFD)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unixListener, ok := listener.(*net.UnixListener)
+	if !ok {
+		return nil, trace.BadParameter("expected *net.UnixListener but got %T", listener)
+	}
+
+	unixListener.SetUnlinkOnClose(true)
+	return unixListener, nil
+}
+
+// ListenAgent requests a local ssh-agent listener from the networking subprocess.
+func (p *Process) ListenX11(ctx context.Context, req X11Request) (*net.UnixListener, error) {
+	listenerFD, err := p.sendRequest(ctx, Request{
+		Operation:  NetworkingOperationListenX11,
+		X11Request: req,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

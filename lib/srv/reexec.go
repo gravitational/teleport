@@ -77,9 +77,6 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// X11File is used to communicate to the parent process that the child
-	// process has set up X11 forwarding.
-	X11File
 	// ErrorFile is used to communicate any errors terminating the child process
 	// to the parent process
 	ErrorFile
@@ -157,9 +154,6 @@ type ExecCommand struct {
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
-	// X11Config contains an xauth entry to be added to the command user's xauthority.
-	X11Config X11Config `json:"x11_config"`
-
 	// ExtraFilesLen is the number of extra files that are inherited from
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
@@ -177,14 +171,6 @@ type PAMConfig struct {
 
 	// Environment represents env variables to pass to PAM.
 	Environment map[string]string `json:"environment"`
-}
-
-// X11Config contains information used by the child process to set up X11 forwarding.
-type X11Config struct {
-	// XAuthEntry contains xauth data used for X11 forwarding.
-	XAuthEntry x11.XAuthEntry `json:"xauth_entry,omitempty"`
-	// XServerUnixSocket is the name of an open XServer unix socket used for X11 forwarding.
-	XServerUnixSocket string `json:"xserver_unix_socket"`
 }
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
@@ -395,70 +381,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			cmd.SysProcAttr.Credential,
 			c.Login, &systemUser{u: localUser})
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-	}
-
-	if c.X11Config.XServerUnixSocket != "" {
-		// Set the open XServer unix socket's owner to the localuser
-		// to prevent a potential privilege escalation vulnerability.
-		uid, err := strconv.Atoi(localUser.Uid)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(localUser.Gid)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if err := os.Lchown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		// Update localUser's xauth database for X11 forwarding. We set
-		// cmd.SysProcAttr.Setsid, cmd.Env, and cmd.Dir so that the xauth command
-		// acts as if called within the following shell/exec, so that the
-		// xauthority files is put into the correct place ($HOME/.Xauthority)
-		// with the right permissions.
-		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: cmd.SysProcAttr.Credential,
-		}
-		removeCmd.Env = cmd.Env
-		removeCmd.Dir = cmd.Dir
-		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: cmd.SysProcAttr.Credential,
-		}
-		addCmd.Env = cmd.Env
-		addCmd.Dir = cmd.Dir
-		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		// Set $DISPLAY so that XServer requests forwarded to the X11 unix listener.
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
-
-		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(X11File, fdName(X11File))
-		if x11rdyfd == nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
-		}
-
-		// Write a single byte to signal to the parent process that X11 forwarding is set up.
-		if _, err := x11rdyfd.Write([]byte{0}); err != nil {
-			if err2 := x11rdyfd.Close(); err2 != nil {
-				return errorWriter, teleport.RemoteCommandFailure, trace.NewAggregate(err, err2)
-			}
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		if err := x11rdyfd.Close(); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
@@ -737,11 +659,24 @@ func handleNetworkingRequest(ctx context.Context, req networking.Request) (*os.F
 
 	switch req.Operation {
 	case networking.NetworkingOperationDial:
-		connFD, err := newConnFile(ctx, req.Network, req.Address)
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, req.Network, req.Address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer conn.Close()
+
+		connFD, err := getConnFile(conn)
 		return connFD, trace.Wrap(err)
 
 	case networking.NetworkingOperationListen:
-		listenerFD, err := newListenerFile(ctx, req.Network, req.Address)
+		listener, err := newListener(ctx, req.Network, req.Address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		listenerFD, err := getListenerFile(listener)
 		return listenerFD, trace.Wrap(err)
 
 	case networking.NetworkingOperationListenAgent:
@@ -752,7 +687,13 @@ func handleNetworkingRequest(ctx context.Context, req networking.Request) (*os.F
 		}
 		socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
 
-		listenerFD, err := newListenerFile(ctx, "unix", socketPath)
+		listener, err := newListener(ctx, "unix", socketPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		listenerFD, err := getListenerFile(listener)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -764,12 +705,65 @@ func handleNetworkingRequest(ctx context.Context, req networking.Request) (*os.F
 
 		return listenerFD, trace.Wrap(err)
 
+	case networking.NetworkingOperationListenX11:
+		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		// Setup the user's local xauth file to interface with the local x11 listener.
+		removeCmd := x11.NewXAuthCommand(ctx, "")
+		if err := removeCmd.RemoveEntries(display); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		addCmd := x11.NewXAuthCommand(ctx, "")
+		if err := addCmd.AddEntry(x11.XAuthEntry{
+			Display: display,
+			Proto:   req.X11Request.AuthProtocol,
+			Cookie:  req.X11Request.AuthCookie,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		listenerFD, err := getListenerFile(listener)
+		return listenerFD, trace.Wrap(err)
+
 	default:
 		return nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
 	}
 }
 
-func newListenerFile(ctx context.Context, network string, addr string) (*os.File, error) {
+func getListenerFile(listener net.Listener) (*os.File, error) {
+	switch l := listener.(type) {
+	case *net.UnixListener:
+		l.SetUnlinkOnClose(false)
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	case *net.TCPListener:
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
+	}
+}
+
+func getConnFile(conn net.Conn) (*os.File, error) {
+	switch c := conn.(type) {
+	case *net.UnixConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	case *net.TCPConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
+	}
+}
+
+// newListener creates a new network listener with address reuse disabled.
+func newListener(ctx context.Context, network string, addr string) (net.Listener, error) {
 	lc := net.ListenConfig{
 		Control: func(network, addr string, conn syscall.RawConn) error {
 			var err error
@@ -782,42 +776,7 @@ func newListenerFile(ctx context.Context, network string, addr string) (*os.File
 	}
 
 	listener, err := lc.Listen(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer listener.Close()
-
-	switch l := listener.(type) {
-	case *net.UnixListener:
-		l.SetUnlinkOnClose(false)
-		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
-	case *net.TCPListener:
-		listenerFD, err := l.File()
-		return listenerFD, trace.Wrap(err)
-	default:
-		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", listener)
-	}
-}
-
-func newConnFile(ctx context.Context, network string, addr string) (*os.File, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	switch c := conn.(type) {
-	case *net.UnixConn:
-		connFD, err := c.File()
-		return connFD, trace.Wrap(err)
-	case *net.TCPConn:
-		connFD, err := c.File()
-		return connFD, trace.Wrap(err)
-	default:
-		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
-	}
+	return listener, trace.Wrap(err)
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -1115,7 +1074,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.contr,
 			ctx.readyw,
 			ctx.killShellr,
-			ctx.x11rdyw,
 			ctx.errw,
 		},
 	}

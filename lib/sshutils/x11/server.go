@@ -28,6 +28,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// DefaultDisplayOffset is the default display offset when
+	// searching for an open XServer unix socket.
+	DefaultDisplayOffset = 10
+	// DefaultMaxDisplays is the default maximum number of displays
+	// supported when searching for an open XServer unix socket.
+	DefaultMaxDisplays = 1000
+	// MaxDisplay is the theoretical max display value which
+	// X Clients and serverwill be able to parse into a unix socket.
+	MaxDisplayNumber = math.MaxInt32
+)
+
 // OpenNewXServerListener opens an XServerListener for the first available Display.
 // displayOffset will determine what display number to start from when searching for
 // an open display unix socket, and maxDisplays in optional limit for the number of
@@ -45,7 +57,7 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (n
 	}
 
 	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {
-		display := Display{DisplayNumber: displayNumber}
+		display := Display{DisplayNumber: displayNumber, ScreenNumber: int(screen)}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil
 		} else if !errors.Is(err, syscall.EADDRINUSE) {

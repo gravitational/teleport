@@ -20,7 +20,6 @@ package x11
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -32,25 +31,15 @@ import (
 )
 
 const (
-	// DefaultDisplayOffset is the default display offset when
-	// searching for an open XServer unix socket.
-	DefaultDisplayOffset = 10
-	// DefaultMaxDisplays is the default maximum number of displays
-	// supported when searching for an open XServer unix socket.
-	DefaultMaxDisplays = 1000
-	// MaxDisplay is the theoretical max display value which
-	// X Clients and serverwill be able to parse into a unix socket.
-	MaxDisplayNumber = math.MaxInt32
 	// DisplayEnv is an environment variable used to determine what
 	// local display should be connected to during X11 forwarding.
 	DisplayEnv = "DISPLAY"
-
+	// x11SocketDirName is the name of the directory where X11 unix sockets are kept.
+	x11SocketDirName = ".X11-unix"
 	// x11BasePort is the base port used for XServer tcp addresses.
 	// e.g. DISPLAY=localhost:10 -> net.Dial("tcp", "localhost:6010")
 	// Used by some XServer clients, such as openSSH and MobaXTerm.
 	x11BasePort = 6000
-	// x11SocketDirName is the name of the directory where X11 unix sockets are kept.
-	x11SocketDirName = ".X11-unix"
 )
 
 // Display is an XServer display.
@@ -135,6 +124,20 @@ func (d *Display) unixSocket() (*net.UnixAddr, error) {
 	return nil, trace.BadParameter("display is not a unix socket")
 }
 
+// ParseDisplay parses the given display value and returns the host,
+// display number, and screen number, or a parsing error. display must be
+// in one of the following formats - hostname:d[.s], unix:d[.s], :d[.s], ::d[.s].
+func ParseDisplayFromUnixSocket(socket string) (Display, error) {
+	if filepath.Dir(socket) != x11SockDir() {
+		return Display{}, trace.BadParameter("parsing x11 sockets outside of the standard /tmp/.X11-unix path is not supported")
+	}
+
+	// The file name should look like X[d].[s] and we want :[d].[s]
+	fileName := filepath.Base(socket)
+	displayName := strings.Replace(fileName, "X", ":", 1)
+	return ParseDisplay(displayName)
+}
+
 // xserverTCPSocket returns the display's associated tcp socket.
 // e.g. "hostname:<6000+display_number>"
 func (d *Display) tcpSocket() (*net.TCPAddr, error) {
@@ -170,7 +173,6 @@ func GetXDisplay() (Display, error) {
 // display number, and screen number, or a parsing error. display must be
 // in one of the following formats - hostname:d[.s], unix:d[.s], :d[.s], ::d[.s].
 func ParseDisplay(displayString string) (Display, error) {
-
 	if displayString == "" {
 		return Display{}, trace.BadParameter("display cannot be an empty string")
 	}
