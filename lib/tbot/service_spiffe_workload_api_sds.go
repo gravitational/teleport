@@ -21,6 +21,7 @@ package tbot
 import (
 	"context"
 	"encoding/pem"
+	"log/slog"
 
 	corev3pb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
@@ -33,6 +34,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	"github.com/gravitational/teleport/lib/uds"
 )
 
 // Various code related to implementation of Envoy SDS API
@@ -189,8 +192,85 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 	log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request received from workload")
 	defer log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
-	tb := s.getTrustBundle()
+	return s.generateResponse(
+		ctx,
+		log,
+		creds,
+		s.getTrustBundle(),
+		req,
+	)
+}
 
+// StreamSecrets implements
+// envoy.service.secret.v3/SecretDiscoveryService.StreamSecrets.
+// This should return the current SVIDs and CAs, and stream any future updates.
+func (s *SPIFFEWorkloadAPIService) StreamSecrets(
+	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
+) error {
+	ctx := srv.Context()
+	log, creds, err := s.authenticateClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authenticating client")
+	}
+
+	reloadCh, unsubscribe := s.trustBundleBroadcast.subscribe()
+	defer unsubscribe()
+
+	// Push incoming messages into a chan for the main loop to handle
+	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
+	recvErrCh := make(chan error, 1)
+	go func() {
+		for {
+			req, err := srv.Recv()
+			if err != nil {
+				// It's worth noting that we'll receive an IOF/Cancelled error
+				// here once the main goroutine has exited or the client goes
+				// away.
+				select {
+				case recvErrCh <- err:
+				default:
+				}
+				return
+			}
+			recvCh <- req
+		}
+	}()
+
+	var renewTimerCh <-chan struct{}
+
+	for {
+		select {
+		case err := <-recvErrCh:
+			// If we receive an error from the read side, we should exit.
+			// This error could be an EOF/Cancelled error if the client
+			// goes away.
+			// TODO: Handle gracefully if EOF/Cancelled.
+			return trace.Wrap(err)
+		case req := <-recvCh:
+			// TODO: This needs to be way more advanced due to how
+			// SDS handles versioning/nonces.
+			res, err := s.generateResponse(ctx, log, creds, s.getTrustBundle(), req)
+			if err != nil {
+				return trace.Wrap(err, "generating response")
+			}
+			if err := srv.Send(res); err != nil {
+				return trace.Wrap(err, "sending response")
+			}
+		case <-reloadCh:
+		// Handle trust bundle reloads
+		case <-renewTimerCh:
+			// Handle renewal time!
+		}
+	}
+}
+
+func (s *SPIFFEWorkloadAPIService) generateResponse(
+	ctx context.Context,
+	log *slog.Logger,
+	creds *uds.Creds,
+	tb *x509bundle.Bundle,
+	req *discoveryv3pb.DiscoveryRequest,
+) (*discoveryv3pb.DiscoveryResponse, error) {
 	// names holds all names requested by the client
 	// if this is nothing, we assume they want everything available to them.
 	// it's worth keeping in mind that there's some special names we need to
@@ -285,61 +365,6 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 		VersionInfo: "",
 		Resources:   resources,
 	}, nil
-}
-
-// StreamSecrets implements
-// envoy.service.secret.v3/SecretDiscoveryService.StreamSecrets.
-// This should return the current SVIDs and CAs, and stream any future updates.
-func (s *SPIFFEWorkloadAPIService) StreamSecrets(
-	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
-) error {
-	ctx := srv.Context()
-	log, creds, err := s.authenticateClient(ctx)
-	if err != nil {
-		return trace.Wrap(err, "authenticating client")
-	}
-
-	reloadCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
-
-	// Push incoming messages into a chan for the main loop to handle
-	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
-	recvErrCh := make(chan error, 1)
-	go func() {
-		for {
-			req, err := srv.Recv()
-			if err != nil {
-				// It's worth noting that we'll receive an IOF/Cancelled error
-				// here once the main goroutine has exited or the client goes
-				// away.
-				select {
-				case recvErrCh <- err:
-				default:
-				}
-				return
-			}
-			recvCh <- req
-		}
-	}()
-
-	var renewTimerCh <-chan struct{}
-
-	for {
-		select {
-		case err := <-recvErrCh:
-			// If we receive an error from the read side, we should exit.
-			// This error could be an EOF/Cancelled error if the client
-			// goes away.
-			// TODO: Handle gracefully if EOF/Cancelled.
-			return trace.Wrap(err)
-		case req := <-recvCh:
-		// TODO: handle req from client
-		case <-reloadCh:
-		// Handle trust bundle reloads
-		case <-renewTimerCh:
-			// Handle renewal time!
-		}
-	}
 }
 
 // DeltaSecrets implements
