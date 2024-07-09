@@ -39,7 +39,10 @@ service CrownJewelService {
 
 // CrownJewelRequest is a request to create a new CrownJewel.
 message CreateCrownJewelRequest {
-  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+  reserved 1;
+  reserved "crown_jewels";
+
+  teleport.crownjewel.v1.CrownJewel crown_jewel = 2;
 }
 
 // GetCrownJewelRequest is a request to get a CrownJewel by name.
@@ -68,12 +71,18 @@ message ListCrownJewelsResponse {
 
 // UpdateCrownJewelRequest is a request to update an existing CrownJewel.
 message UpdateCrownJewelRequest {
-  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+  reserved 1;
+  reserved "crown_jewels";
+
+  teleport.crownjewel.v1.CrownJewel crown_jewel = 2;
 }
 
 // UpsertCrownJewelRequest is a request to upsert a CrownJewel.
 message UpsertCrownJewelRequest {
-  teleport.crownjewel.v1.CrownJewel crown_jewels = 1;
+  reserved 1;
+  reserved "crown_jewels";
+
+  teleport.crownjewel.v1.CrownJewel crown_jewel = 2;
 }
 
 // DeleteCrownJewelRequest is a request to delete a CrownJewel.

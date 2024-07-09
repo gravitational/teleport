@@ -392,7 +392,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return protoKnownFieldsEqual(&a, &AWS{})
+	return deriveTeleportEqualAWS(&a, &AWS{})
 }
 
 // Partition returns the AWS partition based on the region.
@@ -425,7 +425,7 @@ func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
 
 // IsEmpty returns true if GCP metadata is empty.
 func (g GCPCloudSQL) IsEmpty() bool {
-	return protoKnownFieldsEqual(&g, &GCPCloudSQL{})
+	return deriveTeleportEqualGCPCloudSQL(&g, &GCPCloudSQL{})
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -435,7 +435,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return protoKnownFieldsEqual(&a, &Azure{})
+	return deriveTeleportEqualAzure(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
@@ -920,6 +920,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if protocol == DatabaseProtocolClickHouse {
 			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
 		}
+	}
+
+	const defaultKRB5FilePath = "/etc/krb5.conf"
+	// The presence of AD Domain indicates the AD configuration will be used.
+	// In those cases, set the default KRB5 file location if not present.
+	if d.Spec.AD.Domain != "" && d.Spec.AD.Krb5File == "" {
+		d.Spec.AD.Krb5File = defaultKRB5FilePath
 	}
 
 	return nil

@@ -272,7 +272,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: app.GetDynamicLabels(),
-		Log:    s.log,
+		// TODO: pass s.log through after it's been converted to slog
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -460,14 +460,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func (s *Server) close(ctx context.Context) error {
-	// Stop all proxied apps.
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
+
+	// Hold the READ lock while iterating the applications here to prevent
+	// deadlocking in flight heartbeats. The heartbeat announce acquires
+	// the lock to build the app resource to send. If the WRITE lock is
+	// held during the shutdown procedure below, any in flight heartbeats
+	// will block acquiring the mutex until shutdown completes, at which
+	// point the heartbeat will be emitted and the removal of the app
+	// server below would be undone.
+	s.mu.RLock()
 	for name := range s.apps {
 		name := name
 		heartbeat := s.heartbeats[name]
@@ -480,7 +485,7 @@ func (s *Server) close(ctx context.Context) error {
 			log := s.log.WithField("app", name)
 			log.Debug("Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				s.log.WithError(err).Warnf("Failed to stop app %q.", name)
+				log.WithError(err).Warn("Failed to stop app.")
 			} else {
 				log.Debug("Stopped app")
 			}
@@ -489,23 +494,26 @@ func (s *Server) close(ctx context.Context) error {
 				g.Go(func() error {
 					log.Debug("Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warnf("Failed to delete app %q.", name)
+						log.WithError(err).Warn("Failed to delete app.")
 					} else {
-						log.Debugf("Deleted app")
+						log.Debug("Deleted app")
 					}
 					return nil
 				})
 			}
 		}
 	}
+	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
 		s.log.WithError(err).Warn("Deleting all apps failed")
 	}
 
+	s.mu.Lock()
 	clear(s.apps)
 	clear(s.dynamicLabels)
 	clear(s.heartbeats)
+	s.mu.Unlock()
 
 	errs := s.c.ConnectionsHandler.Close(ctx)
 

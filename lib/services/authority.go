@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -143,7 +142,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -199,17 +198,16 @@ func checkJWTKeys(cai types.CertAuthority) error {
 	for _, pair := range ca.GetTrustedJWTKeyPairs() {
 		// TODO(nic): validate PKCS11 private keys
 		if len(pair.PrivateKey) > 0 && pair.PrivateKeyType == types.PrivateKeyType_RAW {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = keys.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -240,7 +238,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -257,7 +255,6 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})
@@ -383,6 +380,9 @@ type UserCertParams struct {
 	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
 	// Empty for human users.
 	BotName string
+	// BotInstanceID is the unique identifier for the bot instance, if this is a
+	// Machine ID bot. It is empty for human users.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.

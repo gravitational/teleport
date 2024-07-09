@@ -138,7 +138,7 @@ const Passwordless = ({
   hasTransitionEnded,
   primary,
 }: Props & { hasTransitionEnded: boolean; primary: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   // Firefox currently does not support passwordless and when
@@ -159,7 +159,7 @@ const Passwordless = ({
       <Flex
         flexDirection="column"
         border={1}
-        borderColor="interactive.tonal.neutral.2"
+        borderColor="interactive.tonal.neutral.2.background"
         borderRadius={3}
         p={3}
         gap={3}
@@ -173,7 +173,8 @@ const Passwordless = ({
           </Text>
         </div>
         <Button
-          kind={primary ? 'primary' : 'secondary'}
+          fill="filled"
+          intent={primary ? 'primary' : 'neutral'}
           setRef={ref}
           disabled={attempt.isProcessing}
           onClick={() => onLoginWithWebauthn()}

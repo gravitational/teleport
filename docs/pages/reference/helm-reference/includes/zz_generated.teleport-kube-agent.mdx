@@ -199,6 +199,17 @@ Once `appResources` is set, you can dynamically register application with
 `tsh` by following [the Dynamic App Registration guide](../../../application-access/guides/dynamic-registration.mdx).
 </Admonition>
 
+## `clusterDomain`
+
+| Type | Default |
+|------|---------|
+| `string` | `"cluster.local"` |
+
+`clusterDomain` sets the domain name used by the Kubernetes cluster. This value is used to build the
+FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
+`myapp` running in the `default` namespace at `http://myapp.default.svc.anything.local`. You must manually set this value
+to match your cluster domain if it is different from the default value `cluster.local`.
+
 ## `awsDatabases`
 
 | Type | Default |
@@ -1469,6 +1480,14 @@ for more information.
 | `object` | `{}` |
 
 `extraLabels.deployment` are labels to set on the Deployment or StatefulSet.
+
+### `extraLabels.job`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.job` are labels to set on the post-delete Job created by the chart.
 
 ### `extraLabels.pod`
 

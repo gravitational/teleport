@@ -361,6 +361,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 }
 
 func (i *downstreamICS) Send(ctx context.Context, msg proto.UpstreamInventoryMessage) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	errC := make(chan error, 1)
 	select {
 	case i.sendC <- upstreamSend{msg: msg, errC: errC}:
@@ -530,6 +534,10 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 }
 
 func (i *upstreamICS) Send(ctx context.Context, msg proto.DownstreamInventoryMessage) error {
+	if err := ctx.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	errC := make(chan error, 1)
 	select {
 	case i.sendC <- downstreamSend{msg: msg, errC: errC}:

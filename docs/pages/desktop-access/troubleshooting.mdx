@@ -22,7 +22,7 @@ Usually, this means that the Smart Card service is not running on the target
 host.
 
 First, make sure that you [enable the Smart Card service in Group
-Policy](./active-directory-manual.mdx#enable-smart-card-authentication).
+Policy](./active-directory.mdx#enable-smart-card-authentication).
 
 If that doesn't help, log into the target host directly, open the "Services"
 program from the "Start" menu and check that the "Smart Card" service is in the
@@ -99,7 +99,7 @@ authentication was not trusted"** (or similar).
 This means that the host does not trust the Teleport CA.
 
 First, make sure that you [import the Teleport CA into Group
-Policy](./active-directory-manual.mdx#create-the-GPO-for-the-Teleport-certificate).
+Policy](./active-directory.mdx#create-the-GPO-for-the-Teleport-certificate).
 Note that if you have rotated the Teleport CA since the last import, you need to
 fetch the new CA using the following command, replacing <Var name="teleport.example.com" />
 with the address of your Teleport cluster:
@@ -125,7 +125,7 @@ Windows host.
 **Solution:** Modify firewall rules to allow inbound RDP traffic
 
 First, make sure that you open the RDP port and [allow remote desktop
-connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
+connections](./active-directory.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 
 If that does not help, check if the target host is online and try to `ping` it
@@ -272,8 +272,11 @@ First, generate a client certificate with `tctl`, being sure to replace the
 `--windows-user`, `--windows-sid`, and `--windows-domain` flags with values
 appropriate for your environment:
 
-```
-$  tctl auth sign \
+```code
+# NOTE: To issue Windows certificates, you must run 'tctl auth sign' locally
+# on the same machine as the Teleport auth_service. Running this command remotely
+# with an identity issued by 'tsh' will result in 'ERROR: access denied'
+$ tctl auth sign \
     --windows-user=svc-teleport \
     --windows-sid=S-1-5-21-3788279871-1068139173-3054872986-500 \
     --windows-domain=domain.example.com \
@@ -349,7 +352,7 @@ This means that the desktop does not support secure cipher suites for TLS
 connections.
 
 Make sure that you [configure a certificate for RDP
-connections](./active-directory-manual.mdx#step-47-configure-a-certificate-for-rdp-connections).
+connections](./active-directory.mdx#step-47-configure-a-certificate-for-rdp-connections).
 
 ### Expired smartcard certificate
 
@@ -381,7 +384,7 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions to [allow remote
-desktop connections](./active-directory-manual.mdx#allow-remote-desktop-connections)
+desktop connections](./active-directory.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 If you are still encountering this error after disabling NLA in Active Directory,
 run the following command from the Windows Command prompt as an administrator

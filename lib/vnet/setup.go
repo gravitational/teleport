@@ -38,7 +38,11 @@ import (
 // ctx is used to wait for setup steps that happen before SetupAndRun hands out the control to the
 // process manager. If ctx gets canceled during SetupAndRun, the process manager gets closed along
 // with its background tasks.
-func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager, error) {
+func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManager, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ipv6Prefix, err := NewIPv6Prefix()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +72,7 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 	})
 
 	pm.AddCriticalBackgroundTask("admin subcommand", func() error {
-		return trace.Wrap(execAdminSubcommand(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
+		return trace.Wrap(execAdminProcess(processCtx, socketPath, ipv6Prefix.String(), dnsIPv6.String()))
 	})
 
 	recvTUNErr := make(chan error, 1)
@@ -100,7 +104,8 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 		}
 	}
 
-	appResolver, err := NewTCPAppResolver(appProvider)
+	appResolver, err := NewTCPAppResolver(config.AppProvider,
+		WithClusterConfigCache(config.ClusterConfigCache))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,6 +126,23 @@ func SetupAndRun(ctx context.Context, appProvider AppProvider) (*ProcessManager,
 
 	success = true
 	return pm, nil
+}
+
+// SetupAndRunConfig provides collaborators for the [SetupAndRun] function.
+type SetupAndRunConfig struct {
+	// AppProvider is a required field providing an interface implementation for [AppProvider].
+	AppProvider AppProvider
+	// ClusterConfigCache is an optional field providing [ClusterConfigCache]. If empty, a new cache
+	// will be created.
+	ClusterConfigCache *ClusterConfigCache
+}
+
+func (c *SetupAndRunConfig) CheckAndSetDefaults() error {
+	if c.AppProvider == nil {
+		return trace.BadParameter("missing AppProvider")
+	}
+
+	return nil
 }
 
 func newProcessManager() (*ProcessManager, context.Context) {

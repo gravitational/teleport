@@ -20,16 +20,13 @@ package common
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509/pkix"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"text/template"
-	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -38,11 +35,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -54,25 +49,20 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
+	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := getRegisteredApp(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	routeToApp, err := getRouteToApp(cf, tc, profile, app)
+	app, err := appInfo.GetApp(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
-		RouteToApp:     routeToApp,
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		RouteToApp:     appInfo.RouteToApp,
+		AccessRequests: appInfo.profile.ActiveRequests.AccessRequests,
 	}
 
 	clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -93,7 +83,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := printAppCommand(cf, tc, app, routeToApp); err != nil {
+	if err := printAppCommand(cf, tc, app, appInfo.RouteToApp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -119,46 +109,6 @@ func appLogin(
 	return key, trace.Wrap(err)
 }
 
-func getRouteToApp(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, app types.Application) (proto.RouteToApp, error) {
-	var awsRoleARN string
-	if app.IsAWSConsole() {
-		var err error
-		awsRoleARN, err = getARNFromFlags(cf, profile, app)
-		if err != nil {
-			return proto.RouteToApp{}, trace.Wrap(err)
-		}
-	}
-
-	var azureIdentity string
-	if app.IsAzureCloud() {
-		var err error
-		azureIdentity, err = getAzureIdentityFromFlags(cf, profile)
-		if err != nil {
-			return proto.RouteToApp{}, trace.Wrap(err)
-		}
-		log.Debugf("Azure identity is %q", azureIdentity)
-	}
-
-	var gcpServiceAccount string
-	if app.IsGCP() {
-		var err error
-		gcpServiceAccount, err = getGCPServiceAccountFromFlags(cf, profile)
-		if err != nil {
-			return proto.RouteToApp{}, trace.Wrap(err)
-		}
-		log.Debugf("GCP service account is %q", gcpServiceAccount)
-	}
-
-	return proto.RouteToApp{
-		Name:              app.GetName(),
-		PublicAddr:        app.GetPublicAddr(),
-		ClusterName:       tc.SiteName,
-		AWSRoleARN:        awsRoleARN,
-		AzureIdentity:     azureIdentity,
-		GCPServiceAccount: gcpServiceAccount,
-	}, nil
-}
-
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
 	return tc.TLSRoutingConnUpgradeRequired
 }
@@ -171,7 +121,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
-		return awsCliTpl.Execute(output, map[string]string{
+		return awsLoginTemplate.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
 			"awsRoleARN": routeToApp.AWSRoleARN,
@@ -200,24 +150,24 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
-		return azureCliTpl.Execute(output, map[string]string{
+		return azureLoginTemplate.Execute(output, map[string]string{
 			"appName":  app.GetName(),
 			"identity": routeToApp.AzureIdentity,
 		})
 
 	case app.IsGCP():
-		return gcpCliTpl.Execute(output, map[string]string{
+		return gcpLoginTemplate.Execute(output, map[string]string{
 			"appName":        app.GetName(),
 			"serviceAccount": routeToApp.GCPServiceAccount,
 		})
 
 	case app.IsTCP():
-		return appLoginTCPTpl.Execute(output, map[string]string{
+		return tcpAppLoginTemplate.Execute(output, map[string]string{
 			"appName": app.GetName(),
 		})
 
 	case localProxyRequiredForApp(tc):
-		return appLoginLocalProxyTpl.Execute(output, map[string]interface{}{
+		return webAppLoginProxyTemplate.Execute(output, map[string]interface{}{
 			"appName": app.GetName(),
 		})
 
@@ -241,7 +191,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return appLoginTpl.Execute(output, map[string]interface{}{
+		return webAppLoginTemplate.Execute(output, map[string]interface{}{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,
@@ -249,9 +199,9 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	}
 }
 
-// appLoginTpl is the message that gets printed to a user upon successful login
+// webAppLoginTemplate is the message that gets printed to a user upon successful login
 // into an HTTP application.
-var appLoginTpl = template.Must(template.New("").Parse(
+var webAppLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
 {{.curlCmd}}{{ if .insecure }}
@@ -260,9 +210,9 @@ WARNING: tsh was called with --insecure, so this curl command will be unable to 
 {{- end }}
 `))
 
-// appLoginLocalProxyTpl is the message that gets printed to a user upon successful login
+// webAppLoginProxyTemplate is the message that gets printed to a user upon successful login
 // into an HTTP application and local proxy is required.
-var appLoginLocalProxyTpl = template.Must(template.New("").Parse(
+var webAppLoginProxyTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Start the local proxy for it:
 
   tsh proxy app {{.appName}} -p 8080
@@ -272,9 +222,9 @@ Then connect to the application through this proxy:
   curl http://127.0.0.1:8080
 `))
 
-// appLoginTCPTpl is the message that gets printed to a user upon successful
+// tcpAppLoginTemplate is the message that gets printed to a user upon successful
 // login into a TCP application.
-var appLoginTCPTpl = template.Must(template.New("").Parse(
+var tcpAppLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
 
   tsh proxy app {{.appName}}
@@ -282,9 +232,9 @@ var appLoginTCPTpl = template.Must(template.New("").Parse(
 Then connect to the application through this proxy.
 `))
 
-// awsCliTpl is the message that gets printed to a user upon successful login
+// awsLoginTemplate is the message that gets printed to a user upon successful login
 // into an AWS Console application.
-var awsCliTpl = template.Must(template.New("").Parse(
+var awsLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into AWS app "{{.awsAppName}}".
 
 Your IAM role:
@@ -297,41 +247,21 @@ Or start a local proxy:
   tsh proxy aws --app {{.awsAppName}}
 `))
 
-// azureCliTpl is the message that gets printed to a user upon successful login
+// azureLoginTemplate is the message that gets printed to a user upon successful login
 // into an Azure application.
-var azureCliTpl = template.Must(template.New("").Parse(
+var azureLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into Azure app "{{.appName}}".
 Your identity: {{.identity}}
 Example Azure CLI command: tsh az vm list
 `))
 
-// gcpCliTpl is the message that gets printed to a user upon successful login
+// gcpLoginTemplate is the message that gets printed to a user upon successful login
 // into a GCP application.
-var gcpCliTpl = template.Must(template.New("").Parse(
+var gcpLoginTemplate = template.Must(template.New("").Parse(
 	`Logged into GCP app "{{.appName}}".
 Your service account: {{.serviceAccount}}
 Example command: tsh gcloud compute instances list
 `))
-
-// getRegisteredApp returns the registered application with the specified name.
-func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
-	var apps []types.Application
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
-		})
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(apps) == 0 {
-		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", cf.AppName)
-	}
-	return apps[0], nil
-}
 
 // onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
@@ -424,6 +354,23 @@ func onAppConfig(cf *CLIConf) error {
 	return nil
 }
 
+const (
+	// appFormatURI prints app URI.
+	appFormatURI = "uri"
+	// appFormatCA prints app CA cert path.
+	appFormatCA = "ca"
+	// appFormatCert prints app cert path.
+	appFormatCert = "cert"
+	// appFormatKey prints app key path.
+	appFormatKey = "key"
+	// appFormatCURL prints app curl command.
+	appFormatCURL = "curl"
+	// appFormatJSON prints app URI, CA cert path, cert path, key path, and curl command in JSON format.
+	appFormatJSON = "json"
+	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
+	appFormatYAML = "yaml"
+)
+
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, format string) (string, error) {
 	var uri string
 	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
@@ -438,8 +385,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	}
 
 	curlCmd := fmt.Sprintf(`curl %s\
-  --cert %v \
-  --key %v \
+  --cert %q \
+  --key %q \
   %v`,
 		curlInsecureFlag,
 		profile.AppCertPath(tc.SiteName, routeToApp.Name),
@@ -534,126 +481,207 @@ func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error
 	return string(out), trace.Wrap(err)
 }
 
+// getAppInfo fetches app information using the user's tsh profile,
+// command line args, and the ListApps endpoint if necessary. If
+// provided, the matcher will be used to filter active apps in the
+// tsh profile. getAppInfo will also perform re-login if necessary.
+func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tlsca.RouteToApp) bool) (*appInfo, error) {
+	var profile *client.ProfileStatus
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err = tc.ProfileStatus()
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	activeRoutes := profile.Apps
+	if matchRouteToApp != nil {
+		var filteredRoutes []tlsca.RouteToApp
+		for _, route := range profile.Apps {
+			if matchRouteToApp(route) {
+				filteredRoutes = append(filteredRoutes, route)
+			}
+		}
+		activeRoutes = filteredRoutes
+	}
+
+	if route, err := pickActiveApp(cf, activeRoutes); err == nil {
+		info := &appInfo{RouteToApp: route, isActive: true}
+		return info, info.checkAndSetDefaults(cf, tc, profile)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we didn't find an active profile for the app, get info from server.
+	app, err := getApp(cf.Context, tc, cf.AppName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info := &appInfo{
+		RouteToApp: proto.RouteToApp{
+			Name:        app.GetName(),
+			PublicAddr:  app.GetPublicAddr(),
+			ClusterName: tc.SiteName,
+		},
+		app: app,
+	}
+
+	return info, info.checkAndSetDefaults(cf, tc, profile)
+}
+
+// appInfo wraps a RouteToApp and the corresponding app.
+// Its purpose is to prevent repeated fetches of the same app,
+// by lazily fetching and caching the app for use as needed.
+type appInfo struct {
+	proto.RouteToApp
+	// app corresponds to the app route and may be nil, so use GetApp
+	// instead of accessing it directly.
+	app types.Application
+	// isActive indicates an active app matched this app info.
+	isActive bool
+	mu       sync.Mutex
+
+	// profile is a cached profile status for the current login session.
+	profile *client.ProfileStatus
+}
+
+// checkAndSetDefaults checks the app route, applies cli flags, and sets defaults.
+func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+	a.profile = profile
+
+	switch {
+	case a.IsAWSConsole():
+		app, err := a.GetApp(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		awsRoleARN, err := getARNFromFlags(cf, profile, app)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.AWSRoleARN = awsRoleARN
+
+	case a.IsAzureCloud():
+		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("Azure identity is %q", azureIdentity)
+		a.AzureIdentity = azureIdentity
+
+	case a.IsGCP():
+		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
+		a.GCPServiceAccount = gcpServiceAccount
+	}
+
+	return nil
+}
+
+func (a *appInfo) IsAWSConsole() bool {
+	if a.app != nil {
+		return a.app.IsAWSConsole()
+	}
+	return a.RouteToApp.AWSRoleARN != ""
+}
+
+func (a *appInfo) IsAzureCloud() bool {
+	if a.app != nil {
+		return a.app.IsAzureCloud()
+	}
+	return a.RouteToApp.AzureIdentity != ""
+}
+
+func (a *appInfo) IsGCP() bool {
+	if a.app != nil {
+		return a.app.IsGCP()
+	}
+	return a.RouteToApp.GCPServiceAccount != ""
+}
+
+func (a *appInfo) appLocalCAPath(cluster string) string {
+	return a.profile.AppLocalCAPath(cluster, a.RouteToApp.Name)
+}
+
+// GetApp returns the cached app or fetches it using the app route and
+// caches the result.
+func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.Application, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.app != nil {
+		return a.app.Copy(), nil
+	}
+	// holding mutex across the api call to avoid multiple redundant api calls.
+	app, err := getApp(ctx, tc, a.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.app = app
+	return a.app.Copy(), nil
+}
+
+// getApp returns the registered application with the specified name.
+func getApp(ctx context.Context, tc *client.TeleportClient, name string) (app types.Application, err error) {
+	var apps []types.Application
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		apps, err = tc.ListApps(ctx, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			ResourceType:        types.KindAppServer,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+		})
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(apps) == 0 {
+		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	}
+	return apps[0], nil
+}
+
 // pickActiveApp returns the app the current profile is logged into.
 //
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
-func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (*tlsca.RouteToApp, error) {
+func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToApp, error) {
 	if cf.AppName == "" {
 		switch len(activeRoutes) {
 		case 0:
-			return nil, trace.NotFound("please login using 'tsh apps login' first")
+			return proto.RouteToApp{}, trace.NotFound("please login using 'tsh apps login' first")
 		case 1:
-			return &activeRoutes[0], nil
+			return tlscaRouteToAppToProto(activeRoutes[0]), nil
 		default:
 			var appNames []string
 			for _, r := range activeRoutes {
 				appNames = append(appNames, r.Name)
 			}
-			return nil, trace.BadParameter("multiple apps are available (%v), please specify one via CLI argument",
+			return proto.RouteToApp{}, trace.BadParameter("multiple apps are available (%v), please specify one via CLI argument",
 				strings.Join(appNames, ", "))
 		}
 	}
 
 	for _, r := range activeRoutes {
 		if r.Name == cf.AppName {
-			return &r, nil
+			return tlscaRouteToAppToProto(r), nil
 		}
 	}
-	return nil, trace.NotFound("not logged into app %q", cf.AppName)
+	return proto.RouteToApp{}, trace.NotFound("not logged into app %q", cf.AppName)
 }
 
-// loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
-// generate a new CA if first load fails.
-func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	appCerts, _, err := loadAppCertificate(tc, appName)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
+	return proto.RouteToApp{
+		Name:              route.Name,
+		PublicAddr:        route.PublicAddr,
+		ClusterName:       route.ClusterName,
+		AWSRoleARN:        route.AWSRoleARN,
+		AzureIdentity:     route.AzureIdentity,
+		GCPServiceAccount: route.GCPServiceAccount,
 	}
-	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(tc.SiteName, appName), profile.KeyPath(), appCertsExpireAt, "localhost")
-	return cert, trace.Wrap(err)
 }
-
-func loadSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
-	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
-	if err == nil {
-		if expire, err := getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
-			return caTLSCert, nil
-		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		log.WithError(err).Debugf("Failed to load certificate from %v.", caPath)
-	}
-
-	// Generate and load again.
-	if err = generateSelfSignedCA(caPath, keyPath, validUntil, dnsNames...); err != nil {
-		return tls.Certificate{}, err
-	}
-
-	caTLSCert, err = keys.LoadX509KeyPair(caPath, keyPath)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return caTLSCert, nil
-}
-
-// generateSelfSignedCA generates a new self-signed CA for provided dnsNames
-// and saves/overwrites the local CA file in the profile directory.
-func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) error {
-	log.Debugf("Generating local self signed CA at %v", caPath)
-	keyPem, err := utils.ReadPath(keyPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	key, err := keys.ParsePrivateKey(keyPem)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Entity: pkix.Name{
-			CommonName:   "localhost",
-			Organization: []string{"Teleport"},
-		},
-		Signer:      key,
-		DNSNames:    dnsNames,
-		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(validUntil),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := utils.EnsureLocalPath(caPath, "", ""); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// WriteFile truncates existing file before writing.
-	if err = os.WriteFile(caPath, certPem, 0o600); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
-const (
-	// appFormatURI prints app URI.
-	appFormatURI = "uri"
-	// appFormatCA prints app CA cert path.
-	appFormatCA = "ca"
-	// appFormatCert prints app cert path.
-	appFormatCert = "cert"
-	// appFormatKey prints app key path.
-	appFormatKey = "key"
-	// appFormatCURL prints app curl command.
-	appFormatCURL = "curl"
-	// appFormatJSON prints app URI, CA cert path, cert path, key path, and curl command in JSON format.
-	appFormatJSON = "json"
-	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
-	appFormatYAML = "yaml"
-)

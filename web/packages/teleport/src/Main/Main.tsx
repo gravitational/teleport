@@ -346,7 +346,7 @@ const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   );
 };
 
-function getWidth(hasSidebar: boolean) {
+function getWidth(hasSidebar?: boolean) {
   const { sidebarWidth } = sharedStyles;
   if (hasSidebar) {
     return `max-width: calc(100% - ${sidebarWidth}px);`;
@@ -354,7 +354,7 @@ function getWidth(hasSidebar: boolean) {
   return 'max-width: 100%;';
 }
 
-export const HorizontalSplit = styled.div`
+export const HorizontalSplit = styled.div<{ hasSidebar?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;

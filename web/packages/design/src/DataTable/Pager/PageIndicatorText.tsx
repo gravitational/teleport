@@ -37,7 +37,7 @@ export function PageIndicatorText({
     <Text
       typography="body2"
       mr={1}
-      fontWeight="500"
+      fontWeight={500}
       style={{
         whiteSpace: 'nowrap',
         letterSpacing: '0.15px',

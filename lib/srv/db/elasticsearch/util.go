@@ -37,50 +37,52 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 		Knn   any `json:"knn" yaml:"knn"`
 	}
 
+	log := e.Log.With("content_type", contentType)
+
 	switch contentType {
 	// CBOR and Smile are officially supported by Elasticsearch:
 	// https://www.elastic.co/guide/en/elasticsearch/reference/master/api-conventions.html#_content_type_requirements
 	// We don't support introspection of these content types, at least for now.
 	case "application/cbor":
-		e.Log.Warnf("Content type not supported: %q.", contentType)
+		log.WarnContext(e.Context, "Content type not supported.")
 		return ""
 
 	case "application/smile":
-		e.Log.Warnf("Content type not supported: %q.", contentType)
+		log.WarnContext(e.Context, "Content type not supported.")
 		return ""
 
 	case "application/yaml":
 		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			log.InfoContext(e.Context, "Empty request body.")
 			return ""
 		}
 		err := yaml.Unmarshal(body, &q)
 		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
+			log.WarnContext(e.Context, "Error decoding request body.", "error", err)
 			return ""
 		}
 
 	case "application/json":
 		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			log.InfoContext(e.Context, "Empty request body.")
 			return ""
 		}
 		err := json.Unmarshal(body, &q)
 		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
+			log.WarnContext(e.Context, "Error decoding request body.", "error", err)
 			return ""
 		}
 
 	default:
-		e.Log.Warnf("Unknown or missing 'Content-Type': %q, assuming 'application/json'.", contentType)
+		log.WarnContext(e.Context, "Unknown or missing 'Content-Type', assuming 'application/json'.")
 		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
+			log.InfoContext(e.Context, "Empty request body.")
 			return ""
 		}
 
 		err := json.Unmarshal(body, &q)
 		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
+			log.WarnContext(e.Context, "Error decoding request body.", "error", err)
 			return ""
 		}
 	}
@@ -100,7 +102,7 @@ func GetQueryFromRequestBody(e common.EngineConfig, contentType string, body []b
 	default:
 		marshal, err := json.Marshal(result)
 		if err != nil {
-			e.Log.WithError(err).Warnf("Error encoding query to json; body: %x, content type: %v.", body, contentType)
+			log.WarnContext(e.Context, "Error encoding query to json.", "body", body, "error", err)
 			return ""
 		}
 		return string(marshal)

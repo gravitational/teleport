@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -128,7 +129,11 @@ func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, db types.
 	}
 
 	// Create TLS certificate from returned ephemeral certificate and private key.
-	cert, err := tls.X509KeyPair([]byte(resp.EphemeralCert.Cert), tlsca.MarshalPrivateKeyPEM(pkey))
+	keyPEM, err := keys.MarshalPrivateKey(pkey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair([]byte(resp.EphemeralCert.Cert), keyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

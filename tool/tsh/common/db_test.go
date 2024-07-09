@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -76,7 +77,9 @@ func TestTshDB(t *testing.T) {
 		&modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				DB: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DB: {Enabled: true},
+				},
 			},
 		},
 	)
@@ -205,8 +208,13 @@ func testDatabaseLogin(t *testing.T) {
 				}, {
 					Name:         "mssql",
 					Protocol:     defaults.ProtocolSQLServer,
-					URI:          "localhost:1433",
+					URI:          "sqlserver.example.com:1433",
 					StaticLabels: map[string]string{"env": "dev"},
+					AD: servicecfg.DatabaseAD{
+						KeytabFile: "/etc/keytab",
+						Domain:     "EXAMPLE.COM",
+						SPN:        "MSSQLSvc/sqlserver.example.com:1433",
+					},
 				}, {
 					Name:         "dynamodb",
 					Protocol:     defaults.ProtocolDynamoDB,

@@ -134,7 +134,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
     unguidedLink:
-      'https://goteleport.com/docs/desktop-access/active-directory-manual/',
+      'https://goteleport.com/docs/desktop-access/active-directory/',
   },
   {
     name: 'Local Users',
@@ -177,7 +177,7 @@ export const BASE_RESOURCES: ResourceSpec[] = [
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
-    return {};
+    return '';
   }
 
   switch (r.kind) {

@@ -1177,23 +1177,3 @@ var GithubScopes = []string{
 	// read:org grants read-only access to user's team memberships
 	"read:org",
 }
-
-var OIDCAuthRequestHook = func(_ context.Context, req *types.OIDCAuthRequest, connector types.OIDCConnector) error {
-	// see CreateGithubAuthRequest
-	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
-			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
-		}
-	}
-	return nil
-}
-
-var SAMLAuthRequestHook = func(_ context.Context, req *types.SAMLAuthRequest, connector types.SAMLConnector) error {
-	// see CreateGithubAuthRequest
-	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
-			return trace.Wrap(err, InvalidClientRedirectErrorMessage)
-		}
-	}
-	return nil
-}

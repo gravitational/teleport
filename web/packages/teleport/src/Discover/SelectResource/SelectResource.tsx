@@ -156,7 +156,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         Search for what resource you want to add.
       </HeaderSubtitle>
       <Box height="90px" width="600px">
-        <InputWrapper mb={2}>
+        <InputWrapper>
           <StyledInput
             placeholder="Search for a resource"
             autoFocus
@@ -597,7 +597,7 @@ const Grid = styled.div`
   row-gap: 15px;
 `;
 
-const ResourceCard = styled.div`
+const ResourceCard = styled.div<{ hasAccess?: boolean }>`
   display: flex;
   position: relative;
   align-items: center;

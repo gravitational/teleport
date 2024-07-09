@@ -92,17 +92,15 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
-// AddUserToGroups adds a user to a list of specified groups on a host using `usermod`
-func AddUserToGroups(username string, groups []string) (exitCode int, err error) {
+// SetUserGroups adds a user to a list of specified groups on a host using `usermod`,
+// overriding any existing supplementary groups.
+func SetUserGroups(username string, groups []string) (exitCode int, err error) {
 	usermodBin, err := exec.LookPath("usermod")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find usermod binary")
 	}
-	args := []string{"-aG"}
-	args = append(args, groups...)
-	args = append(args, username)
-	// usermod -aG (append groups) (username)
-	cmd := exec.Command(usermodBin, args...)
+	// usermod -G (replace groups) (username)
+	cmd := exec.Command(usermodBin, "-G", strings.Join(groups, ","), username)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
@@ -112,7 +110,7 @@ func AddUserToGroups(username string, groups []string) (exitCode int, err error)
 func UserDel(username string) (exitCode int, err error) {
 	userdelBin, err := exec.LookPath("userdel")
 	if err != nil {
-		return -1, trace.Wrap(err, "cant find userdel binary")
+		return -1, trace.NotFound("cant find userdel binary: %s", err)
 	}
 	u, err := user.Lookup(username)
 	if err != nil {
@@ -134,7 +132,7 @@ func UserDel(username string) (exitCode int, err error) {
 func GetAllUsers() ([]string, int, error) {
 	getentBin, err := exec.LookPath("getent")
 	if err != nil {
-		return nil, -1, trace.Wrap(err, "cant find getent binary")
+		return nil, -1, trace.NotFound("cant find getent binary: %s", err)
 	}
 	// getent passwd
 	cmd := exec.Command(getentBin, "passwd")

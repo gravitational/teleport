@@ -91,33 +91,65 @@ const colors: ThemeColors = {
   brand: '#9F85FF',
 
   interactive: {
+    solid: {
+      primary: {
+        default: { text: '#000000', background: '#9F85FF' },
+        hover: { text: '#000000', background: '#B29DFF' },
+        active: { text: '#000000', background: '#C5B6FF' },
+      },
+      success: {
+        default: { text: '#000000', background: '#00BFA6' },
+        hover: { text: '#000000', background: '#33CCB8' },
+        active: { text: '#000000', background: '#66D9CA' },
+      },
+      accent: {
+        default: { text: '#000000', background: '#009EFF' },
+        hover: { text: '#000000', background: '#33B1FF' },
+        active: { text: '#000000', background: '#66C5FF' },
+      },
+      danger: {
+        default: { text: '#000000', background: '#FF6257' },
+        hover: { text: '#000000', background: '#FF8179' },
+        active: { text: '#000000', background: '#FFA19A' },
+      },
+      alert: {
+        default: { text: '#000000', background: '#FFAB00' },
+        hover: { text: '#000000', background: '#FFBC33' },
+        active: { text: '#000000', background: '#FFCD66' },
+      },
+    },
+
     tonal: {
       primary: [
-        'rgba(159,133,255, 0.1)',
-        'rgba(159,133,255, 0.18)',
-        'rgba(159,133,255, 0.25)',
+        { text: '#B29DFF', background: 'rgba(159,133,255, 0.1)' },
+        { text: '#C5B6FF', background: 'rgba(159,133,255, 0.18)' },
+        { text: '#C5B6FF', background: 'rgba(159,133,255, 0.25)' },
       ],
       success: [
-        'rgba(0, 191, 166, 0.1)',
-        'rgba(0, 191, 166, 0.18)',
-        'rgba(0, 191, 166, 0.25)',
+        { text: '#33CCB8', background: 'rgba(0, 191, 166, 0.1)' },
+        { text: '#33CCB8', background: 'rgba(0, 191, 166, 0.18)' },
+        { text: '#66D9CA', background: 'rgba(0, 191, 166, 0.25)' },
       ],
       danger: [
-        'rgba(255, 98, 87, 0.1)',
-        'rgba(255, 98, 87, 0.18)',
-        'rgba(255, 98, 87, 0.25)',
+        { text: '#FF8179', background: 'rgba(255, 98, 87, 0.1)' },
+        { text: '#FF8179', background: 'rgba(255, 98, 87, 0.18)' },
+        { text: '#FFA19A', background: 'rgba(255, 98, 87, 0.25)' },
       ],
       alert: [
-        'rgba(255, 171, 0, 0.1)',
-        'rgba(255, 171, 0, 0.18)',
-        'rgba(255, 171, 0, 0.25)',
+        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.1)' },
+        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.18)' },
+        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.25)' },
       ],
       informational: [
-        'rgba(0, 158, 255, 0.1)',
-        'rgba(0, 158, 255, 0.18)',
-        'rgba(0, 158, 255, 0.25)',
+        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.1)' },
+        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.18)' },
+        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.25)' },
       ],
-      neutral: neutralColors,
+      neutral: [
+        { text: 'rgba(255, 255, 255, 0.72)', background: neutralColors[0] },
+        { text: '#FFFFFF', background: neutralColors[1] },
+        { text: '#FFFFFF', background: neutralColors[2] },
+      ],
     },
   },
 

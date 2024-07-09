@@ -1,0 +1,16 @@
+[Unit]
+Description=tbot
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=tbot start --debug --log-format json --config tbot.yaml
+ExecReload=kill -HUP $MAINPID
+LimitNOFILE=524288
+Environment="GOMEMLIMIT=300GiB"
+Environment="GOMAXPROCS=32"
+
+[Install]
+WantedBy=default.target

@@ -51,8 +51,8 @@ is also referred to as SAML SSO URL.
 
 To configure Simple Test Service Provider, the values you need to provide are the following:
 - **App Name:** `iamshowcase`
-- **Entity ID:** `iamshowcase`
-- **ACS URL:** `https://sptest.iamshowcase.com/acs`
+- **SP Entity ID / Audience URI:** `iamshowcase`
+- **ACS URL / SP SSO URL:** `https://sptest.iamshowcase.com/acs`
 
 Click **Finish** button, the `iamshowcase` app is now added to Teleport.
 
@@ -224,7 +224,6 @@ role 'saml-idp-service-provider-manager' has been created
 Next, add the role to your user.
 
 (!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)
-
 
 ## Next steps
 - Configure [SAML Attribute Mapping](./saml-attribute-mapping.mdx).

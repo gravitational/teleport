@@ -25,7 +25,7 @@ import * as Icons from 'design/Icon';
 
 import { TextIcon } from 'teleport/Discover/Shared/Text';
 
-const HintBoxContainer = styled(Box).attrs(props => ({
+const HintBoxContainer = styled(Box).attrs((props: { maxWidth?: string }) => ({
   maxWidth: props.maxWidth,
 }))`
   background-color: ${props => props.theme.colors.spotBackground[0]};

@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build darwin
-// +build darwin
-
 package vnet
 
 import (
@@ -53,6 +50,8 @@ func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
 	return tunDevice, trace.Wrap(err, "creating TUN device from file descriptor")
 }
 
+// execAdminSubcommand starts an osascript wrapper that starts tsh vnet-daemon as root.
+// Used in execAdminProcess when vnetdaemon tag is not supplied.
 func execAdminSubcommand(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
 	executableName, err := os.Executable()
 	if err != nil {
@@ -74,7 +73,7 @@ do shell script quoted form of executableName & `+
 		`" --ipv6-prefix " & quoted form of ipv6Prefix & `+
 		`" --dns-addr " & quoted form of dnsAddr & `+
 		`" >/var/log/vnet.log 2>&1" `+
-		`with prompt "VNet wants to set up a virtual network device" with administrator privileges`,
+		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
 		executableName, socketPath, ipv6Prefix, dnsAddr, teleport.VnetAdminSetupSubCommand)
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the

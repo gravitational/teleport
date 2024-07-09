@@ -24,46 +24,18 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/imds"
-	"github.com/gravitational/teleport/lib/cloud/imds/aws"
-	"github.com/gravitational/teleport/lib/cloud/imds/azure"
-	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 )
 
-const (
-	// discoverInstanceMetadataTimeout is the maximum amount of time allowed
-	// to discover an instance metadata service. The timeout is short to
-	// minimize Teleport's startup time when it isn't running on any cloud
-	// instance. Checking for instance metadata typically takes less than 30ms.
-	discoverInstanceMetadataTimeout = 500 * time.Millisecond
-)
-
-type imConstructor func(ctx context.Context) (imds.Client, error)
-
-var providers = map[types.InstanceMetadataType]imConstructor{
-	types.InstanceMetadataTypeEC2:   initEC2,
-	types.InstanceMetadataTypeAzure: initAzure,
-	types.InstanceMetadataTypeGCP:   initGCP,
-}
-
-func initEC2(ctx context.Context) (imds.Client, error) {
-	im, err := aws.NewInstanceMetadataClient(ctx)
-	return im, trace.Wrap(err)
-}
-
-func initAzure(ctx context.Context) (imds.Client, error) {
-	return azure.NewInstanceMetadataClient(), nil
-}
-
-func initGCP(ctx context.Context) (imds.Client, error) {
-	im, err := gcp.NewInstanceMetadataClient(ctx)
-	return im, trace.Wrap(err)
-}
+// discoverInstanceMetadataTimeout is the maximum amount of time allowed
+// to discover an instance metadata service. The timeout is short to
+// minimize Teleport's startup time when it isn't running on any cloud
+// instance. Checking for instance metadata typically takes less than 30ms.
+const discoverInstanceMetadataTimeout = 500 * time.Millisecond
 
 // DiscoverInstanceMetadata checks which cloud instance type Teleport is
 // running on, if any.
-func DiscoverInstanceMetadata(ctx context.Context) (imds.Client, error) {
+func DiscoverInstanceMetadata(ctx context.Context, providers []func(ctx context.Context) (imds.Client, error)) (imds.Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, discoverInstanceMetadataTimeout)
 	defer cancel()
 

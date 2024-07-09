@@ -81,6 +81,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if err := services.ValidateDatabase(db); err != nil {
+			return trace.Wrap(err)
+		}
 		databases = append(databases, db)
 	}
 
@@ -95,7 +98,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ServerIdentity.ClusterName
+	clusterName := conn.ClusterName()
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
@@ -105,7 +108,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -179,12 +182,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.ServerIdentity.ID.HostUUID,
+			HostUUID:             conn.HostID(),
 			Resolver:             tunnelAddrResolver,
 			Client:               conn.Client,
 			Server:               dbService,
 			AccessPoint:          conn.Client,
-			HostSigner:           conn.ServerIdentity.KeySigner,
+			AuthMethods:          conn.ClientAuthMethods(),
 			Cluster:              clusterName,
 			FIPS:                 process.Config.FIPS,
 			ConnectedProxyGetter: proxyGetter,
