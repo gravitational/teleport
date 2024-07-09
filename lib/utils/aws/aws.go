@@ -207,6 +207,12 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	return nil
 }
 
+// TODO
+func ParseAmazonDateTime(input string) (time.Time, error) {
+	t, err := time.Parse(AmzDateTimeFormat, input)
+	return t, trace.Wrap(err)
+}
+
 // NewSigner creates a new V4 signer.
 func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
 	options := func(s *v4.Signer) {
