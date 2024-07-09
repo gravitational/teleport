@@ -3,7 +3,7 @@ authors: Stephen Levine (stephen.levine@goteleport.com)
 state: draft
 ---
 
-# RFD 0169 - Automatic Updates for Linux Agents
+# RFD 0169 - Automatic Updates for Agents
 
 ## Required Approvers
 
@@ -13,13 +13,14 @@ state: draft
 
 ## What
 
-This RFD proposes a new mechanism for Teleport agents installed on Linux servers to automatically update to a version set by an operator via tctl.
+This RFD proposes a new mechanism for Teleport agents to automatically update to a version scheduled by an operator via tctl.
+
+All agent installations are in-scope for this proposal, including agents installed on Linux servers and Kubernetes.
 
 The following anti-goals are out-of-scope for this proposal, but will be addressed in future RFDs:
-- Analogous adjustments for Teleport agents installed on Kubernetes
-- Phased rollouts of new agent versions for agents connected to an existing cluster
 - Signing of agent artifacts via TUF
 - Teleport Cloud APIs for updating agents
+- Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD.
 
 This RFD proposes a specific implementation of several sections in https://github.com/gravitational/teleport/pull/39217.
 
@@ -29,7 +30,7 @@ Additionally, this RFD parallels the auto-update functionality for client tools 
 
 The existing mechanism for automatic agent updates does not provide a hands-off experience for all Teleport users.
 
-1. The use of system package management leads to interactions with `apt upgrade`, `yum upgrade`, etc. that can result in unintentional upgrades or confusing command output.
+1. The use of system package management leads to interactions with `apt upgrade`, `yum upgrade`, etc. that can result in unintentional upgrades.
 2. The use of system package management requires complex logic for each target distribution.
 3. The installation mechanism requires 4-5 commands, includes manually installing multiple packages, and varies depending on your version and edition of Teleport.
 4. The use of bash to implement the updater makes changes difficult and prone to error.
@@ -44,10 +45,153 @@ The existing mechanism for automatic agent updates does not provide a hands-off 
 
 We must provide a seamless, hands-off experience for auto-updates that is easy to maintain.
 
-## Details
+## Details - Teleport API
 
-We will ship a new auto-updater package written in Go that does not interface with the system package manager.
-It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually. 
+Teleport will be updated to serve the desired version of Teleport from `/v1/webapi/find`.
+
+The version served with be configured using the `cluster_maintenance_config` and `autoupdate_version` resources.
+
+### Endpoints
+
+`/v1/webapi/find?host=[host_uuid]`
+```json
+{
+  "server_edition": "enterprise",
+  "agent_version": "15.1.1",
+  "agent_auto_update": true,
+  "agent_update_jitter_seconds": 10
+}
+```
+Notes:
+- The Teleport proxy uses `cluster_maintenance_config` and `autoupdate_config` (below) to determine the time when the served `agent_auto_update` is `true` for the provided host UUID.
+- Agents will only upgrade if `agent_auto_update` is `true`, but new installations will use `agent_version` regardless of the value in `agent_auto_update`.
+- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
+
+### Teleport Resources
+
+```yaml
+kind: cluster_maintenance_config
+spec:
+  # agent_auto_update allows turning agent updates on or off at the
+  # cluster level. Only turn agent automatic updates off if self-managed
+  # agent updates are in place.
+  agent_auto_update: true|false
+
+  # agent_auto_update_groups contains both "regular" or "critical" schedules.
+  # The schedule used is determined by the agent_version_schedule associated
+  # with the version in autoupdate_version.
+  agent_auto_update_groups:
+    # schedule is "regular" or "critical"
+    regular:
+    - name: staging-group
+      # agent_selection defines which agents are included in the group.
+      agent_selection:
+        # query selects agents by resource query.
+        #  default: all connected agents
+        query: 'labels["environment"]=="staging"'
+      # days specifies the days of the week when the group may be upgraded.
+      #  default: ["*"] (all days)
+      days: [“Sun”, “Mon”, ... | "*"]
+      # start_hour specifies the hour when the group may start upgrading.
+      #  default: 0
+      start_hour: 0-23
+      # max_in_flight specifies the maximum number of agents that may be upgraded at the same time.
+      #  default: 100%
+      max_in_flight: 0-100%
+      # timeout_seconds specifies the amount of time, after the specified jitter, after which
+      # an agent upgrade will be considered timed out if the version does not change.
+      #  default: 60
+      timeout_seconds: 30-900
+      # failure_seconds specifies the amount of time after which an agent upgrade will be considered
+      # failed if the agent heartbeat stops before the upgrade is complete.
+      #  default: 0
+      failure_seconds: 0-900
+      # jitter_seconds specifies a maximum jitter duration after the start hour.
+      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
+      #  default: 0
+      jitter_seconds: 0-60
+      # max_failed_before_halt specifies the percentage of clients that may fail before this group
+      # and all dependent groups are halted.
+      #  default: 0
+      max_failed_before_halt: 0-100%
+      # max_timeout_before_halt specifies the percentage of clients that may time out before this group
+      # and all dependent groups are halted.
+      #  default: 10%
+      max_timeout_before_halt: 0-100%
+      # requires specifies groups that must pass with the current version before this group is allowed
+      # to run using that version.
+      requires: ["test-group"]
+  # ...
+```
+
+Note the MVP version of this resource will not support host UUIDs, groups, or backpressure, and will use the following simplified UX.
+This field will remain indefinitely, to cover agents that do not present a known host UUID, as well as connected agents that are not matched to a group.
+
+```yaml
+kind: cluster_maintenance_config
+spec:
+  # ...
+
+  # agent_auto_update contains both "regular" or "critical" schedules.
+  # The schedule used is determined by the agent_version_schedule associated
+  # with the version in autoupdate_version.
+  agent_auto_update:
+    regular: # or "critical"
+      # days specifies the days of the week when the group may be upgraded.
+      #  default: ["*"] (all days)
+      days: [“Sun”, “Mon”, ... | "*"]
+      # start_hour specifies the hour when the group may start upgrading.
+      #  default: 0
+      start_hour: 0-23
+      # jitter_seconds specifies a maximum jitter duration after the start hour.
+      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
+      #  default: 0
+      jitter_seconds: 0-60
+  # ...
+```
+
+
+```shell
+$ tctl autoupdate update--set-agent-auto-update=off
+Automatic updates configuration has been updated.
+$ tctl autoupdate update --schedule regular --group staging-group --set-start-hour=3
+Automatic updates configuration has been updated.
+$ tctl autoupdate update --schedule regular --group staging-group --set-jitter-seconds=600
+Automatic updates configuration has been updated.
+$ tctl autoupdate reset
+Automatic updates configuration has been reset to defaults.
+$ tctl autoupdate status
+Status: disabled
+Version: v1.2.4
+Schedule: regular
+```
+
+```yaml
+kind: autoupdate_version
+spec:
+  # agent_version is the version of the agent the cluster will advertise.
+  agent_version: X.Y.Z
+  # agent_version_schedule specifies the rollout schedule associated with the version.
+  # Currently, only critical and regular schedules are permitted.
+  agent_version_schedule: critical|regular
+
+  # ...
+```
+
+```shell
+$ tctl autoupdate update --set-agent-version=15.1.1
+Automatic updates configuration has been updated.
+$ tctl autoupdate update --set-agent-version=15.1.2 --critical
+Automatic updates configuration has been updated.
+```
+
+Notes:
+- These two resources are separate so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
+
+## Details - Linux Agents
+
+We will ship a new auto-updater package for Linux servers written in Go that does not interface with the system package manager.
+It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually.
 It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
@@ -62,82 +206,6 @@ $ teleport-update enable --proxy example.teleport.sh
 # if not enabled already, configure teleport and:
 $ systemctl enable teleport
 ```
-
-### API
-
-#### Endpoints
-
-`/v1/webapi/find`
-```json
-{
-  "server_edition": "enterprise",
-  "agent_version": "15.1.1",
-  "agent_auto_update": true,
-  "agent_update_jitter_seconds": 10
-}
-```
-Notes:
-- The Teleport proxy translates upgrade hours (below) into a specific time after which the served `agent_version` changes, resulting in all agents being upgraded.
-- Critical updates are achieved by serving the desired `agent_version` immediately.
-- If an agent misses an upgrade window, it will always update immediately due to the new agent version being served.
-- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
-
-#### Teleport Resources
-
-```yaml
-kind: cluster_maintenance_config
-spec:
-  # agent_auto_update allows turning agent updates on or off at the
-  # cluster level. Only turn agent automatic updates off if self-managed
-  # agent updates are in place.
-  agent_auto_update: true|false
-  # agent_update_hour sets the hour in UTC at which clients should update their agents.
-  agent_update_hour: 0-23
-  # agent_update_jitter_seconds sets a duration in which the upgrade will occur after the hour.
-  # The agent upgrader will pick a random time within this duration to wait to upgrade.
-  agent_update_jitter_seconds: 0-3600
-  
-  [...]
-```
-```
-$ tctl autoupdate update --set-agent-auto-update=off
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-update-hour=3
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-update-jitter-seconds=600
-Automatic updates configuration has been updated.
-$ tctl autoupdate reset
-Automatic updates configuration has been reset to defaults.
-$ tctl autoupdate status
-Status: disabled
-Current: v1.2.3
-Desired: v1.2.4 (critical)
-Window: 3
-Jitter: 600s
-
-```
-
-```yaml
-kind: autoupdate_version
-spec:
-  # agent_version is the version of the agent the cluster will advertise.
-  agent_version: X.Y.Z
-  # agent_critical makes the version as critical.
-  # This overrides agent_update_hour in cluster_maintenance_config and serves the version immediately.
-  # This is useful for rolling out critical security updates and bug fixes.
-  agent_critical: true|false
-
-  [...]
-```
-```
-$ tctl autoupdate update --set-agent-version=15.1.1
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-version=15.1.2 --critical
-Automatic updates configuration has been updated.
-```
-
-Notes:
-- These two resources are separate so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
 
 ### Filesystem
 
@@ -251,7 +319,7 @@ The `disable` subcommand will:
 When `update` subcommand is otherwise executed, it will:
 1. Check `updates.yaml`, and quit (exit 0) if `enabled` is false, or quit (exit 1) if `enabled` is true and no proxy address is set.
 2. Query the `/v1/webapi/find` endpoint.
-3. Check that `agent_auto_updates` is true.
+3. Check that `agent_auto_updates` is true, quit otherwise.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
 6. Ensure there is enough free disk space to upgrade Teleport.
@@ -344,22 +412,7 @@ Example: Given v1, v2, v3 versions of Teleport, where v2 is broken:
 For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/find` endpoint.
 This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or Ansible).
 
-Cluster administrators that want to self-manage agent updates will be
-able to get and watch for changes to agent versions which can then be
-used to trigger other integrations to update the installed version of agents.
-
-```shell
-$ tctl autoupdate watch
-{"agent_version": "1.0.0", "agent_edition": "enterprise", ... }
-{"agent_version": "1.0.1", "agent_edition": "enterprise", ... }
-{"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
-[...]
-```
-
-```shell
-$ tctl autoupdate get
-{"agent_version": "2.0.0", "agent_edition": "enterprise", ... }
-```
+Cluster administrators that want to self-manage agent updates may manually query the `/v1/webapi/find` endpoint using the host UUID, and implement auto-updates with their own automation.
 
 ### Installers
 
@@ -399,6 +452,19 @@ The following documentation will need to be updated to cover the new upgrader wo
 
 Additionally, the Cloud dashboard tenants downloads tab will need to be updated to reference the new instructions.
 
+
+## Details - Kubernetes Agents
+
+The Kubernetes agent updater will be updated for compatibility with the new scheduling system.
+
+This means that it will stop reading upgrade windows using the authenticated connection to the proxy, and instead upgrade when indicated by the `/v1/webapi/find` endpoint.
+
+Rollbacks for the Kubernetes updater, as well as packaging changes to improve UX and compatibility, will be covered in a future RFD.
+
+## Migration
+
+The existing update scheduling system will remain in-place until the old auto-updater is fully deprecated.
+
 ## Security
 
 The initial version of automatic updates will rely on TLS to establish
@@ -410,6 +476,9 @@ are signed.
 
 The Upgrade Framework (TUF) will be used to implement secure updates in the future.
 
+Anyone who possesses a host UUID can determine when that host is scheduled to upgrade by repeatedly querying the public `/v1/webapi/find` endpoint.
+It is not possible to discover the current version of that host, only the designated upgrade window.
+
 ## Logging
 
 All installation steps will be logged locally, such that they are viewable with `journalctl`.
@@ -419,10 +488,14 @@ When TUF is added, that events related to supply chain security may be sent to t
 
 ## Execution Plan
 
-1. Implement new auto-updater in Go.
-2. Test extensively on all supported Linux distributions.
-3. Prep documentation changes.
-4. Release new updater via teleport-ent-updater package.
-5. Release documentation changes.
-6. Communicate to select Cloud customers that they must update their updater, starting with lower ARR customers.
-7. Communicate to all Cloud customers that they must update their updater.
+1. Implement Teleport APIs for new scheduling system (without groups and backpressure)
+2. Implement new auto-updater in Go.
+3. Implement changes to Kubernetes auto-updater.
+4. Test extensively on all supported Linux distributions.
+5. Prep documentation changes.
+6. Release new updater via teleport-ent-updater package.
+7. Release documentation changes.
+8. Communicate to select Cloud customers that they must update their updater, starting with lower ARR customers.
+9. Communicate to all Cloud customers that they must update their updater.
+10. Deprecate old auto-updater endpoints.
+11. Add groups and backpressure features.
