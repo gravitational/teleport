@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -858,6 +859,31 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
 
+	cred, err := getCmdCredential(localUser)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	if !cred.NoSetGroups {
+		groups := make([]int, len(cred.Groups))
+		for i, g := range cred.Groups {
+			groups[i] = int(g)
+		}
+		if err := unix.Setgroups(groups); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+		}
+	}
+	if err := unix.Setgid(int(cred.Gid)); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+	}
+	if err := unix.Setuid(int(cred.Uid)); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+	}
+
+	// Ensure that the working directory is one that the local user has access to.
+	if err := unix.Chdir("/"); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
+	}
+
 	// build forwarder from first extra file that was passed to command
 	ffd := os.NewFile(FirstExtraFile, "forwarder")
 	if ffd == nil {
@@ -871,41 +897,20 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 	}
 	defer fconn.Close()
 
-	// Set the open XServer unix socket's owner to the localuser
-	// to prevent a potential privilege escalation vulnerability.
-	uid, err := strconv.Atoi(localUser.Uid)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(localUser.Gid)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
 	// Create a temp directory to hold the agent socket.
 	sockDir, err := os.MkdirTemp(os.TempDir(), "teleport-")
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	// Update the agent forwarding socket with more restrictive permissions.
+	if err := os.Chmod(sockDir, teleport.PrivateDirMode); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
 	socketPath := filepath.Join(sockDir, fmt.Sprintf("teleport-%v.socket", os.Getpid()))
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	if err := os.Lchown(socketPath, uid, gid); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	// Update the agent forwarding socket with more restrictive permissions.
-	if err := os.Chmod(socketPath, teleport.FileMaskOwnerOnly); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	// To prevent a privilege escalation attack, this must occur
-	// after the socket permissions are updated.
-	if err := os.Lchown(sockDir, uid, gid); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
