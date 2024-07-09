@@ -20,9 +20,9 @@
 package vnet
 
 import (
-	"github.com/gravitational/trace"
-
 	"context"
+
+	"github.com/gravitational/trace"
 )
 
 func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
