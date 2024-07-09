@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	authorizedKeysPrefix = "ssh_authorized_keys"
-	privateKeysPrefix    = "ssh_private_keys"
+	authorizedKeysPrefix = "access_graph_ssh_authorized_keys"
+	privateKeysPrefix    = "access_graph_ssh_private_keys"
 )
 
 // AccessGraphSecretsService manages secrets found on Teleport Nodes and
@@ -161,18 +161,4 @@ func (k *AccessGraphSecretsService) DeletePrivateKey(ctx context.Context, device
 // DeleteAllPrivateKeys deletes all private keys.
 func (k *AccessGraphSecretsService) DeleteAllPrivateKeys(ctx context.Context) error {
 	return trace.Wrap(k.privateKeysSvc.DeleteAllResources(ctx))
-}
-
-func nextAuthorizedKeyToken(next *accessgraphsecretspb.AuthorizedKey) string {
-	if next == nil {
-		return ""
-	}
-	return (*next).Spec.HostId + string(backend.Separator) + (*next).Metadata.Name
-}
-
-func nextPrivateKeyToken(next *accessgraphsecretspb.PrivateKey) string {
-	if next == nil {
-		return ""
-	}
-	return (*next).Spec.DeviceId + string(backend.Separator) + (*next).Metadata.Name
 }
