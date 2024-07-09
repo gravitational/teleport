@@ -1033,7 +1033,7 @@ func setupConfig(t *testing.T) InitConfig {
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
-		ProcessStorage:          processStorage,
+		VersionStorage:          processStorage,
 		Authority:               testauthority.New(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
@@ -1847,7 +1847,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			authCfg := setupConfig(t)
 
 			if test.initialVersion != "" {
-				err := authCfg.ProcessStorage.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
+				err := authCfg.VersionStorage.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
@@ -1861,7 +1861,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			lastKnownVersion, err := authCfg.ProcessStorage.GetTeleportVersion(ctx)
+			lastKnownVersion, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
 		})

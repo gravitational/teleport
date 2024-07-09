@@ -91,7 +91,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		DataDir:                tempDir,
 		ClusterName:            clusterName,
 		Backend:                tt.b,
-		ProcessStorage:         processStorage,
+		VersionStorage:         processStorage,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

@@ -120,7 +120,7 @@ func newTestPack(
 	authConfig := &InitConfig{
 		DataDir:                dataDir,
 		Backend:                p.bk,
-		ProcessStorage:         p.processStorage,
+		VersionStorage:         p.processStorage,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		Emitter:                p.mockEmitter,
@@ -983,7 +983,7 @@ func TestUpdateConfig(t *testing.T) {
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		ProcessStorage:         s.processStorage,
+		VersionStorage:         s.processStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 	}

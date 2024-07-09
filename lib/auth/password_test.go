@@ -92,7 +92,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		DataDir:                tempDir,
 		ClusterName:            clusterName,
 		Backend:                s.bk,
-		ProcessStorage:         processStorage,
+		VersionStorage:         processStorage,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

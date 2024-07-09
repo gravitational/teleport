@@ -24,8 +24,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/auth/storage"
 )
 
 const (
@@ -43,7 +41,7 @@ const (
 // meets our upgrade compatibility guide.
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
-	storage storage.Storage,
+	storage VersionStorage,
 	currentVersion *semver.Version,
 	firstTimeStart bool,
 ) error {

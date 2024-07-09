@@ -167,8 +167,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ProcessStorage == nil {
-		return nil, trace.BadParameter("process storage is not set")
+	if cfg.VersionStorage == nil {
+		return nil, trace.BadParameter("version storage is not set")
 	}
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)

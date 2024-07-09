@@ -419,7 +419,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		DataDir:                tempDir,
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
-		ProcessStorage:         processStorage,
+		VersionStorage:         processStorage,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}

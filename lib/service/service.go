@@ -1912,7 +1912,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                 b,
-			ProcessStorage:          process.storage,
+			VersionStorage:          process.storage,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,

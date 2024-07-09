@@ -141,7 +141,7 @@ func newMockServer(t *testing.T) *mockServer {
 	authCfg := &auth.InitConfig{
 		DataDir:        tempDir,
 		Backend:        bk,
-		ProcessStorage: processStorage,
+		VersionStorage: processStorage,
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,

@@ -52,24 +52,6 @@ const (
 	lastKnownVersion = "last-known-version"
 )
 
-// Storage interface for local process storage.
-type Storage interface {
-	// GetState reads rotation state from disk.
-	GetState(ctx context.Context, role types.SystemRole) (*state.StateV2, error)
-	// CreateState creates process state if it does not exist yet.
-	CreateState(role types.SystemRole, state state.StateV2) error
-	// WriteState writes local cluster state to the backend.
-	WriteState(role types.SystemRole, state state.StateV2) error
-	// ReadIdentity reads identity using identity name and role.
-	ReadIdentity(name string, role types.SystemRole) (*state.Identity, error)
-	// WriteIdentity writes identity to the backend.
-	WriteIdentity(name string, id state.Identity) error
-	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
-	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
-}
-
 // stateBackend implements abstraction over local or remote storage backend methods
 // required for Identity/State storage.
 // As in backend.Backend, Item keys are assumed to be valid UTF8, which may be enforced by the
