@@ -705,7 +705,8 @@ AWS API, the logs will show the error message stack trace.
 
 Within the logs you may see a connection failure such as a i/o timeout
 regarding `sts.amazonaws.com:443`. The Teleport Application Service requires
-connecting to `https://sts.amazonaws.com` to create an authorized AWS console session.
+connecting to `https://sts.amazonaws.com` and `https://signin.aws.amazon.com/federation`
+to create an authorized AWS console session.
 
 ### The Application Service is not authorized to assume a role
 
