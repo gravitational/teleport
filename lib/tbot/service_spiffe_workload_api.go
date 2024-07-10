@@ -33,6 +33,7 @@ import (
 	"sync"
 	"time"
 
+	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
@@ -281,6 +282,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
+	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, s)
 
 	lis, err := createListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
