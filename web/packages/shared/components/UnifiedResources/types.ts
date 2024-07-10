@@ -20,7 +20,7 @@ import React from 'react';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
-import { ResourceIconName } from 'design/ResourceIcon';
+import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
 import { Icon } from 'design/Icon';
 
 import { DbProtocol } from 'shared/services/databases';
