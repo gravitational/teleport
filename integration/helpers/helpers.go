@@ -189,7 +189,7 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
+func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.Key {
 	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
@@ -209,9 +209,14 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
 	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	return key
+}
+
+func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
+	key := MustCreateUserKey(t, tc, username, ttl)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		Key:        key,
 		Format:     identityfile.FormatFile,
