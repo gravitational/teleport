@@ -46,7 +46,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -6007,10 +6006,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
-	// (no other changes necessary)
-	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
-
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
@@ -6019,24 +6014,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
-}
-
-// DELETE IN 16.0
-func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
-	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
-
-	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
-	// if access monitoring is enabled.
-	if versionExists {
-		clientVersion := semver.New(clientVersionString)
-		supportedVersion := semver.New("14.2.1")
-		if clientVersion.LessThan(*supportedVersion) {
-			features.IdentityGovernance = accessMonitoringEnabled
-		}
-	}
-
-	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
-	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
