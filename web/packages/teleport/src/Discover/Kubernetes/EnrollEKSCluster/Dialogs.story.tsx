@@ -18,8 +18,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { rest } from 'msw';
-import { mswLoader } from 'msw-storybook-addon';
+import { http, HttpResponse, delay } from 'msw';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -50,7 +49,6 @@ import { ManualHelmDialog } from './ManualHelmDialog';
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
-  loaders: [mswLoader],
 };
 
 export const EnrollmentDialogStory = () => (
@@ -89,8 +87,8 @@ AgentWaitingDialogStory.storyName = 'AgentWaitingDialog';
 AgentWaitingDialogStory.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.get(cfg.api.kubernetesPath, () => {
+        return delay('infinite');
       }),
     ],
   },
@@ -118,8 +116,8 @@ export const AgentWaitingDialogSuccess = () => (
 AgentWaitingDialogSuccess.parameters = {
   msw: {
     handlers: [
-      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-        return res(ctx.delay('infinite'));
+      http.get(cfg.api.kubernetesPath, () => {
+        return delay('infinite');
       }),
     ],
   },
@@ -225,15 +223,13 @@ ManualHelmDialogStory.storyName = 'ManualHelmDialog';
 ManualHelmDialogStory.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-        return res(
-          ctx.json({
-            id: 'token-id',
-            suggestedLabels: [
-              { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
-            ],
-          })
-        );
+      http.post(cfg.api.joinTokenPath, () => {
+        return HttpResponse.json({
+          id: 'token-id',
+          suggestedLabels: [
+            { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+          ],
+        });
       }),
     ],
   },

@@ -21,8 +21,7 @@ import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
-import { rest } from 'msw';
-import { initialize, mswLoader } from 'msw-storybook-addon';
+import { http, HttpResponse, delay } from 'msw';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -45,11 +44,8 @@ import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportConte
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
-const { worker } = window.msw;
-
 const integrationName = 'test-oidc';
 
-initialize();
 const defaultIsCloud = cfg.isCloud;
 const defaultAutomaticUpgrades = cfg.automaticUpgrades;
 const defaultAutomaticUpgradesTargetVersion =
@@ -57,10 +53,8 @@ const defaultAutomaticUpgradesTargetVersion =
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters',
-  loaders: [mswLoader],
   decorators: [
     Story => {
-      worker.resetHandlers();
       clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
 
       useEffect(() => {
@@ -77,33 +71,30 @@ export default {
   ],
 };
 
-const tokenHandler = rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-  return res(
-    ctx.json({
-      id: 'token-id',
-      suggestedLabels: [
-        { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
-      ],
-    })
-  );
+const tokenHandler = http.post(cfg.api.joinTokenPath, () => {
+  return HttpResponse.json({
+    id: 'token-id',
+    suggestedLabels: [
+      { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+    ],
+  });
 });
 
-const successEnrollmentHandler = rest.post(
+const successEnrollmentHandler = http.post(
   cfg.getEnrollEksClusterUrl(integrationName),
-  (req, res, ctx) => {
-    return res(
-      ctx.delay(1000),
-      ctx.status(200),
-      ctx.json({
+  async () => {
+    await delay(1000);
+    return HttpResponse.json(
+      {
         results: [{ clusterName: 'EKS1' }, { clusterName: 'EKS3' }],
-      })
+      },
+      { status: 200 }
     );
   }
 );
 
-const discoveryConfigHandler = rest.post(
-  cfg.api.discoveryConfigPath,
-  (req, res, ctx) => res(ctx.json({}))
+const discoveryConfigHandler = http.post(cfg.api.discoveryConfigPath, () =>
+  HttpResponse.json({})
 );
 
 export const ClustersList = () => <Component />;
@@ -114,15 +105,15 @@ ClustersList.parameters = {
       tokenHandler,
       successEnrollmentHandler,
       discoveryConfigHandler,
-      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
         {
-          return res(ctx.json({ clusters: eksClusters }));
+          return HttpResponse.json({ clusters: eksClusters });
         }
       }),
-      rest.get(
+      http.get(
         cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        (req, res, ctx) => {
-          return res(ctx.json({ items: kubeServers }));
+        () => {
+          return HttpResponse.json({ items: kubeServers });
         }
       ),
     ],
@@ -142,15 +133,15 @@ ClustersListInCloud.parameters = {
       tokenHandler,
       successEnrollmentHandler,
       discoveryConfigHandler,
-      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
         {
-          return res(ctx.json({ clusters: eksClusters }));
+          return HttpResponse.json({ clusters: eksClusters });
         }
       }),
-      rest.get(
+      http.get(
         cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        (req, res, ctx) => {
-          return res(ctx.json({ items: kubeServers }));
+        () => {
+          return HttpResponse.json({ items: kubeServers });
         }
       ),
     ],
@@ -163,10 +154,10 @@ WithAwsPermissionsError.parameters = {
   msw: {
     handlers: [
       tokenHandler,
-      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) =>
-        res(
-          ctx.status(403),
-          ctx.json({ message: 'StatusCode: 403, RequestID: operation error' })
+      http.post(cfg.getListEKSClustersUrl(integrationName), () =>
+        HttpResponse.json(
+          { message: 'StatusCode: 403, RequestID: operation error' },
+          { status: 403 }
         )
       ),
     ],
@@ -179,32 +170,26 @@ WithEnrollmentError.parameters = {
   msw: {
     handlers: [
       tokenHandler,
-      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) => {
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
         {
-          return res(ctx.json({ clusters: eksClusters }));
+          return HttpResponse.json({ clusters: eksClusters });
         }
       }),
-      rest.get(
+      http.get(
         cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
-        (req, res, ctx) => {
-          return res(ctx.json({ items: kubeServers }));
+        () => {
+          return HttpResponse.json({ items: kubeServers });
         }
       ),
-      rest.post(
-        cfg.getEnrollEksClusterUrl(integrationName),
-        (req, res, ctx) => {
-          return res(
-            ctx.delay(1000),
-            ctx.status(200),
-            ctx.json({
-              results: [
-                { clusterName: 'EKS1', error: 'something bad happened' },
-                { clusterName: 'EKS3', error: 'something bad happened' },
-              ],
-            })
-          );
-        }
-      ),
+      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+        await delay(1000);
+        return HttpResponse.json({
+          results: [
+            { clusterName: 'EKS1', error: 'something bad happened' },
+            { clusterName: 'EKS3', error: 'something bad happened' },
+          ],
+        });
+      }),
     ],
   },
 };
@@ -215,8 +200,13 @@ WithOtherError.parameters = {
   msw: {
     handlers: [
       tokenHandler,
-      rest.post(cfg.getListEKSClustersUrl(integrationName), (req, res, ctx) =>
-        res(ctx.status(503))
+      http.post(cfg.getListEKSClustersUrl(integrationName), () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 503 }
+        )
       ),
     ],
   },

@@ -18,8 +18,9 @@
 
 import React from 'react';
 
+import { Text, Box } from '..';
+
 import typography from './typography';
-import { Text, Box } from './../';
 
 export default {
   title: 'Design/Theme/Typography',

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Box } from './../';
+import { Box } from '..';
 
 import Alert from './index';
 
