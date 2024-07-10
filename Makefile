@@ -276,11 +276,18 @@ BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
+# Set the minimum version for macOS builds for Go, Rust and Xcode builds.
 # Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
 # clamped to the value for builds of that architecture
 MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
-CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG) CGO_LDFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+
+# Go
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+
+# Xcode and rust and Go linking
+MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
+export MACOSX_DEPLOYMENT_TARGET
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -378,14 +385,6 @@ update-vmlinux-h:
 else
 .PHONY: bpf-bytecode
 bpf-bytecode:
-endif
-
-ifeq ("$(OS)-$(with_rdpclient)", "darwin-yes")
-# Set the minimum version linker flag for the rust build of rdpclient (and only rdpclient,
-# as the flag is invalid for building ironrdp to wasm in the web UI). Also set an env
-# var so any C libraries built by this build also target the correct min version.
-rdpclient: export RUSTFLAGS = -C link-arg=$(MACOSX_VERSION_MIN_FLAG)
-rdpclient: export MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
 endif
 
 .PHONY: rdpclient
