@@ -28,7 +28,6 @@ import (
 
 	versionlib "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/trace"
 )
@@ -36,8 +35,8 @@ import (
 const stableCloudPath = "v1/webapi/automaticupgrades/channel/stable/cloud"
 
 // Export exports the proxy version server config.
-func Export(ctx context.Context, proxyAddr utils.NetAddr) error {
-	versionEndpoint := fmt.Sprint(path.Join(proxyAddr.String(), stableCloudPath))
+func Export(ctx context.Context, proxyAddr string) error {
+	versionEndpoint := fmt.Sprint(path.Join(proxyAddr, stableCloudPath))
 	if err := verifyVersionEndpoint(ctx, versionEndpoint); err != nil {
 		return trace.Wrap(err, "version endpoint may be invalid or unreachable")
 	}
