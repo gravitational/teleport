@@ -619,6 +619,10 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	// Create a minimal default environment for the user.
+	homeDir := localUser.HomeDir
+	if !utils.IsDir(homeDir) {
+		homeDir = "/"
+	}
 	os.Setenv("HOME", localUser.HomeDir)
 	os.Setenv("USER", c.Login)
 
@@ -633,17 +637,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	if _, code, _ := runCheckHomeDir(); code == teleport.HomeDirNotFound {
-		os.Setenv("HOME", "/")
-	}
-
 	// Ensure that the working directory is one that the local user has access to.
-	if err := unix.Chdir(os.Getenv("HOME")); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
-	}
-
-	// Ensure that the working directory is one that the local user has access to.
-	if err := unix.Chdir("/"); err != nil {
+	if err := unix.Chdir(homeDir); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
 	}
 
@@ -661,6 +656,11 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Unlock OS thread (if locked by PAM) so that goroutines below inherit
+	// thread-state related to PAM, e.g. pam_namespace. See lib/pam/pam.go
+	// for details on why we lock the OS thread on init.
+	runtime.UnlockOSThread()
 
 	for {
 		buf := make([]byte, 1024)
@@ -685,9 +685,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			continue
 		}
 
-		// Starting a new goroutine takes us out of the current PAM context,
-		// so we handle requests synchronously.
-		handleNetworkingRequest(ctx, controlConn, buf[:n])
+		go handleNetworkingRequest(ctx, controlConn, buf[:n])
 	}
 }
 
@@ -779,6 +777,11 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		defer listener.Close()
 
 		// Setup the user's local xauth file to interface with the local x11 listener.
+		// We Lock the OS thread before running the xauth commands in order to inherit
+		// any thread-state related to PAM.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
 		removeCmd := x11.NewXAuthCommand(ctx, "")
 		if err := removeCmd.RemoveEntries(display); err != nil {
 			return nil, trace.Wrap(err)
