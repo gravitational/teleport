@@ -1,10 +1,12 @@
 package msgraph
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -14,6 +16,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -36,11 +42,23 @@ type azureTokenProvider interface {
 type Config struct {
 	TokenProvider azureTokenProvider
 	HTTPClient    *http.Client
+	Clock         clockwork.Clock
+	RetryConfig   *retryutils.RetryV2Config
 }
 
 func (cfg *Config) SetDefaults() {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = http.DefaultClient
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.RetryConfig == nil {
+		cfg.RetryConfig = &retryutils.RetryV2Config{
+			First:  1 * time.Second,
+			Driver: retryutils.NewExponentialDriver(1 * time.Second),
+			Max:    defaults.HighResPollingPeriod,
+		}
 	}
 }
 
@@ -54,6 +72,8 @@ func (cfg *Config) Validate() error {
 type client struct {
 	httpClient    *http.Client
 	tokenProvider azureTokenProvider
+	clock         clockwork.Clock
+	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
 }
 
@@ -69,12 +89,19 @@ func NewClient(cfg Config) (Client, error) {
 	return &client{
 		httpClient:    cfg.HTTPClient,
 		tokenProvider: cfg.TokenProvider,
+		clock:         cfg.Clock,
+		retryConfig:   *cfg.RetryConfig,
 		baseURL:       uri,
 	}, nil
 }
 
-func (c *client) request(ctx context.Context, method string, uri string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, method, uri, nil)
+func (c *client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
+	var body io.ReadSeeker = nil
+	if payload != nil {
+		body = bytes.NewReader(payload)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, uri, body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,13 +113,19 @@ func (c *client) request(ctx context.Context, method string, uri string) (*http.
 	}
 	req.Header.Add("Authorization", "Bearer "+token.Token)
 
-	const defaultRetry = 1 * time.Second // TODO: RetryV2
 	const maxRetries = 5
+	var retryAfter time.Duration
+
+	// RetryV2 only used when the API does not return a Retry-After header.
+	retry, err := retryutils.NewRetryV2(c.retryConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
-		retryAfter := defaultRetry
 		if i != 0 {
-			time.Sleep(retryAfter) // TODO: clockwork.Clock
+			c.clock.Sleep(retryAfter)
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -101,7 +134,7 @@ func (c *client) request(ctx context.Context, method string, uri string) (*http.
 		}
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-			return resp, trace.Wrap(err)
+			return resp, nil
 		}
 
 		resp.Body.Close()
@@ -109,9 +142,32 @@ func (c *client) request(ctx context.Context, method string, uri string) (*http.
 		if !isRetriable(resp.StatusCode) {
 			return nil, lastErr
 		}
-		// TODO: parse Retry-After or fall back to RetryV2
+
+		retryAfter = retry.Duration()
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if seconds, err := strconv.Atoi(ra); err == nil {
+				retryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		retry.Inc()
+
+		// prepare for the next request attempt by rewinding the body
+		if body != nil {
+			_, err := body.Seek(0, io.SeekStart)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 	return nil, lastErr
+}
+
+func (c *client) get(ctx context.Context, uri string) (*http.Response, error) {
+	return c.request(ctx, http.MethodGet, uri, nil)
+}
+
+func (c *client) post(ctx context.Context, uri string, body []byte) (*http.Response, error) {
+	return c.request(ctx, http.MethodPost, uri, body)
 }
 
 func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
@@ -121,7 +177,7 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 	uri.RawQuery = url.Values{"$top": {strconv.Itoa(limit)}}.Encode()
 	uriString := uri.String()
 	for uriString != "" {
-		resp, err := c.request(ctx, http.MethodGet, uriString)
+		resp, err := c.get(ctx, uriString)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -141,8 +197,19 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 }
 
 // CreateFederatedIdentityCredential implements Client.
-func (c *client) CreateFederatedIdentityCredential(ctx context.Context, cred *FederatedIdentityCredential) error {
-	panic("unimplemented")
+func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) error {
+	uri := *c.baseURL
+	uri.Path = path.Join(uri.Path, "applications", appObjectID, "federatedIdentityCredentials")
+	body, err := json.Marshal(cred)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := c.post(ctx, uri.String(), body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp.Body.Close()
+	return nil
 }
 
 // CreateServicePrincipalTokenSigningCertificate implements Client.
@@ -258,5 +325,5 @@ func iterateSimple[T any](c *client, ctx context.Context, endpoint string, f fun
 }
 
 func isRetriable(code int) bool {
-	return code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable
+	return code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable || code == http.StatusGatewayTimeout
 }
