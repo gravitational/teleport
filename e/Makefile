@@ -195,17 +195,10 @@ ifeq (, $(filter $(ARCH), amd64 arm64))
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 
-ifeq ("$(ARCH)","arm64")
-
-# If we're not guaranteed to be building natively on an arm64 system,
-# then we'll need to configure the cross compiler.
-CGOFLAG = $(CGOFLAG) $(if $(IS_NATIVE_BUILD),,CC=aarch64-linux-gnu-gcc)
-
-endif
 else ifeq ("$(ARCH)","arm")
 
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 $(if $(IS_NATIVE_BUILD),,CC=arm-linux-gnueabihf-gcc)
+CGOFLAG = CGO_ENABLED=1
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
