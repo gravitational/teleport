@@ -2110,7 +2110,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
+		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}

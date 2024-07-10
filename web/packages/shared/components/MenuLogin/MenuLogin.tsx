@@ -39,7 +39,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       required = true,
       width,
     } = props;
-    const anchorRef = useRef<HTMLElement>();
+    const anchorRef = useRef<HTMLButtonElement>();
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -80,13 +80,12 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
         <ButtonBorder
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
-          height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
           Connect
-          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}

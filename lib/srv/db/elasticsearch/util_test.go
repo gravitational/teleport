@@ -19,10 +19,10 @@
 package elasticsearch
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/ghodss/yaml"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,7 +133,7 @@ func TestEngineGetQueryFromRequestBody(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := &Engine{}
-			e.Log = logrus.StandardLogger()
+			e.Log = slog.Default()
 
 			result := GetQueryFromRequestBody(e.EngineConfig, tt.contentType, []byte(tt.body))
 			require.Equal(t, tt.want, result)

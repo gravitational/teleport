@@ -52,11 +52,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -412,10 +413,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 }
 
 func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+
 	req := auth.AppTestCertRequest{
-		PublicKey:   publicKey,
+		PublicKey:   publicKeyPEM,
 		Username:    user.GetName(),
 		TTL:         1 * time.Hour,
 		PublicAddr:  publicAddr,
@@ -427,7 +433,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, a
 	}
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(req)
 	require.NoError(t, err)
-	tlsCertificate, err := tls.X509KeyPair(certificate, privateKey)
+	tlsCertificate, err := tls.X509KeyPair(certificate, privateKeyPEM)
 	require.NoError(t, err)
 
 	return tlsCertificate

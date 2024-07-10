@@ -40,6 +40,23 @@ jobs:
               - 'Cargo.lock'
               - 'build.assets/versions.mk'
               - 'Makefile'
+            has_proto:
+              # workflow changes
+              - '.github/workflows/lint.yaml'
+              # proto files or buf changes
+              - 'go.mod'
+              - 'go.sum'
+              - 'api/proto/**'
+              - 'proto/**'
+              # operator protoc generator change
+              - 'integrations/operator/crdgen'
+              # terraform protoc generator changes
+              - 'integrations/terraform/go.mod'
+              - 'integrations/terraform/gen/docs.sh'
+              - 'integrations/terraform/protoc-gen-terraform-*'
+              - 'integrations/terraform/Makefile'
+              - 'integrations/terraform/examples/**'
+              - 'integrations/terraform/templates/**'
 
   lint-go:
     name: Lint (Go)
@@ -66,12 +83,10 @@ jobs:
 
       - name: Set linter versions
         run: |
-          echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
           echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
 
       - name: Print linter versions
         run: |
-          echo "BUF_VERSION=$BUF_VERSION"
           echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
 
       # Run various golangci-lint checks.
@@ -118,32 +133,8 @@ jobs:
           args: --out-format=colored-line-number
           skip-cache: true
 
-      - uses: bufbuild/buf-setup-action@35c243d7f2a909b1d4e40399b348a7fdab27d78d # v1.34.0
-        with:
-          github_token: ${{ github.token }}
-          version: ${{ env.BUF_VERSION }}
-      - uses: bufbuild/buf-lint-action@06f9dd823d873146471cfaaf108a993fe00e5325 # v1.1.1
-      - name: buf breaking from parent to self
-        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        with:
-          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
-      - name: buf breaking from self to master
-        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
-        with:
-          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
-          against: '.'
-
       - name: Run (non-action) linters
         run: make lint-no-actions
-
-      - name: Check if protos are up to date
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
-
-      - name: Check if Operator CRDs are up to date
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
 
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
@@ -177,3 +168,54 @@ jobs:
 
       - name: Run Rust linters
         run: make lint-rust
+
+  lint-proto:
+    name: Lint (Proto)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_proto == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set linter versions
+        run: |
+          echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
+
+      - name: Print linter versions
+        run: |
+          echo "BUF_VERSION=$BUF_VERSION"
+      - uses: bufbuild/buf-setup-action@35c243d7f2a909b1d4e40399b348a7fdab27d78d # v1.34.0
+        with:
+          github_token: ${{ github.token }}
+          version: ${{ env.BUF_VERSION }}
+      - uses: bufbuild/buf-lint-action@06f9dd823d873146471cfaaf108a993fe00e5325 # v1.1.1
+      - name: buf breaking from parent to self
+        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        with:
+          against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+      - name: buf breaking from self to master
+        uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        with:
+          input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
+          against: '.'
+
+      - name: Check if protos are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      - name: Check if Operator CRDs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+
+      - name: Check if Terraform resources are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make terraform-resources-up-to-date

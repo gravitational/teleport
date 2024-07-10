@@ -44,7 +44,8 @@ exports[`empty state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -53,30 +54,50 @@ exports[`empty state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
+  background-color: #9F85FF;
   color: #000000;
-  background: #9F85FF;
+  border-color: transparent;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 224px;
   text-transform: none;
 }
 
-.c16:hover,
-.c16:focus {
-  background: #B29DFF;
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
-.c16:active {
-  background: #C5B6FF;
+.c16:hover,
+.teleport-button__force-hover .c16 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+}
+
+.c16:active,
+.teleport-button__force-active .c16 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c16:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -87,7 +108,8 @@ exports[`empty state 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -96,32 +118,51 @@ exports[`empty state 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   margin-left: 24px;
   width: 224px;
   text-transform: none;
 }
 
-.c17:hover,
-.c17:focus {
-  background: rgba(255,255,255,0.07);
+.c17:focus-visible,
+.teleport-button__force-focus-visible .c17 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
-.c17:active {
-  background: rgba(255,255,255,0.13);
+.c17:hover,
+.teleport-button__force-hover .c17 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+.c17:active,
+.teleport-button__force-active .c17 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c17:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -257,7 +298,7 @@ exports[`empty state 1`] = `
           >
             <button
               class="c16"
-              kind="primary"
+              fill="filled"
               width="224px"
             >
               Add Resource
@@ -265,8 +306,8 @@ exports[`empty state 1`] = `
           </a>
           <a
             class="c17"
+            fill="border"
             href="https://goteleport.com/docs/server-access/getting-started/"
-            kind="border"
             rel="noreferrer"
             target="_blank"
             width="224px"
@@ -347,7 +388,8 @@ exports[`failed 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -356,30 +398,48 @@ exports[`failed 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
-  height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c38:focus-visible,
+.teleport-button__force-focus-visible .c38 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c38:hover,
-.c38:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c38 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c38:active {
-  background: rgba(255,255,255,0.13);
+.c38:active,
+.teleport-button__force-active .c38 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c38:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -466,7 +526,6 @@ exports[`failed 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c6 {
@@ -1082,8 +1141,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1136,8 +1194,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1190,8 +1247,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1244,8 +1300,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1298,8 +1353,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1357,8 +1411,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1416,8 +1469,7 @@ exports[`failed 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -1549,7 +1601,8 @@ exports[`loaded 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1558,30 +1611,49 @@ exports[`loaded 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background-color: transparent;
+  color: #9F85FF;
+  border-color: #9F85FF;
+  border-width: 1.5px;
+  padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
-  padding: 0px 24px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
   width: 240px;
-  text-transform: none;
+}
+
+.c8:focus-visible,
+.teleport-button__force-focus-visible .c8 {
+  background-color: #9F85FF;
+  color: #000000;
+  border-color: #000000;
+  border-radius: 2px;
+  outline: 2px solid #9F85FF;
 }
 
 .c8:hover,
-.c8:focus {
-  background: #B29DFF;
+.teleport-button__force-hover .c8 {
+  background-color: #B29DFF;
+  border-color: transparent;
+  color: #000000;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
 }
 
-.c8:active {
-  background: #C5B6FF;
+.c8:active,
+.teleport-button__force-active .c8 {
+  background-color: #C5B6FF;
+  border-color: transparent;
+  color: #000000;
 }
 
 .c8:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1592,7 +1664,8 @@ exports[`loaded 1`] = `
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  border: none;
+  border-style: solid;
+  border-color: transparent;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -1601,30 +1674,48 @@ exports[`loaded 1`] = `
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
+  transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
-  font-size: 10px;
+  background-color: transparent;
+  color: rgba(255,255,255,0.54);
+  border-color: rgba(255,255,255,0.54);
+  border-width: 1.5px;
+  padding: 0 6.5px;
   min-height: 24px;
-  padding: 0px 16px;
-  height: 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.15px;
+}
+
+.c38:focus-visible,
+.teleport-button__force-focus-visible .c38 {
+  background-color: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.72);
+  border-color: rgba(255,255,255,0.72);
+  border-radius: 4px;
+  outline: none;
 }
 
 .c38:hover,
-.c38:focus {
-  background: rgba(255,255,255,0.07);
+.teleport-button__force-hover .c38 {
+  background-color: rgba(255,255,255,0.13);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: none;
 }
 
-.c38:active {
-  background: rgba(255,255,255,0.13);
+.c38:active,
+.teleport-button__force-active .c38 {
+  background-color: rgba(255,255,255,0.18);
+  border-color: transparent;
+  color: #FFFFFF;
 }
 
 .c38:disabled {
-  background: rgba(255,255,255,0.12);
+  background-color: rgba(255,255,255,0.07);
   color: rgba(255,255,255,0.3);
+  border-color: transparent;
+  box-shadow: none;
   cursor: auto;
 }
 
@@ -1711,7 +1802,6 @@ exports[`loaded 1`] = `
   justify-content: center;
   color: rgba(255,255,255,0.72);
   margin-left: 4px;
-  margin-right: -8px;
 }
 
 .c6 {
@@ -2094,7 +2184,7 @@ exports[`loaded 1`] = `
     >
       <button
         class="c8"
-        kind="primary"
+        fill="border"
         title=""
         width="240px"
       >
@@ -2332,8 +2422,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2386,8 +2475,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2440,8 +2528,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2494,8 +2581,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2548,8 +2634,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2607,8 +2692,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span
@@ -2666,8 +2750,7 @@ exports[`loaded 1`] = `
         >
           <button
             class="c38"
-            height="24px"
-            kind="border"
+            fill="border"
           >
             Connect
             <span

@@ -1377,40 +1377,39 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 		}, nil
 	}
 
-	// use the target node that was explicitly provided if valid
-	if len(tc.Labels) == 0 {
-		// detect the common error when users use host:port address format
-		_, port, err := net.SplitHostPort(tc.Host)
-		// client has used host:port notation
-		if err == nil {
-			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
+	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
+		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-		return []targetNode{
-			{
-				hostname: tc.Host,
-				addr:     addr,
-			},
-		}, nil
+		retval := make([]targetNode, 0, len(nodes))
+		for _, resource := range nodes {
+			// always dial nodes by UUID
+			retval = append(retval, targetNode{
+				hostname: resource.GetHostname(),
+				addr:     fmt.Sprintf("%s:0", resource.GetName()),
+			})
+		}
+
+		return retval, nil
 	}
 
-	// find the nodes matching the labels that were provided
-	nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 	}
 
-	retval := make([]targetNode, 0, len(nodes))
-	for _, resource := range nodes {
-		// always dial nodes by UUID
-		retval = append(retval, targetNode{
-			hostname: resource.GetHostname(),
-			addr:     fmt.Sprintf("%s:0", resource.GetName()),
-		})
-	}
-
-	return retval, nil
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+	return []targetNode{
+		{
+			hostname: tc.Host,
+			addr:     addr,
+		},
+	}, nil
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
@@ -2118,7 +2117,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 }
 
 // Play replays the recorded session.
-func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64) error {
+func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64, skipIdleTime bool) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Play",
@@ -2135,7 +2134,7 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	}
 	defer clusterClient.Close()
 
-	return playSession(ctx, sessionID, speed, clusterClient.AuthClient)
+	return playSession(ctx, sessionID, speed, clusterClient.AuthClient, skipIdleTime)
 }
 
 const (
@@ -2148,7 +2147,7 @@ const (
 	keyDown  = 66
 )
 
-func playSession(ctx context.Context, sessionID string, speed float64, streamer libplayer.Streamer) error {
+func playSession(ctx context.Context, sessionID string, speed float64, streamer libplayer.Streamer, skipIdleTime bool) error {
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2172,8 +2171,9 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 	term.SetCursorPos(1, 1)
 
 	player, err := libplayer.New(&libplayer.Config{
-		SessionID: *sid,
-		Streamer:  streamer,
+		SessionID:    *sid,
+		Streamer:     streamer,
+		SkipIdleTime: skipIdleTime,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2268,9 +2268,9 @@ func setTermSize(w io.Writer, size string) error {
 }
 
 // PlayFile plays the recorded session from a file.
-func PlayFile(ctx context.Context, filename, sid string, speed float64) error {
+func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdleTime bool) error {
 	streamer := &playFromFileStreamer{filename: filename}
-	return playSession(ctx, sid, speed, streamer)
+	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP

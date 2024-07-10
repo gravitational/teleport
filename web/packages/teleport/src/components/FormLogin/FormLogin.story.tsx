@@ -139,9 +139,14 @@ export const LocalDisabledNoSso = () => (
 
 export const PrimarySso = () => {
   const ssoProvider = [
-    { name: 'github', type: 'oidc', url: '' } as const,
-    { name: 'google', type: 'oidc', url: '' } as const,
-    { name: 'bitbucket', type: 'oidc', url: '' } as const,
+    { name: 'github', displayName: 'GitHub', type: 'oidc', url: '' } as const,
+    { name: 'google', displayName: 'Google', type: 'oidc', url: '' } as const,
+    {
+      name: 'bitbucket',
+      displayName: 'Bitbucket',
+      type: 'oidc',
+      url: '',
+    } as const,
     {
       name: 'Mission Control',
       type: 'oidc',

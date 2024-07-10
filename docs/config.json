@@ -786,6 +786,10 @@
             {
               "title": "AWS OIDC Integration",
               "slug": "/management/guides/awsoidc-integration/"
+            },
+            {
+              "title": "Datadog Integration",
+              "slug": "/management/guides/datadog/"
             }
           ]
         },
@@ -822,10 +826,6 @@
             {
               "title": "Export Audit Events to Fluentd",
               "slug": "/management/export-audit-events/fluentd/"
-            },
-            {
-              "title": "Export Audit Events to Datadog",
-              "slug": "/management/export-audit-events/datadog/"
             },
             {
               "title": "Export Audit Events to the Elastic Stack",
@@ -968,7 +968,13 @@
         },
         {
           "title": "Databases",
-          "slug": "/auto-discovery/databases/"
+          "slug": "/auto-discovery/databases/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/databases/aws/"
+            }
+          ]
         },
         {
           "title": "Kubernetes Applications",
@@ -1782,8 +1788,166 @@
           "slug": "/reference/metrics/"
         },
         {
-          "title": "Terraform Resources",
-          "slug": "/reference/terraform-provider/"
+          "title": "Terraform Provider",
+          "slug": "/reference/terraform-provider/",
+          "entries": [
+            {
+              "title": "Datasources",
+              "slug": "/reference/terraform-provider/data-sources/",
+              "entries": [
+                {
+                  "title": "Access List",
+                  "slug": "/reference/terraform-provider/data-sources/access_list/"
+                },
+                {
+                  "title": "Application",
+                  "slug": "/reference/terraform-provider/data-sources/app/"
+                },
+                {
+                  "title": "Auth Preference",
+                  "slug": "/reference/terraform-provider/data-sources/auth_preference/"
+                },
+                {
+                  "title": "Cluster Maintenance Config",
+                  "slug": "/reference/terraform-provider/data-sources/cluster_maintenance_config/"
+                },
+                {
+                  "title": "Cluster Networking Config",
+                  "slug": "/reference/terraform-provider/data-sources/cluster_networking_config/"
+                },
+                {
+                  "title": "Database",
+                  "slug": "/reference/terraform-provider/data-sources/database/"
+                },
+                {
+                  "title": "GitHub Connector",
+                  "slug": "/reference/terraform-provider/data-sources/github_connector/"
+                },
+                {
+                  "title": "Login Rule",
+                  "slug": "/reference/terraform-provider/data-sources/login_rule/"
+                },
+                {
+                  "title": "OIDC Connector",
+                  "slug": "/reference/terraform-provider/data-sources/oidc_connector/"
+                },
+                {
+                  "title": "Okta Import Rule",
+                  "slug": "/reference/terraform-provider/data-sources/okta_import_rule/"
+                },
+                {
+                  "title": "Provision Token",
+                  "slug": "/reference/terraform-provider/data-sources/provision_token/"
+                },
+                {
+                  "title": "Role",
+                  "slug": "/reference/terraform-provider/data-sources/role/"
+                },
+                {
+                  "title": "SAML Connector",
+                  "slug": "/reference/terraform-provider/data-sources/saml_connector/"
+                },
+                {
+                  "title": "Session Recording Config",
+                  "slug": "/reference/terraform-provider/data-sources/session_recording_config/"
+                },
+                {
+                  "title": "Trusted Cluster",
+                  "slug": "/reference/terraform-provider/data-sources/trusted_cluster/"
+                },
+                {
+                  "title": "Trusted Device",
+                  "slug": "/reference/terraform-provider/data-sources/trusted_device/"
+                },
+                {
+                  "title": "User",
+                  "slug": "/reference/terraform-provider/data-sources/user/"
+                }
+              ]
+            },
+            {
+              "title": "Resources",
+              "slug": "/reference/terraform-provider/resources/",
+              "entries": [
+                {
+                  "title": "Access List",
+                  "slug": "/reference/terraform-provider/resources/access_list/"
+                },
+                {
+                  "title": "Application",
+                  "slug": "/reference/terraform-provider/resources/app/"
+                },
+                {
+                  "title": "Auth Preference",
+                  "slug": "/reference/terraform-provider/resources/auth_preference/"
+                },
+                {
+                  "title": "Bot",
+                  "slug": "/reference/terraform-provider/resources/bot/"
+                },
+                {
+                  "title": "Cluster Maintenance Config",
+                  "slug": "/reference/terraform-provider/resources/cluster_maintenance_config/"
+                },
+                {
+                  "title": "Cluster Networking Config",
+                  "slug": "/reference/terraform-provider/resources/cluster_networking_config/"
+                },
+                {
+                  "title": "Database",
+                  "slug": "/reference/terraform-provider/resources/database/"
+                },
+                {
+                  "title": "GitHub Connector",
+                  "slug": "/reference/terraform-provider/resources/github_connector/"
+                },
+                {
+                  "title": "Login Rule",
+                  "slug": "/reference/terraform-provider/resources/login_rule/"
+                },
+                {
+                  "title": "OIDC Connector",
+                  "slug": "/reference/terraform-provider/resources/oidc_connector/"
+                },
+                {
+                  "title": "Okta Import Rule",
+                  "slug": "/reference/terraform-provider/resources/okta_import_rule/"
+                },
+                {
+                  "title": "Provision Token",
+                  "slug": "/reference/terraform-provider/resources/provision_token/"
+                },
+                {
+                  "title": "Role",
+                  "slug": "/reference/terraform-provider/resources/role/"
+                },
+                {
+                  "title": "SAML Connector",
+                  "slug": "/reference/terraform-provider/resources/saml_connector/"
+                },
+                {
+                  "title": "Server",
+                  "slug": "/reference/terraform-provider/resources/server/"
+                },
+                {
+                  "title": "Session Recording Config",
+                  "slug": "/reference/terraform-provider/resources/session_recording_config/"
+                },
+                {
+                  "title": "Trusted Cluster",
+                  "slug": "/reference/terraform-provider/resources/trusted_cluster/"
+                },
+                {
+                  "title": "Trusted Device",
+                  "slug": "/reference/terraform-provider/resources/trusted_device/"
+                },
+                {
+                  "title": "User",
+                  "slug": "/reference/terraform-provider/resources/user/"
+                }
+              ]
+            }
+          ]
         },
         {
           "title": "Audit Events and Records",
@@ -2957,6 +3121,11 @@
     {
       "source": "/database-access/guides/vitess/",
       "destination": "/database-access/enroll-self-hosted-databases/vitess/",
+      "permanent": true
+    },
+    {
+      "source": "/management/export-audit-events/datadog/",
+      "destination": "/management/guides/datadog/",
       "permanent": true
     }
   ]

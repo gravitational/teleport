@@ -75,7 +75,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	e.Log.Debugf("Cluster topology: %v, selected server %v.", top, server)
+	e.Log.DebugContext(e.Context, "Connecting to cluster.", "topology", top, "server", server)
 	conn, err := server.Connection(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -83,10 +83,10 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 	closeFn := func() {
 		if err := top.Disconnect(ctx); err != nil {
-			e.Log.WithError(err).Warn("Failed to close topology")
+			e.Log.WarnContext(e.Context, "Failed to close topology", "error", err)
 		}
 		if err := conn.Close(); err != nil {
-			e.Log.WithError(err).Error("Failed to close server connection.")
+			e.Log.ErrorContext(e.Context, "Failed to close server connection.", "error", err)
 		}
 	}
 	return conn, closeFn, nil
@@ -175,7 +175,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
 		return e.getAWSAuthenticator(ctx, sessionCtx)
 	default:
-		e.Log.Debug("Authenticating to database using certificates.")
+		e.Log.DebugContext(e.Context, "Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
 			Username: x509Username(sessionCtx),
 		})
@@ -190,7 +190,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 // getAWSAuthenticator fetches the AWS credentials and initializes the MongoDB
 // authenticator.
 func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
-	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
+	e.Log.DebugContext(e.Context, "Authenticating to database using AWS IAM authentication.")
 
 	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
