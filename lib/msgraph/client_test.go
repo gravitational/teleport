@@ -244,6 +244,7 @@ func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
+	w.Write([]byte("{}"))
 	f.timesCalled.Add(1)
 }
 
