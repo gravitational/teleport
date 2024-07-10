@@ -137,10 +137,18 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 			return resp, nil
 		}
 
+		graphError, err := readError(resp.Body)
 		resp.Body.Close()
-		lastErr = trace.BadParameter("status %s", resp.Status)
+		if err != nil {
+			lastErr = err // error while reading the graph error, relay
+		} else if graphError != nil {
+			lastErr = trace.Wrap(graphError)
+		} else {
+			// API did not return a valid error structure, best-effort reporting.
+			lastErr = trace.Errorf(resp.Status)
+		}
 		if !isRetriable(resp.StatusCode) {
-			return nil, lastErr
+			break
 		}
 
 		retryAfter = retry.Duration()
@@ -159,7 +167,7 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 			}
 		}
 	}
-	return nil, lastErr
+	return nil, trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path)
 }
 
 func (c *client) get(ctx context.Context, uri string) (*http.Response, error) {
