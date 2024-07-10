@@ -202,7 +202,9 @@ func (job job) waitInit(ctx context.Context, watcher types.Watcher, timeout time
 			return trace.ConnectionProblem(nil, "unexpected event type %q", event.Type)
 		}
 		if watchStatus, ok := event.Resource.(types.WatchStatus); ok {
-			job.onWatchInitFunc(watchStatus)
+			if job.onWatchInitFunc != nil {
+				job.onWatchInitFunc(watchStatus)
+			}
 		}
 		return nil
 	case <-time.After(timeout):
