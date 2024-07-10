@@ -61,7 +61,10 @@
     "vite": "^5.3.2"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.0.0",
     "@codemirror/lang-sql": "^6.7.0",
+    "@codemirror/view": "^6.17.0",
+    "@grpc/grpc-js": "1.10.10",
     "@lezer/highlight": "^1.2.0",
     "@nivo/bar": "^0.87.0",
     "@protobuf-ts/runtime": "^2.9.4",
@@ -73,7 +76,9 @@
     "d3-scale": "^4.0.2",
     "d3-time-format": "^4.1.0",
     "date-fns": "^2.28.0",
+    "history": "^4.9.0",
     "events": "3.3.0",
+    "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
