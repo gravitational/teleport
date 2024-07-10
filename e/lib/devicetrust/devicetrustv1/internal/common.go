@@ -1,4 +1,4 @@
-package devicetrustv1
+package internal
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func findDeviceBySerial(ctx context.Context, s *storage.S, osType devicepb.OSType, serialNumber string) (*devicepb.Device, error) {
+func FindDeviceBySerial(ctx context.Context, s *storage.S, osType devicepb.OSType, serialNumber string) (*devicepb.Device, error) {
 	devs, err := s.GetDevicesByAssetTag(ctx, serialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -25,7 +25,7 @@ func findDeviceBySerial(ctx context.Context, s *storage.S, osType devicepb.OSTyp
 	return nil, trace.NotFound("device %q/%v not registered", serialNumber, dtoss.FriendlyOSType(osType))
 }
 
-func protectReadOnlyDeviceDataFields(dcd *devicepb.DeviceCollectedData) error {
+func ProtectReadOnlyDeviceDataFields(dcd *devicepb.DeviceCollectedData) error {
 	// Whilst other system managed fields are simply overwritten or ignored,
 	// this field is especially sensitive as if injected by a hostile client,
 	// it could be used to bypass checks that consider historical TPM PCR state.

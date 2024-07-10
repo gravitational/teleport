@@ -26,6 +26,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -145,9 +146,7 @@ type AccessService interface {
 
 // UsersService represents the [local.IdentityService] methods used by
 // [Service].
-type UsersService interface {
-	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-}
+type UsersService internal.UsersService
 
 // RateLimiter is a subset of [limiter.RateLimiter].
 type RateLimiter interface {
@@ -823,15 +822,15 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		return trace.Wrap(err)
 	}
 
-	c := &authnCeremony{
-		logger:      s.logger,
-		storage:     s.storage,
-		cachedUsers: s.cachedUsers,
-		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
+	c := &internal.AuthnCeremony{
+		Logger:      s.logger,
+		Storage:     s.storage,
+		CachedUsers: s.cachedUsers,
+		AugmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
-		auditCallback: func(dev *devicepb.Device, auditData *deviceAuthnAuditData, err error) {
+		AuditCallback: func(dev *devicepb.Device, auditData *internal.DeviceAuthnAuditData, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
 			userMetadata := getUserMetadata(ctx)
@@ -856,14 +855,14 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 				},
 				Status: apievents.Status{
 					Success:     success,
-					UserMessage: getUserMessage(err),
+					UserMessage: internal.GetUserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,
 			})
 		},
 	}
-	dev, err = c.AuthenticateDevice(stream, user)
+	dev, err = c.AuthenticateDevice(ctx, stream, user)
 	return trace.Wrap(err)
 }
 
@@ -918,7 +917,7 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 		},
 		Status: apievents.Status{
 			Success:     err == nil,
-			UserMessage: getUserMessage(err),
+			UserMessage: internal.GetUserMessage(err),
 		},
 		UserMetadata: apievents.UserMetadata{
 			User:          user,
@@ -944,7 +943,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 			"error", err,
 		)
 		// err swallowed on purpose.
-		return tokenData, nil, auditStatusError{
+		return tokenData, nil, internal.AuditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
 			UserMessage: "invalid device confirmation token",
 		}
@@ -952,7 +951,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 	// Always return tokenData for audit purposes.
 
 	if req.CurrentWebSessionId != tokenData.WebSessionID {
-		return tokenData, nil, auditStatusError{
+		return tokenData, nil, internal.AuditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
 			UserMessage: "token move check failed",
 		}
@@ -977,7 +976,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 			"Failed to augment WebSession certificates",
 			"error", err,
 		)
-		return tokenData, dev, auditStatusError{
+		return tokenData, dev, internal.AuditStatusError{
 			Err:         trace.Wrap(err),
 			UserMessage: "failed to issue device web certificates",
 		}

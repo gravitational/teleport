@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -67,14 +68,14 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	attestationParameters := dtoss.AttestationParametersFromProto(
 		initReq.Tpm.AttestationParameters,
 	)
-	encryptedCredential, finishCredentialActivation, err := credentialActivationChallenge(
+	encryptedCredential, finishCredentialActivation, err := internal.CredentialActivationChallenge(
 		validEK.publicKey,
 		attestationParameters,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	attestNonce, finishPlatformAttestation, err := platformAttestationChallenge(
+	attestNonce, finishPlatformAttestation, err := internal.PlatformAttestationChallenge(
 		dev.OsType,
 		attestationParameters.Public,
 	)
