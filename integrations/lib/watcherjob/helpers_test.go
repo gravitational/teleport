@@ -183,7 +183,7 @@ func (countdown *Countdown) Wait(ctx context.Context) error {
 }
 
 // NewMockEventsProcessWithConfirmedWatchJobs creates a new mock process that passes confirmed watch kinds back.
-func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.T, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) *MockEventsProcess {
+func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.T, config Config, fn EventFunc, watchInitFunc WatchInitFunc) *MockEventsProcess {
 	t.Helper()
 	process := MockEventsProcess{
 		Process: lib.NewProcess(ctx),
@@ -196,7 +196,7 @@ func NewMockEventsProcessWithConfirmedWatchJobs(ctx context.Context, t *testing.
 	})
 	var err error
 
-	process.eventsJob, err = NewJobWithConfirmedWatchKinds(&process.Events, config, fn, confirmedWatchKindsCh)
+	process.eventsJob, err = NewJobWithConfirmedWatchKinds(&process.Events, config, fn, watchInitFunc)
 	require.NoError(t, err)
 	process.SpawnCriticalJob(process.eventsJob)
 	require.NoError(t, process.Events.WaitSomeWatchers(ctx))
