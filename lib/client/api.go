@@ -2227,7 +2227,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				" or view the recording in your web browser."
 			return trace.BadParameter(message)
 		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
-			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
+			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
 				" To play app sessions, specify --format=json or --format=yaml.")
 		case *apievents.Resize:
 			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
@@ -2245,7 +2245,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			lastTime = evt.Time
 		case *apievents.DatabaseSessionStart:
 			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
-				return trace.BadParameter("Interactive database session replay is only supported for " +
+				return trace.NotImplemented("Interactive database session replay is only supported for " +
 					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
 					" To play other database sessions, specify --format=json or --format=yaml.")
 			}

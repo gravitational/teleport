@@ -77,7 +77,7 @@ type Player struct {
 	err error
 
 	// translator is the current SessionPrintTranslator used.
-	translator SessionPrintTranslator
+	translator sessionPrintTranslator
 }
 
 const normalPlayback = math.MinInt64
@@ -92,12 +92,12 @@ type Streamer interface {
 	) (chan events.AuditEvent, chan error)
 }
 
-// NewSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
-type NewSessionPrintTranslatorFunc func() SessionPrintTranslator
+// newSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
+type newSessionPrintTranslatorFunc func() sessionPrintTranslator
 
-// SessionPrintTranslator provides a way to transform detailed protocol-specific
+// sessionPrintTranslator provides a way to transform detailed protocol-specific
 // audit events into a textual representation.
-type SessionPrintTranslator interface {
+type sessionPrintTranslator interface {
 	// TranslateEvent takes an audit event and converts it into a print event.
 	// The function might return `nil` in cases where there is no textual
 	// representation for the provided event.
@@ -180,7 +180,6 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var skip bool
 	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
 	lastDelay := int64(0)
 	for {
@@ -206,6 +205,7 @@ func (p *Player) stream() {
 				return
 			}
 
+			var skip bool
 			evt, skip = p.translateEvent(evt)
 			if skip {
 				continue
@@ -455,7 +455,7 @@ func (p *Player) LastPlayed() int64 {
 
 // translateEvent translates events if applicable and return if they should be
 // skipped.
-func (p *Player) translateEvent(evt events.AuditEvent) (events.AuditEvent, bool) {
+func (p *Player) translateEvent(evt events.AuditEvent) (translatedEvent events.AuditEvent, shouldSkip bool) {
 	// We can only define the translator when the first event arrives.
 	switch e := evt.(type) {
 	case *events.DatabaseSessionStart:
@@ -477,8 +477,8 @@ func (p *Player) translateEvent(evt events.AuditEvent) (events.AuditEvent, bool)
 }
 
 // databaseTranslators maps database protocol event translators.
-var databaseTranslators = map[string]NewSessionPrintTranslatorFunc{
-	defaults.ProtocolPostgres: func() SessionPrintTranslator { return db.NewPostgresTranslator() },
+var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
+	defaults.ProtocolPostgres: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
 }
 
 // SupportedDatabaseProtocols a list of database protocols supported by the
