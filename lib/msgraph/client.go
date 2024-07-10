@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -185,31 +183,6 @@ func (c *client) post(ctx context.Context, uri string, body []byte) (*http.Respo
 	return c.request(ctx, http.MethodPost, uri, body)
 }
 
-func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
-	uri := *c.baseURL
-	uri.Path = path.Join(uri.Path, endpoint)
-	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
-	uriString := uri.String()
-	for uriString != "" {
-		resp, err := c.get(ctx, uriString)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer resp.Body.Close()
-
-		var page oDataPage
-		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
-			return trace.Wrap(err)
-		}
-		uriString = page.NextLink
-		if !f(page.Value) {
-			break
-		}
-	}
-
-	return nil
-}
-
 // CreateFederatedIdentityCredential implements Client.
 func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) error {
 	uri := *c.baseURL
@@ -246,77 +219,6 @@ func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 	panic("unimplemented")
 }
 
-// IterateApplications implements Client.
-func (c *client) IterateApplications(ctx context.Context, f func(*Application) bool) error {
-	return iterateSimple(c, ctx, "applications", f)
-}
-
-func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
-	var temp struct {
-		Type string `json:"@odata.type"`
-	}
-
-	if err := json.Unmarshal(msg, &temp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var err error
-	var member GroupMember
-	switch temp.Type {
-	case "#microsoft.graph.user":
-		var u *User
-		err = json.Unmarshal(msg, &u)
-		member = u
-	default:
-		err = trace.BadParameter("unsupported group member type: %s", temp.Type)
-	}
-
-	return member, trace.Wrap(err)
-}
-
-// IterateGroupMembers implements Client.
-func (c *client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
-	var err error
-	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
-		var page []json.RawMessage
-		if err = json.Unmarshal(msg, &page); err != nil {
-			return false
-		}
-		for _, entry := range page {
-			var member GroupMember
-			member, err = decodeGroupMember(entry)
-			if err != nil {
-				var gmErr *UnsupportedGroupMember
-				if errors.As(err, &gmErr) {
-					slog.Debug("unsupported group member", "type", gmErr.Type)
-					err = nil // Reset so that we do not return the error up if this is the last entry
-					continue
-				} else {
-					return false
-				}
-			}
-			if !f(member) {
-				return false
-			}
-		}
-		return true
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(itErr)
-}
-
-// IterateGroups implements Client.
-func (c *client) IterateGroups(ctx context.Context, f func(*Group) bool) error {
-	return iterateSimple(c, ctx, "groups", f)
-}
-
-// IterateUsers implements Client.
-func (c *client) IterateUsers(ctx context.Context, f func(*User) bool) error {
-	return iterateSimple(c, ctx, "users", f)
-}
-
 // UpdateApplication implements Client.
 func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
 	panic("unimplemented")
@@ -325,27 +227,6 @@ func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app 
 // UpdateServicePrincipal implements Client.
 func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
 	panic("unimplemented")
-}
-
-// iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
-func iterateSimple[T any](c *client, ctx context.Context, endpoint string, f func(*T) bool) error {
-	var err error
-	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
-		var page []T
-		if err = json.Unmarshal(msg, &page); err != nil {
-			return false
-		}
-		for _, item := range page {
-			if !f(&item) {
-				return false
-			}
-		}
-		return true
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(itErr)
 }
 
 func isRetriable(code int) bool {
