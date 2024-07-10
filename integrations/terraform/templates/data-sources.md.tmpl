@@ -1,0 +1,23 @@
+---
+title: Reference for the {{.Name}} Terraform data-source
+description: This page describes the supported values of the {{.Name}} data-source of the Teleport Terraform provider.
+---
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{tffile .ExampleFile }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{codefile "shell" .ImportFile }}
+{{- end }}
+

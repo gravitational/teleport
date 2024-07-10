@@ -487,14 +487,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 			return ctx, trace.Wrap(err)
 		}),
-		Router:               router,
-		HealthCheckAppServer: cfg.HealthCheckAppServer,
-		UI:                   cfg.uiConfig,
-		PresenceChecker:      cfg.presenceChecker,
-		GetProxyIdentity: func() (*state.Identity, error) {
-			return proxyIdentity, nil
-		},
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		Router:                  router,
+		HealthCheckAppServer:    cfg.HealthCheckAppServer,
+		UI:                      cfg.uiConfig,
+		PresenceChecker:         cfg.presenceChecker,
+		GetProxyClientTLSConfig: proxyIdentity.TLSConfig,
+		IntegrationAppHandler:   &mockIntegrationAppHandler{},
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -8120,10 +8118,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
-		GetProxyIdentity: func() (*state.Identity, error) {
-			return proxyIdentity, nil
-		},
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
+		GetProxyClientTLSConfig:        proxyIdentity.TLSConfig,
+		IntegrationAppHandler:          &mockIntegrationAppHandler{},
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -8856,7 +8852,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Clock:         clockwork.NewRealClock(),
 			ClusterFeatures: func() authproto.Features {
 				return authproto.Features{
-					Kubernetes: true,
+					Entitlements: map[string]*authproto.EntitlementInfo{
+						string(entitlements.K8s): {Enabled: true},
+					},
 				}
 			},
 		},

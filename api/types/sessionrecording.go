@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // SessionRecordingConfig defines session recording configuration. This is
@@ -40,6 +42,9 @@ type SessionRecordingConfig interface {
 
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
+
+	// Clone returns a copy of the resource.
+	Clone() SessionRecordingConfig
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -156,6 +161,11 @@ func (c *SessionRecordingConfigV2) GetProxyChecksHostKeys() bool {
 // SetProxyChecksHostKeys sets if the proxy will check host keys.
 func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
+}
+
+// Clone returns a copy of the resource.
+func (c *SessionRecordingConfigV2) Clone() SessionRecordingConfig {
+	return utils.CloneProtoMsg(c)
 }
 
 // setStaticFields sets static resource header and metadata fields.
