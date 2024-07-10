@@ -20,6 +20,7 @@
     "@gravitational/shared": "1.0.0",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/context-zone": "1.25.1",
+    "@opentelemetry/core": "^1.8.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.52.1",
     "@opentelemetry/instrumentation": "0.52.1",
     "@opentelemetry/instrumentation-document-load": "0.39.0",
