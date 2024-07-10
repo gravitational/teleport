@@ -1144,7 +1144,23 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		if upgraderKind == "unit" {
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
-				if err := endpoint.Export(process.ExitContext(), resolverAddr); err != nil {
+				conn, err := waitForInstanceConnector(process, process.logger)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if conn == nil {
+					return trace.BadParameter("process exiting and Instance connector never became available")
+				}
+
+				resp, err := conn.Client.Ping(process.ExitContext())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !resp.GetServerFeatures().GetCloud() {
+					return nil
+				}
+
+				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
 					process.logger.WarnContext(process.ExitContext(),
 						"Failed to export and validate autoupdates endpoint.",
 						"addr", resolverAddr.String(),
