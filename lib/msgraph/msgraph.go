@@ -14,4 +14,6 @@ type Client interface {
 	GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error)
 	GetServicePrincipalsByAppId(ctx context.Context, appID string) ([]*ServicePrincipal, error)
 	InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error)
+	UpdateApplication(ctx context.Context, appObjectID string, app *Application) error
+	UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error
 }
