@@ -99,6 +99,9 @@ func (d *devicesClientAdapter) AuthenticateDevice(ctx context.Context, opts ...g
 	}, nil
 }
 
+// authnStreamAdapter adapts an [AssertDeviceClientStream] to a
+// [devicepb.DeviceTrustService_AuthenticateDeviceClient] stream. This allows
+// the assertion ceremony to borrow the [authn.Ceremony] logic for itself.
 type authnStreamAdapter struct {
 	devicepb.DeviceTrustService_AuthenticateDeviceClient
 
