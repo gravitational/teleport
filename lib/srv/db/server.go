@@ -497,6 +497,10 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 
 // stopDatabase uninitializes the database with the specified name.
 func (s *Server) stopDatabase(ctx context.Context, name string) error {
+	// Stop database object importer.
+	if err := s.cfg.DatabaseObjects.StopImporter(name); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop database object importer.", "db", name, "error", err)
+	}
 	s.stopDynamicLabels(name)
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
@@ -595,10 +599,6 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	// Deconfigure IAM for the cloud database.
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to teardown IAM.", "db", database.GetName(), "error", err)
-	}
-	// Stop database object importer.
-	if err := s.cfg.DatabaseObjects.StopImporter(database); err != nil {
-		s.log.WarnContext(ctx, "Failed to stop database object importer.", "db", database.GetName(), "error", err)
 	}
 	// Stop heartbeat, labels, etc.
 	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {

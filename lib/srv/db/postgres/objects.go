@@ -56,7 +56,7 @@ func (f *objectFetcher) FetchAll(ctx context.Context, dbNameFilter databaseobjec
 		if dbNameFilter(dbName) == false {
 			continue
 		}
-		objs, fetchErr := f.fetchObjects(ctx, dbName)
+		objs, fetchErr := f.FetchOneDatabase(ctx, dbName)
 		result[dbName] = objects.FetchResult{
 			Objects: objs,
 			Error:   fetchErr,
@@ -66,8 +66,20 @@ func (f *objectFetcher) FetchAll(ctx context.Context, dbNameFilter databaseobjec
 	return result, nil
 }
 
-func (f *objectFetcher) FetchOneDatabase(ctx context.Context, dbName string) ([]*dbobjectv1.DatabaseObject, error) {
-	return f.fetchObjects(ctx, dbName)
+func (f *objectFetcher) FetchOneDatabase(ctx context.Context, databaseName string) ([]*dbobjectv1.DatabaseObject, error) {
+	conn, err := f.connectAsAdmin(ctx, databaseName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
+
+	objsFetched, err := fetchDatabaseObjects(ctx, f.db, databaseName, conn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	f.cfg.Log.InfoContext(ctx, "fetched objects from database", "count", len(objsFetched))
+
+	return objsFetched, nil
 }
 
 func (f *objectFetcher) getDatabaseNames(ctx context.Context) ([]string, error) {
@@ -103,22 +115,6 @@ func (f *objectFetcher) getDatabaseNames(ctx context.Context) ([]string, error) 
 	}
 
 	return databases, nil
-}
-
-func (f *objectFetcher) fetchObjects(ctx context.Context, databaseName string) ([]*dbobjectv1.DatabaseObject, error) {
-	conn, err := f.connectAsAdmin(ctx, databaseName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close(ctx)
-
-	objsFetched, err := fetchDatabaseObjects(ctx, f.db, databaseName, conn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	f.cfg.Log.InfoContext(ctx, "fetched objects from database", "count", len(objsFetched))
-
-	return objsFetched, nil
 }
 
 func (f *objectFetcher) connectAsAdmin(ctx context.Context, databaseName string) (*pgx.Conn, error) {

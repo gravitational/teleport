@@ -26,15 +26,18 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
+type ImportRulesProvider interface {
+	GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error)
+}
+
 // ObjectFetcherConfig provides static object fetcher configuration.
 type ObjectFetcherConfig struct {
-	AuthClient   *authclient.Client
+	ImportRules  ImportRulesProvider
 	Auth         common.Auth
 	CloudClients libcloud.Clients
 	Log          *slog.Logger
@@ -111,7 +114,7 @@ type applyRulesFetcher struct {
 }
 
 func (a *applyRulesFetcher) FetchAll(ctx context.Context, dbNameFilter databaseobjectimportrule.DbNameFilter) (map[string]FetchResult, error) {
-	rules, err := a.cfg.AuthClient.GetDatabaseObjectImportRules(ctx)
+	rules, err := a.cfg.ImportRules.GetDatabaseObjectImportRules(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +137,7 @@ func (a *applyRulesFetcher) FetchAll(ctx context.Context, dbNameFilter databaseo
 }
 
 func (a *applyRulesFetcher) FetchOneDatabase(ctx context.Context, dbName string) ([]*dbobjectv1.DatabaseObject, error) {
-	rules, err := a.cfg.AuthClient.GetDatabaseObjectImportRules(ctx)
+	rules, err := a.cfg.ImportRules.GetDatabaseObjectImportRules(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

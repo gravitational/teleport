@@ -35,7 +35,7 @@ import (
 
 type Objects interface {
 	StartImporter(ctx context.Context, database types.Database) error
-	StopImporter(database types.Database) error
+	StopImporter(databaseName string) error
 }
 
 type Config struct {
@@ -117,13 +117,13 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.ScanInterval == 0 {
-		c.ScanInterval = time.Minute * 5
+		c.ScanInterval = time.Minute * 15
 	}
 	if c.ObjectTTL == 0 {
-		c.ObjectTTL = time.Minute * 60
+		c.ObjectTTL = time.Minute * 180
 	}
 	if c.RefreshThreshold == 0 {
-		c.RefreshThreshold = time.Minute * 15
+		c.RefreshThreshold = time.Minute * 45
 	}
 
 	c.loadEnvVarOverrides(ctx)
@@ -180,7 +180,7 @@ func (o *objects) StartImporter(ctx context.Context, database types.Database) er
 }
 
 // StopImporter stops the running importer for a given database.
-func (o *objects) StopImporter(database types.Database) error {
+func (o *objects) StopImporter(name string) error {
 	if o.disabled() {
 		return nil
 	}
@@ -188,14 +188,14 @@ func (o *objects) StopImporter(database types.Database) error {
 	o.importersMutex.Lock()
 	defer o.importersMutex.Unlock()
 
-	stopImporterFunc, ok := o.importerMap[database.GetName()]
+	stopImporterFunc, ok := o.importerMap[name]
 	if !ok {
-		return trace.NotFound("no importer found for database %q", database.GetName())
+		return trace.NotFound("no importer found for database %q", name)
 	}
 	if stopImporterFunc != nil {
 		stopImporterFunc()
 	}
-	delete(o.importerMap, database.GetName())
+	delete(o.importerMap, name)
 	return nil
 }
 

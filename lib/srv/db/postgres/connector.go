@@ -144,6 +144,7 @@ func (c *connector) connectAsAdmin(ctx context.Context, useDefaultDatabase bool)
 		c.log.InfoContext(ctx, "Connecting to session database.", "database", loginDatabase)
 	}
 
+	// make a copy to override the database user and name as well as to clear potential startup params.
 	copied := *c
 	copied.databaseUser = c.database.GetAdminUser().Name
 	copied.databaseName = loginDatabase

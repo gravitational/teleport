@@ -51,7 +51,7 @@ func startDatabaseImporter(ctx context.Context, cfg Config, database types.Datab
 	cfg.Log = cfg.Log.With("database", database.GetName(), "protocol", database.GetProtocol())
 
 	fetcher, err := GetObjectFetcher(ctx, database, ObjectFetcherConfig{
-		AuthClient:   cfg.AuthClient,
+		ImportRules:  cfg.AuthClient,
 		Auth:         cfg.Auth,
 		CloudClients: cfg.CloudClients,
 		Log:          cfg.Log,
@@ -81,7 +81,7 @@ func (i *singleDatabaseImporter) start(ctx context.Context) {
 	ticker := interval.New(interval.Config{
 		Jitter:        retryutils.NewSeventhJitter(),
 		Duration:      i.cfg.ScanInterval * 7 / 6,
-		FirstDuration: retryutils.NewHalfJitter()(time.Second * 30),
+		FirstDuration: retryutils.NewFullJitter()(i.cfg.ScanInterval),
 	})
 	defer ticker.Stop()
 
@@ -97,6 +97,8 @@ func (i *singleDatabaseImporter) start(ctx context.Context) {
 }
 
 func (i *singleDatabaseImporter) scan(ctx context.Context) {
+	start := i.cfg.Clock.Now()
+	i.cfg.Log.DebugContext(ctx, "Scanning database objects.")
 	objectsNew, err := i.fetchObjects(ctx)
 	if err != nil {
 		i.cfg.Log.ErrorContext(ctx, "Error fetching objects", "error", err)
@@ -109,6 +111,8 @@ func (i *singleDatabaseImporter) scan(ctx context.Context) {
 
 	i.deleteObjects(ctx, calculateDeleted(ctx, i.cfg, i.objects, objectsNewMap))
 	i.updateObjects(ctx, calculateUpdates(ctx, i.cfg, i.objects, objectsNewMap))
+	elapsed := i.cfg.Clock.Since(start)
+	i.cfg.Log.DebugContext(ctx, "Scanning done.", "elapsed", elapsed)
 }
 
 func calculateDeleted(ctx context.Context, cfg Config, objects map[string]*objWithExpiry, objsNew map[string]*dbobjectv1.DatabaseObject) []string {
