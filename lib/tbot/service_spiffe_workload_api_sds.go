@@ -38,14 +38,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/uds"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// Various code related to implementation of Envoy SDS API
-//
-// This effectively replaces the Workload API for Envoy, but functions in a
-// very similar way.
 
 // The following constants allow querying this API for SVIDs and trust bundles
 // without knowing their names. These special values are relied upon by tools
@@ -61,6 +57,387 @@ const (
 	// including federated ones, should be returned.
 	envoyAllBundlesName = "ALL"
 )
+
+// spiffeSDSHandler implements an Envoy SDS API.
+//
+// This effectively replaces the Workload API for Envoy, but functions in a
+// very similar way.
+type spiffeSDSHandler struct {
+	log    *slog.Logger
+	cfg    *config.SPIFFEWorkloadAPIService
+	botCfg *config.BotConfig
+
+	clientAuthenticator         func(ctx context.Context) (*slog.Logger, *uds.Creds, error)
+	trustBundleGetter           func() *x509bundle.Bundle
+	trustBundleUpdateSubscriber func() (ch chan struct{}, unsubscribe func())
+	svidFetcher                 func(
+		ctx context.Context,
+		log *slog.Logger,
+		svidRequests []config.SVIDRequest,
+	) ([]*workloadpb.X509SVID, error)
+}
+
+// FetchSecrets implements
+// envoy.service.secret.v3/SecretDiscoveryService.FetchSecrets.
+// This should return the current SVIDs and trust bundles.
+//
+// See:
+// - DiscoveryRequest - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryrequest
+// - DiscoveryResponse - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryresponse
+func (s *spiffeSDSHandler) FetchSecrets(
+	ctx context.Context,
+	req *discoveryv3pb.DiscoveryRequest,
+) (*discoveryv3pb.DiscoveryResponse, error) {
+	if err := enforceMinimumEnvoyVersion(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log, creds, err := s.clientAuthenticator(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "authenticating client")
+	}
+
+	log.DebugContext(
+		ctx,
+		"SecretDiscoveryService.FetchSecrets request received from workload",
+		slog.Group("req", "resource_names", req.ResourceNames),
+	)
+	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
+
+	return s.generateResponse(
+		ctx,
+		log,
+		creds,
+		s.trustBundleGetter(),
+		req,
+	)
+}
+
+// StreamSecrets implements
+// envoy.service.secret.v3/SecretDiscoveryService.StreamSecrets.
+// This should return the current SVIDs and CAs, and stream any future updates.
+//
+// This is a little more complex than one might expect since Envoy provides
+// an ACK/NACK mechanism to indicate that the config included within a response
+// was successfully applied.
+//
+// From the docs on the request version_info field:
+//
+//	The version_info provided in the request messages will be the
+//	version_info received with the most recent successfully processed
+//	response or empty on the first request. It is expected that no new
+//	request is sent after a response is received until the Envoy
+//	instance is ready to ACK/NACK the new configuration. ACK/NACK takes
+//	place by returning the new API config version as applied or the
+//	previous API config version respectively.
+//
+// From the docs on the DiscoveryRequest.responce_nonce field:
+//
+//	nonce corresponding to DiscoveryResponse being ACK/NACKed. See above
+//	discussion on version_info and the DiscoveryResponse nonce comment
+//
+// From the docs on the DiscoveryResponse.nonce field:
+//
+//	For gRPC based subscriptions, the nonce provides a way to explicitly ack a
+//	specific DiscoveryResponse in a following DiscoveryRequest. Additional
+//	messages may have been sent by Envoy to the management server for the
+//	previous version on the stream prior to this DiscoveryResponse, that were
+//	unprocessed at response send time. The nonce allows the management server to
+//	ignore any further DiscoveryRequests for the previous version until a
+//	DiscoveryRequest bearing the nonce.
+//
+// See also:
+// - DiscoveryRequest - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryrequest
+// - DiscoveryResponse - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryresponse
+//
+// TODO: We could probably be smarter about how we handle the version e.g,
+// do we need to send another response if we're just going to send identical
+// certificates ??
+func (s *spiffeSDSHandler) StreamSecrets(
+	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
+) error {
+	ctx := srv.Context()
+	log, creds, err := s.clientAuthenticator(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authenticating client")
+	}
+
+	reloadCh, unsubscribe := s.trustBundleUpdateSubscriber()
+	defer unsubscribe()
+
+	log.DebugContext(
+		ctx,
+		"SecretDiscoveryService.StreamSecrets stream started",
+	)
+	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
+
+	// Push incoming messages into a chan for the main loop to handle
+	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
+	recvErrCh := make(chan error, 1)
+	go func() {
+		for {
+			req, err := srv.Recv()
+			if err != nil {
+				// It's worth noting that we'll receive an IOF/Cancelled error
+				// here once the main goroutine has exited or the client goes
+				// away.
+				select {
+				case recvErrCh <- err:
+				default:
+				}
+				return
+			}
+			recvCh <- req
+		}
+	}()
+
+	renewalTimer := time.NewTimer(s.botCfg.RenewalInterval)
+	// Stop the timer immediately so we can start timing after the first
+	// response is sent.
+	renewalTimer.Stop()
+	defer renewalTimer.Stop()
+
+	// Track the last response and last request to allow us to handle ACK/NACK
+	// and versioning.
+	var (
+		lastResp *discoveryv3pb.DiscoveryResponse
+		lastReq  *discoveryv3pb.DiscoveryRequest
+	)
+	for {
+		select {
+		case err := <-recvErrCh:
+			// If we receive an error from the read side, we should exit.
+			// This error could be an EOF/Cancelled error if the client
+			// goes away.
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return trace.Wrap(err)
+		case newReq := <-recvCh:
+			log.DebugContext(
+				ctx,
+				"Received StreamSecrets DiscoveryRequest",
+				slog.Group(
+					"req",
+					"resource_names", newReq.ResourceNames,
+					"version_info", newReq.VersionInfo,
+					"response_nonce", newReq.ResponseNonce,
+					"node_id", newReq.Node.GetId(),
+				),
+			)
+
+			shouldRespond := true
+
+			// If we've sent a response, then this request ought to be a reply
+			// We should check the nonces/versions to ensure it's successfully
+			// applied
+			if lastResp != nil {
+				// Envoy can send an "ErrorDetails" which indicates that the
+				// previously sent response could not be applied.
+				if newReq.ErrorDetail != nil {
+					log.WarnContext(
+						ctx,
+						"Envoy was unable to apply previous discovery response",
+						"error", newReq.ErrorDetail.Message,
+					)
+				}
+
+				if lastResp.Nonce != newReq.ResponseNonce {
+					log.WarnContext(
+						ctx,
+						"Envoy sent a nonce which does not match the last response, ignoring request",
+						"want", lastResp.Nonce,
+						"got", newReq.ResponseNonce,
+					)
+					// We want to ignore this request because it's been sent
+					// before Envoy has processed our last response.
+					continue
+				}
+
+				// Since we've already sent them a response, we should only
+				// respond again if they've changed what they've requested.
+				shouldRespond = !elementsMatch(
+					lastReq.ResourceNames, newReq.ResourceNames,
+				)
+				// TODO(noah): SPIRE's implementation seems to check the last
+				// requests resource names - but I wonder if it makes more sense
+				// to compare the requests resource names against those sent in
+				// the last response.
+			}
+
+			lastReq = newReq
+			if !shouldRespond {
+				continue
+			}
+
+		case <-reloadCh:
+			// If there's been a CA rotation, we need to send a new response.
+		case <-renewalTimer.C:
+			// Handle renewal time!
+			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
+		}
+
+		resp, err := s.generateResponse(
+			ctx, log, creds, s.trustBundleGetter(), lastReq,
+		)
+		if err != nil {
+			return trace.Wrap(err, "generating response")
+		}
+
+		// Decorate the generated response with the stream ACK/NACK and
+		// versioning fields.
+		nonce, err := utils.CryptoRandomHex(4)
+		if err != nil {
+			return trace.Wrap(err, "generating nonce")
+		}
+		resp.Nonce = nonce
+		resp.VersionInfo = time.Now().UTC().Format(time.RFC3339Nano)
+		if err := srv.Send(resp); err != nil {
+			return trace.Wrap(err, "sending response")
+		}
+		lastResp = resp
+		log.DebugContext(
+			ctx,
+			"Sent StreamSecrets DiscoveryResponse",
+			slog.Group(
+				"resp",
+				"resources_len", len(resp.Resources),
+				"nonce", resp.Nonce,
+				"version_info", resp.VersionInfo,
+			),
+		)
+
+		renewalTimer.Reset(s.botCfg.RenewalInterval)
+	}
+}
+
+// elementsMatch compares two string slices for equality, ignoring order.
+func elementsMatch(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, v := range a {
+		seen[v] = true
+	}
+	for _, v := range b {
+		if !seen[v] {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *spiffeSDSHandler) generateResponse(
+	ctx context.Context,
+	log *slog.Logger,
+	creds *uds.Creds,
+	tb *x509bundle.Bundle,
+	req *discoveryv3pb.DiscoveryRequest,
+) (*discoveryv3pb.DiscoveryResponse, error) {
+	// names holds all names requested by the client
+	// if this is nothing, we assume they want everything available to them.
+	// it's worth keeping in mind that there's some special names we need to
+	// handle.
+	names := map[string]bool{}
+	for _, name := range req.ResourceNames {
+		// Ignore empty string
+		if name != "" {
+			names[name] = true
+		}
+	}
+	returnAll := len(names) == 0
+
+	var resources []*anyv1pb.Any
+
+	// Filter SVIDs down to those accessible to this workload
+	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
+	// Fetch the SVIDs and convert them into the SDS cert type.
+	svids, err := s.svidFetcher(ctx, log, availableSVIDs)
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching X509 SVIDs")
+	}
+	for i, svid := range svids {
+		// Now we need to filter the SVIDs down to those requested by the
+		// client.
+		// There's a special case here, if they've requested the default SVID,
+		// we want to ensure that the first SVID is returned and it's name
+		// overrridden.
+
+		switch {
+		case returnAll || names[svid.SpiffeId]:
+			secret, err := newTLSV3Certificate(svid, "")
+			if err != nil {
+				return nil, trace.Wrap(err, "creating TLS certificate")
+			}
+			resources = append(resources, secret)
+			delete(names, svid.SpiffeId)
+		case names[envoyDefaultSVIDName] && i == 0:
+			secret, err := newTLSV3Certificate(svid, envoyDefaultSVIDName)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating TLS certificate")
+			}
+			resources = append(resources, secret)
+			delete(names, envoyDefaultSVIDName)
+		}
+	}
+
+	// Convert trust bundle to SDS validator type.
+	switch {
+	case returnAll || names[tb.TrustDomain().IDString()]:
+		// If this name was explicitly specified or no names were specified,
+		// we use the proper trust domain ID as the resource name.
+		validator, err := newTLSV3ValidationContext(
+			tb, "",
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating TLS validation context")
+		}
+		resources = append(resources, validator)
+		delete(names, tb.TrustDomain().IDString())
+	case names[envoyDefaultBundleName]:
+		// If they've requested the default bundle, we send the connected trust
+		// domain's bundle - but - we override the name to match what they
+		// expect.
+		validator, err := newTLSV3ValidationContext(
+			tb, envoyDefaultBundleName,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating TLS validation context")
+		}
+		resources = append(resources, validator)
+		delete(names, envoyDefaultBundleName)
+	case names[envoyAllBundlesName]:
+		// TODO: When federation support is added, the behavior of this case
+		// shall change to return the connected trust domain's bundle
+		// concatenated with all federated bundles. For now, we return the
+		// connected trust domain's bundle - but - we override the name to
+		// match what they expect.
+		validator, err := newTLSV3ValidationContext(
+			tb, envoyAllBundlesName,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating TLS validation context")
+		}
+		resources = append(resources, validator)
+		delete(names, envoyAllBundlesName)
+	}
+
+	// TODO: When federation support is added, return any federated bundles
+	// if named or returnAll.
+
+	// If any names are left-over, we've not been able to service them so
+	// we should return an explicit error rather than omitting data.
+	if len(names) > 0 {
+		return nil, trace.BadParameter("unknown resource names: %v", names)
+	}
+
+	return &discoveryv3pb.DiscoveryResponse{
+		// Copy in requested type from req
+		TypeUrl:   req.TypeUrl,
+		Resources: resources,
+	}, nil
+}
 
 func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 	// Envoy 1.18 introduced the SPIFFE specific tls context validator - so
@@ -177,372 +554,10 @@ func newTLSV3ValidationContext(
 	return anypb.New(secret)
 }
 
-// FetchSecrets implements
-// envoy.service.secret.v3/SecretDiscoveryService.FetchSecrets.
-// This should return the current SVIDs and trust bundles.
-//
-// See:
-// - DiscoveryRequest - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryrequest
-// - DiscoveryResponse - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryresponse
-func (s *SPIFFEWorkloadAPIService) FetchSecrets(
-	ctx context.Context,
-	req *discoveryv3pb.DiscoveryRequest,
-) (*discoveryv3pb.DiscoveryResponse, error) {
-	if err := enforceMinimumEnvoyVersion(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log, creds, err := s.authenticateClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "authenticating client")
-	}
-
-	log.DebugContext(
-		ctx,
-		"SecretDiscoveryService.FetchSecrets request received from workload",
-		slog.Group("req", "resource_names", req.ResourceNames),
-	)
-	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
-
-	return s.generateResponse(
-		ctx,
-		log,
-		creds,
-		s.getTrustBundle(),
-		req,
-	)
-}
-
-// StreamSecrets implements
-// envoy.service.secret.v3/SecretDiscoveryService.StreamSecrets.
-// This should return the current SVIDs and CAs, and stream any future updates.
-//
-// This is a little more complex than one might expect since Envoy provides
-// an ACK/NACK mechanism to indicate that the config included within a response
-// was successfully applied.
-//
-// From the docs on the request version_info field:
-//
-//	The version_info provided in the request messages will be the
-//	version_info received with the most recent successfully processed
-//	response or empty on the first request. It is expected that no new
-//	request is sent after a response is received until the Envoy
-//	instance is ready to ACK/NACK the new configuration. ACK/NACK takes
-//	place by returning the new API config version as applied or the
-//	previous API config version respectively.
-//
-// From the docs on the DiscoveryRequest.responce_nonce field:
-//
-//	nonce corresponding to DiscoveryResponse being ACK/NACKed. See above
-//	discussion on version_info and the DiscoveryResponse nonce comment
-//
-// From the docs on the DiscoveryResponse.nonce field:
-//
-//	For gRPC based subscriptions, the nonce provides a way to explicitly ack a
-//	specific DiscoveryResponse in a following DiscoveryRequest. Additional
-//	messages may have been sent by Envoy to the management server for the
-//	previous version on the stream prior to this DiscoveryResponse, that were
-//	unprocessed at response send time. The nonce allows the management server to
-//	ignore any further DiscoveryRequests for the previous version until a
-//	DiscoveryRequest bearing the nonce.
-//
-// See also:
-// - DiscoveryRequest - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryrequest
-// - DiscoveryResponse - https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/discovery/v3/discovery.proto#service-discovery-v3-discoveryresponse
-//
-// TODO: We could probably be smarter about how we handle the version e.g,
-// do we need to send another response if we're just going to send identical
-// certificates ??
-func (s *SPIFFEWorkloadAPIService) StreamSecrets(
-	srv secretv3pb.SecretDiscoveryService_StreamSecretsServer,
-) error {
-	ctx := srv.Context()
-	log, creds, err := s.authenticateClient(ctx)
-	if err != nil {
-		return trace.Wrap(err, "authenticating client")
-	}
-
-	reloadCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
-
-	log.DebugContext(
-		ctx,
-		"SecretDiscoveryService.StreamSecrets stream started",
-	)
-	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
-
-	// Push incoming messages into a chan for the main loop to handle
-	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
-	recvErrCh := make(chan error, 1)
-	go func() {
-		for {
-			req, err := srv.Recv()
-			if err != nil {
-				// It's worth noting that we'll receive an IOF/Cancelled error
-				// here once the main goroutine has exited or the client goes
-				// away.
-				select {
-				case recvErrCh <- err:
-				default:
-				}
-				return
-			}
-			recvCh <- req
-		}
-	}()
-
-	renewalTimer := time.NewTimer(s.botCfg.RenewalInterval)
-	// Stop the timer immediately so we can start timing after the first
-	// response is sent.
-	renewalTimer.Stop()
-	defer renewalTimer.Stop()
-
-	// Track the last response and last request to allow us to handle ACK/NACK
-	// and versioning.
-	var (
-		lastResp *discoveryv3pb.DiscoveryResponse
-		lastReq  *discoveryv3pb.DiscoveryRequest
-	)
-	for {
-		select {
-		case err := <-recvErrCh:
-			// If we receive an error from the read side, we should exit.
-			// This error could be an EOF/Cancelled error if the client
-			// goes away.
-			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
-				return nil
-			}
-			return trace.Wrap(err)
-		case newReq := <-recvCh:
-			log.DebugContext(
-				ctx,
-				"Received StreamSecrets DiscoveryRequest",
-				slog.Group(
-					"req",
-					"resource_names", newReq.ResourceNames,
-					"version_info", newReq.VersionInfo,
-					"response_nonce", newReq.ResponseNonce,
-					"node_id", newReq.Node.GetId(),
-				),
-			)
-
-			shouldRespond := true
-
-			// If we've sent a response, then this request ought to be a reply
-			// We should check the nonces/versions to ensure it's successfully
-			// applied
-			if lastResp != nil {
-				// Envoy can send an "ErrorDetails" which indicates that the
-				// previously sent response could not be applied.
-				if newReq.ErrorDetail != nil {
-					log.WarnContext(
-						ctx,
-						"Envoy was unable to apply previous discovery response",
-						"error", newReq.ErrorDetail.Message,
-					)
-				}
-
-				if lastResp.Nonce != newReq.ResponseNonce {
-					log.WarnContext(
-						ctx,
-						"Envoy sent a nonce which does not match the last response, ignoring request",
-						"want", lastResp.Nonce,
-						"got", newReq.ResponseNonce,
-					)
-					// We want to ignore this request because it's been sent
-					// before Envoy has processed our last response.
-					continue
-				}
-
-				// Since we've already sent them a response, we should only
-				// respond again if they've changed what they've requested.
-				shouldRespond = !elementsMatch(
-					lastReq.ResourceNames, newReq.ResourceNames,
-				)
-				// TODO(noah): SPIRE's implementation seems to check the last
-				// requests resource names - but I wonder if it makes more sense
-				// to compare the requests resource names against those sent in
-				// the last response.
-			}
-
-			lastReq = newReq
-			if !shouldRespond {
-				continue
-			}
-
-		case <-reloadCh:
-			// If there's been a CA rotation, we need to send a new response.
-		case <-renewalTimer.C:
-			// Handle renewal time!
-			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
-		}
-
-		resp, err := s.generateResponse(
-			ctx, log, creds, s.getTrustBundle(), lastReq,
-		)
-		if err != nil {
-			return trace.Wrap(err, "generating response")
-		}
-
-		// Decorate the generated response with the stream ACK/NACK and
-		// versioning fields.
-		nonce, err := utils.CryptoRandomHex(4)
-		if err != nil {
-			return trace.Wrap(err, "generating nonce")
-		}
-		resp.Nonce = nonce
-		resp.VersionInfo = time.Now().UTC().Format(time.RFC3339Nano)
-		if err := srv.Send(resp); err != nil {
-			return trace.Wrap(err, "sending response")
-		}
-		lastResp = resp
-		log.DebugContext(
-			ctx,
-			"Sent StreamSecrets DiscoveryResponse",
-			slog.Group(
-				"resp",
-				"resources_len", len(resp.Resources),
-				"nonce", resp.Nonce,
-				"version_info", resp.VersionInfo,
-			),
-		)
-
-		renewalTimer.Reset(s.botCfg.RenewalInterval)
-	}
-}
-
-// elementsMatch compares two string slices for equality, ignoring order.
-func elementsMatch(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	seen := map[string]bool{}
-	for _, v := range a {
-		seen[v] = true
-	}
-	for _, v := range b {
-		if !seen[v] {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *SPIFFEWorkloadAPIService) generateResponse(
-	ctx context.Context,
-	log *slog.Logger,
-	creds *uds.Creds,
-	tb *x509bundle.Bundle,
-	req *discoveryv3pb.DiscoveryRequest,
-) (*discoveryv3pb.DiscoveryResponse, error) {
-	// names holds all names requested by the client
-	// if this is nothing, we assume they want everything available to them.
-	// it's worth keeping in mind that there's some special names we need to
-	// handle.
-	names := map[string]bool{}
-	for _, name := range req.ResourceNames {
-		// Ignore empty string
-		if name != "" {
-			names[name] = true
-		}
-	}
-	returnAll := len(names) == 0
-
-	var resources []*anyv1pb.Any
-
-	// Filter SVIDs down to those accessible to this workload
-	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
-	// Fetch the SVIDs and convert them into the SDS cert type.
-	svids, err := s.fetchX509SVIDs(ctx, log, availableSVIDs)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching X509 SVIDs")
-	}
-	for i, svid := range svids {
-		// Now we need to filter the SVIDs down to those requested by the
-		// client.
-		// There's a special case here, if they've requested the default SVID,
-		// we want to ensure that the first SVID is returned and it's name
-		// overrridden.
-
-		switch {
-		case returnAll || names[svid.SpiffeId]:
-			secret, err := newTLSV3Certificate(svid, "")
-			if err != nil {
-				return nil, trace.Wrap(err, "creating TLS certificate")
-			}
-			resources = append(resources, secret)
-			delete(names, svid.SpiffeId)
-		case names[envoyDefaultSVIDName] && i == 0:
-			secret, err := newTLSV3Certificate(svid, envoyDefaultSVIDName)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating TLS certificate")
-			}
-			resources = append(resources, secret)
-			delete(names, envoyDefaultSVIDName)
-		}
-	}
-
-	// Convert trust bundle to SDS validator type.
-	switch {
-	case returnAll || names[tb.TrustDomain().IDString()]:
-		// If this name was explicitly specified or no names were specified,
-		// we use the proper trust domain ID as the resource name.
-		validator, err := newTLSV3ValidationContext(
-			tb, "",
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating TLS validation context")
-		}
-		resources = append(resources, validator)
-		delete(names, tb.TrustDomain().IDString())
-	case names[envoyDefaultBundleName]:
-		// If they've requested the default bundle, we send the connected trust
-		// domain's bundle - but - we override the name to match what they
-		// expect.
-		validator, err := newTLSV3ValidationContext(
-			tb, envoyDefaultBundleName,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating TLS validation context")
-		}
-		resources = append(resources, validator)
-		delete(names, envoyDefaultBundleName)
-	case names[envoyAllBundlesName]:
-		// TODO: When federation support is added, the behavior of this case
-		// shall change to return the connected trust domain's bundle
-		// concatenated with all federated bundles. For now, we return the
-		// connected trust domain's bundle - but - we override the name to
-		// match what they expect.
-		validator, err := newTLSV3ValidationContext(
-			tb, envoyAllBundlesName,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating TLS validation context")
-		}
-		resources = append(resources, validator)
-		delete(names, envoyAllBundlesName)
-	}
-
-	// TODO: When federation support is added, return any federated bundles
-	// if named or returnAll.
-
-	// If any names are left-over, we've not been able to service them so
-	// we should return an explicit error rather than omitting data.
-	if len(names) > 0 {
-		return nil, trace.BadParameter("unknown resource names: %v", names)
-	}
-
-	return &discoveryv3pb.DiscoveryResponse{
-		// Copy in requested type from req
-		TypeUrl:   req.TypeUrl,
-		Resources: resources,
-	}, nil
-}
-
 // DeltaSecrets implements
 // envoy.service.secret.v3/SecretDiscoveryService.DeltaSecrets.
 // We do not implement this method.
-func (s *SPIFFEWorkloadAPIService) DeltaSecrets(
+func (s *spiffeSDSHandler) DeltaSecrets(
 	_ secretv3pb.SecretDiscoveryService_DeltaSecretsServer,
 ) error {
 	return status.Error(

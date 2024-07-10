@@ -282,7 +282,17 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
-	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, s)
+	sdsHandler := &spiffeSDSHandler{
+		log:    s.log,
+		cfg:    s.cfg,
+		botCfg: s.botCfg,
+
+		clientAuthenticator:         s.authenticateClient,
+		trustBundleGetter:           s.getTrustBundle,
+		trustBundleUpdateSubscriber: s.trustBundleBroadcast.subscribe,
+		svidFetcher:                 s.fetchX509SVIDs,
+	}
+	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
 	lis, err := createListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
