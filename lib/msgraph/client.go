@@ -317,6 +317,16 @@ func (c *client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 	return iterateSimple(c, ctx, "users", f)
 }
 
+// UpdateApplication implements Client.
+func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
+	panic("unimplemented")
+}
+
+// UpdateServicePrincipal implements Client.
+func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
+	panic("unimplemented")
+}
+
 // iterateSimple implements pagination for "simple" object lists, where additional logic isn't needed
 func iterateSimple[T any](c *client, ctx context.Context, endpoint string, f func(*T) bool) error {
 	var err error
