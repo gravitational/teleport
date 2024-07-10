@@ -47,6 +47,10 @@ We added the ability to connect to more web applications.
 	}
 
 	// TODO: clashing versions with different dates (combine H3s but add a warning message)
+	// TODO: sorting sections by minor version if the major versions are the
+	// same
+	// TODO: sorting sections by patch version if the major and minor
+	// versions are the same
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
 			actual, msg := merge(strings.NewReader(c.changelog1), strings.NewReader(c.changelog2))
