@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -429,7 +430,7 @@ func (s *spiffeSDSHandler) generateResponse(
 	// If any names are left-over, we've not been able to service them so
 	// we should return an explicit error rather than omitting data.
 	if len(names) > 0 {
-		return nil, trace.BadParameter("unknown resource names: %v", names)
+		return nil, trace.BadParameter("unknown resource names: %v", maps.Keys(names))
 	}
 
 	return &discoveryv3pb.DiscoveryResponse{
@@ -459,7 +460,8 @@ func enforceMinimumEnvoyVersion(req *discoveryv3pb.DiscoveryRequest) error {
 func newTLSV3Certificate(
 	svid *workloadpb.X509SVID, overrideResourceName string,
 ) (*anyv1pb.Any, error) {
-	// TODO: Support intermediate certificates
+	// noah: This section of code does not currently support intermediate
+	// certificates, but, we don't currently use them.
 	certBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: svid.X509Svid,
