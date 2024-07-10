@@ -31,13 +31,14 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
-type ImportRulesProvider interface {
+// ImportRulesReader provides a method to get current set of import rules.
+type ImportRulesReader interface {
 	GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error)
 }
 
 // ObjectFetcherConfig provides static object fetcher configuration.
 type ObjectFetcherConfig struct {
-	ImportRules  ImportRulesProvider
+	ImportRules  ImportRulesReader
 	Auth         common.Auth
 	CloudClients libcloud.Clients
 	Log          *slog.Logger

@@ -27,8 +27,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -39,9 +39,10 @@ type Objects interface {
 }
 
 type Config struct {
-	AuthClient   *authclient.Client
-	Auth         common.Auth
-	CloudClients cloud.Clients
+	DatabaseObjectClient *databaseobject.Client
+	ImportRules          ImportRulesReader
+	Auth                 common.Auth
+	CloudClients         cloud.Clients
 
 	// ScanInterval specifies how often the database is scanned.
 	// A higher ScanInterval reduces the load on the database and database agent,
@@ -101,8 +102,11 @@ func (c *Config) loadEnvVarOverrides(ctx context.Context) {
 }
 
 func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
-	if c.AuthClient == nil {
-		return trace.BadParameter("missing parameter AuthClient")
+	if c.DatabaseObjectClient == nil {
+		return trace.BadParameter("missing parameter DatabaseObjectClient")
+	}
+	if c.ImportRules == nil {
+		return trace.BadParameter("missing parameter ImportRules")
 	}
 	if c.Auth == nil {
 		return trace.BadParameter("missing parameter Auth")

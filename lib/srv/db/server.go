@@ -260,9 +260,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 
 	if c.DatabaseObjects == nil {
 		c.DatabaseObjects, err = objects.NewObjects(ctx, objects.Config{
-			AuthClient:   c.AuthClient,
-			Auth:         c.Auth,
-			CloudClients: c.CloudClients,
+			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
+			ImportRules:          c.AuthClient,
+			Auth:                 c.Auth,
+			CloudClients:         c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)

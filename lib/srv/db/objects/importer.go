@@ -51,7 +51,7 @@ func startDatabaseImporter(ctx context.Context, cfg Config, database types.Datab
 	cfg.Log = cfg.Log.With("database", database.GetName(), "protocol", database.GetProtocol())
 
 	fetcher, err := GetObjectFetcher(ctx, database, ObjectFetcherConfig{
-		ImportRules:  cfg.AuthClient,
+		ImportRules:  cfg.ImportRules,
 		Auth:         cfg.Auth,
 		CloudClients: cfg.CloudClients,
 		Log:          cfg.Log,
@@ -130,12 +130,10 @@ func calculateDeleted(ctx context.Context, cfg Config, objects map[string]*objWi
 
 // deleteObjects function deletes specified keys from backend and internal state.
 func (i *singleDatabaseImporter) deleteObjects(ctx context.Context, deleted []string) {
-	client := i.cfg.AuthClient.DatabaseObjectsClient()
-
 	var errs []error
 	for _, key := range deleted {
 		delete(i.objects, key)
-		err := client.DeleteDatabaseObject(ctx, key)
+		err := i.cfg.DatabaseObjectClient.DeleteDatabaseObject(ctx, key)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -192,15 +190,13 @@ func calculateUpdates(ctx context.Context, cfg Config, objects map[string]*objWi
 }
 
 func (i *singleDatabaseImporter) updateObjects(ctx context.Context, updated map[string]*objWithExpiry) {
-	client := i.cfg.AuthClient.DatabaseObjectsClient()
-
 	// upsert changed objects
 	var errs []error
 	for key, objNew := range updated {
 		i.objects[key] = objNew
 		clone := proto.Clone(objNew.obj).(*dbobjectv1.DatabaseObject)
 		clone.Metadata.Expires = timestamppb.New(objNew.expiry)
-		_, err := client.UpsertDatabaseObject(ctx, clone)
+		_, err := i.cfg.DatabaseObjectClient.UpsertDatabaseObject(ctx, clone)
 		if err != nil {
 			errs = append(errs, err)
 		}
