@@ -15,9 +15,9 @@ exports[`render DocumentNodes 1`] = `
 
 .c3 {
   box-sizing: border-box;
-  margin-top: 24px;
   margin-left: auto;
   margin-right: auto;
+  margin-top: 24px;
   padding-left: 32px;
   padding-right: 32px;
 }
@@ -45,8 +45,8 @@ exports[`render DocumentNodes 1`] = `
 
 .c29 {
   box-sizing: border-box;
-  margin-bottom: 4px;
   margin-right: 8px;
+  margin-bottom: 4px;
   margin-top: 8px;
 }
 
@@ -196,8 +196,8 @@ exports[`render DocumentNodes 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .c33:disabled {
@@ -232,7 +232,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 16px;
   height: 32px;
   width: 32px;
-  margin-left: 0px;
+  margin-left: 0;
 }
 
 .c35:disabled {
@@ -275,19 +275,19 @@ exports[`render DocumentNodes 1`] = `
 .c25 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
 }
 
 .c31 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  margin: 0px;
   margin-right: 4px;
   font-weight: 500;
 }

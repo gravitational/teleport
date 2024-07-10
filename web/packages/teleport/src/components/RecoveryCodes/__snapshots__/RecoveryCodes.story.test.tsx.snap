@@ -252,10 +252,10 @@ exports[`render correct dialog after creating a new account 1`] = `
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -263,46 +263,46 @@ exports[`render correct dialog after creating a new account 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
   font-weight: 600;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 8px;
 }
 
 .c23 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -730,10 +730,10 @@ exports[`render correct dialog after resetting account 1`] = `
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
@@ -741,46 +741,46 @@ exports[`render correct dialog after resetting account 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c11 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   text-transform: uppercase;
   font-weight: 600;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c14 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-top: 8px;
 }
 
 .c23 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 400;
   font-size: 18px;
   line-height: 32px;
-  margin: 0px;
   margin-bottom: 8px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   color: rgba(255, 255, 255, 0.72);
 }
 

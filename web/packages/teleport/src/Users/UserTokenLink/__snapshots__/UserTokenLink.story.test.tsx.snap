@@ -9,25 +9,19 @@ exports[`reset link dialog 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   padding: 8px;
-  color: #FFFFFF;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   margin-right: 8px;
-}
-
-.c16 {
-  box-sizing: border-box;
 }
 
 .c15 {
@@ -92,7 +86,7 @@ exports[`reset link dialog 1`] = `
   cursor: auto;
 }
 
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -122,8 +116,8 @@ exports[`reset link dialog 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c17:focus-visible,
-.teleport-button__force-focus-visible .c17 {
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -131,22 +125,22 @@ exports[`reset link dialog 1`] = `
   outline: none;
 }
 
-.c17:hover,
-.teleport-button__force-hover .c17 {
+.c16:hover,
+.teleport-button__force-hover .c16 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c17:active,
-.teleport-button__force-active .c17 {
+.c16:active,
+.teleport-button__force-active .c16 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c17:disabled {
+.c16:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -157,27 +151,27 @@ exports[`reset link dialog 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 24px;
-  margin-top: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
+  margin-top: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c5 {
@@ -187,17 +181,12 @@ exports[`reset link dialog 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
@@ -249,6 +238,12 @@ exports[`reset link dialog 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -276,14 +271,14 @@ exports[`reset link dialog 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           User
           <span
-            class="c10"
+            class="c11"
           >
              Lester 
           </span>
@@ -292,11 +287,11 @@ exports[`reset link dialog 1`] = `
           .
         </div>
         <div
-          class="c11 c12"
+          class="c12 c13"
           color="light"
         >
           <div
-            class="c13 c14"
+            class="c14 c8"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div>
@@ -313,10 +308,10 @@ exports[`reset link dialog 1`] = `
         </div>
       </div>
       <div
-        class="c16"
+        class="c7"
       >
         <button
-          class="c17"
+          class="c16"
           fill="filled"
         >
           Close
@@ -336,25 +331,19 @@ exports[`reset link dialog as invite 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   padding: 8px;
-  color: #FFFFFF;
   background-color: #010B1C;
+  color: #FFFFFF;
   border-radius: 4px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   margin-right: 8px;
-}
-
-.c16 {
-  box-sizing: border-box;
 }
 
 .c15 {
@@ -419,7 +408,7 @@ exports[`reset link dialog as invite 1`] = `
   cursor: auto;
 }
 
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -449,8 +438,8 @@ exports[`reset link dialog as invite 1`] = `
   letter-spacing: 0.15px;
 }
 
-.c17:focus-visible,
-.teleport-button__force-focus-visible .c17 {
+.c16:focus-visible,
+.teleport-button__force-focus-visible .c16 {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.72);
@@ -458,22 +447,22 @@ exports[`reset link dialog as invite 1`] = `
   outline: none;
 }
 
-.c17:hover,
-.teleport-button__force-hover .c17 {
+.c16:hover,
+.teleport-button__force-hover .c16 {
   background-color: rgba(255,255,255,0.13);
   border-color: transparent;
   color: #FFFFFF;
   box-shadow: none;
 }
 
-.c17:active,
-.teleport-button__force-active .c17 {
+.c16:active,
+.teleport-button__force-active .c16 {
   background-color: rgba(255,255,255,0.18);
   border-color: transparent;
   color: #FFFFFF;
 }
 
-.c17:disabled {
+.c16:disabled {
   background-color: rgba(255,255,255,0.07);
   color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
@@ -484,27 +473,27 @@ exports[`reset link dialog as invite 1`] = `
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 300;
   font-size: 22px;
   line-height: 32px;
   text-transform: uppercase;
-  margin: 0px;
   color: #FFFFFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 24px;
-  margin-top: 4px;
 }
 
 .c10 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
+  margin-bottom: 24px;
+  margin-top: 4px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c5 {
@@ -514,17 +503,12 @@ exports[`reset link dialog as invite 1`] = `
 
 .c8 {
   display: flex;
-  flex-direction: column;
 }
 
-.c12 {
+.c13 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.c14 {
-  display: flex;
 }
 
 .c1 {
@@ -576,6 +560,12 @@ exports[`reset link dialog as invite 1`] = `
   width: 100%;
 }
 
+.c9 {
+  margin-bottom: 32px;
+  flex: 1;
+  flex-direction: column;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -603,14 +593,14 @@ exports[`reset link dialog as invite 1`] = `
         </div>
       </div>
       <div
-        class="c7 c8"
+        class="c7 c8 c9"
       >
         <div
-          class="c9"
+          class="c10"
         >
           User
           <span
-            class="c10"
+            class="c11"
           >
              Lester 
           </span>
@@ -619,11 +609,11 @@ exports[`reset link dialog as invite 1`] = `
           .
         </div>
         <div
-          class="c11 c12"
+          class="c12 c13"
           color="light"
         >
           <div
-            class="c13 c14"
+            class="c14 c8"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div>
@@ -640,10 +630,10 @@ exports[`reset link dialog as invite 1`] = `
         </div>
       </div>
       <div
-        class="c16"
+        class="c7"
       >
         <button
-          class="c17"
+          class="c16"
           fill="filled"
         >
           Close

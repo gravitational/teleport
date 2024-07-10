@@ -20,8 +20,8 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  margin-left: 4px;
   margin-right: 4px;
+  margin-left: 4px;
   height: 18px;
   width: 18px;
   text-align: center;
@@ -53,9 +53,9 @@ exports[`render with URL loc state set to "server" 1`] = `
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 18px;
-  margin: 0px;
   margin-top: 4px;
   margin-bottom: 4px;
 }
@@ -63,44 +63,44 @@ exports[`render with URL loc state set to "server" 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 32px;
 }
 
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
 }
 
 .c21 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c22 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c24 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c25 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   margin-top: 40px;
 }
 
@@ -772,9 +772,9 @@ exports[`render with all access 1`] = `
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 18px;
-  margin: 0px;
   margin-top: 4px;
   margin-bottom: 4px;
 }
@@ -782,38 +782,38 @@ exports[`render with all access 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 32px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   margin-top: 40px;
 }
 
@@ -2773,9 +2773,9 @@ exports[`render with no access 1`] = `
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 18px;
-  margin: 0px;
   margin-top: 4px;
   margin-bottom: 4px;
 }
@@ -2783,38 +2783,38 @@ exports[`render with no access 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 32px;
 }
 
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c19 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c20 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   margin-top: 40px;
 }
 
@@ -4922,9 +4922,9 @@ exports[`render with partial access 1`] = `
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
   font-size: 18px;
-  margin: 0px;
   margin-top: 4px;
   margin-bottom: 4px;
 }
@@ -4932,38 +4932,38 @@ exports[`render with partial access 1`] = `
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0px;
+  margin: 0;
   margin-bottom: 32px;
 }
 
 .c15 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .c16 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
 }
 
 .c18 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-weight: 600;
-  margin: 0px;
   color: #FFFFFF;
 }
 
 .c22 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0;
   font-size: 12px;
-  margin: 0px;
   margin-top: 40px;
 }
 
