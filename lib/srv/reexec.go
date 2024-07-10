@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -567,6 +568,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
+	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
@@ -584,6 +586,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
+
+		pamEnvironment = pamContext.Environment()
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
@@ -612,6 +616,30 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 	if err := unix.Setuid(int(cred.Uid)); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+	}
+
+	// Create a minimal default environment for the user.
+	os.Setenv("HOME", localUser.HomeDir)
+	os.Setenv("USER", c.Login)
+
+	// Apply any additional environment variables from PAM.
+	for _, kv := range pamEnvironment {
+		kvSplit := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+		if len(kvSplit) != 2 {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
+		}
+		if err := os.Setenv(kvSplit[0], kvSplit[1]); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+	}
+
+	if _, code, _ := runCheckHomeDir(); code == teleport.HomeDirNotFound {
+		os.Setenv("HOME", "/")
+	}
+
+	// Ensure that the working directory is one that the local user has access to.
+	if err := unix.Chdir(os.Getenv("HOME")); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
 	}
 
 	// Ensure that the working directory is one that the local user has access to.
