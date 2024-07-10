@@ -1,6 +1,7 @@
 package msgraph
 
 type GroupMember interface {
+	GetID() *string
 	isGroupMember()
 }
 
@@ -14,6 +15,7 @@ type Group struct {
 }
 
 func (g *Group) isGroupMember() {}
+func (g *Group) GetID() *string { return g.ID }
 
 type User struct {
 	DirectoryObject
@@ -24,6 +26,7 @@ type User struct {
 }
 
 func (g *User) isGroupMember() {}
+func (u *User) GetID() *string { return u.ID }
 
 type Application struct {
 	DirectoryObject
