@@ -20,6 +20,7 @@ package accessrequest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -42,8 +44,10 @@ import (
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
-	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request
+	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request.
 	defaultAccessMonitoringRulePageSize = 10
+	// watchInitTimeout is the timeout for retrieving the watch kinds after watcher init.
+	watchInitTimeout = time.Second * 5
 )
 
 // App is the access request application for plugins. This will notify when access requests
@@ -152,6 +156,20 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	r, err := retryutils.NewLinear(retryutils.LinearConfig{
+		Step: time.Second,
+		Max:  watchInitTimeout,
+	})
+	if err != nil {
+		return trace.Wrap(err, "getting watch kinds")
+	}
+	r.For(ctx, func() error {
+		if len(acceptedWatchKinds) == 0 {
+			return errors.New("no acceptedWatchKinds returned")
+		}
+		return nil
+	})
 	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
 		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")

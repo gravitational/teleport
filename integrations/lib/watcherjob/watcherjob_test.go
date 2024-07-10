@@ -20,6 +20,7 @@ package watcherjob
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // TestSequential checks that events with the different resource names are being processed in parallel.
@@ -116,7 +118,7 @@ func TestConcurrencyLimit(t *testing.T) {
 // TestNewJobWithConfirmedWatchKinds checks that the watch kinds are passed back after init.
 func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 
 	watchKinds := []types.WatchKind{
@@ -129,24 +131,38 @@ func TestNewJobWithConfirmedWatchKinds(t *testing.T) {
 		},
 	}
 	countdown := NewCountdown(config.MaxConcurrency)
-	confirmedWatchKindsCh := make(chan []types.WatchKind, 1)
-	process := NewMockEventsProcessWithConfirmedWatchJobs(ctx, t, config, func(ctx context.Context, event types.Event) error {
-		defer countdown.Decrement()
-		time.Sleep(time.Second)
-		return trace.Wrap(ctx.Err())
-	}, confirmedWatchKindsCh)
-
-	select {
-	case <-ctx.Done():
-		t.Error(trace.Wrap(ctx.Err(), "context is closing"))
-	case confirmedKinds := <-confirmedWatchKindsCh:
-		if !slices.ContainsFunc(confirmedKinds, func(kind types.WatchKind) bool {
-			return kind.Kind == types.KindAccessRequest
-		}) {
-			t.Error("access request watch kind not returned after init: %V", confirmedKinds)
+	var acceptedWatchKinds []string
+	onWatchInit := func(ws types.WatchStatus) {
+		for _, watchKind := range ws.GetKinds() {
+			acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
 		}
-		break
 	}
+
+	process := NewMockEventsProcessWithConfirmedWatchJobs(ctx, t, config,
+		func(ctx context.Context, event types.Event) error {
+			defer countdown.Decrement()
+			time.Sleep(time.Second)
+			return trace.Wrap(ctx.Err())
+		}, onWatchInit)
+
+	r, err := retryutils.NewLinear(retryutils.LinearConfig{
+		Step: time.Second,
+		Max:  3 * time.Second,
+	})
+	require.NoError(t, err)
+	r.For(ctx, func() error {
+		if len(acceptedWatchKinds) == 0 {
+			return errors.New("no acceptedWatchKinds returned yet")
+		}
+		return nil
+	})
+
+	if !slices.ContainsFunc(acceptedWatchKinds, func(kind string) bool {
+		return kind == types.KindAccessRequest
+	}) {
+		t.Error("access request watch kind not returned after init: %V", acceptedWatchKinds)
+	}
+
 	timeBefore := time.Now()
 	for i := 0; i < config.MaxConcurrency; i++ {
 		resource, err := types.NewAccessRequest("REQ-SAME", "foo", "admin")
