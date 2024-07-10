@@ -484,12 +484,12 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Start database object importer.
 	if err := s.cfg.DatabaseObjects.StartImporter(ctx, database); err != nil {
-		// lower the log level for "not implemented" errors; these are very likely to occur, so aren't as interesting.
-		level := slog.LevelWarn
+		// special handling for "not implemented" errors; these are very likely to occur and aren't as interesting.
 		if trace.IsNotImplemented(err) {
-			level = slog.LevelDebug
+			s.log.DebugContext(ctx, "Database object importer not implemented.", "database", database.GetName())
+		} else {
+			s.log.WarnContext(ctx, "Failed to start database object importer.", "database", database.GetName(), "error", err)
 		}
-		s.log.Log(ctx, level, "Failed to start database object importer.", "database", database.GetName(), "error", err)
 	}
 
 	s.log.DebugContext(ctx, "Started database.", "db", database)
