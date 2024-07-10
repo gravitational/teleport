@@ -24,6 +24,7 @@ import (
 )
 
 const baseURL = "https://graph.microsoft.com/v1.0"
+const defaultPageSize = 500
 
 type UnsupportedGroupMember struct {
 	Type string
@@ -44,6 +45,7 @@ type Config struct {
 	HTTPClient    *http.Client
 	Clock         clockwork.Clock
 	RetryConfig   *retryutils.RetryV2Config
+	PageSize      int
 }
 
 func (cfg *Config) SetDefaults() {
@@ -60,6 +62,9 @@ func (cfg *Config) SetDefaults() {
 			Max:    defaults.HighResPollingPeriod,
 		}
 	}
+	if cfg.PageSize <= 0 {
+		cfg.PageSize = defaultPageSize
+	}
 }
 
 func (cfg *Config) Validate() error {
@@ -75,6 +80,7 @@ type client struct {
 	clock         clockwork.Clock
 	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
+	pageSize      int
 }
 
 func NewClient(cfg Config) (Client, error) {
@@ -92,6 +98,7 @@ func NewClient(cfg Config) (Client, error) {
 		clock:         cfg.Clock,
 		retryConfig:   *cfg.RetryConfig,
 		baseURL:       uri,
+		pageSize:      cfg.PageSize,
 	}, nil
 }
 
@@ -179,10 +186,9 @@ func (c *client) post(ctx context.Context, uri string, body []byte) (*http.Respo
 }
 
 func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
-	const limit = 2 // TODO: make configurable, bump the default
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
-	uri.RawQuery = url.Values{"$top": {strconv.Itoa(limit)}}.Encode()
+	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
 	uriString := uri.String()
 	for uriString != "" {
 		resp, err := c.get(ctx, uriString)

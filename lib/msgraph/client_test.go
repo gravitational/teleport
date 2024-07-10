@@ -167,6 +167,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 		tokenProvider: &fakeTokenProvider{},
 		retryConfig:   retryConfig,
 		baseURL:       uri,
+		pageSize:      defaultPageSize,
 	}
 	err = client.IterateUsers(context.Background(), func(*User) bool {
 		assert.Fail(t, "should never get called")
@@ -191,6 +192,7 @@ func TestIterateUsers(t *testing.T) {
 		tokenProvider: &fakeTokenProvider{},
 		retryConfig:   retryConfig,
 		baseURL:       uri,
+		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	}
 
 	var users []*User
