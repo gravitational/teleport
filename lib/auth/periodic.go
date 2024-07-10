@@ -19,35 +19,41 @@
 package auth
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
 	"golang.org/x/mod/semver"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
+const enrollmentMessage = "Some agents are outdated and would benefit from enrollment in automatic updates." +
+	" See https://goteleport.com/docs/upgrading/ for more details about updating Teleport." +
+	" Use 'tctl alerts' command to manage alerts."
+
 // upgradeEnrollPeriodic is a periodic operation that aggregates per-version counts of instances
 // by whether or not they are enrolled in automatic upgrades and generates a prompt to enroll
-// instances if the median unenrolled version is lagging behind the median enrolled version.
+// instances
 type upgradeEnrollPeriodic struct {
+	// authVersion is used to identify out dated agents
+	authVersion string
 	// enrolled/unenrolled per-version counts
 	enrolled, unenrolled map[string]int
 }
 
 func newUpgradeEnrollPeriodic() *upgradeEnrollPeriodic {
 	return &upgradeEnrollPeriodic{
-		enrolled:   make(map[string]int),
-		unenrolled: make(map[string]int),
+		authVersion: vc.Normalize(teleport.SemVersion.String()),
+		enrolled:    make(map[string]int),
+		unenrolled:  make(map[string]int),
 	}
 }
 
 // VisitInstance adds an instance to ongoing aggregations.
-func (u *upgradeEnrollPeriodic) VisitInstance(instance types.Instance) {
-	ver := vc.Normalize(instance.GetTeleportVersion())
+func (u *upgradeEnrollPeriodic) VisitInstance(instance proto.UpstreamInventoryHello) {
+	ver := vc.Normalize(instance.GetVersion())
 	if !semver.IsValid(ver) {
 		return
 	}
@@ -60,48 +66,16 @@ func (u *upgradeEnrollPeriodic) VisitInstance(instance types.Instance) {
 }
 
 // GenerateEnrollPrompt generates a prompt suggesting enrollment of unenrolled instances
-// in automatic upgrades if the median enrolled version is higher than the median unenrolled version.
 func (u *upgradeEnrollPeriodic) GenerateEnrollPrompt() (msg string, prompt bool) {
-	medianEnrolled, totalEnrolled, ok := inspectVersionCounts(u.enrolled)
-	if !ok || totalEnrolled == 0 {
-		return "", false
-	}
-
-	medianUnenrolled, totalUnenrolled, ok := inspectVersionCounts(u.unenrolled)
-	if !ok || totalUnenrolled == 0 {
-		return "", false
-	}
-
-	if semver.Compare(medianEnrolled, medianUnenrolled) != 1 {
-		// unenrolled agents are not lagging behind enrolled agents
-		return "", false
-	}
-
-	return fmt.Sprintf("Some agents are outdated and would benefit from enrollment in automatic upgrades."+
-		" (hint: use 'tctl inventory ls --upgrader=none' or 'tctl inventory ls --older-than=%s' to see more)", medianEnrolled), true
-}
-
-// inspectVersionCounts is a helper used to determine the median version and total
-// instance count from a mapping of version -> count.
-func inspectVersionCounts(counts map[string]int) (median string, total int, ok bool) {
-	var sum int
-	var versions []string
-	for version, count := range counts {
-		sum += count
-		versions = append(versions, version)
-	}
-
-	semver.Sort(versions)
-
-	var cursor int
-	for _, version := range versions {
-		cursor += counts[version]
-		if cursor > sum/2 {
-			return version, sum, true
+	for version, count := range u.unenrolled {
+		// If an instance is running on an older major version than the control plane
+		// and it is not enrolled in automatic updates, then generate the enrollment
+		// notice.
+		if count > 0 && semver.Major(version) < semver.Major(u.authVersion) {
+			return enrollmentMessage, true
 		}
 	}
-
-	return "", 0, false
+	return "", false
 }
 
 // instanceMetricsPeriodic is an aggregator for general instance metrics.

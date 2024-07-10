@@ -56,7 +56,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -1386,33 +1385,6 @@ func (a *Server) runPeriodicOperations() {
 }
 
 func (a *Server) doInstancePeriodics(ctx context.Context) {
-	const slowRate = time.Millisecond * 200 // 5 reads per second
-	const fastRate = time.Millisecond * 5   // 200 reads per second
-	const dynamicPeriod = time.Minute * 3
-
-	instances := a.GetInstances(ctx, types.InstanceFilter{})
-
-	// dynamically scale the rate-limiting we apply to reading instances
-	// s.t. we read at a progressively faster rate as we observe larger
-	// connected instance counts. this isn't a perfect metric, but it errs
-	// on the side of slowness, which is preferable for this kind of periodic.
-	instanceRate := slowRate
-	if ci := a.inventory.ConnectedInstances(); ci > 0 {
-		localDynamicRate := dynamicPeriod / time.Duration(ci)
-		if localDynamicRate < fastRate {
-			localDynamicRate = fastRate
-		}
-
-		if localDynamicRate < instanceRate {
-			instanceRate = localDynamicRate
-		}
-	}
-
-	limiter := rate.NewLimiter(rate.Every(instanceRate), 100)
-	instances = stream.RateLimit(instances, func() error {
-		return limiter.Wait(ctx)
-	})
-
 	// cloud deployments shouldn't include control-plane elements in
 	// metrics since information about them is not actionable and may
 	// produce misleading/confusing results.
@@ -1421,23 +1393,12 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// set up aggregators for our periodics
 	uep := newUpgradeEnrollPeriodic()
 
-	// stream all instances to all aggregators
-	for instances.Next() {
-		if skipControlPlane {
-			for _, service := range instances.Item().GetServices() {
-				if service.IsControlPlane() {
-					continue
-				}
-			}
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		if skipControlPlane && (handle.HasService(types.RoleAuth) || handle.HasService(types.RoleProxy)) {
+			return
 		}
-
-		uep.VisitInstance(instances.Item())
-	}
-
-	if err := instances.Done(); err != nil {
-		log.Warnf("Failed stream instances for periodics: %v", err)
-		return
-	}
+		uep.VisitInstance(handle.Hello())
+	})
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1449,14 +1410,12 @@ const (
 )
 
 func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shouldPrompt bool) {
-	const alertTTL = time.Minute * 30
+	const alertTTL = time.Minute * 10
 
 	if !shouldPrompt {
-		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
-		}
 		return
 	}
+
 	alert, err := types.NewClusterAlert(
 		upgradeEnrollAlertID,
 		msg,
