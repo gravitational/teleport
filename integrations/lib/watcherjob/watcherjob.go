@@ -43,6 +43,7 @@ const (
 )
 
 type EventFunc func(context.Context, types.Event) error
+type WatchInitFunc func(types.WatchStatus)
 
 type Config struct {
 	Watch            types.Watch
@@ -53,11 +54,11 @@ type Config struct {
 
 type job struct {
 	lib.ServiceJob
-	config                Config
-	eventFunc             EventFunc
-	events                types.Events
-	eventCh               chan *types.Event
-	confirmedWatchKindsCh chan<- []types.WatchKind
+	config          Config
+	eventFunc       EventFunc
+	events          types.Events
+	eventCh         chan *types.Event
+	onWatchInitFunc WatchInitFunc
 }
 
 type eventKey struct {
@@ -71,15 +72,15 @@ func NewJob(client teleport.Client, config Config, fn EventFunc) (lib.ServiceJob
 
 // NewJobWithConfirmedWatchKinds returns a new watcherJob and passes confirmed watch kinds
 // from the initialisation down confirmedWatchKindsCh.
-func NewJobWithConfirmedWatchKinds(events types.Events, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (lib.ServiceJob, error) {
-	return newJobWithEvents(events, config, fn, confirmedWatchKindsCh)
+func NewJobWithConfirmedWatchKinds(events types.Events, config Config, fn EventFunc, watchInitFunc WatchInitFunc) (lib.ServiceJob, error) {
+	return newJobWithEvents(events, config, fn, watchInitFunc)
 }
 
 func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.ServiceJob, error) {
 	return newJobWithEvents(events, config, fn, nil)
 }
 
-func newJobWithEvents(events types.Events, config Config, fn EventFunc, confirmedWatchKindsCh chan<- []types.WatchKind) (job, error) {
+func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchInitFunc WatchInitFunc) (job, error) {
 	if config.MaxConcurrency == 0 {
 		config.MaxConcurrency = DefaultMaxConcurrency
 	}
@@ -94,11 +95,11 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, confirme
 		config.FailFast = flag
 	}
 	job := job{
-		events:                events,
-		config:                config,
-		eventFunc:             fn,
-		eventCh:               make(chan *types.Event, config.MaxConcurrency),
-		confirmedWatchKindsCh: confirmedWatchKindsCh,
+		events:          events,
+		config:          config,
+		eventFunc:       fn,
+		eventCh:         make(chan *types.Event, config.MaxConcurrency),
+		onWatchInitFunc: watchInitFunc,
 	}
 	job.ServiceJob = lib.NewServiceJob(func(ctx context.Context) error {
 		process := lib.MustGetProcess(ctx)
@@ -195,19 +196,13 @@ func (job job) watchEvents(ctx context.Context) error {
 
 // waitInit waits for OpInit event be received on a stream.
 func (job job) waitInit(ctx context.Context, watcher types.Watcher, timeout time.Duration) error {
-	var confirmedWatchKinds []types.WatchKind
-	defer func() {
-		if job.confirmedWatchKindsCh != nil {
-			job.confirmedWatchKindsCh <- confirmedWatchKinds
-		}
-	}()
 	select {
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.ConnectionProblem(nil, "unexpected event type %q", event.Type)
 		}
 		if watchStatus, ok := event.Resource.(types.WatchStatus); ok {
-			confirmedWatchKinds = watchStatus.GetKinds()
+			job.onWatchInitFunc(watchStatus)
 		}
 		return nil
 	case <-time.After(timeout):
