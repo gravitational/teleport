@@ -132,6 +132,7 @@ func TestInstallSystemdCmd(t *testing.T) {
 				)
 				require.ErrorIs(t, err, os.ErrNotExist)
 				data = stdout.Bytes()
+				data = bytes.ReplaceAll(data, []byte(dirPath), []byte("/test/dir"))
 			} else {
 				data, err = os.ReadFile(
 					path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
