@@ -81,12 +81,14 @@
 #pragma mark - VNEDaemonProtocol
 
 - (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(void))completion {
-  _socketPath = @(vnetConfig->socket_path);
-  _ipv6Prefix = @(vnetConfig->ipv6_prefix);
-  _dnsAddr = @(vnetConfig->dns_addr);
-  _homePath = @(vnetConfig->home_path);
-  dispatch_semaphore_signal(_gotVnetConfigSema);
-  completion();
+  @synchronized(self) {
+    _socketPath = @(vnetConfig->socket_path);
+    _ipv6Prefix = @(vnetConfig->ipv6_prefix);
+    _dnsAddr = @(vnetConfig->dns_addr);
+    _homePath = @(vnetConfig->home_path);
+    dispatch_semaphore_signal(_gotVnetConfigSema);
+    completion();
+  }
 }
 
 #pragma mark - NSXPCListenerDelegate
@@ -135,9 +137,11 @@ void WaitForVnetConfig(VnetConfigResult *outResult) {
     return;
   }
 
-  outResult->socket_path = VNECopyNSString([daemonService socketPath]);
-  outResult->ipv6_prefix = VNECopyNSString([daemonService ipv6Prefix]);
-  outResult->dns_addr = VNECopyNSString([daemonService dnsAddr]);
-  outResult->home_path = VNECopyNSString([daemonService homePath]);
-  outResult->ok = true;
+  @synchronized(daemonService) {
+    outResult->socket_path = VNECopyNSString([daemonService socketPath]);
+    outResult->ipv6_prefix = VNECopyNSString([daemonService ipv6Prefix]);
+    outResult->dns_addr = VNECopyNSString([daemonService dnsAddr]);
+    outResult->home_path = VNECopyNSString([daemonService homePath]);
+    outResult->ok = true;
+  }
 }
