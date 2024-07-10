@@ -657,7 +657,9 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			continue
 		}
 
-		go handleNetworkingRequest(ctx, controlConn, buf[:n])
+		// Starting a new goroutine takes us out of the current PAM context,
+		// so we handle requests synchronously.
+		handleNetworkingRequest(ctx, controlConn, buf[:n])
 	}
 }
 
