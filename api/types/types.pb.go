@@ -7426,7 +7426,6 @@ type RoleOptions struct {
 	// DeviceTrustMode is the device authorization mode used for the resources
 	// associated with the role.
 	// See DeviceTrust.Mode.
-	// Reserved for future use, not yet used by Teleport.
 	DeviceTrustMode string `protobuf:"bytes,24,opt,name=DeviceTrustMode,proto3" json:"device_trust_mode,omitempty"`
 	// IDP is a set of options related to accessing IdPs within Teleport.
 	// Requires Teleport Enterprise.
