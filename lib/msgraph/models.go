@@ -1,5 +1,11 @@
 package msgraph
 
+import (
+	"encoding/json"
+
+	"github.com/gravitational/trace"
+)
+
 type GroupMember interface {
 	GetID() *string
 	isGroupMember()
@@ -61,4 +67,27 @@ type FederatedIdentityCredential struct {
 
 type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
+}
+
+func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
+	var temp struct {
+		Type string `json:"@odata.type"`
+	}
+
+	if err := json.Unmarshal(msg, &temp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var err error
+	var member GroupMember
+	switch temp.Type {
+	case "#microsoft.graph.user":
+		var u *User
+		err = json.Unmarshal(msg, &u)
+		member = u
+	default:
+		err = trace.BadParameter("unsupported group member type: %s", temp.Type)
+	}
+
+	return member, trace.Wrap(err)
 }
