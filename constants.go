@@ -675,6 +675,10 @@ const (
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
 
+	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
+	// to configure all its supported Teleport resources.
+	PresetTerraformProviderRoleName = "terraform-provider"
+
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request
 	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
