@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -3218,30 +3219,46 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := req.PublicKey
+	cryptoPubKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
+	tlsPublicKeyAttestationStatement := keys.AttestationStatementFromProto(req.AttestationStatement)
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
-		mfaVerified:       verifiedMFADeviceID,
-		user:              user,
-		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:     req.Format,
-		publicKey:         req.PublicKey,
-		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		dbService:         req.RouteToDatabase.ServiceName,
-		dbProtocol:        req.RouteToDatabase.Protocol,
-		dbUser:            req.RouteToDatabase.Username,
-		dbName:            req.RouteToDatabase.Database,
-		dbRoles:           req.RouteToDatabase.Roles,
-		appSessionID:      appSessionID,
-		appName:           req.RouteToApp.Name,
-		appPublicAddr:     req.RouteToApp.PublicAddr,
-		appClusterName:    req.RouteToApp.ClusterName,
-		awsRoleARN:        req.RouteToApp.AWSRoleARN,
-		azureIdentity:     req.RouteToApp.AzureIdentity,
-		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
-		checker:           checker,
+		mfaVerified:                      verifiedMFADeviceID,
+		user:                             user,
+		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:                    req.Format,
+		sshPublicKey:                     sshPublicKey,
+		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		dbService:                        req.RouteToDatabase.ServiceName,
+		dbProtocol:                       req.RouteToDatabase.Protocol,
+		dbUser:                           req.RouteToDatabase.Username,
+		dbName:                           req.RouteToDatabase.Database,
+		dbRoles:                          req.RouteToDatabase.Roles,
+		appSessionID:                     appSessionID,
+		appName:                          req.RouteToApp.Name,
+		appPublicAddr:                    req.RouteToApp.PublicAddr,
+		appClusterName:                   req.RouteToApp.ClusterName,
+		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
+		azureIdentity:                    req.RouteToApp.AzureIdentity,
+		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		checker:                          checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP: a.context.Identity.GetIdentity().LoginIP,
@@ -3250,8 +3267,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -3302,6 +3324,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
 		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.updateBotInstance(ctx, &certReq); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

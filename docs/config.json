@@ -786,6 +786,10 @@
             {
               "title": "AWS OIDC Integration",
               "slug": "/management/guides/awsoidc-integration/"
+            },
+            {
+              "title": "Datadog Integration",
+              "slug": "/management/guides/datadog/"
             }
           ]
         },
@@ -822,10 +826,6 @@
             {
               "title": "Export Audit Events to Fluentd",
               "slug": "/management/export-audit-events/fluentd/"
-            },
-            {
-              "title": "Export Audit Events to Datadog",
-              "slug": "/management/export-audit-events/datadog/"
             },
             {
               "title": "Export Audit Events to the Elastic Stack",
@@ -968,7 +968,13 @@
         },
         {
           "title": "Databases",
-          "slug": "/auto-discovery/databases/"
+          "slug": "/auto-discovery/databases/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/databases/aws/"
+            }
+          ]
         },
         {
           "title": "Kubernetes Applications",
@@ -3115,6 +3121,11 @@
     {
       "source": "/database-access/guides/vitess/",
       "destination": "/database-access/enroll-self-hosted-databases/vitess/",
+      "permanent": true
+    },
+    {
+      "source": "/management/export-audit-events/datadog/",
+      "destination": "/management/guides/datadog/",
       "permanent": true
     }
   ]

@@ -32,19 +32,7 @@ export const ButtonTextWithAddIcon = ({
   iconSize?: number | 'small' | 'medium' | 'large' | 'extraLarge';
 }) => {
   return (
-    <ButtonText
-      onClick={onClick}
-      css={`
-        padding-left: 0px;
-        &:disabled {
-          .icon-add {
-            opacity: 0.35;
-          }
-          pointer-events: none;
-        }
-      `}
-      disabled={disabled}
-    >
+    <ButtonText onClick={onClick} inputAlignment disabled={disabled}>
       <AddIcon
         className="icon-add"
         size={iconSize}

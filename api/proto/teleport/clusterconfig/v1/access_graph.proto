@@ -30,4 +30,12 @@ message AccessGraphConfig {
   // insecure is a flag that indicates whether the access graph service should
   // skip verifying the server's certificate chain and host name.
   bool insecure = 4;
+  // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
+  AccessGraphSecretsScanConfiguration secrets_scan_config = 5;
+}
+
+// AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.
+message AccessGraphSecretsScanConfiguration {
+  // ssh_scan_enabled indicates if the SSH scan feature is enabled for the cluster.
+  bool ssh_scan_enabled = 1;
 }
