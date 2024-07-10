@@ -588,7 +588,7 @@ $ tsh request create --resources /teleport.example.com/namespace/mycluster/^dev-
 
 Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct 
 permissions for the cluter-scoped resource.  This is an example of the required permissions to
-request access to the namespace `prod` only:
+request access only to the namespace `prod` (and all resources within it):
 
 ```yaml
 kind: role
