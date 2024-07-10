@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // EventsService implements service to watch for events
@@ -211,6 +212,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindBotInstance:
 			parser = newBotInstanceParser()
+		case types.KindInstance:
+			parser = newInstanceParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2156,6 +2159,31 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(botInstance), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newInstanceParser() *instanceParser {
+	return &instanceParser{
+		baseParser: newBaseParser(backend.Key(instancePrefix)),
+	}
+}
+
+type instanceParser struct {
+	baseParser
+}
+
+func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindInstance, types.V1, 0)
+	case types.OpPut:
+		instance, err := generic.FastUnmarshal[*types.InstanceV1](event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return instance, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
