@@ -2315,7 +2315,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 // DatabaseTestCertRequest combines parameters for generating test database
 // access certificate.
 type DatabaseTestCertRequest struct {
-	// PublicKey is the public key to sign.
+	// PublicKey is the public key to sign, in PEM-encoded PKCS#1 or PKIX format.
 	PublicKey []byte
 	// Cluster is the Teleport cluster name.
 	Cluster string
