@@ -770,6 +770,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
+	h.PUT("/webapi/token/yaml", h.WithAuth(h.upsertTokenContent))
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
