@@ -46,7 +46,7 @@ We added the ability to connect to more web applications.
 		},
 	}
 
-	// TODO: clashing versions (combine H3s but add a warning message)
+	// TODO: clashing versions with different dates (combine H3s but add a warning message)
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
 			actual, msg := merge(strings.NewReader(c.changelog1), strings.NewReader(c.changelog2))
