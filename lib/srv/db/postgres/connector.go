@@ -131,23 +131,25 @@ func (c *connector) pgxConnect(ctx context.Context) (*pgx.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 	pgxConf.Config = *config
+	c.log.DebugContext(ctx, "Connecting to database", "db_name", config.Database, "db_user", config.User, "host", config.Host)
 	return pgx.ConnectConfig(ctx, pgxConf)
+}
+
+// withDefaultDatabase returns a copy of connector with databaseName switched to the default database, if one is available.
+func (c *connector) withDefaultDatabase() *connector {
+	copied := *c
+	if c.database.GetAdminUser().DefaultDatabase != "" {
+		copied.databaseName = c.database.GetAdminUser().DefaultDatabase
+	}
+	return &copied
 }
 
 // connectAsAdmin connect to the database from db route as admin user.
 // If useDefaultDatabase is true and a default database is configured for the admin user, it will be used instead.
-func (c *connector) connectAsAdmin(ctx context.Context, useDefaultDatabase bool) (*pgx.Conn, error) {
-	loginDatabase := c.databaseName
-	if useDefaultDatabase && c.database.GetAdminUser().DefaultDatabase != "" {
-		loginDatabase = c.database.GetAdminUser().DefaultDatabase
-	} else {
-		c.log.InfoContext(ctx, "Connecting to session database.", "database", loginDatabase)
-	}
-
-	// make a copy to override the database user and name as well as to clear potential startup params.
+func (c *connector) connectAsAdmin(ctx context.Context) (*pgx.Conn, error) {
+	// make a copy to override the database user as well as to clear potential startup params.
 	copied := *c
 	copied.databaseUser = c.database.GetAdminUser().Name
-	copied.databaseName = loginDatabase
 	copied.startupParams = make(map[string]string)
 
 	conn, err := copied.pgxConnect(ctx)

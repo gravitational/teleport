@@ -130,5 +130,5 @@ func (f *objectFetcher) connectAsAdmin(ctx context.Context, databaseName string)
 
 		startupParams: map[string]string{},
 	}
-	return conn.connectAsAdmin(ctx, false)
+	return conn.connectAsAdmin(ctx)
 }

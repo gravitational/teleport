@@ -43,9 +43,14 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/objects"
 )
 
-// connectAsAdmin connect to the database from db route as admin user.
-func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session, useDefaultDatabase bool) (*pgx.Conn, error) {
-	return e.newConnector(sessionCtx).connectAsAdmin(ctx, useDefaultDatabase)
+// connectAsAdmin connects as the admin user to the default database, per database settings, or as a fallback to the one specified in sessionCtx.
+func (e *Engine) connectAsAdminDefaultDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).withDefaultDatabase().connectAsAdmin(ctx)
+}
+
+// connectAsAdmin connects as the admin user to the database specified in sessionCtx.
+func (e *Engine) connectAsAdminSessionDatabase(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	return e.newConnector(sessionCtx).connectAsAdmin(ctx)
 }
 
 // ActivateUser creates or enables the database user.
@@ -59,7 +64,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.BadParameter("auto-user provisioning is not supported for RDS reader endpoints")
 	}
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +212,6 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	objsImported, err := fetcher.FetchOneDatabase(ctx, sessionCtx.DatabaseName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -227,15 +231,15 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
+	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
+	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
 	if err != nil {
 		e.Log.ErrorContext(ctx, "Failed to connect to the database.", "error", err)
 		return trace.Wrap(err)
 	}
 	defer conn.Close(ctx)
 
-	// teleport_remove_permissions and teleport_update_permissions are created in pg_temp table of the session database.
-	// teleport_remove_permissions gets called by teleport_update_permissions as needed.
 	_, err = conn.Exec(ctx, removePermissionsProc)
 	if err != nil {
 		e.Log.ErrorContext(e.Context, "Creating temporary stored procedure failed.", "procedure", removePermissionsProcName, "error", err)
@@ -271,7 +275,7 @@ func (e *Engine) removePermissions(ctx context.Context, sessionCtx *common.Sessi
 	}
 
 	logger.InfoContext(ctx, "Removing permissions from PostgreSQL user.")
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, false)
+	conn, err := e.connectAsAdminSessionDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,7 +305,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	// removal may yield errors, but we will still attempt to deactivate the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
@@ -331,7 +335,7 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	// removal may yield errors, but we will still attempt to delete the user.
 	errRemove := trace.Wrap(e.removePermissions(ctx, sessionCtx))
 
-	conn, err := e.connectAsAdmin(ctx, sessionCtx, true)
+	conn, err := e.connectAsAdminDefaultDatabase(ctx, sessionCtx)
 	if err != nil {
 		return trace.NewAggregate(errRemove, trace.Wrap(err))
 	}
