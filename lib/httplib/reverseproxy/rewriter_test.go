@@ -19,6 +19,7 @@ package reverseproxy
 import (
 	"crypto/tls"
 	"net/http"
+	"net/http/httputil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -154,8 +155,20 @@ func TestRewriter(t *testing.T) {
 			if test.tlsReq {
 				req.TLS = &tls.ConnectionState{}
 			}
-			rewriter.Rewrite(req)
-			require.Equal(t, test.expected, req.Header)
+
+			// replicate net/http/httputil.ReverseProxy stripping
+			// forwarding headers from the outbound request
+			outReq := req.Clone(req.Context())
+			outReq.Header.Del("Forwarded")
+			outReq.Header.Del(XForwardedFor)
+			outReq.Header.Del(XForwardedHost)
+			outReq.Header.Del(XForwardedProto)
+
+			rewriter.Rewrite(&httputil.ProxyRequest{
+				In:  req,
+				Out: outReq,
+			})
+			require.Equal(t, test.expected, outReq.Header)
 		})
 	}
 }
