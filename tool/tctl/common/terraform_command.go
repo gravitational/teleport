@@ -298,7 +298,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 			JoinMethod: types.JoinMethodToken,
 		},
 		Storage:        &config.StorageConfig{Destination: &config.DestinationMemory{}},
-		Outputs:        []config.Output{credential},
+		Services:       config.ServiceConfigs{credential},
 		CertificateTTL: c.botTTL,
 		Oneshot:        true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
