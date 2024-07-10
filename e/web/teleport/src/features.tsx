@@ -508,6 +508,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureBots(),
     new OSS.FeatureAddBots(),
     new FeatureAuthConnectors(),
+    new OSS.FeatureJoinTokens(),
     new FeatureIntegrations(),
     new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
