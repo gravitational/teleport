@@ -47,9 +47,21 @@ We must provide a seamless, hands-off experience for auto-updates that is easy t
 
 ## Details - Teleport API
 
-Teleport will be updated to serve the desired version of Teleport from `/v1/webapi/find`.
+Teleport will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
+The version and edition served from that endpoint will be configured using the `cluster_maintenance_config` and `autoupdate_version` resources.
+Whether the updater querying the endpoint is instructed to upgrade (via `agent_auto_update`) is dependent on the `host=[uuid]` parameter sent to `/v1/webapi/find`.
 
-The version served with be configured using the `cluster_maintenance_config` and `autoupdate_version` resources.
+To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to the `/v1/webapi/find`.
+Teleport proxies use their access to heartbeat data to drive the rollout and modulate the `/v1/webapi/find` response given the host UUID.
+
+Rollouts are specified as interdependent groups of hosts, selected by resource label.
+A host is eligible to upgrade if the label is present on any of its connected resources.
+
+At the start of a group rollout, the Teleport proxy marks a desired group of hosts to update in the backend.
+A fixed number of hosts (`max_in_flight`) are instructed to upgrade via `/v1/webapi/find`.
+Additional hosts are instructed to update as earlier updates complete, timeout, or fail, never exceeding `max_in_flight`.
+The group rollout is halted if timeouts or failures exceed their specified thresholds.
+Group rollouts may be retried with `tctl autoupdate run`.
 
 ### Endpoints
 
@@ -66,6 +78,7 @@ Notes:
 - The Teleport proxy uses `cluster_maintenance_config` and `autoupdate_config` (below) to determine the time when the served `agent_auto_update` is `true` for the provided host UUID.
 - Agents will only upgrade if `agent_auto_update` is `true`, but new installations will use `agent_version` regardless of the value in `agent_auto_update`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
+- The host UUID is ready from `/var/lib/teleport` by the updater.
 
 ### Teleport Resources
 
@@ -126,6 +139,10 @@ spec:
 ```
 
 Note that cycles and dependency chains longer than a week will be rejected.
+Otherwise, updates could take up to 7 weeks to propagate.
+
+Changing the version or schedule completely resets progress.
+Releasing new client versions multiple times a week has the potential to starve dependent groups from updates.
 
 Note the MVP version of this resource will not support host UUIDs, groups, or backpressure, and will use the following simplified UX with `agent_auto_update` field.
 This field will remain indefinitely, to cover agents that do not present a known host UUID, as well as connected agents that are not matched to a group.
@@ -162,6 +179,7 @@ spec:
 
 
 ```shell
+# configuration
 $ tctl autoupdate update--set-agent-auto-update=off
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --schedule regular --group staging-group --set-start-hour=3
@@ -170,10 +188,31 @@ $ tctl autoupdate update --schedule regular --group staging-group --set-jitter-s
 Automatic updates configuration has been updated.
 $ tctl autoupdate reset
 Automatic updates configuration has been reset to defaults.
+
+# status
 $ tctl autoupdate status
 Status: disabled
 Version: v1.2.4
 Schedule: regular
+
+Groups:
+staging-group: succeeded at 2024-01-03 23:43:22 UTC
+prod-group: scheduled for 2024-01-03 23:43:22 UTC (depends on prod-group)
+other-group: failed at 2024-01-05 22:53:22 UTC
+
+$ tctl autoupdate status --group staging-group
+Status: succeeded
+Date: 2024-01-03 23:43:22 UTC
+Requires: (none)
+
+Upgraded: 230 (95%)
+Unchanged: 10 (2%)
+Failed: 15 (3%)
+Timed-out: 0
+
+# re-running failed group
+$ tctl autoupdate run --group staging-group
+Executing auto-update for group 'staging-group' immediately.
 ```
 
 ```yaml
@@ -461,7 +500,6 @@ The following documentation will need to be updated to cover the new upgrader wo
 - https://goteleport.com/docs/upgrading/self-hosted-automatic-agent-updates
 
 Additionally, the Cloud dashboard tenants downloads tab will need to be updated to reference the new instructions.
-
 
 ## Details - Kubernetes Agents
 
