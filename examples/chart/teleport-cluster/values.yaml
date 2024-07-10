@@ -682,6 +682,10 @@ service:
 # See https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview for details.
 ingress:
   enabled: false
+  # Use existing indicates to the chart that you are providing your own ingress.
+  # The chart will configure Teleport like it's running behind an ingress, but will not create the ingress resource.
+  # You are responsible for creating and managing the ingress.
+  useExisting: false
   # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
   # by the Ingress. This may be desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false
