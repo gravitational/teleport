@@ -331,7 +331,9 @@ func (c *AuthnCeremony) validateDeviceWebToken(
 	// User must match token.
 	case storedToken.User != user:
 		return AuditStatusError{
-			Err:         trace.Wrap(errInvalidDeviceWebToken),
+			// Use a nicer message than errInvalidDeviceWebToken here, this can happen
+			// in certain legitimate situations (like Connect using the wrong user).
+			Err:         trace.AccessDenied("the user being confirmed does not match the logged in user"),
 			UserMessage: "device web token user mismatch",
 		}
 	// User must match device owner.
