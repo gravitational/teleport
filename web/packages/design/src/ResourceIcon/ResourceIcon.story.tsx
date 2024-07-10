@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ResourceIcon } from 'design/ResourceIcon';
@@ -33,7 +33,7 @@ export const Icons = () => {
     <Flex flexWrap="wrap">
       {iconNames.map(icon => {
         return (
-          <IconBox text={icon}>
+          <IconBox text={icon} key={icon}>
             <ResourceIcon name={icon} width="100px" />
             <ResourceIcon name={icon} width="25px" />
           </IconBox>
@@ -43,7 +43,10 @@ export const Icons = () => {
   );
 };
 
-const IconBox = ({ children, text }) => {
+const IconBox: React.FC<PropsWithChildren<{ text: string }>> = ({
+  children,
+  text,
+}) => {
   const theme = useTheme();
 
   return (

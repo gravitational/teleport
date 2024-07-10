@@ -17,7 +17,7 @@
  */
 
 import { Platform } from 'design/platform';
-import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
+import { ResourceIconName } from 'design/ResourceIcon';
 
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 

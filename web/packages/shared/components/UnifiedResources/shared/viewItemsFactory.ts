@@ -23,7 +23,7 @@ import {
   Server as ServerIcon,
   Desktop as DesktopIcon,
 } from 'design/Icon';
-import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
+import { ResourceIconName } from 'design/ResourceIcon';
 
 import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';

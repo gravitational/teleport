@@ -21,7 +21,11 @@ import { useTheme } from 'styled-components';
 
 import { Image } from 'design';
 
-import { ResourceIconName, resourceIconSpecs } from './resourceIconSpecs';
+import {
+  ResourceIconName,
+  resourceIconSpecs,
+  iconNames,
+} from './resourceIconSpecs';
 
 interface ResourceIconProps extends ComponentProps<typeof Image> {
   /**
@@ -43,3 +47,5 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   }
   return <Image src={icon} {...props} />;
 };
+
+export { type ResourceIconName, resourceIconSpecs, iconNames };

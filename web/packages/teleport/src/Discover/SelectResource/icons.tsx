@@ -18,8 +18,7 @@
 
 import React from 'react';
 
-import { ResourceIcon } from 'design/ResourceIcon';
-import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
+import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 
 interface DiscoverIconProps {
   name: ResourceIconName;

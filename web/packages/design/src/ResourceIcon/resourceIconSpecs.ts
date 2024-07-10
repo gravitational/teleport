@@ -19,7 +19,7 @@
 import * as i from './icons';
 
 /** Uses given icon for all themes. */
-const forAllThemes = icon => ({ dark: icon, light: icon });
+const forAllThemes = (icon: string): IconSpec => ({ dark: icon, light: icon });
 
 /**
  * A map of icon name -> theme -> spec mapping of resource icons.
@@ -273,7 +273,13 @@ export const resourceIconSpecs = {
   zoominfo: forAllThemes(i.zoominfo),
 };
 
+type IconSpec = {
+  // svg icon for dark theme
+  dark: string;
+  // svg icon for light theme
+  light: string;
+};
+
 export type ResourceIconName = keyof typeof resourceIconSpecs;
 
-/** All icon names, exported for testing purposes. */
 export const iconNames = Object.keys(resourceIconSpecs) as ResourceIconName[];
