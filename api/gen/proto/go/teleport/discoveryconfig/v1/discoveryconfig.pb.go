@@ -108,7 +108,7 @@ const (
 	AWSEC2EnrollmentStatus_AWSEC2_ENROLLMENT_STATUS_SCRIPT_ERROR AWSEC2EnrollmentStatus = 3
 	// AWSEC2_ENROLLMENT_STATUS_SUCCESS indicates that the instance joined teleport.
 	AWSEC2EnrollmentStatus_AWSEC2_ENROLLMENT_STATUS_SUCCESS AWSEC2EnrollmentStatus = 4
-	// AWSEC2_ENROLLMENT_STATUS_ERROR indicates some other error when tryint to auto-enroll the instance.
+	// AWSEC2_ENROLLMENT_STATUS_ERROR indicates some other error when trying to auto-enroll the instance.
 	AWSEC2EnrollmentStatus_AWSEC2_ENROLLMENT_STATUS_ERROR AWSEC2EnrollmentStatus = 5
 )
 
