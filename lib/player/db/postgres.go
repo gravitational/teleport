@@ -33,7 +33,7 @@ type PostgresTranslator struct {
 	preparedStatements map[string]string
 	// preparedStatementPortalBindings is a map of binded prepared statements
 	// portals and their arguments.
-	preparedStatemetnPortalBidings map[string]preparedStatementBind
+	preparedStatementPortalBidings map[string]preparedStatementBind
 	// expectingResult determines if the translator is expecting a command
 	// result. This is used to skip commands and their results.
 	expectingResult bool
@@ -52,7 +52,7 @@ func newPreparedStatementBind(stmt string, params []string) preparedStatementBin
 func NewPostgresTranslator() *PostgresTranslator {
 	return &PostgresTranslator{
 		preparedStatements:             make(map[string]string),
-		preparedStatemetnPortalBidings: make(map[string]preparedStatementBind),
+		preparedStatementPortalBidings: make(map[string]preparedStatementBind),
 		expectingResult:                false,
 	}
 }
@@ -73,7 +73,7 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 		p.preparedStatements[e.StatementName] = e.Query
 	case *events.PostgresBind:
 		p.expectingResult = false
-		p.preparedStatemetnPortalBidings[e.PortalName] = newPreparedStatementBind(e.StatementName, e.Parameters)
+		p.preparedStatementPortalBidings[e.PortalName] = newPreparedStatementBind(e.StatementName, e.Parameters)
 	case *events.PostgresExecute:
 		printEvent := p.generatePreparedStatementPrint(e.Metadata, e.DatabaseMetadata, e.PortalName)
 		p.expectingResult = printEvent != nil
@@ -97,7 +97,7 @@ func (p *PostgresTranslator) generateCommandPrint(metadata events.DatabaseMetada
 }
 
 func (p *PostgresTranslator) generatePreparedStatementPrint(metadata events.Metadata, databaseMetadata events.DatabaseMetadata, portalName string) *events.SessionPrint {
-	bind, hasBind := p.preparedStatemetnPortalBidings[portalName]
+	bind, hasBind := p.preparedStatementPortalBidings[portalName]
 
 	// In case of an unbinded portal, we cannot present the execution properly,
 	// so we skip those executions.
