@@ -291,7 +291,11 @@ func (s *SPIFFEWorkloadAPIService) StreamSecrets(
 		}
 	}()
 
-	var renewTimerCh <-chan struct{}
+	renewalTimer := time.NewTimer(s.botCfg.RenewalInterval)
+	// Stop the timer immediately so we can start timing after the first
+	// response is sent.
+	renewalTimer.Stop()
+	defer renewalTimer.Stop()
 
 	// Track the last response and last request to allow us to handle ACK/NACK
 	// and versioning.
@@ -368,10 +372,9 @@ func (s *SPIFFEWorkloadAPIService) StreamSecrets(
 
 		case <-reloadCh:
 			// If there's been a CA rotation, we need to send a new response.
-			// We need to make sure we've handled at least one request before
-			// doing so.
-		case <-renewTimerCh:
+		case <-renewalTimer.C:
 			// Handle renewal time!
+			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
 		}
 
 		resp, err := s.generateResponse(
@@ -403,6 +406,8 @@ func (s *SPIFFEWorkloadAPIService) StreamSecrets(
 				"version_info", resp.VersionInfo,
 			),
 		)
+
+		renewalTimer.Reset(s.botCfg.RenewalInterval)
 	}
 }
 
