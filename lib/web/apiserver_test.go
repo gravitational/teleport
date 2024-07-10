@@ -4560,13 +4560,48 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:           true,
-		ProxyClusterName:          env.server.ClusterName(),
-		IsCloud:                   false,
-		AutomaticUpgrades:         false,
-		JoinActiveSessions:        true,
-		Edition:                   modules.BuildOSS, // testBuildType is empty
+		CanJoinSessions:    true,
+		ProxyClusterName:   env.server.ClusterName(),
+		IsCloud:            false,
+		AutomaticUpgrades:  false,
+		JoinActiveSessions: true,
+		Edition:            modules.BuildOSS, // testBuildType is empty
 		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		Entitlements: map[string]webclient.EntitlementInfo{
+			"AccessLists":            {Enabled: false},
+			"AccessMonitoring":       {Enabled: false},
+			"AccessRequests":         {Enabled: false},
+			"App":                    {Enabled: true},
+			"CloudAuditLogRetention": {Enabled: false},
+			"DB":                     {Enabled: true},
+			"Desktop":                {Enabled: true},
+			"DeviceTrust":            {Enabled: false},
+			"ExternalAuditStorage":   {Enabled: false},
+			"FeatureHiding":          {Enabled: false},
+			"HSM":                    {Enabled: false},
+			"Identity":               {Enabled: false},
+			"JoinActiveSessions":     {Enabled: true},
+			"K8s":                    {Enabled: true},
+			"MobileDeviceManagement": {Enabled: false},
+			"OIDC":                   {Enabled: false},
+			"OktaSCIM":               {Enabled: false},
+			"OktaUserSync":           {Enabled: false},
+			"Policy":                 {Enabled: false},
+			"SAML":                   {Enabled: false},
+			"SessionLocks":           {Enabled: false},
+			"UpsellAlert":            {Enabled: false},
+			"UsageReporting":         {Enabled: false},
+		},
+		TunnelPublicAddress:            "",
+		RecoveryCodesEnabled:           false,
+		UI:                             webclient.UIConfig{},
+		IsDashboard:                    false,
+		IsUsageBasedBilling:            false,
+		AutomaticUpgradesTargetVersion: "",
+		CustomTheme:                    "",
+		Questionnaire:                  false,
+		IsStripeManaged:                false,
+		PremiumSupport:                 false,
 	}
 
 	// Make a request.
@@ -4590,6 +4625,11 @@ func TestGetWebConfig(t *testing.T) {
 			Cloud:               true,
 			IsUsageBasedBilling: true,
 			AutomaticUpgrades:   true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB:          {Enabled: true, Limit: 22},
+				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
+				entitlements.Desktop:     {Enabled: true, Limit: 44},
+			},
 		},
 	})
 
@@ -4610,6 +4650,13 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
+	expectedCfg.TrustedDevices = true
+	expectedCfg.Entitlements["App"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
+	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
+	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
+	expectedCfg.Entitlements["JoinActiveSessions"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["K8s"] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4629,6 +4676,10 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
+	expectedCfg.TrustedDevices = false
+	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
@@ -4648,7 +4699,7 @@ func TestGetWebConfig(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 }
 
-func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
@@ -4679,12 +4730,37 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:                    true,
-		IsIGSEnabled:              true,
-		IsStripeManaged:           true,
-		Questionnaire:             true,
-		IsUsageBasedBilling:       true,
+		IsTeam:              true,
+		IsIGSEnabled:        true,
+		IsStripeManaged:     true,
+		Questionnaire:       true,
+		IsUsageBasedBilling: true,
 		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		Entitlements: map[string]webclient.EntitlementInfo{
+			string(entitlements.AccessLists):            {Enabled: true, Limit: 5},
+			string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 10},
+			string(entitlements.AccessRequests):         {Enabled: false},
+			string(entitlements.App):                    {Enabled: false},
+			string(entitlements.CloudAuditLogRetention): {Enabled: false},
+			string(entitlements.DB):                     {Enabled: false},
+			string(entitlements.Desktop):                {Enabled: false},
+			string(entitlements.DeviceTrust):            {Enabled: false},
+			string(entitlements.ExternalAuditStorage):   {Enabled: false},
+			string(entitlements.FeatureHiding):          {Enabled: false},
+			string(entitlements.HSM):                    {Enabled: false},
+			string(entitlements.Identity):               {Enabled: true},
+			string(entitlements.JoinActiveSessions):     {Enabled: false},
+			string(entitlements.K8s):                    {Enabled: false},
+			string(entitlements.MobileDeviceManagement): {Enabled: false},
+			string(entitlements.OIDC):                   {Enabled: false},
+			string(entitlements.OktaSCIM):               {Enabled: false},
+			string(entitlements.OktaUserSync):           {Enabled: false},
+			string(entitlements.Policy):                 {Enabled: false},
+			string(entitlements.SAML):                   {Enabled: false},
+			string(entitlements.SessionLocks):           {Enabled: false},
+			string(entitlements.UpsellAlert):            {Enabled: false},
+			string(entitlements.UsageReporting):         {Enabled: false},
+		},
 	}
 
 	// Make a request.
