@@ -3,17 +3,31 @@ package msgraph
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
+
+// Always sleep for a second for predictability
+var retryConfig = retryutils.RetryV2Config{
+	First:  time.Second,
+	Max:    time.Second,
+	Driver: retryutils.NewLinearDriver(time.Second),
+}
 
 type fakeTokenProvider struct{}
 
@@ -151,6 +165,7 @@ func TestIterateUsers_Empty(t *testing.T) {
 	client := &client{
 		httpClient:    &http.Client{},
 		tokenProvider: &fakeTokenProvider{},
+		retryConfig:   retryConfig,
 		baseURL:       uri,
 	}
 	err = client.IterateUsers(context.Background(), func(*User) bool {
@@ -174,6 +189,7 @@ func TestIterateUsers(t *testing.T) {
 	client := &client{
 		httpClient:    &http.Client{},
 		tokenProvider: &fakeTokenProvider{},
+		retryConfig:   retryConfig,
 		baseURL:       uri,
 	}
 
@@ -203,4 +219,157 @@ func TestIterateUsers(t *testing.T) {
 
 	require.Equal(t, "eve@example.com", *users[4].Mail)
 	require.Equal(t, "eve#EXT#@example.com", *users[4].UserPrincipalName)
+}
+
+type failingHandler struct {
+	t            *testing.T
+	timesCalled  atomic.Int32
+	timesToFail  int32
+	statusCode   int
+	expectedBody []byte
+	retryAfter   int
+}
+
+func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if f.expectedBody != nil {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(f.t, err)
+		assert.Equal(f.t, body, f.expectedBody)
+	}
+	if f.retryAfter != 0 {
+		w.Header().Add("Retry-After", strconv.Itoa(f.retryAfter))
+	}
+	if f.timesCalled.Load() < f.timesToFail {
+		w.WriteHeader(f.statusCode)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	f.timesCalled.Add(1)
+}
+
+func TestRetry(t *testing.T) {
+	appID := uuid.NewString()
+	route := "POST /applications/" + appID + "/federatedIdentityCredentials"
+	name := "foo"
+	object := &FederatedIdentityCredential{Name: &name}
+
+	clock := clockwork.NewFakeClock()
+
+	t.Run("retriable, with retry-after", func(t *testing.T) {
+		handler := &failingHandler{
+			t:            t,
+			timesToFail:  2,
+			statusCode:   http.StatusTooManyRequests,
+			expectedBody: []byte(`{"name":"foo"}`),
+			retryAfter:   10,
+		}
+		mux := http.NewServeMux()
+		mux.Handle(route, handler)
+
+		srv := httptest.NewServer(mux)
+		t.Cleanup(func() { srv.Close() })
+
+		uri, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := &client{
+			httpClient:    &http.Client{},
+			tokenProvider: &fakeTokenProvider{},
+			clock:         clock,
+			retryConfig:   retryConfig,
+			baseURL:       uri,
+		}
+
+		ret := make(chan error, 1)
+		go func() {
+			ret <- client.CreateFederatedIdentityCredential(context.Background(), appID, object)
+		}()
+
+		// Fail for the first time
+		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 1 }, time.Second, time.Second/100)
+
+		// Fail for the second time
+		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
+		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 2 }, time.Second, time.Second/100)
+
+		// Succeed
+		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
+		select {
+		case err := <-ret:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.Fail(t, "expected client to return")
+
+		}
+	})
+
+	t.Run("retriable, without retry-after", func(t *testing.T) {
+		handler := &failingHandler{
+			t:            t,
+			timesToFail:  2,
+			statusCode:   http.StatusTooManyRequests,
+			expectedBody: []byte(`{"name":"foo"}`),
+		}
+		mux := http.NewServeMux()
+		mux.Handle(route, handler)
+
+		srv := httptest.NewServer(mux)
+		t.Cleanup(func() { srv.Close() })
+
+		uri, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := &client{
+			httpClient:    &http.Client{},
+			tokenProvider: &fakeTokenProvider{},
+			clock:         clock,
+			retryConfig:   retryConfig,
+			baseURL:       uri,
+		}
+
+		ret := make(chan error, 1)
+		go func() {
+			ret <- client.CreateFederatedIdentityCredential(context.Background(), appID, object)
+		}()
+
+		// Fail for the first time
+		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 1 }, time.Second, time.Second/100)
+
+		// Fail for the second time
+		clock.Advance(time.Second)
+		require.Eventually(t, func() bool { return handler.timesCalled.Load() == 2 }, time.Second, time.Second/100)
+
+		// Succeed
+		clock.Advance(time.Second)
+		select {
+		case err := <-ret:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.Fail(t, "expected client to return")
+
+		}
+	})
+
+	t.Run("non-retriable", func(t *testing.T) {
+		handler := &failingHandler{
+			t:            t,
+			timesToFail:  1,
+			statusCode:   http.StatusNotFound,
+			expectedBody: []byte(`{"name":"foo"}`),
+		}
+		mux := http.NewServeMux()
+		mux.Handle(route, handler)
+
+		srv := httptest.NewServer(mux)
+		t.Cleanup(func() { srv.Close() })
+
+		uri, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := &client{
+			httpClient:    &http.Client{},
+			tokenProvider: &fakeTokenProvider{},
+			clock:         clock,
+			baseURL:       uri,
+		}
+
+		require.Error(t, client.CreateFederatedIdentityCredential(context.Background(), appID, object))
+	})
 }
