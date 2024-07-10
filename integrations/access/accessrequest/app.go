@@ -128,7 +128,7 @@ func (a *App) run(ctx context.Context) error {
 		{Kind: types.KindAccessMonitoringRule},
 	}
 
-	confirmedWatchKindsCh := make(chan []types.WatchKind, 1)
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
 	job, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
@@ -136,7 +136,11 @@ func (a *App) run(ctx context.Context) error {
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
-		confirmedWatchKindsCh,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -148,17 +152,9 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "context is closing")
-	case confirmedKinds := <-confirmedWatchKindsCh:
-		if slices.ContainsFunc(confirmedKinds, func(kind types.WatchKind) bool {
-			return kind.Kind == types.KindAccessMonitoringRule
-		}) {
-			if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
-				return trace.Wrap(err, "initializing Access Monitoring Rule cache")
-			}
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
 	}
 
