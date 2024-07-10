@@ -4482,9 +4482,10 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
 	positiveResponse := &clusterconfigpb.AccessGraphConfig{
-		Enabled: true,
-		Ca:      []byte("ca"),
-		Address: "addr",
+		Enabled:           true,
+		Ca:                []byte("ca"),
+		Address:           "addr",
+		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
 	}
 
 	tests := []struct {
