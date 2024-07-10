@@ -210,8 +210,6 @@ func (p *Provider) IsConfigured(diags diag.Diagnostics) bool {
 
 // Configure configures the Teleport client
 func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderRequest, resp *tfsdk.ConfigureProviderResponse) {
-	var creds []client.Credentials
-
 	p.configureLog()
 
 	var config providerData
@@ -221,93 +219,17 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	addr := p.stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
-	certPath := p.stringFromConfigOrEnv(config.CertPath, constants.EnvVarTerraformCertificates, "")
-	certBase64 := p.stringFromConfigOrEnv(config.CertBase64, constants.EnvVarTerraformCertificatesBase64, "")
-	keyPath := p.stringFromConfigOrEnv(config.KeyPath, constants.EnvVarTerraformKey, "")
-	keyBase64 := p.stringFromConfigOrEnv(config.KeyBase64, constants.EnvVarTerraformKeyBase64, "")
-	caPath := p.stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
-	caBase64 := p.stringFromConfigOrEnv(config.RootCaBase64, constants.EnvVarTerraformRootCertificatesBase64, "")
-	profileName := p.stringFromConfigOrEnv(config.ProfileName, constants.EnvVarTerraformProfileName, "")
-	profileDir := p.stringFromConfigOrEnv(config.ProfileDir, constants.EnvVarTerraformProfilePath, "")
-	identityFilePath := p.stringFromConfigOrEnv(config.IdentityFilePath, constants.EnvVarTerraformIdentityFilePath, "")
-	identityFile := p.stringFromConfigOrEnv(config.IdentityFile, constants.EnvVarTerraformIdentityFile, "")
-	identityFileBase64 := p.stringFromConfigOrEnv(config.IdentityFileBase64, constants.EnvVarTerraformIdentityFileBase64, "")
-	retryBaseDurationStr := p.stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
-	retryCapDurationStr := p.stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
-	maxTriesStr := p.stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
-	dialTimeoutDurationStr := p.stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
+	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
+	retryBaseDurationStr := stringFromConfigOrEnv(config.RetryBaseDuration, constants.EnvVarTerraformRetryBaseDuration, "1s")
+	retryCapDurationStr := stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
+	maxTriesStr := stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
+	dialTimeoutDurationStr := stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
 
 	if !p.validateAddr(addr, resp) {
 		return
 	}
 
 	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
-
-	if certPath != "" && keyPath != "" {
-		l := log.WithField("cert_path", certPath).WithField("key_path", keyPath).WithField("root_ca_path", caPath)
-		l.Debug("Using auth with certificate, private key and (optionally) CA read from files")
-
-		cred, ok := p.getCredentialsFromKeyPair(certPath, keyPath, caPath, resp)
-		if !ok {
-			return
-		}
-		creds = append(creds, cred)
-	}
-
-	if certBase64 != "" && keyBase64 != "" {
-		log.Debug("Using auth with certificate, private key and (optionally) CA read from base64 encoded vars")
-		cred, ok := p.getCredentialsFromBase64(certBase64, keyBase64, caBase64, resp)
-		if !ok {
-			return
-		}
-		creds = append(creds, cred)
-	}
-
-	if identityFilePath != "" {
-		log.WithField("identity_file_path", identityFilePath).Debug("Using auth with identity file")
-
-		if !p.fileExists(identityFilePath) {
-			resp.Diagnostics.AddError(
-				"Identity file not found",
-				fmt.Sprintf(
-					"File %v not found! Use `tctl auth sign --user=example@example.com --format=file --out=%v` to generate identity file",
-					identityFilePath,
-					identityFilePath,
-				),
-			)
-			return
-		}
-
-		creds = append(creds, client.LoadIdentityFile(identityFilePath))
-	}
-
-	if identityFile != "" {
-		log.Debug("Using auth from identity file provided with environment variable TF_TELEPORT_IDENTITY_FILE")
-		creds = append(creds, client.LoadIdentityFileFromString(identityFile))
-	}
-
-	if identityFileBase64 != "" {
-		log.Debug("Using auth from base64 encoded identity file provided with environment variable TF_TELEPORT_IDENTITY_FILE_BASE64")
-		decoded, err := base64.StdEncoding.DecodeString(identityFileBase64)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to decode Identity file using base 64",
-				fmt.Sprintf("Error when trying to decode: %v", err),
-			)
-			return
-		}
-
-		creds = append(creds, client.LoadIdentityFileFromString(string(decoded)))
-	}
-
-	if profileDir != "" || len(creds) == 0 {
-		log.WithFields(log.Fields{
-			"dir":  profileDir,
-			"name": profileName,
-		}).Debug("Using profile as the default auth method")
-		creds = append(creds, client.LoadProfile(profileDir, profileName))
-	}
 
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
@@ -318,9 +240,14 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	client, err := client.New(ctx, client.Config{
+	activeSources, diags := supportedCredentialSources.ActiveSources(ctx, config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	clientConfig := client.Config{
 		Addrs:       []string{addr},
-		Credentials: creds,
 		DialTimeout: dialTimeoutDuration,
 		DialOpts: []grpc.DialOption{
 			grpc.WithReturnConnectionError(),
@@ -328,15 +255,15 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 				grpc.WaitForReady(true),
 			),
 		},
-	})
+	}
 
-	if err != nil {
-		log.WithError(err).Debug("Error connecting to Teleport!")
-		resp.Diagnostics.AddError("Error connecting to Teleport!", err.Error())
+	clt, diags := activeSources.BuildClient(ctx, clientConfig, config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !p.checkTeleportVersion(ctx, client, resp) {
+	if !p.checkTeleportVersion(ctx, clt, resp) {
 		return
 	}
 
@@ -372,7 +299,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		Cap:      retryCapDuration,
 		MaxTries: int(maxTries),
 	}
-	p.Client = client
+	p.Client = clt
 	p.configured = true
 }
 
@@ -402,7 +329,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 }
 
 // stringFromConfigOrEnv returns value from config or from env var if config value is empty, default otherwise
-func (p *Provider) stringFromConfigOrEnv(value types.String, env string, def string) string {
+func stringFromConfigOrEnv(value types.String, env string, def string) string {
 	if value.Unknown || value.Null {
 		value := os.Getenv(env)
 		if value != "" {
