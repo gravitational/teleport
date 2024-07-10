@@ -3,44 +3,37 @@ title: Joining Services via AWS EC2 Identity Document
 description: Use the EC2 join method to add services to your Teleport cluster on AWS
 ---
 
-This guide will explain how to use the **EC2 join method** to configure Teleport
-processes to join your Teleport cluster without sharing any secrets when they
-are running in AWS.
+This guide explains how to use the **EC2 join method** to configure Teleport
+processes to join your Teleport cluster without sharing any secrets when they a
+re running in AWS.
+
+The EC2 join method is only available in self-hosted Teleport deployments. There
+are two other AWS join methods available depending on your use case:
+
+1. The **IAM join method** is available to any Teleport process running anywhere
+   with access to IAM credentials, such as an EC2 instance with an attached IAM
+   role (see [documentation](aws-iam.mdx). No specific permissions or IAM policy
+   is required: an IAM role with no attached policies is sufficient. No IAM
+   credentials are required on the Teleport Auth Service.
+1. **Tokens not signed by AWS:** You can configure Teleport processes running on
+   AWS to join a cluster via [Teleport join tokens](join-token.mdx) or, for
+   Teleport processes running on Kubernetes, [signed ServiceAccount
+   tokens](kubernetes.mdx). These approaches allow you to join a Teleport
+   process to a cluster when you don't want to rely on AWS-specific APIs, e.g.,
+   when adopting a cloud-agnostic approach.
+
+## How it works
 
 The EC2 join method is available to any Teleport process running on an EC2
 instance. Only one Teleport process per EC2 instance may use the EC2 join
-method.
+method. The process presents an [EC2 instance identity
+document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html)
+to the Teleport Auth Service. 
 
-IAM credentials with `ec2:DescribeInstances` permissions are required on your
-Teleport Auth Service. No IAM credentials are required on the Teleport processes
-joining the cluster.
-
-<Notice type="warning">
-
-The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
-Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
-method](./aws-iam.mdx) or [secret tokens](join-token.mdx).
-
-</Notice>
-
-<Details
-opened
-title="Other AWS joining methods"
->
-
-There are two other AWS join methods available depending on your use case.
-
-The **IAM join method** is available in self-hosted editions of Teleport. It is
-available to any Teleport process running anywhere with access to IAM
-credentials, such as an EC2 instance with an attached IAM role. No specific
-permissions or IAM policy is required: an IAM role with no attached policies is
-sufficient. No IAM credentials are required on the Teleport Auth Service.
-
-You can also configure services running in AWS to join a cluster via [join
-tokens](join-token.mdx), which is useful when you don't want to rely on
-AWS-specific APIs.
-
-</Details>
+Meanwhile, the Teleport Auth Service has AWS IAM credentials with
+`ec2:DescribeInstances` permissions in order to check that the identity document
+belongs to a legitimate EC2 instance. No IAM credentials are required on the
+Teleport processes joining the cluster.
 
 ## Prerequisites
 
