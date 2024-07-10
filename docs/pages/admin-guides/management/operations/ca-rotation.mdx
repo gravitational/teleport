@@ -28,12 +28,12 @@ following order:
 1. `init`: A new certificate authority is issued, but not used.
 1. `update_clients`: The Teleport Auth Service uses the new CA to sign
    certificates but continues to trust certificates signed by the original CA.
-1. `update_servers`: Teleport servers (Agents, Auth Service, and Proxy Service
-   instances) reload and start serving TLS and SSH certificates signed by the
-   new certificate authority, but still accept certificates issued by the
-   original certificate authority. This only applies to the Teleport [`host`
-   CA](#host).
-1. `standby`: No rotation in progress. All operations have completed.
+1. `update_servers`: Teleport cluster components (Agents, Auth Service, and
+   Proxy Service instances) reload and start serving TLS and SSH certificates
+   signed by the new certificate authority, but still accept certificates issued
+   by the original certificate authority. This only applies to the Teleport
+   [`host` CA](#host).
+   1. `standby`: No rotation in progress. All operations have completed.
 
 Before the final `standby` phase, you an also put the rotation in the `rollback`
 phase, aborting the rotation and returning to the original certificate
@@ -61,16 +61,16 @@ date during the migration.
 We recommend rotating a single CA at a time in order to reduce complexity. The
 exception is rotating the `db` and `db_client` CAs. 
 
-|CA type|Certificate subjects|Verified by|
+|CA type|Certificate subjects|
 |---|---|
-|[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|Clients communicating with Teleport components.|
-|[`user`](#user)|Teleport users. Teleport SSH Service and Windows Desktop Service instances.|Teleport-protected servers and Windows desktops.|
-|[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|The Teleport Database Service.|
-|[`db_client`](#db-and-db_client)|The Teleport Database Service.|Self-hosted databases protected by Teleport.|
-|[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|Clients connecting to Teleport-protected OpenSSH servers.|
-|[`jwt`](#jwt)|Teleport users|Applications that accept Teleport-issued JSON web tokens sent by the Teleport Application Service.|
-|[`saml_idp`](#saml_idp)|The Teleport SAML IdP|Applications configured to use the Teleport SAML IdP for authentication.|
-|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration|AWS during authentication for features like EICE EC2 Access, External Audit Storage, Auto-Discovery, and AWS Sync for Access Graph.|
+|[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
+|[`user`](#user)|Teleport users. Teleport SSH Service and Windows Desktop Service instances.|
+|[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
+|[`db_client`](#db-and-db_client)|The Teleport Database Service.|
+|[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
+|[`jwt`](#jwt)|Teleport users|
+|[`saml_idp`](#saml_idp)|The Teleport SAML IdP|
+|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration|
 
 ### `host`
 
@@ -144,9 +144,13 @@ Service uses to communicate with self-hosted databases.
 
 The Teleport Database Service presents a certificate signed by the `db_client`
 CA when communicating with a self-hosted database, which an admin configures to
-trust certificates issued by the CA. Self-hosted databases present a certificate
-signed by the `db` CA, which the Database Service uses to verify that a database
-server is a genuine Teleport-protected resource.
+trust certificates issued by the CA. 
+
+Admins can configure self-hosted databases to present a certificate signed by
+the `db` CA, which the Database Service uses to verify that a database server is
+a genuine Teleport-protected resource. Alternatively, self-hosted databases can
+present a certificate signed by a custom CA, and admins can configure the
+Teleport Database Service to trust the CA.
 
 #### Beginning the rotation
 
@@ -352,9 +356,9 @@ trust certificates signed by the original CA.
 
 ### `update_servers`
 
-Initiate the `update_servers` phase. In this phase, Teleport servers (Agents,
-Auth Service, and Proxy Service instances) reload and start serving TLS and SSH
-certificates signed by the new certificate authority, but still accept
+Initiate the `update_servers` phase. In this phase, Teleport cluster components
+(Agents, Auth Service, and Proxy Service instances) reload and start serving TLS
+and SSH certificates signed by the new certificate authority, but still accept
 certificates issued by the original certificate authority. This phase only
 affects the `host` CA.
 
@@ -439,7 +443,7 @@ meaning that you can lose connectivity if things go wrong. As a result, you
 **should not** carry out a semi-automatic rotation if you need to export a CA to
 your infrastructure.
 
-Complete a rotation in  manual mode first to understand all the edge-cases and
+Complete a rotation in manual mode first to understand all the edge-cases and
 hazards before attempting a semi-automatic rotation.
 
 ### Initiate a semi-automatic rotation
