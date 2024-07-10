@@ -26,6 +26,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/assert"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
@@ -1207,6 +1208,16 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	})
 
 	return created, nil
+}
+
+// CreateAssertCeremony creates a new [assert.Ceremony] backed by this
+// [Service].
+func (s *Service) CreateAssertCeremony() (*assert.Ceremony, error) {
+	c, err := assert.NewCeremony(&internal.AssertParams{
+		Logger:  s.logger,
+		Storage: s.storage,
+	})
+	return c, trace.Wrap(err)
 }
 
 // getDevicesByID reads devices from storage concurrently.

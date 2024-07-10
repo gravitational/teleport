@@ -55,7 +55,8 @@ type AuthnCeremony struct {
 	Storage *storage.S
 	// SkipOwnerBackfill skips backfilling device owners if set to true.
 	SkipOwnerBackfill bool
-	CachedUsers       UsersService
+	// CachedUsers is only required for owner backfill.
+	CachedUsers UsersService
 	// AugmentCertsFunc calls its namesake auth.Server function.
 	// May be nil for ceremonies that don't issue new certificates (like device
 	// assertion ceremonies)
