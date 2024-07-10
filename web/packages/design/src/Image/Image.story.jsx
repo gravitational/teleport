@@ -17,37 +17,13 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { storiesOf } from '@storybook/react';
-import { Box } from 'design';
 
-import SplitPane from './SplitPane';
+import teleportSvg from './../assets/images/enterprise-dark.svg';
 
-storiesOf('Shared', module).add('SplitPane', () => {
-  return (
-    <Container>
-      <SplitPane defaultSize="50%" flex="1" split="vertical">
-        <Box flex="1" bg="red">
-          red
-        </Box>
-        <SplitPane flex="1" split="horizontal" defaultSize="50%">
-          <Box flex="1" bg="blue">
-            blue
-          </Box>
-          <Box flex="1" bg="green">
-            green
-          </Box>
-        </SplitPane>
-      </SplitPane>
-    </Container>
-  );
-});
+import Image from '.';
 
-const Container = styled.div`
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  position: absolute;
-  display: flex;
-`;
+export default {
+  title: 'Design/Image',
+};
+
+export const Logo = () => <Image src={teleportSvg} />;

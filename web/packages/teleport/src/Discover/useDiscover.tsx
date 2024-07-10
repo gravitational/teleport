@@ -526,13 +526,15 @@ type BaseMeta = {
    * in customers infrastructure such as Kubernetes clusters or databases hosted
    * on cloud platforms like AWS, Azure, etc.
    */
-  autoDiscovery?: {
-    config: DiscoveryConfig;
-    // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
-    // If this is empty, then a user can skip deploying db agents.
-    // If >0, auto discovery requires deploying db agents.
-    requiredVpcsAndSubnets?: Record<string, string[]>;
-  };
+  autoDiscovery?: AutoDiscovery;
+};
+
+export type AutoDiscovery = {
+  config: DiscoveryConfig;
+  // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
+  // If this is empty, then a user can skip deploying db agents.
+  // If >0, auto discovery requires deploying db agents.
+  requiredVpcsAndSubnets?: Record<string, string[]>;
 };
 
 // NodeMeta describes the fields for node resource
