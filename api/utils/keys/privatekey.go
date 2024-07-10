@@ -144,7 +144,7 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 func (k *PrivateKey) PPKFile() ([]byte, error) {
 	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
 	if !ok {
-		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
+		return nil, trace.BadParameter("only RSA keys are supported for PPK files, found private key of type %T", k.Signer)
 	}
 	ppkFile, err := ppk.ConvertToPPK(rsaKey, k.MarshalSSHPublicKey())
 	if err != nil {
@@ -153,16 +153,18 @@ func (k *PrivateKey) PPKFile() ([]byte, error) {
 	return ppkFile, nil
 }
 
-// RSAPrivateKeyPEM returns a PEM encoded RSA private key for the given key.
-// If the given key is not an RSA key, then an error will be returned.
+// SoftwarePrivateKeyPEM returns the PEM encoding of the private key. If the key
+// is not a raw software RSA, ECDSA, or Ed25519 key, then an error will be returned.
 //
-// This is used by some integrations which currently only support raw RSA private keys,
-// like Kubernetes, MongoDB, and PPK files for windows.
-func (k *PrivateKey) RSAPrivateKeyPEM() ([]byte, error) {
-	if _, ok := k.Signer.(*rsa.PrivateKey); !ok {
-		return nil, trace.BadParameter("cannot get rsa key PEM for private key of type %T", k.Signer)
+// This is used by some integrations which currently only support raw software
+// private keys as opposed to hardware keys (yubikeys), like Kubernetes,
+// MongoDB, and PPK files for windows.
+func (k *PrivateKey) SoftwarePrivateKeyPEM() ([]byte, error) {
+	switch k.Signer.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, *ed25519.PrivateKey:
+		return k.keyPEM, nil
 	}
-	return k.keyPEM, nil
+	return nil, trace.BadParameter("cannot get software key PEM for private key of type %T", k.Signer)
 }
 
 // LoadPrivateKey returns the PrivateKey for the given key file.
@@ -316,27 +318,22 @@ func X509KeyPair(certPEMBlock, keyPEMBlock []byte) (tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-// IsRSAPrivateKey returns true if the given private key is an RSA private key.
-// This function does a similar check to ParsePrivateKey, followed by key.RSAPrivateKeyPEM()
-// without parsing the private fully into a crypto.Signer.
-// This reduces the time it takes to check if a private key is an RSA private key
-// and improves the performance compared to ParsePrivateKey by a factor of 20.
-func IsRSAPrivateKey(privKey []byte) bool {
+// AssertSoftwarePrivateKey returns nil if the given private key PEM looks like a
+// raw software private key as opposed to a hardware key (yubikey).
+// This function does a similar check to ParsePrivateKey, followed by
+// key.SoftwarePrivateKeyPEM() without parsing the private fully into a
+// crypto.Signer. This reduces the time it takes to check if a private key is
+// a software private key and improves the performance compared to
+// ParsePrivateKey by a factor of 20.
+func AssertSoftwarePrivateKey(privKey []byte) error {
 	block, _ := pem.Decode(privKey)
 	if block == nil {
-		return false
+		return trace.BadParameter("no valid PEM block found")
 	}
 	switch block.Type {
-	case PKCS1PrivateKeyType:
-		return true
-	case PKCS8PrivateKeyType:
-		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		if err != nil {
-			return false
-		}
-		_, ok := priv.(*rsa.PrivateKey)
-		return ok
-	default:
-		return false
+	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
+		return nil
 	}
+	return trace.BadParameter("found PEM block with type %q, only the following types are supported: %v",
+		block.Type, []string{PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType})
 }
