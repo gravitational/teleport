@@ -79,6 +79,11 @@ func (p *PostgresTranslator) TranslateEvent(evt events.AuditEvent) *events.Sessi
 		p.expectingResult = printEvent != nil
 		return printEvent
 	case *events.PostgresFunctionCall:
+		// Function calls are skipped on the playback since the lack of
+		// information to present a informative/understanable messages. For
+		// example, we only have the function OID (not the string representaion,
+		// or definition),  In addition, they are cosidered legacy/deprecated,
+		// function calling is now done through queries (e.g. SELECT func()).
 		p.expectingResult = false
 	case *events.DatabaseSessionStart:
 		p.sessionStartAt = e.Time
