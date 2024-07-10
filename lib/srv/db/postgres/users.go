@@ -20,14 +20,20 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -62,7 +68,10 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	// We could call this once when the database is being initialized but
 	// doing it here has a nice "self-healing" property in case the Teleport
 	// bookkeeping group or stored procedures get deleted or changed offband.
-	err = e.initAutoUsers(ctx, sessionCtx, conn)
+	logger := e.Log.WithField("user", sessionCtx.DatabaseUser)
+	err = withRetry(ctx, logger, func() error {
+		return trace.Wrap(e.initAutoUsers(ctx, sessionCtx, conn))
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,15 +81,17 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(err)
 	}
 
-	e.Log.Infof("Activating PostgreSQL user %q with roles %v.", sessionCtx.DatabaseUser, roles)
-
-	_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
+	logger.WithField("roles", roles).Info("Activating PostgreSQL user")
+	err = withRetry(ctx, logger, func() error {
+		_, err = conn.Exec(ctx, activateQuery, sessionCtx.DatabaseUser, roles)
+		return trace.Wrap(err)
+	})
 	if err != nil {
-		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
-		return trace.Wrap(convertActivateError(sessionCtx, err))
+		logger.WithError(err).Debug("Call teleport_activate_user failed.")
+		errOut := convertActivateError(sessionCtx, err)
+		return trace.Wrap(errOut)
 	}
 	return nil
-
 }
 
 // DeactivateUser disables the database user.
@@ -95,9 +106,12 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	}
 	defer conn.Close(ctx)
 
-	e.Log.Infof("Deactivating PostgreSQL user %q.", sessionCtx.DatabaseUser)
-
-	_, err = conn.Exec(ctx, deactivateQuery, sessionCtx.DatabaseUser)
+	logger := e.Log.WithField("user", sessionCtx.DatabaseUser)
+	logger.Info("Deactivating PostgreSQL user.")
+	err = withRetry(ctx, logger, func() error {
+		_, err = conn.Exec(ctx, deactivateQuery, sessionCtx.DatabaseUser)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,12 +121,6 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	// TODO support DeleteUser for Redshift
-	if sessionCtx.Database.IsRedshift() {
-		e.Log.Debug("DeleteUser is not supported for Redshift yet, it was disabled instead.")
-		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
-	}
-
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
@@ -123,26 +131,29 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 	defer conn.Close(ctx)
 
-	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
+	logger := e.Log.WithField("user", sessionCtx.DatabaseUser)
+	logger.Info("Deleting PostgreSQL user.")
 
 	var state string
-	switch {
-	case sessionCtx.Database.IsRedshift():
-		err = e.deleteUserRedshift(ctx, sessionCtx, conn, &state)
-	default:
-		err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
-	}
+	err = withRetry(ctx, logger, func() error {
+		switch {
+		case sessionCtx.Database.IsRedshift():
+			return trace.Wrap(e.deleteUserRedshift(ctx, sessionCtx, conn, &state))
+		default:
+			return trace.Wrap(conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state))
+		}
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch state {
 	case common.SQLStateUserDropped:
-		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		logger.Debug("User deleted successfully.")
 	case common.SQLStateUserDeactivated:
-		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+		logger.Info("Unable to delete user, it was disabled instead.")
 	default:
-		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+		logger.Warn("Unable to determine user deletion state.")
 	}
 
 	return nil
@@ -300,3 +311,62 @@ var (
 		deleteProcName:     redshiftDeleteProc,
 	}
 )
+
+// withRetry is a helper for auto user operations that runs a given func a
+// finite number of times until it returns nil error or the given context is
+// done.
+func withRetry(ctx context.Context, log logrus.FieldLogger, f func() error) error {
+	linear, err := retryutils.NewLinear(retryutils.LinearConfig{
+		// arbitrarily copied settings from retry logic in lib/backend/pgbk.
+		First:  0,
+		Step:   100 * time.Millisecond,
+		Max:    750 * time.Millisecond,
+		Jitter: retryutils.NewHalfJitter(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// retry a finite number of times before giving up.
+	for i := 0; i < 10; i++ {
+		err := f()
+		if err == nil {
+			return nil
+		}
+
+		if isRetryable(err) {
+			log.WithError(err).Debug("User operation failed, retrying")
+		} else {
+			return trace.Wrap(err)
+		}
+
+		linear.Inc()
+		select {
+		case <-linear.After():
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+	return trace.Wrap(err, "too many retries")
+}
+
+// isRetryable returns true if an error can be retried.
+func isRetryable(err error) bool {
+	var pgErr *pgconn.PgError
+	err = trace.Unwrap(err)
+	if errors.As(err, &pgErr) {
+		// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
+		switch pgErr.Code {
+		case pgerrcode.DeadlockDetected, pgerrcode.SerializationFailure,
+			pgerrcode.UniqueViolation, pgerrcode.ExclusionViolation:
+			return true
+		}
+	}
+	// Redshift reports this with a vague SQLSTATE XX000, which is the internal
+	// error code, but this is a serialization error that rolls back the
+	// transaction, so it should be retried.
+	if strings.Contains(err.Error(), "conflict with concurrent transaction") {
+		return true
+	}
+	return pgconn.SafeToRetry(err)
+}
