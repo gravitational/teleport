@@ -14,12 +14,10 @@ enhancing the permission model within your AWS environment. This functionality e
 - Which resources can be reached via identities associated with EC2 instances?
 - What AWS resources can Teleport users access when connecting to EC2 nodes?
 
-Utilizing the Access Graph to analyze IAM permissions within an AWS
-account necessitates the setup of the Access Graph (AG)
+Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph (AG)
 service, a Discovery Service, and integration with your AWS account.
 
-Teleport Policy’s Access Graph is a feature of the [Teleport
-Policy](https://goteleport.com/platform/policy/) product that is 
+Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is 
 available to Teleport Enterprise customers.
 
 After logging in to the Teleport UI, go to the Management tab. If enabled, 
@@ -49,9 +47,8 @@ At intervals of 15 minutes, it retrieves the following resources from your AWS a
 - RDS Databases
 - S3 Buckets
 
-Once all the necessary resources are fetched, the Teleport Discovery
-Service pushes them to the Access Graph feature service, ensuring that 
-the Access Graph remains updated with the latest information from your AWS environment.
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the 
+Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
 
 ### Importing resources
 
