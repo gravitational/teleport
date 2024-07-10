@@ -1693,12 +1693,16 @@ changelog:
 #
 # usage: make create-github-release
 #
+# If it detects that the first version in CHANGELOG.md
+# does not match version set it will fail to create a release. If tag doesn't exist it
+# will also fail to create a release.
+#
 # For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
 .PHONY: create-github-release
-create-release-notes: $(RELEASE_NOTES_GEN)
-	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+create-github-release: $(RELEASE_NOTES_GEN)
+        @NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
     -t "Teleport $(VERSION)" \
     --latest=false \
     --target=master \
     --verify-tag \
-    -F "$$NOTES"
+    -F - <<< "$$NOTES"
