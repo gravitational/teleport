@@ -1248,6 +1248,7 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*sshutils.TC
 		return nil, trace.Wrap(err)
 	}
 	defer remoteConn.Close()
+
 	remoteFD, err := remoteConn.File()
 	if err != nil {
 		localConn.Close()
@@ -1993,10 +1994,7 @@ func (s *Server) startAgentForwardingListener(scx *srv.ServerContext) (*net.Unix
 	if !ok {
 		return nil, trace.BadParameter("listener is not a UnixListener")
 	}
-
-	if _, err := localConn.Write([]byte{0}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	unixListener.SetUnlinkOnClose(true)
 
 	return unixListener, nil
 }

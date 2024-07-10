@@ -913,6 +913,7 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	defer listener.Close()
 
 	unixListener, _ := listener.(*net.UnixListener)
 	if unixListener == nil {
@@ -923,15 +924,13 @@ func runAgentForward() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	defer listenerFD.Close()
 
 	if _, _, err = fconn.WriteWithFDs(nil, []*os.File{listenerFD}); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	if _, err := fconn.Read(make([]byte, 1)); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
+	unixListener.SetUnlinkOnClose(false)
 	return
 }
 
