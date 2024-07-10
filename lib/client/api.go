@@ -1305,32 +1305,31 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 		return []string{options.HostAddress}, nil
 	}
 
-	// use the target node that was explicitly provided if valid
-	if len(tc.Labels) == 0 {
-		// detect the common error when users use host:port address format
-		_, port, err := net.SplitHostPort(tc.Host)
-		// client has used host:port notation
-		if err == nil {
-			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
+	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
+		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-		return []string{addr}, nil
+		retval := make([]string, 0, len(nodes))
+		for _, resource := range nodes {
+			// always dial nodes by UUID
+			retval = append(retval, fmt.Sprintf("%s:0", resource.GetName()))
+		}
+
+		return retval, nil
 	}
 
-	// find the nodes matching the labels that were provided
-	nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 	}
 
-	retval := make([]string, 0, len(nodes))
-	for _, resource := range nodes {
-		// always dial nodes by UUID
-		retval = append(retval, fmt.Sprintf("%s:0", resource.GetName()))
-	}
-
-	return retval, nil
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+	return []string{addr}, nil
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
