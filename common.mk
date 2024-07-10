@@ -58,7 +58,7 @@ HAVE_LIBELF := $(shell $(PKGCONF) --exists libelf && echo 1 || echo 0)
 # If not, use the default libraries (libelf, libz) and hope for the best.
 # This fallback used to work until Ubuntu 24.04 which compiles with libzstd by default.
 ifeq ($(HAVE_LIBELF),1)
-    STATIC_LIBS += $(shell $(PKGCONF) --static --libs libelf libelf)
+    STATIC_LIBS += $(shell $(PKGCONF) --static --libs libelf)
 else
     STATIC_LIBS += -lelf -lz
 endif
