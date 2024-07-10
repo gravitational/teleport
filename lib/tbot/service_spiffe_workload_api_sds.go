@@ -189,7 +189,11 @@ func (s *SPIFFEWorkloadAPIService) FetchSecrets(
 		return nil, trace.Wrap(err, "authenticating client")
 	}
 
-	log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request received from workload")
+	log.InfoContext(
+		ctx,
+		"SecretDiscoveryService.FetchSecrets request received from workload",
+		slog.Group("req", "resource_names", req.ResourceNames),
+	)
 	defer log.InfoContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
 	return s.generateResponse(
@@ -361,7 +365,8 @@ func (s *SPIFFEWorkloadAPIService) generateResponse(
 
 	return &discoveryv3pb.DiscoveryResponse{
 		// Copy in requested type from req
-		TypeUrl:     req.TypeUrl,
+		TypeUrl: req.TypeUrl,
+		// TODO: version info ??
 		VersionInfo: "",
 		Resources:   resources,
 	}, nil
