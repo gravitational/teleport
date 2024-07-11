@@ -11,10 +11,12 @@ export const EditorTabs = ({
   onTabChange,
   selectedEditorTab,
   isProcessing,
+  disabled,
 }: {
   onTabChange(t: EditorTab): void;
   selectedEditorTab: EditorTab;
   isProcessing: boolean;
+  disabled: boolean;
 }) => {
   return (
     <SlideTabs
@@ -24,6 +26,7 @@ export const EditorTabs = ({
       size="medium"
       activeIndex={selectedEditorTab}
       isProcessing={isProcessing}
+      disabled={disabled}
     />
   );
 };

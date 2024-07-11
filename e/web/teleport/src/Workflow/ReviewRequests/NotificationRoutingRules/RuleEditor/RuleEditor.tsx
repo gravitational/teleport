@@ -204,6 +204,7 @@ export const RuleEditor = ({
           onTabChange={onTabChange}
           selectedEditorTab={selectedEditorTab}
           isProcessing={attempt.status === 'processing'}
+          disabled={requiresEnrollingPlugins}
         />
         {selectedEditorTab === EditorTab.Standard && (
           <>

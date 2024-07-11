@@ -40,13 +40,14 @@ const Controls = styled.div<{ disabled?: boolean }>`
 const RefreshButton = styled.div`
   border: 1px solid ${p => p.theme.colors.spotBackground[2]};
   border-radius: 7px;
-  min-height: 34px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 95px;
   box-sizing: border-box;
   cursor: pointer;
+  gap: ${p => p.theme.space[1]}px;
 
   &:hover {
     background: ${p => p.theme.colors.spotBackground[0]};
@@ -78,6 +79,7 @@ export function Header(props: HeaderProps) {
 
         <RefreshButton onClick={props.onRefresh}>
           <Refresh size="medium" />
+          Refresh
         </RefreshButton>
 
         <Timeframe days={props.days} onChange={handleChange} />
