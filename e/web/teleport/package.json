@@ -10,9 +10,8 @@
   },
   "author": "",
   "license": "UNLICENSED",
-  "//": "when adding e-only depenedencies, do not update this file. Add them to web/packages/e-imports/package.json.",
+  "//": "when adding e-only depenedencies, do not update this file. Add them to the root package.json.",
   "dependencies": {
-    "@gravitational/e-imports": "^1.0.0",
     "@gravitational/teleport": "^1.0.0"
   },
   "devDependencies": {
