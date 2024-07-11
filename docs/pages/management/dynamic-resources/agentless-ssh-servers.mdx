@@ -54,7 +54,7 @@ A functional Teleport Terraform provider by following [the Terraform provider gu
 <Admonition type="tip">
   If you want to add a private SSH server (e.g. behind a NAT, in a private
   network, protected by a firewall blocking inbound traffic, ...) you can
-  [install a Teleport agent](../../server-access/getting-started.mdx). The
+  [install a Teleport agent](../../enroll-resources/server-access/getting-started.mdx). The
   Teleport agent opens a tunnel to the Teleport Proxy Service, allowing any user
   to connect to it by going through the Proxy Service.
 </Admonition>
@@ -70,7 +70,7 @@ You must also choose a set of labels for the server. Those labels can be used to
 describe the server and control which users can access the server. They can be
 dynamically changed later, without having to reconfigure openSSH.
 
-See the [Access Controls for Servers](../../server-access/rbac.mdx) page for
+See the [Access Controls for Servers](../../enroll-resources/server-access/rbac.mdx) page for
 more details about labels and how to control access to your servers.
 
 In the rest of this guide, the labels will be:
@@ -283,9 +283,9 @@ infrastructure and tooling (you can configure the SSH CA in the VM image, use
 custom startup scripts, provision servers with Ansible, ...).
 
 A step-by-step manual setup is described
-in [the OpenSSH manual installation guide](../../server-access/openssh/openssh-manual-install.mdx)
+in [the OpenSSH manual installation guide](../../enroll-resources/server-access/openssh/openssh-manual-install.mdx)
 starting with the Step 2.
 
 ## Next steps
 
-- [Setup RBAC](../../server-access/rbac.mdx) to control which user can SSH on which server.
+- [Setup RBAC](../../enroll-resources/server-access/rbac.mdx) to control which user can SSH on which server.
