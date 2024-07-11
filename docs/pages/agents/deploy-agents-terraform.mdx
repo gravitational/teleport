@@ -70,39 +70,87 @@ a demo cluster using:
 
    {/*TODO: Edit the main.tf file so it doesn't just show Azure*/}
 
-   ```hcl
-   (!examples/agent-pool-terraform/main.tf!)
-   ```
+1. Create a file called `main.tf` with the following content, which imports the
+   `agent-pool-terraform` module for your cloud provider:
 
-## Step 2/6. Create Teleport tokens
-
-  ```hcl
-  (!examples/agent-pool-terraform/teleport/outputs.tf!)
-  ```
-
-  ```hcl 
-  (!examples/agent-pool-terraform/teleport/required_providers.tf!)
-  ```
-
-  ```hcl 
-  (!examples/agent-pool-terraform/teleport/inputs.tf!)
-  ```
-
-### Join token
-
-The module deploys one virtual machine instance for each Teleport agent. Each
-agent joins the cluster using a token. We create each token using the
-`teleport_provision_token` Terraform resource, specifying the token's value with
-a `random_string` resource:
+<Tabs>
+<TabItem label="AWS">
 
 ```hcl
-(!examples/agent-pool-terraform/teleport/token.tf!)
+module "teleport" {
+  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  agent_count           = 2
+  agent_roles           = ["Node"]
+  proxy_service_address = "teleport.example.com:443"
+  teleport_edition      = "oss"
+  teleport_version      = "(=teleport.version=)"
+}
+
+module "agents" {
+  region           = ""
+  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/aws"
+  subnet_id        = ""
+  userdata_scripts = module.teleport.userdata_scripts
+}
 ```
+
+</TabItem>
+<TabItem label="Google Cloud">
+
+```hcl
+module "teleport" {
+  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  agent_count           = 2
+  agent_roles           = ["Node"]
+  proxy_service_address = "teleport.example.com:443"
+  teleport_edition      = "oss"
+  teleport_version      = "(=teleport.version=)"
+}
+
+module "agents" {
+  gcp_zone         = "us-east1-b"
+  google_project   = ""
+  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/gcp"
+  subnet_id        = ""
+  userdata_scripts = module.teleport.userdata_scripts
+}
+```
+
+</TabItem>
+<TabItem label="Azure">
+
+```hcl
+module "teleport" {
+  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
+  agent_count           = 2
+  agent_roles           = ["Node"]
+  proxy_service_address = "teleport.example.com:443"
+  teleport_edition      = "oss"
+  teleport_version      = "(=teleport.version=)"
+}
+
+module "agents" {
+  azure_resource_group = ""
+  public_key_path      = ""
+  region               = "East US"
+  source               = "github.com/gravitational/teleport/examples/agent-pool-terraform/azure"
+  subnet_id            = ""
+  userdata_scripts     = module.teleport.userdata_scripts
+}
+```
+
+</TabItem>
+</Tabs>
 
 When we apply the `teleport_provision_token` resources, the Teleport Terraform
 provider creates them on the Teleport Auth Service backend. 
 
 ## Step 3/6. Create resources for your cloud provider
+
+In Step 3, you will define resources to deploy Teleport Agents on a pool of
+Linux servers using the Terraform provider for your cloud.
+
+### Configure the Terraform provider for your cloud
 
 1. In your root Terraform module, create a directory called `cloud` for
    resources to deploy to your cloud provider.
@@ -128,14 +176,6 @@ provider creates them on the Teleport Auth Service backend.
   </TabItem>
   <TabItem label="Azure">
 
-  Declare an Azure virtual machine resource to run Teleport agents using the
-  `teleport_provision_token` resource, plus the required network interface for
-  each instance. 
-  
-  Note that while Azure VM instances require a user account, this module
-  declares a temporary one to pass validation, but uses Teleport to enable
-  access to the instances:
-
   ```hcl 
   (!examples/agent-pool-terraform//azure/required_providers.tf!)
   ```
@@ -143,67 +183,84 @@ provider creates them on the Teleport Auth Service backend.
   </TabItem>
   </Tabs>
 
+{/* TODO: declare the join token before declaring the Linux servers*/}
 
-  <Tabs>
-  <TabItem label="AWS">
+### Configure Linux servers to run Agents
 
-  Declare a data source for an Amazon Linux 2023 machine image and uses it to
-  launch EC2 instances that run Teleport agents with the
-  `teleport_provision_token` resource:
+Create a file called `ec2-instance.tf` in the `cloud` directory and add the
+following HCL configuration, depending on your cloud provider. The configuration
+declares compute instances to that run Teleport Agents using a join token:
 
-  ```hcl 
-  (!examples/agent-pool-terraform/aws/ec2-instance.tf!)
-  ```
+<Tabs>
+<TabItem label="AWS">
 
-  </TabItem>
-  <TabItem label="Google Cloud">
+Declare a data source for an Amazon Linux 2023 machine image and uses it to
+launch EC2 instances that run Teleport agents with the
+`teleport_provision_token` resource:
 
-  Declare Google Compute Engine instances that use the
-  `teleport_provision_token` to run Teleport agents:
+```hcl 
+(!examples/agent-pool-terraform/aws/ec2-instance.tf!)
+```
 
-  ```hcl 
-  (!examples/agent-pool-terraform/gcp/gcp-instance.tf!)
-  ```
+</TabItem>
+<TabItem label="Google Cloud">
 
-  </TabItem>
-  <TabItem label="Azure">
+Declare Google Compute Engine instances that use the
+`teleport_provision_token` to run Teleport agents:
 
-  ```hcl 
-  (!examples/agent-pool-terraform/azure/azure-instance.tf!)
-  ```
+```hcl 
+(!examples/agent-pool-terraform/gcp/gcp-instance.tf!)
+```
 
-  </TabItem>
-  </Tabs>
+</TabItem>
+<TabItem label="Azure">
 
-The configuration you created runs the following user data script on each agent
-instance. The services enabled by the configuration file depend on the value of
-the `agent_roles` input variable:
+```hcl 
+(!examples/agent-pool-terraform/azure/azure-instance.tf!)
+```
+
+</TabItem>
+</Tabs>
+
+### Add a user data script
+
+The configuration you created runs a user data script on each agent instance.
+The services enabled by the configuration file depend on the value of the
+`agent_roles` input variable. Create a file called `userdata` with the following
+content:
 
 ```hcl
 (!examples/agent-pool-terraform/teleport/userdata!)
 ```
-  <Tabs>
-  <TabItem label="AWS">
 
-  ```hcl 
-  (!examples/agent-pool-terraform/aws/inputs.tf!)
-  ```
+### Configure inputs
 
-  </TabItem>
-  <TabItem label="Google Cloud">
+Earlier in this guide, we added `module` blocks to configure high-level settings
+for the Agent deployment. Decalre input variables to make these settings
+editable:
 
-  ```hcl 
-  (!examples/agent-pool-terraform/gcp/inputs.tf!)
-  ```
+<Tabs>
+<TabItem label="AWS">
 
-  </TabItem>
-  <TabItem label="Azure">
+```hcl 
+(!examples/agent-pool-terraform/aws/inputs.tf!)
+```
 
-  ```hcl 
-  (!examples/agent-pool-terraform/azure/inputs.tf!)
-  ```
-  </TabItem>
-  </Tabs>
+</TabItem>
+<TabItem label="Google Cloud">
+
+```hcl 
+(!examples/agent-pool-terraform/gcp/inputs.tf!)
+```
+
+</TabItem>
+<TabItem label="Azure">
+
+```hcl 
+(!examples/agent-pool-terraform/azure/inputs.tf!)
+```
+</TabItem>
+</Tabs>
 
 ## Step 4/6. Define dynamic resources
 
