@@ -217,15 +217,28 @@ exports[`approved role escalation 1`] = `
   cursor: auto;
 }
 
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c11 {
@@ -246,21 +259,6 @@ exports[`approved role escalation 1`] = `
   line-height: 16px;
   margin-top: 16px;
   margin-bottom: 8px;
-}
-
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
 }
 
 .c5 {
@@ -359,12 +357,11 @@ exports[`approved role escalation 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete Request?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -602,26 +599,6 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c12 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .c13 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -635,6 +612,24 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
   font-weight: 400;
   margin-right: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .c5 {
@@ -727,12 +722,11 @@ exports[`failed state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete Request?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -924,26 +918,6 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .c12 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -957,6 +931,24 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
   font-weight: 400;
   margin-right: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .c5 {
@@ -1049,12 +1041,11 @@ exports[`loaded state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete Request?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -1240,26 +1231,6 @@ exports[`processing state 1`] = `
   cursor: auto;
 }
 
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .c12 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -1273,6 +1244,24 @@ exports[`processing state 1`] = `
   color: #FFFFFF;
   font-weight: 400;
   margin-right: 4px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .c5 {
@@ -1365,12 +1354,11 @@ exports[`processing state 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Delete Request?
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"

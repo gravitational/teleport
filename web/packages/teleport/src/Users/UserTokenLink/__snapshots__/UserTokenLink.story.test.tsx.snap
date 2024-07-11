@@ -152,11 +152,9 @@ exports[`reset link dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
@@ -263,12 +261,11 @@ exports[`reset link dialog 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Share Link
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
@@ -474,11 +471,9 @@ exports[`reset link dialog as invite 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 24px;
 }
 
 .c10 {
@@ -585,12 +580,11 @@ exports[`reset link dialog as invite 1`] = `
       <div
         class="c4 c5"
       >
-        <div
+        <h2
           class="c6"
-          color="text.main"
         >
           Share Link
-        </div>
+        </h2>
       </div>
       <div
         class="c7 c8 c9"
