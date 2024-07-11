@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -95,9 +96,16 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 		recvTUNErr <- err
 	}()
 
+	// It should be more than waitingForEnablementTimeout in the vnet/daemon package
+	// so that the user sees the error about the background item first.
+	const receiveTunTimeout = time.Minute
+	receiveTunCtx, cancel := context.WithTimeoutCause(ctx, receiveTunTimeout,
+		errors.New("admin process did not send back TUN device within timeout"))
+	defer cancel()
+
 	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
+	case <-receiveTunCtx.Done():
+		return nil, trace.Wrap(context.Cause(receiveTunCtx))
 	case <-processCtx.Done():
 		return nil, trace.Wrap(context.Cause(processCtx))
 	case err := <-recvTUNErr:
@@ -110,7 +118,7 @@ func SetupAndRun(ctx context.Context, config *SetupAndRunConfig) (*ProcessManage
 				slog.DebugContext(ctx, "Error from recvTUNErr ignored in favor of processCtx.Err", "error", err)
 				return nil, trace.Wrap(context.Cause(processCtx))
 			}
-			return nil, trace.Wrap(err, "receiving TUN from admin process")
+			return nil, trace.Wrap(err, "receiving TUN device from admin process")
 		}
 	}
 

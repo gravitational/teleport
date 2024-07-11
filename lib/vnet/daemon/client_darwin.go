@@ -125,17 +125,17 @@ func register(ctx context.Context, bundlePath string) (ServiceStatus, error) {
 	return ServiceStatus(result.service_status), nil
 }
 
-const waitingForEnablementTimeout = time.Minute
-
-var waitingForEnablementTimeoutExceeded = errors.New("the login item was not enabled within the timeout")
-
 // waitForEnablement periodically checks if the status of the daemon has changed to
 // [serviceStatusEnabled]. This happens when the user approves the login item in system settings.
 func waitForEnablement(ctx context.Context, bundlePath string) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout, waitingForEnablementTimeoutExceeded)
+	// It should be less than receiveTunTimeout in the vnet package
+	// so that the user sees the error about the background item first.
+	const waitingForEnablementTimeout = 50 * time.Second
+	ctx, cancel := context.WithTimeoutCause(ctx, waitingForEnablementTimeout,
+		errors.New("the background item was not enabled within the timeout"))
 	defer cancel()
 
 	for {
