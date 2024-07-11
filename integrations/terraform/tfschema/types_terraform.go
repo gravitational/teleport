@@ -1312,11 +1312,6 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"signature_algorithm_suite": {
-					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. The current default value is \"legacy\". This field is not yet fully supported.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-				},
 				"type": {
 					Computed:      true,
 					Description:   "Type is the type of authentication.",
@@ -12910,23 +12905,6 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["signature_algorithm_suite"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-							} else {
-								var t github_com_gravitational_teleport_api_types.SignatureAlgorithmSuite
-								if !v.Null && !v.Unknown {
-									t = github_com_gravitational_teleport_api_types.SignatureAlgorithmSuite(v.Value)
-								}
-								obj.SignatureAlgorithmSuite = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -14121,28 +14099,6 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["hardware_key"] = v
 							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["signature_algorithm_suite"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite"})
-						} else {
-							v, ok := tf.Attrs["signature_algorithm_suite"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.signature_algorithm_suite", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.signature_algorithm_suite", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-								}
-								v.Null = int64(obj.SignatureAlgorithmSuite) == 0
-							}
-							v.Value = int64(obj.SignatureAlgorithmSuite)
-							v.Unknown = false
-							tf.Attrs["signature_algorithm_suite"] = v
 						}
 					}
 				}
