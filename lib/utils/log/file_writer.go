@@ -47,16 +47,22 @@ type FileSharedWriter struct {
 	logFile  atomic.Pointer[os.File]
 	fileFlag int
 	fileMode fs.FileMode
+	watcher  *fsnotify.Watcher
 
 	lock sync.Mutex
 }
 
 // SetFileSharedWriter sets global file shared writer.
-func SetFileSharedWriter(sharedWriter *FileSharedWriter) {
+func SetFileSharedWriter(sharedWriter *FileSharedWriter) (err error) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	if fileSharedWriter != nil {
+		err = fileSharedWriter.Close()
+	}
 	fileSharedWriter = sharedWriter
+
+	return trace.Wrap(err)
 }
 
 // GetFileSharedWriter returns instance of the global file shared writer.
@@ -73,8 +79,12 @@ func NewFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (*FileSha
 	if logFile == nil {
 		return nil, trace.BadParameter("log file is not set")
 	}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	sharedWriter := &FileSharedWriter{fileFlag: flag, fileMode: mode}
+	sharedWriter := &FileSharedWriter{fileFlag: flag, fileMode: mode, watcher: watcher}
 	sharedWriter.logFile.Store(logFile)
 
 	return sharedWriter, nil
@@ -116,20 +126,14 @@ func (s *FileSharedWriter) RunWatcherReopen(ctx context.Context) error {
 // runWatcherFunc spawns goroutine with the watcher loop to consume events of renaming
 // or removing the log file to trigger the action function when event appeared.
 func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() error) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return trace.Wrap(err)
+	if s.watcher.WatchList() == nil {
+		return trace.BadParameter("watcher is already closed")
 	}
-	context.AfterFunc(ctx, func() {
-		if err := watcher.Close(); err != nil {
-			slog.ErrorContext(context.Background(), "Failed to close file watcher", "error", err)
-		}
-	})
 
 	go func() {
 		for {
 			select {
-			case event, ok := <-watcher.Events:
+			case event, ok := <-s.watcher.Events:
 				if !ok {
 					return
 				}
@@ -140,7 +144,7 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 						continue
 					}
 				}
-			case err, ok := <-watcher.Errors:
+			case err, ok := <-s.watcher.Errors:
 				if !ok {
 					return
 				}
@@ -150,9 +154,17 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 	}()
 
 	logDirParent := filepath.Dir(s.logFile.Load().Name())
-	if err = watcher.Add(logDirParent); err != nil {
+	if err := s.watcher.Add(logDirParent); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+// Close stops the internal watcher.
+func (s *FileSharedWriter) Close() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	return s.watcher.Close()
 }

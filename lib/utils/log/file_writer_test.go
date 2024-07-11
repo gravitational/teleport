@@ -40,12 +40,13 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	logFile, err := os.OpenFile(filepath.Join(logDir, "test.log"), testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to open log file")
 
-	t.Cleanup(func() {
-		cancel()
-	})
-
 	logWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
+
+	t.Cleanup(func() {
+		cancel()
+		require.NoError(t, logWriter.Close())
+	})
 
 	signal := make(chan struct{})
 	err = logWriter.runWatcherFunc(ctx, func() error {
@@ -84,4 +85,70 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	data, err = os.ReadFile(logFile.Name())
 	require.NoError(t, err, "cannot read log file")
 	require.Equal(t, secondPhrase, string(data), "second written phrase does not match")
+}
+
+// TestFileSharedWriterGlobalSet verifies that logic with closing file shared writer
+// after overriding it in the global variable.
+func TestFileSharedWriterGlobalSet(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	logDir := t.TempDir()
+	testFileMode := os.FileMode(0o600)
+	testFileFlag := os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	logFile, err := os.OpenFile(filepath.Join(logDir, "test.log"), testFileFlag, testFileMode)
+	require.NoError(t, err, "failed to open log file")
+
+	// Initiate the first file shared writer and set it as global.
+	var firstWatcherTriggered bool
+	firstLogWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
+	require.NoError(t, err, "failed to init the file shared writer")
+
+	err = firstLogWriter.runWatcherFunc(ctx, func() error {
+		firstWatcherTriggered = true
+		return nil
+	})
+	require.NoError(t, err, "failed to run reopen watcher")
+
+	err = SetFileSharedWriter(firstLogWriter)
+	require.NoError(t, err, "can't set the global writer")
+
+	// Initiate the second file shared writer and set it as global,
+	// previous must be closed automatically and stop reacting on events.
+	secondLogWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
+	require.NoError(t, err, "failed to init the file shared writer")
+
+	signal := make(chan struct{})
+	err = secondLogWriter.runWatcherFunc(ctx, func() error {
+		err := secondLogWriter.Reopen()
+		signal <- struct{}{}
+		return err
+	})
+	require.NoError(t, err, "failed to run reopen watcher")
+
+	err = SetFileSharedWriter(secondLogWriter)
+	require.NoError(t, err, "can't set the global writer")
+
+	// Move the original file to a new location to simulate the logrotate operation.
+	err = os.Rename(logFile.Name(), fmt.Sprintf("%s.1", logFile.Name()))
+	require.NoError(t, err, "can't rename log file")
+
+	select {
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for file reopen")
+	case <-signal:
+	}
+
+	// Check that if we set new global file shared writer we close first one.
+	require.False(t, firstWatcherTriggered)
+
+	// Check that we receive the error if we are going to try to run watcher
+	// again for closed one.
+	err = firstLogWriter.RunWatcherReopen(ctx)
+	require.Error(t, err)
+
+	t.Cleanup(func() {
+		cancel()
+		require.NoError(t, firstLogWriter.Close())
+		require.NoError(t, secondLogWriter.Close())
+	})
 }
