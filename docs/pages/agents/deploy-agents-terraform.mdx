@@ -61,7 +61,7 @@ a demo cluster using:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/ . Set up a module for deploying Agents
+## Step 1/6. Set up a module for deploying Agents
 
 1. Navigate to the directory for the root Terraform module that manages Teleport
    resources.
@@ -74,7 +74,7 @@ a demo cluster using:
    (!examples/agent-pool-terraform/main.tf!)
    ```
 
-## Step 2/ . Create Teleport tokens
+## Step 2/6. Create Teleport tokens
 
   ```hcl
   (!examples/agent-pool-terraform/teleport/outputs.tf!)
@@ -102,7 +102,7 @@ a `random_string` resource:
 When we apply the `teleport_provision_token` resources, the Teleport Terraform
 provider creates them on the Teleport Auth Service backend. 
 
-## Step 3/ . Create resources for your cloud provider
+## Step 3/6. Create resources for your cloud provider
 
 1. In your root Terraform module, create a directory called `cloud` for
    resources to deploy to your cloud provider.
@@ -205,7 +205,7 @@ the `agent_roles` input variable:
   </TabItem>
   </Tabs>
 
-## Step 4/ . Define dynamic resources
+## Step 4/6. Define dynamic resources
 
 You can declare Terraform resources that enroll your infrastructure with
 Teleport. The Teleport Terraform provider currently supports the following:
@@ -270,7 +270,7 @@ resource "teleport_database" "example" {
 </TabItem>
 </Tabs>
 
-## Step 5/ . Define static resources
+## Step 5/6. Define static resources
 
 Each Teleport service reads its local configuration file (`/etc/teleport.yaml`
 by default) to determine which infrastructure resources to proxy. You can edit
@@ -290,7 +290,7 @@ To see how to configure each service, read its section of the documentation:
 
 
 
-## Step 6/ . Verify the deployment
+## Step 6/6. Verify the deployment
 
 Make sure your cloud provider credentials are available to Terraform using the
 standard approach for your organization.
