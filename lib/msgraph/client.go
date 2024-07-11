@@ -14,11 +14,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
 )
 
 // baseURL is the default value for [client.baseURL]. It is the address of MS Graph API v1.0.
