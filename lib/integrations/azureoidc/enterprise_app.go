@@ -23,14 +23,10 @@ import (
 	"path"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/applicationtemplates"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
-	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // nonGalleryAppTemplateID is a constant for the special application template ID in Microsoft Graph,
@@ -76,28 +72,20 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 	displayName := "Teleport" + " " + proxyURL.Hostname()
 
-	instantiateRequest := applicationtemplates.NewItemInstantiatePostRequestBody()
-	instantiateRequest.SetDisplayName(&displayName)
-	appAndSP, err := graphClient.ApplicationTemplates().
-		ByApplicationTemplateId(nonGalleryAppTemplateID).
-		Instantiate().
-		Post(ctx, instantiateRequest, nil)
-
+	appAndSP, err := graphClient.InstantiateApplicationTemplate(ctx, nonGalleryAppTemplateID, displayName)
 	if err != nil {
 		return appID, tenantID, trace.Wrap(err, "failed to instantiate application template")
 	}
 
-	app := appAndSP.GetApplication()
-	sp := appAndSP.GetServicePrincipal()
-	appID = *app.GetAppId()
-	spID := *sp.GetId()
+	app := appAndSP.Application
+	sp := appAndSP.ServicePrincipal
+	appID = *app.AppID
+	spID := *sp.ID
 
 	msGraphResourceID, err := getMSGraphResourceID(ctx, graphClient)
 	if err != nil {
 		return appID, tenantID, trace.Wrap(err, "failed to get MS Graph API resource ID")
 	}
-
-	msGraphResourceUUID := uuid.MustParse(msGraphResourceID)
 
 	r, err := retry()
 	if err != nil {
@@ -109,22 +97,17 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		r.Reset()
 		var err error
 
-		assignment := models.NewAppRoleAssignment()
-		spUUID := uuid.MustParse(spID)
-		assignment.SetPrincipalId(&spUUID)
-		assignment.SetResourceId(&msGraphResourceUUID)
-		appRoleUUID := uuid.MustParse(appRoleID)
-		assignment.SetAppRoleId(&appRoleUUID)
+		assignment := &msgraph.AppRoleAssignment{}
+		assignment.PrincipalID = &spID
+		assignment.ResourceID = &msGraphResourceID
+		assignment.AppRoleID = &appRoleID
 
 		// There are  some eventual consistency shenanigans instantiating enteprise applications,
 		// where assigning app roles may temporarily return "not found" for the newly-created App ID.
 		// Retry a few times to remediate.
 		for i := 0; i < maxRetries; i++ {
 			slog.DebugContext(ctx, "assign app role", "role_id", appRoleID, "attempt", i)
-			_, err = graphClient.ServicePrincipals().
-				ByServicePrincipalId(spID).
-				AppRoleAssignments().
-				Post(ctx, assignment, nil)
+			_, err = graphClient.GrantAppRoleToServicePrincipal(ctx, spID, assignment)
 			if err != nil {
 				r.Inc()
 				<-r.After()
@@ -137,7 +120,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		}
 	}
 
-	if err := createFederatedAuthCredential(ctx, graphClient, *app.GetId(), proxyPublicAddr); err != nil {
+	if err := createFederatedAuthCredential(ctx, graphClient, *app.ID, proxyPublicAddr); err != nil {
 		return appID, tenantID, trace.Wrap(err, "failed to create an OIDC federated auth credential")
 	}
 
@@ -146,7 +129,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		return appID, tenantID, trace.Wrap(err, "failed to parse proxy public address")
 	}
 	acsURL.Path = path.Join("/v1/webapi/saml/acs", authConnectorName)
-	if err := setupSSO(ctx, graphClient, *app.GetId(), spID, acsURL.String()); err != nil {
+	if err := setupSSO(ctx, graphClient, *app.ID, spID, acsURL.String()); err != nil {
 		return appID, tenantID, trace.Wrap(err, "failed to set up SSO for the enterprise app")
 	}
 
@@ -154,46 +137,38 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 }
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
-func createFederatedAuthCredential(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient, appObjectID string, proxyPublicAddr string) error {
-	credential := models.NewFederatedIdentityCredential()
+func createFederatedAuthCredential(ctx context.Context, graphClient msgraph.Client, appObjectID string, proxyPublicAddr string) error {
+	credential := &msgraph.FederatedIdentityCredential{}
 	name := "teleport-oidc"
 	audiences := []string{azureDefaultJWTAudience}
 	subject := azureSubject
-	credential.SetName(&name)
-	credential.SetIssuer(&proxyPublicAddr)
-	credential.SetAudiences(audiences)
-	credential.SetSubject(&subject)
+	credential.Name = &name
+	credential.Issuer = &proxyPublicAddr
+	credential.Audiences = &audiences
+	credential.Subject = &subject
 
 	// ByApplicationID here means the object ID,
-	// i.e. app.GetId(), not app.GetAppId().
-	_, err := graphClient.Applications().ByApplicationId(appObjectID).
-		FederatedIdentityCredentials().Post(ctx, credential, nil)
+	// i.e. app.ID, not app.AppID.
+	_, err := graphClient.CreateFederatedIdentityCredential(ctx, appObjectID, credential)
 
 	return trace.Wrap(err)
 
 }
 
 // getMSGraphResourceID gets the resource ID for the Microsoft Graph app in the Entra directory.
-func getMSGraphResourceID(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient) (string, error) {
-	requestFilter := "displayName eq 'Microsoft Graph'"
+func getMSGraphResourceID(ctx context.Context, graphClient msgraph.Client) (string, error) {
+	const displayName = "Microsoft Graph"
 
-	requestParameters := &serviceprincipals.ServicePrincipalsRequestBuilderGetQueryParameters{
-		Filter: &requestFilter,
-	}
-	configuration := &serviceprincipals.ServicePrincipalsRequestBuilderGetRequestConfiguration{
-		QueryParameters: requestParameters,
-	}
-	spResponse, err := graphClient.ServicePrincipals().Get(ctx, configuration)
+	spList, err := graphClient.GetServicePrincipalsByDisplayName(ctx, displayName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	spList := spResponse.GetValue()
 	switch len(spList) {
 	case 0:
 		return "", trace.NotFound("Microsoft Graph app not found in the tenant")
 	case 1:
-		return *spList[0].GetId(), nil
+		return *spList[0].ID, nil
 	default:
 		return "", trace.BadParameter("Multiple service principals found for Microsoft Graph. This is not expected.")
 	}

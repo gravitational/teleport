@@ -20,69 +20,56 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
-	"github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
+
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // setupSSO sets up SAML based SSO to Teleport for the given application (service principal).
-func setupSSO(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient, appObjectID string, spID string, acsURL string) error {
-	spPatch := models.NewServicePrincipal()
+func setupSSO(ctx context.Context, graphClient msgraph.Client, appObjectID string, spID string, acsURL string) error {
+	spPatch := &msgraph.ServicePrincipal{}
 	// Set service principal to prefer SAML sign on
 	preferredSingleSignOnMode := "saml"
-	spPatch.SetPreferredSingleSignOnMode(&preferredSingleSignOnMode)
+	spPatch.PreferredSingleSignOnMode = &preferredSingleSignOnMode
 	// Do not require explicit assignment of the app to use SSO.
 	// This is per our manual set-up recommendations, see https://goteleport.com/docs/access-controls/sso/azuread/ .
 	appRoleAssignmentRequired := false
-	spPatch.SetAppRoleAssignmentRequired(&appRoleAssignmentRequired)
+	spPatch.AppRoleAssignmentRequired = &appRoleAssignmentRequired
 
-	_, err := graphClient.ServicePrincipals().
-		ByServicePrincipalId(spID).
-		Patch(ctx, spPatch, nil)
+	err := graphClient.UpdateServicePrincipal(ctx, spID, spPatch)
 
 	if err != nil {
 		return trace.Wrap(err, "failed to enable SSO for service principal")
 	}
 
 	// Add SAML urls
-	app := models.NewApplication()
-	app.SetIdentifierUris([]string{acsURL})
-	webApp := models.NewWebApplication()
-	webApp.SetRedirectUris([]string{acsURL})
-	app.SetWeb(webApp)
+	app := &msgraph.Application{}
+	uris := []string{acsURL}
+	app.IdentifierURIs = &uris
+	webApp := &msgraph.WebApplication{}
+	webApp.RedirectURIs = &uris
+	app.Web = webApp
 
-	_, err = graphClient.Applications().
-		ByApplicationId(appObjectID).
-		Patch(ctx, app, nil)
+	err = graphClient.UpdateApplication(ctx, appObjectID, app)
 
 	if err != nil {
 		return trace.Wrap(err, "failed to set SAML URIs")
 	}
 
 	// Add a SAML signing certificate
-	certRequest := serviceprincipals.NewItemAddTokenSigningCertificatePostRequestBody()
 	// Display name is required to start with `CN=`.
 	// Ref: https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate
-	displayName := "CN=azure-sso"
-	certRequest.SetDisplayName(&displayName)
-
-	cert, err := graphClient.ServicePrincipals().
-		ByServicePrincipalId(spID).
-		AddTokenSigningCertificate().
-		Post(ctx, certRequest, nil)
+	const displayName = "CN=azure-sso"
+	cert, err := graphClient.CreateServicePrincipalTokenSigningCertificate(ctx, spID, displayName)
 
 	if err != nil {
 		trace.Wrap(err, "failed to create a signing certificate")
 	}
 
 	// Set the preferred SAML signing key
-	spPatch = models.NewServicePrincipal()
-	spPatch.SetPreferredTokenSigningKeyThumbprint(cert.GetThumbprint())
+	spPatch = &msgraph.ServicePrincipal{}
+	spPatch.PreferredTokenSigningKeyThumbprint = cert.Thumbprint
 
-	_, err = graphClient.ServicePrincipals().
-		ByServicePrincipalId(spID).
-		Patch(ctx, spPatch, nil)
-
+	err = graphClient.UpdateServicePrincipal(ctx, spID, spPatch)
 	if err != nil {
 		return trace.Wrap(err, "failed to set SAML signing key")
 	}
