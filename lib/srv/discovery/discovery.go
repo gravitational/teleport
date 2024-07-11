@@ -61,6 +61,8 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
+const discoveryConfigFromStaticConfiguration = ""
+
 // Matchers contains all matchers used by discovery service
 type Matchers struct {
 	// AWS is a list of AWS EC2 matchers.
@@ -374,15 +376,15 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 	s.databaseFetchers = databaseFetchers
 
-	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
+	if err := s.initAWSWatchers(cfg.Matchers.AWS, discoveryConfigFromStaticConfiguration); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure); err != nil {
+	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure, discoveryConfigFromStaticConfiguration); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP); err != nil {
+	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP, discoveryConfigFromStaticConfiguration); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -440,14 +442,14 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 }
 
 // initAWSWatchers starts AWS resource watchers based on types provided.
-func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
+func (s *Server) initAWSWatchers(matchers []types.AWSMatcher, discoveryConfig string) error {
 	var err error
 
 	ec2Matchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients, discoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -528,12 +530,12 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher) ([]server.Fetcher, error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfig string) ([]server.Fetcher, error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients, discoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,16 +544,16 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 }
 
 // azureServerFetchersFromMatchers converts Matchers into a set of Azure Servers Fetchers.
-func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher) []server.Fetcher {
+func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, discoveryConfig string) []server.Fetcher {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(serverMatchers, s.CloudClients)
+	return server.MatchersToAzureInstanceFetchers(serverMatchers, s.CloudClients, discoveryConfig)
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
-func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []types.GCPMatcher) ([]server.Fetcher, error) {
+func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfig string) ([]server.Fetcher, error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.GCPMatcherCompute
 	})
@@ -567,7 +569,7 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return nil, trace.Wrap(err)
 	}
 
-	return server.MatchersToGCPInstanceFetchers(serverMatchers, client), nil
+	return server.MatchersToGCPInstanceFetchers(serverMatchers, client, discoveryConfig), nil
 }
 
 // databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
@@ -621,12 +623,12 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, 
 }
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
-func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
+func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher, discoveryConfig string) error {
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AzureMatcherVM
 	})
 
-	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(vmMatchers, s.CloudClients)
+	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(vmMatchers, s.CloudClients, discoveryConfig)
 
 	// VM watcher.
 	var err error
@@ -679,10 +681,10 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	return nil
 }
 
-func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GCPMatcher) error {
+func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GCPMatcher, discoveryConfig string) error {
 	var err error
 
-	s.staticServerGCPFetchers, err = s.gcpServerFetchersFromMatchers(ctx, vmMatchers)
+	s.staticServerGCPFetchers, err = s.gcpServerFetchersFromMatchers(ctx, vmMatchers, discoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -706,7 +708,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 }
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
-func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher) error {
+func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfig string) error {
 	// return early if there are no matchers as GetGCPGKEClient causes
 	// an error if there are no credentials present
 
@@ -714,7 +716,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return matcherType == types.GCPMatcherCompute
 	})
 
-	if err := s.initGCPServerWatcher(ctx, vmMatchers); err != nil {
+	if err := s.initGCPServerWatcher(ctx, vmMatchers, discoveryConfig); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -924,12 +926,14 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
 
 	req := server.SSMRunRequest{
-		DocumentName: instances.DocumentName,
-		SSM:          ec2Client,
-		Instances:    instances.Instances,
-		Params:       instances.Parameters,
-		Region:       instances.Region,
-		AccountID:    instances.AccountID,
+		DocumentName:        instances.DocumentName,
+		SSM:                 ec2Client,
+		Instances:           instances.Instances,
+		Params:              instances.Parameters,
+		Region:              instances.Region,
+		AccountID:           instances.AccountID,
+		DiscoveryConfigName: instances.DiscoveryConfig,
+		IntegrationName:     instances.Integration,
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1512,7 +1516,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
-	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
+	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1520,12 +1524,12 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicServerAWSFetchers[dc.GetName()] = awsServerFetchers
 	s.muDynamicServerAWSFetchers.Unlock()
 
-	azureServerFetchers := s.azureServerFetchersFromMatchers(matchers.Azure)
+	azureServerFetchers := s.azureServerFetchersFromMatchers(matchers.Azure, dc.GetName())
 	s.muDynamicServerAzureFetchers.Lock()
 	s.dynamicServerAzureFetchers[dc.GetName()] = azureServerFetchers
 	s.muDynamicServerAzureFetchers.Unlock()
 
-	gcpServerFetchers, err := s.gcpServerFetchersFromMatchers(s.ctx, matchers.GCP)
+	gcpServerFetchers, err := s.gcpServerFetchersFromMatchers(s.ctx, matchers.GCP, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}

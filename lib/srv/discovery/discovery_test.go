@@ -2503,7 +2503,19 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					server.muDynamicServerAzureFetchers.RLock()
 					defer server.muDynamicServerAzureFetchers.RUnlock()
-					return len(server.dynamicServerAzureFetchers) > 0
+
+					if len(server.dynamicServerAzureFetchers) == 0 {
+						return false
+					}
+					if len(server.dynamicServerAzureFetchers[tc.discoveryConfig.GetName()]) == 0 {
+						return false
+					}
+
+					fetcher := server.dynamicServerAzureFetchers[tc.discoveryConfig.GetName()][0]
+
+					require.Equal(t, fetcher.GetDiscoveryConfig(), tc.discoveryConfig.GetName())
+
+					return true
 				}, 1*time.Second, 100*time.Millisecond)
 			}
 
@@ -2768,7 +2780,19 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					server.muDynamicServerGCPFetchers.RLock()
 					defer server.muDynamicServerGCPFetchers.RUnlock()
-					return len(server.dynamicServerGCPFetchers) > 0
+
+					if len(server.dynamicServerGCPFetchers) == 0 {
+						return false
+					}
+					if len(server.dynamicServerGCPFetchers[tc.discoveryConfig.GetName()]) == 0 {
+						return false
+					}
+
+					fetcher := server.dynamicServerGCPFetchers[tc.discoveryConfig.GetName()][0]
+
+					require.Equal(t, fetcher.GetDiscoveryConfig(), tc.discoveryConfig.GetName())
+
+					return true
 				}, 1*time.Second, 100*time.Millisecond)
 			}
 

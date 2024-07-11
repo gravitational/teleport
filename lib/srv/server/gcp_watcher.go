@@ -91,13 +91,14 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient) []Fetcher {
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, discoveryConfig string) []Fetcher {
 	fetchers := make([]Fetcher, 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
-			Matcher:   matcher,
-			GCPClient: gcpClient,
+			Matcher:         matcher,
+			GCPClient:       gcpClient,
+			DiscoveryConfig: discoveryConfig,
 		}))
 	}
 
@@ -105,8 +106,9 @@ func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.In
 }
 
 type gcpFetcherConfig struct {
-	Matcher   types.GCPMatcher
-	GCPClient gcp.InstancesClient
+	Matcher         types.GCPMatcher
+	GCPClient       gcp.InstancesClient
+	DiscoveryConfig string
 }
 
 type gcpInstanceFetcher struct {
@@ -117,6 +119,7 @@ type gcpInstanceFetcher struct {
 	ServiceAccounts []string
 	Labels          types.Labels
 	Parameters      map[string]string
+	DiscoveryConfig string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
@@ -126,6 +129,7 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		ProjectIDs:      cfg.Matcher.ProjectIDs,
 		ServiceAccounts: cfg.Matcher.ServiceAccounts,
 		Labels:          cfg.Matcher.GetLabels(),
+		DiscoveryConfig: cfg.DiscoveryConfig,
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{
@@ -135,6 +139,12 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		}
 	}
 	return fetcher
+}
+
+// GetDiscoveryConfig returns the DiscoveryConfig name that originated this fetcher.
+// Empty if it was generated statically from the discovery_service.
+func (f *gcpInstanceFetcher) GetDiscoveryConfig() string {
+	return f.DiscoveryConfig
 }
 
 func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {

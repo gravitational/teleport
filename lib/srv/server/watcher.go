@@ -42,6 +42,9 @@ type Fetcher interface {
 	// GetMatchingInstances finds Instances from the list of nodes
 	// that the fetcher matches.
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
+	// GetDiscoveryConfig returns the DiscoveryConfig name that originated this fetcher.
+	// Empty if it was generated statically from the discovery_service.
+	GetDiscoveryConfig() string
 }
 
 // WithTriggerFetchC sets a poll trigger to manual start a resource polling.

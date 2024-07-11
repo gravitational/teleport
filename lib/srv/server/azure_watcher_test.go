@@ -38,6 +38,7 @@ func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.
 func TestAzureWatcher(t *testing.T) {
 	t.Parallel()
 
+	discoveryConfigName := "my-dc"
 	clients := mockClients{
 		azureClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
 			VirtualMachines: map[string][]*armcompute.VirtualMachine{
@@ -139,7 +140,7 @@ func TestAzureWatcher(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients)
+				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients, discoveryConfigName)
 			})
 			require.NoError(t, err)
 

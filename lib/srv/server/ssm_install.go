@@ -71,6 +71,12 @@ type SSMRunRequest struct {
 	Region string
 	// AccountID is the AWS account being used to execute the SSM document.
 	AccountID string
+	// DiscoveryConfigName is the DiscoveryConfig that originated this SSMRunRequest.
+	// Empty if it was generated from a static configuration in discovery_service.
+	DiscoveryConfigName string
+	// IntegrationName is the integration name when using integration credentials.
+	// Empty if using ambient credentials.
+	IntegrationName string
 }
 
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.

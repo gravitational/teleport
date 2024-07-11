@@ -141,6 +141,7 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 
 func TestEC2Watcher(t *testing.T) {
 	t.Parallel()
+	discoveryConfigName := "my-dc"
 	clients := mockClients{
 		ec2Client: &mockEC2Client{},
 	}
@@ -240,7 +241,7 @@ func TestEC2Watcher(t *testing.T) {
 	clients.ec2Client.output = &output
 
 	fetchersFn := func() []Fetcher {
-		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, &clients)
+		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, &clients, discoveryConfigName)
 		require.NoError(t, err)
 
 		return fetchers
@@ -252,22 +253,25 @@ func TestEC2Watcher(t *testing.T) {
 
 	result := <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
-		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(&present)},
-		Parameters: map[string]string{"token": "", "scriptName": ""},
+		Region:          "us-west-2",
+		Instances:       []EC2Instance{toEC2Instance(&present)},
+		Parameters:      map[string]string{"token": "", "scriptName": ""},
+		DiscoveryConfig: "my-dc",
 	}, *result.EC2)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
-		Region:     "us-west-2",
-		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
-		Parameters: map[string]string{"token": "", "scriptName": ""},
+		Region:          "us-west-2",
+		Instances:       []EC2Instance{toEC2Instance(&presentOther)},
+		Parameters:      map[string]string{"token": "", "scriptName": ""},
+		DiscoveryConfig: "my-dc",
 	}, *result.EC2)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
-		Region:      "us-west-2",
-		Instances:   []EC2Instance{toEC2Instance(&presentForEICE)},
-		Parameters:  map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
-		Integration: "my-aws-integration",
+		Region:          "us-west-2",
+		Instances:       []EC2Instance{toEC2Instance(&presentForEICE)},
+		Parameters:      map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+		Integration:     "my-aws-integration",
+		DiscoveryConfig: "my-dc",
 	}, *result.EC2)
 }
 
