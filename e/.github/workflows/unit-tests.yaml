@@ -35,15 +35,15 @@ jobs:
         id: go-cache-paths
         shell: bash
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: |
-          go build ${GITHUB_WORKSPACE}/e/tool/teleport
+          go build "${GITHUB_WORKSPACE}/e/tool/teleport"
 
       - name: Run tests
         timeout-minutes: 40
         run: |
-          GOFLAGS='-tags=tpmsimulator' make -C ${GITHUB_WORKSPACE}/e/ -j test
-          cd ${GITHUB_WORKSPACE}/e; go test -run=IGNOREME -bench=. -benchtime=1x ./...
+          make -C "${GITHUB_WORKSPACE}/e/" -j test TPMSIMULATOR_TEST_TAG=tpmsimulator
+          cd "${GITHUB_WORKSPACE}/e"; go test -run=IGNOREME -bench=. -benchtime=1x ./...

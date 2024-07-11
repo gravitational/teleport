@@ -767,7 +767,7 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			},
 			ctx:                  validCtxData,
 			authn:                validAuthnOpts,
-			wantErr:              invalidTokenMessage,
+			wantErr:              "logged in user",
 			wantAuditUserMessage: "user mismatch",
 		},
 		{
