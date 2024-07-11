@@ -23,13 +23,13 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	mssql "github.com/microsoft/go-mssqldb"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -340,7 +340,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			e := Engine{
 				EngineConfig: common.EngineConfig{
 					Audit:   audit,
-					Log:     logrus.New(),
+					Log:     slog.Default(),
 					Auth:    &mockDBAuth{},
 					Context: context.Background(),
 				},
