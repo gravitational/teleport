@@ -27,9 +27,18 @@ resources:
 
 ## Prerequisites
 
-{/*TODO: Prerequsites. Refer to the earlier guides*/}
-
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+<Admonition type="tip">
+
+We recommend following this guide on a fresh Teleport demo cluster so you can
+see how an agent pool works. After you are familiar with the setup, apply the
+lessons from this guide to protect your infrastructure. You can get started with
+a demo cluster using:
+- A demo deployment on a [Linux server](../index.mdx)
+- A [Teleport Enterprise Cloud trial](https://goteleport.com/signup)
+
+</Admonition>
 
 - An AWS, Google Cloud, or Azure account with permissions to create virtual
   machine instances.
@@ -44,6 +53,11 @@ resources:
   deploy to have public IP addresses.
 
 - Terraform v(=terraform.version=) or higher.
+
+- An identity file for the Teleport Terraform provider. Make sure you are
+  familiar with [how to set up the Teleport Terraform
+  provider](../management/dynamic-resources/terraform-provider.mdx) before
+  following this guide.
 
 - (!docs/pages/includes/tctl.mdx!)
 
