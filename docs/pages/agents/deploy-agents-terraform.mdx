@@ -61,7 +61,7 @@ a demo cluster using:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Set up a module for deploying Agents
+## Step 1/4. Set up a module for deploying Agents
 
 1. Navigate to a directory where you would like to place the root Terraform
    module that manages Teleport resources.
@@ -143,7 +143,7 @@ a demo cluster using:
    |`teleport`|Dynamic Teleport resources to apply against the Teleport Auth Service using the Teleport Terraform provider.|
    |`cloud`|Resources required to run your Teleport Agents as Linux servers using your cloud provider.| 
 
-## Step 3/6. Create resources for your cloud provider
+## Step 2/4. Create resources for your cloud provider
 
 In Step 3, you will define resources to deploy Teleport Agents on a pool of
 Linux servers using the Terraform provider for your cloud.
@@ -259,7 +259,7 @@ editable:
 
 {/*TODO: Explain the input variables.*/}
 
-## Step 4/6. Define dynamic resources
+## Step 3/4. Define dynamic resources
 
 {/* TODO: Explain how the module works, e.g., it creates join tokens and
 userdata scripts that include those join tokens*/}
@@ -366,7 +366,7 @@ resource "teleport_database" "example" {
 </TabItem>
 </Tabs>
 
-## Step 5/5. Verify the deployment
+## Step 4/4. Verify the deployment
 
 Make sure your cloud provider credentials are available to Terraform using the
 standard approach for your organization.
