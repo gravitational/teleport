@@ -495,7 +495,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
+	gotestsum $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
@@ -505,7 +505,7 @@ include ../integrations/operator/envtest.mk
 test-operator: $(ENVTEST)
 test-operator: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test-operator:
-	gotestsum ./lib/operatortest -- -race
+	gotestsum ./lib/operatortest -race -shuffle on
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
