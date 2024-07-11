@@ -34,7 +34,7 @@ export function NewRecoveryCodes({ attempt, recoveryCodes, redirect }: State) {
       recoveryCodes={recoveryCodes}
       onContinue={redirect}
       isNewCodes={true}
-      continueText="Return to login"
+      continueText="Return to Login"
     />
   );
 }

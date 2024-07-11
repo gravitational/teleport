@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLocation, useHistory } from 'react-router';
 import styled from 'styled-components';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { ButtonPrimary, Box, Indicator, Alert, Flex } from 'design';
+import { Box, Indicator, Alert, Flex, Button } from 'design';
 import { Notification } from 'shared/components/Notification';
 import {
   FeatureBox,
@@ -303,7 +303,9 @@ export function AccessLists() {
         <FeatureHeader alignItems="center" justifyContent="space-between">
           <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
           {showCreateBtn && (
-            <ButtonPrimary
+            <Button
+              intent="primary"
+              fill="border"
               title={
                 noPermToCreate
                   ? `Only Teleport administrators can create new Access Lists`
@@ -315,7 +317,7 @@ export function AccessLists() {
               to={cfg.routes.accessListNew}
             >
               Create New Access List
-            </ButtonPrimary>
+            </Button>
           )}
         </FeatureHeader>
       )}

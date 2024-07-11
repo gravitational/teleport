@@ -43,7 +43,7 @@ export default function ConnectorListItem({
         style={{ textAlign: 'center' }}
       >
         <SsoIcon {...iconProps} />
-        <Text style={{ width: '100%' }} typography="body2" bold caps mb={1}>
+        <Text style={{ width: '100%' }} typography="body2" bold mb={1}>
           {name}
         </Text>
         <Text style={{ width: '100%' }} typography="body2" color="text.main">
@@ -51,7 +51,7 @@ export default function ConnectorListItem({
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
-        EDIT CONNECTOR
+        Edit Connector
       </ButtonPrimary>
     </ResponsiveConnector>
   );

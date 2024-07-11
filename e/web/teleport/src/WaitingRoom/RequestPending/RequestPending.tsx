@@ -30,7 +30,7 @@ export default function RequestPending() {
       </DialogContent>
       <DialogFooter>
         <ButtonLink onClick={() => session.logout()}>
-          Logout of Account
+          Log out of Account
         </ButtonLink>
       </DialogFooter>
     </Dialog>

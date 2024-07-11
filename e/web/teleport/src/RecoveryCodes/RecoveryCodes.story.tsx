@@ -9,7 +9,7 @@ export default {
 export const FromInvite = () => <RecoveryCodes {...props} />;
 
 export const FromReset = () => (
-  <RecoveryCodes {...props} isNewCodes={true} continueText="Return to login" />
+  <RecoveryCodes {...props} isNewCodes={true} continueText="Return to Login" />
 );
 
 const props = {

@@ -228,7 +228,7 @@ export function SubmittablePluginForm({
         <StyledMessageContainer>
           Unlock {plugin.name} plugin with Teleport Enterprise{' '}
           <ButtonLockedFeature
-            width="165px"
+            width="auto"
             mt={2}
             mb={1}
             event={getCTAForPlugin(plugin.type)}

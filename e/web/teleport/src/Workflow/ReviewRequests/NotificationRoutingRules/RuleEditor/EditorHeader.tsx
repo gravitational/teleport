@@ -47,6 +47,7 @@ export const EditorHeader = ({
                 onClick={() => setDeleteConfirm(true)}
                 disabled={!hasDeleteAccess}
                 data-testid="delete"
+                p={1}
               >
                 <Trash size="medium" />
               </ButtonText>

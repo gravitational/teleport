@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import * as Icons from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
-import { ButtonPrimary } from 'design/Button';
+import { Button } from 'design/Button';
 import { AuthProviderType } from 'shared/services';
 
 class AddMenu extends React.Component<Props> {
@@ -51,15 +51,17 @@ class AddMenu extends React.Component<Props> {
     } = this.props;
     return (
       <React.Fragment>
-        <ButtonPrimary
+        <Button
+          intent="primary"
+          fill="border"
           block
           disabled={disabled}
           setRef={this.setRef}
           onClick={this.onOpen}
         >
-          NEW AUTH CONNECTOR
-          <Icons.ChevronDown ml={2} size="small" color="buttons.primary.text" />
-        </ButtonPrimary>
+          New Auth Connector
+          <Icons.ChevronDown ml={2} size="small" />
+        </Button>
         <Menu
           anchorEl={this.anchorEl}
           open={open}
@@ -77,15 +79,15 @@ class AddMenu extends React.Component<Props> {
         >
           {!isOidcLocked && (
             <MenuItem onClick={() => this.onItemClick('oidc')}>
-              OIDC CONNECTOR
+              OIDC Connector
             </MenuItem>
           )}
           <MenuItem onClick={() => this.onItemClick('github')}>
-            GITHUB CONNECTOR
+            GitHub Connector
           </MenuItem>
           {!isSamlLocked && (
             <MenuItem onClick={() => this.onItemClick('saml')}>
-              SAML CONNECTOR
+              SAML Connector
             </MenuItem>
           )}
         </Menu>

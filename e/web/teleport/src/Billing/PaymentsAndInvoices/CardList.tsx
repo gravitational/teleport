@@ -106,7 +106,7 @@ export const CardList = ({
     return (
       <Box
         key={card.id}
-        width="300px"
+        width="320px"
         bg={theme.colors.levels.surface}
         borderRadius="4px"
         m="20px 0 0 0"
@@ -163,7 +163,7 @@ export const CardList = ({
         {sortedCards.length < 3 && (
           <Box
             key="add-payment"
-            width="300px"
+            width="320px"
             borderRadius="4px"
             m="20px 0 0 0"
             p="auto"

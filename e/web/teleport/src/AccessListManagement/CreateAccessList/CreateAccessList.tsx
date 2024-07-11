@@ -320,7 +320,6 @@ export function CreateAccessList() {
               </Box>
               <Box mt={5} mb={8}>
                 <ButtonPrimary
-                  width="170px"
                   onClick={() => handleOnCreate(validator)}
                   mr={3}
                   disabled={createAttempt.status === 'processing'}

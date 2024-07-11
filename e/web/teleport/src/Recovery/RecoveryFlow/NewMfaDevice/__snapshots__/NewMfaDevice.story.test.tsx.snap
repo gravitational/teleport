@@ -798,7 +798,7 @@ exports[`render correct form to add Webauthn device 1`] = `
     fill="filled"
     width="100%"
   >
-    Create an MFA method
+    Create an MFA Method
   </button>
 </div>
 `;
@@ -1219,7 +1219,7 @@ exports[`render correct form to add with multi option 1`] = `
     fill="filled"
     width="100%"
   >
-    Create an MFA method
+    Create an MFA Method
   </button>
 </div>
 `;
@@ -1667,7 +1667,7 @@ exports[`render failed state for form to add with multi option 1`] = `
     fill="filled"
     width="100%"
   >
-    Create an MFA method
+    Create an MFA Method
   </button>
 </div>
 `;
