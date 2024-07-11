@@ -71,7 +71,7 @@
     "@nivo/bar": "^0.87.0",
     "@protobuf-ts/runtime": "^2.9.4",
     "@protobuf-ts/runtime-rpc": "^2.9.4",
-    "@stripe/react-stripe-js": "^1.16.5",
+    "@stripe/react-stripe-js": "^2.7.3",
     "@stripe/stripe-js": "^1.48.0",
     "@uiw/codemirror-themes": "^4.22.2",
     "@uiw/react-codemirror": "^4.22.2",
