@@ -21,31 +21,38 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// baseURL is the default value for [client.baseURL]. It is the address of MS Graph API v1.0.
 const baseURL = "https://graph.microsoft.com/v1.0"
+
+// defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
 
-type UnsupportedGroupMember struct {
-	Type string
-}
-
-func (u *UnsupportedGroupMember) Error() string {
-	return fmt.Sprintf("Unsupported group member: %q", u.Type)
-}
-
+// scopes defines OAuth scopes the client authenticates for.
 var scopes = []string{"https://graph.microsoft.com/.default"}
 
 type azureTokenProvider interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
+// Config defines configuration options for [client].
 type Config struct {
+	// TokenProvider provides tokens to authorize to MS Graph API.
+	// Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
 	TokenProvider azureTokenProvider
-	HTTPClient    *http.Client
-	Clock         clockwork.Clock
-	RetryConfig   *retryutils.RetryV2Config
-	PageSize      int
+	// HTTPClient is the HTTP client to use for calls to the API.
+	// If not specified, [http.DefaultClient] is used.
+	HTTPClient *http.Client
+	// Clock is the clock to use for time operations (e.g. delay when retrying requests).
+	Clock clockwork.Clock
+	// RetryConfig specifies parameters for retrying failed requests.
+	// Client will prefer to use the `Retry-After` header returned from the API,
+	// and only use this retry config if the header is not provided.
+	RetryConfig *retryutils.RetryV2Config
+	// PageSize limits the number of objects to return in one batch when using paginated requests (via the `$top` parameter).
+	PageSize int
 }
 
+// SetDefaults sets the default values for optional fields.
 func (cfg *Config) SetDefaults() {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = http.DefaultClient
@@ -65,6 +72,7 @@ func (cfg *Config) SetDefaults() {
 	}
 }
 
+// Validate checks that required fields are set.
 func (cfg *Config) Validate() error {
 	if cfg.TokenProvider == nil {
 		return trace.BadParameter("TokenProvider must be set")
@@ -81,6 +89,7 @@ type client struct {
 	pageSize      int
 }
 
+// NewClient returns a new client for the given config.
 func NewClient(cfg Config) (Client, error) {
 	cfg.SetDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -100,6 +109,8 @@ func NewClient(cfg Config) (Client, error) {
 	}, nil
 }
 
+// request is the base function for HTTP API calls.
+// It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
 func (c *client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if payload != nil {
@@ -229,7 +240,8 @@ func (c *client) patch(ctx context.Context, uri string, in any) error {
 	return nil
 }
 
-// CreateFederatedIdentityCredential implements Client.
+// CreateFederatedIdentityCredential creates a new FederatedCredential.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-post-federatedidentitycredentials].
 func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
 	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
 	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
@@ -239,7 +251,8 @@ func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjec
 	return out, nil
 }
 
-// CreateServicePrincipalTokenSigningCertificate implements Client.
+// CreateServicePrincipalTokenSigningCertificate generates a new token signing certificate for the given service principal.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate].
 func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
 	in := map[string]string{"displayName": displayName}
@@ -250,7 +263,9 @@ func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Conte
 	return out, nil
 }
 
-// GetServicePrincipalsByAppId implements Client.
+// GetServicePrincipalByAppId returns the service principal associated with the given application.
+// Note that appID here is the app the application "client ID" ([Application.AppID]), not "object ID" ([Application.ID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
 func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
 	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
@@ -260,7 +275,8 @@ func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (
 	return out, nil
 }
 
-// GetServicePrincipalsByDisplayName implements Client.
+// GetServicePrincipalsByDisplayName returns the service principals that have the given display name.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
 func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
 	filter := fmt.Sprintf("displayName eq '%s'", displayName)
 	uri := c.endpointURI("servicePrincipals")
@@ -274,7 +290,9 @@ func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
-// InstantiateApplicationTemplate implements Client.
+// InstantiateApplicationTemplate instantiates an application from the Entra application Gallery,
+// creating a pair of [Application] and [ServicePrincipal].
+// Ref: [https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate].
 func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
 	uri := c.endpointURI("applicationTemplates", appTemplateID, "instantiate")
 	in := map[string]string{
@@ -287,18 +305,22 @@ func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 	return out, nil
 }
 
-// UpdateApplication implements Client.
+// UpdateApplication issues a partial update for an [Application].
+// Note that appID here is the app the application  "object ID" ([Application.ID]), not "client ID" ([Application.AppID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-update].
 func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
 	uri := c.endpointURI("applications", appObjectID)
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
 
-// UpdateServicePrincipal implements Client.
+// UpdateServicePrincipal issues a partial update for a [ServicePrincipal].
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-update].
 func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
 	uri := c.endpointURI("servicePrincipals", spID)
 	return trace.Wrap(c.patch(ctx, uri.String(), sp))
 }
 
+// isRetriable returns `true` when the given HTTP status code should be retried.
 func isRetriable(code int) bool {
 	return code == http.StatusTooManyRequests || code == http.StatusServiceUnavailable || code == http.StatusGatewayTimeout
 }
