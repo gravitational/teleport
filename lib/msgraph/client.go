@@ -110,6 +110,10 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if body != nil {
+		req.Header.Add("Content-Type", "application/json")
+	}
+
 	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: scopes,
 	})
@@ -175,14 +179,15 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 	return nil, trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path)
 }
 
-func (c *client) endpointURI(segments ...string) string {
+func (c *client) endpointURI(segments ...string) *url.URL {
 	uri := *c.baseURL
 	uri.Path = path.Join(append([]string{uri.Path}, segments...)...)
-	return uri.String()
+	return &uri
 }
 
 // roundtrip makes a request to the API,
 // serializing `in` as a JSON body, and deserializing the response as the given type `T`.
+// It is used for GET and POST requests, where a response body is expected.
 func roundtrip[T any](ctx context.Context, c *client, method string, uri string, in any) (T, error) {
 	var zero T
 	var body []byte
@@ -206,10 +211,28 @@ func roundtrip[T any](ctx context.Context, c *client, method string, uri string,
 	return out, nil
 }
 
+// patch makes a PATCH request to the API, serializing `in` as a JSON body.
+// It expects a 204 No Content response.
+func (c *client) patch(ctx context.Context, uri string, in any) error {
+	body, err := json.Marshal(in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp, err := c.request(ctx, http.MethodPatch, uri, body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return trace.BadParameter("expected a 204 No Content response, got status code %v", resp.StatusCode)
+	}
+	return nil
+}
+
 // CreateFederatedIdentityCredential implements Client.
 func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
 	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
-	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri, cred)
+	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -219,8 +242,8 @@ func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjec
 // CreateServicePrincipalTokenSigningCertificate implements Client.
 func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
-	object := map[string]string{"displayName": displayName}
-	out, err := roundtrip[*SelfSignedCertificate](ctx, c, http.MethodPost, uri, object)
+	in := map[string]string{"displayName": displayName}
+	out, err := roundtrip[*SelfSignedCertificate](ctx, c, http.MethodPost, uri.String(), in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,7 +253,7 @@ func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Conte
 // GetServicePrincipalsByAppId implements Client.
 func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
-	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri, nil)
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,22 +262,41 @@ func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (
 
 // GetServicePrincipalsByDisplayName implements Client.
 func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
-	panic("unimplemented")
+	filter := fmt.Sprintf("displayName eq '%s'", displayName)
+	uri := c.endpointURI("servicePrincipals")
+	uri.RawQuery = url.Values{
+		"$filter": {filter},
+	}.Encode()
+	out, err := roundtrip[oDataListResponse[*ServicePrincipal]](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out.Value, nil
 }
 
 // InstantiateApplicationTemplate implements Client.
 func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
-	panic("unimplemented")
+	uri := c.endpointURI("applicationTemplates", appTemplateID, "instantiate")
+	in := map[string]string{
+		"displayName": displayName,
+	}
+	out, err := roundtrip[*ApplicationServicePrincipal](ctx, c, http.MethodPost, uri.String(), in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // UpdateApplication implements Client.
 func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
-	panic("unimplemented")
+	uri := c.endpointURI("applications", appObjectID)
+	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
 
 // UpdateServicePrincipal implements Client.
 func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
-	panic("unimplemented")
+	uri := c.endpointURI("servicePrincipals", spID)
+	return trace.Wrap(c.patch(ctx, uri.String(), sp))
 }
 
 func isRetriable(code int) bool {
