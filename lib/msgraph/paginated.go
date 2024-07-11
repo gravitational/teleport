@@ -34,6 +34,7 @@ func iterateSimple[T any](c *client, ctx context.Context, endpoint string, f fun
 	return trace.Wrap(itErr)
 }
 
+// iterate implements pagination for "list" endpoints.
 func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMessage) bool) error {
 	uri := *c.baseURL
 	uri.Path = path.Join(uri.Path, endpoint)
@@ -44,12 +45,13 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer resp.Body.Close()
 
 		var page oDataPage
 		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+			resp.Body.Close()
 			return trace.Wrap(err)
 		}
+		resp.Body.Close()
 		uriString = page.NextLink
 		if !f(page.Value) {
 			break
@@ -59,22 +61,34 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 	return nil
 }
 
-// IterateApplications implements Client.
+// IterateApplications lists all applications in the Entra ID directory using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-list].
 func (c *client) IterateApplications(ctx context.Context, f func(*Application) bool) error {
 	return iterateSimple(c, ctx, "applications", f)
 }
 
-// IterateGroups implements Client.
+// IterateGroups lists all groups in the Entra ID directory using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list].
 func (c *client) IterateGroups(ctx context.Context, f func(*Group) bool) error {
 	return iterateSimple(c, ctx, "groups", f)
 }
 
-// IterateUsers implements Client.
+// IterateUsers lists all users in the Entra ID directory using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
 func (c *client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 	return iterateSimple(c, ctx, "users", f)
 }
 
-// IterateGroupMembers implements Client.
+// IterateGroupMembers lists all members for the given Entra ID group using pagination.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
 func (c *client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
 	var err error
 	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
@@ -86,9 +100,9 @@ func (c *client) IterateGroupMembers(ctx context.Context, groupID string, f func
 			var member GroupMember
 			member, err = decodeGroupMember(entry)
 			if err != nil {
-				var gmErr *UnsupportedGroupMember
+				var gmErr *unsupportedGroupMember
 				if errors.As(err, &gmErr) {
-					slog.Debug("unsupported group member", "type", gmErr.Type)
+					slog.DebugContext(ctx, "unsupported group member", "type", gmErr.Type)
 					err = nil // Reset so that we do not return the error up if this is the last entry
 					continue
 				} else {
