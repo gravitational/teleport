@@ -318,7 +318,7 @@ func TestRetry(t *testing.T) {
 			t:              t,
 			timesToFail:    2,
 			statusCode:     http.StatusTooManyRequests,
-			expectedBody:   []byte(`{"name":"foo"}`),
+			expectedBody:   objPayload,
 			successPayload: objPayload,
 		}
 		mux := http.NewServeMux()
@@ -367,7 +367,7 @@ func TestRetry(t *testing.T) {
 			t:            t,
 			timesToFail:  1,
 			statusCode:   http.StatusNotFound,
-			expectedBody: []byte(`{"name":"foo"}`),
+			expectedBody: objPayload,
 		}
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
