@@ -47,9 +47,16 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ## Step 4/6. Create teleport-event-handler credentials
 
-### Enable impersonation of the Event Handler user
+### Enable issuing of credentials for the Event Handler role
 
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export an identity file for the Event Handler plugin user
 

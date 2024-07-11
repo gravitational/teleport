@@ -29,7 +29,7 @@
     "@types/wicg-file-system-access": "^2020.9.5",
     "babel-plugin-transform-import-meta": "^2.2.0",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
-    "jest-canvas-mock": "^2.3.1",
+    "jest-canvas-mock": "^2.5.2",
     "jest-websocket-mock": "^2.5.0"
   }
 }
