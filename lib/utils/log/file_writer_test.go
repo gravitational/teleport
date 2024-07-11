@@ -37,10 +37,9 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	logDir := t.TempDir()
 	testFileMode := os.FileMode(0o600)
 	testFileFlag := os.O_WRONLY | os.O_CREATE | os.O_APPEND
-	logFile, err := os.OpenFile(filepath.Join(logDir, "test.log"), testFileFlag, testFileMode)
-	require.NoError(t, err, "failed to open log file")
+	logFileName := filepath.Join(logDir, "test.log")
 
-	logWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
+	logWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	t.Cleanup(func() {
@@ -62,12 +61,12 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(firstPhrase), n, "failed to write first phrase")
 
-	data, err := os.ReadFile(logFile.Name())
+	data, err := os.ReadFile(logFileName)
 	require.NoError(t, err, "cannot read log file")
 	require.Equal(t, firstPhrase, string(data), "first written phrase does not match")
 
 	// Move the original file to a new location to simulate the logrotate operation.
-	err = os.Rename(logFile.Name(), fmt.Sprintf("%s.1", logFile.Name()))
+	err = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
 	require.NoError(t, err, "can't rename log file")
 
 	select {
@@ -82,7 +81,7 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(secondPhrase), n, "failed to write second phrase")
 
-	data, err = os.ReadFile(logFile.Name())
+	data, err = os.ReadFile(logFileName)
 	require.NoError(t, err, "cannot read log file")
 	require.Equal(t, secondPhrase, string(data), "second written phrase does not match")
 }
@@ -95,12 +94,11 @@ func TestFileSharedWriterGlobalSet(t *testing.T) {
 	logDir := t.TempDir()
 	testFileMode := os.FileMode(0o600)
 	testFileFlag := os.O_WRONLY | os.O_CREATE | os.O_APPEND
-	logFile, err := os.OpenFile(filepath.Join(logDir, "test.log"), testFileFlag, testFileMode)
-	require.NoError(t, err, "failed to open log file")
+	logFileName := filepath.Join(logDir, "test.log")
 
 	// Initiate the first file shared writer and set it as global.
 	var firstWatcherTriggered bool
-	firstLogWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
+	firstLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	err = firstLogWriter.runWatcherFunc(ctx, func() error {
@@ -114,7 +112,7 @@ func TestFileSharedWriterGlobalSet(t *testing.T) {
 
 	// Initiate the second file shared writer and set it as global,
 	// previous must be closed automatically and stop reacting on events.
-	secondLogWriter, err := NewFileSharedWriter(logFile, testFileFlag, testFileMode)
+	secondLogWriter, err := NewFileSharedWriter(logFileName, testFileFlag, testFileMode)
 	require.NoError(t, err, "failed to init the file shared writer")
 
 	signal := make(chan struct{})
@@ -129,7 +127,7 @@ func TestFileSharedWriterGlobalSet(t *testing.T) {
 	require.NoError(t, err, "can't set the global writer")
 
 	// Move the original file to a new location to simulate the logrotate operation.
-	err = os.Rename(logFile.Name(), fmt.Sprintf("%s.1", logFile.Name()))
+	err = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
 	require.NoError(t, err, "can't rename log file")
 
 	select {

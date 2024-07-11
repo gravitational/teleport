@@ -793,11 +793,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = sw
 	default:
 		// Assume this is a file path.
-		logFile, err := os.OpenFile(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
-		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
-		}
-		sharedWriter, err := logutils.NewFileSharedWriter(logFile, logFileDefaultFlag, logFileDefaultMode)
+		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
 			return trace.Wrap(err, "failed to init the log file shared writer")
 		}

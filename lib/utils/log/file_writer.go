@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gravitational/trace"
@@ -44,15 +43,17 @@ var (
 // FileSharedWriter is similar to SharedWriter except that it requires a `os.File` instead of a `io.Writer`.
 // This is to allow the File reopen required by logrotate and similar tools.
 type FileSharedWriter struct {
-	logFile  atomic.Pointer[os.File]
-	fileFlag int
-	fileMode fs.FileMode
-	watcher  *fsnotify.Watcher
+	logFileName string
+	fileFlag    int
+	fileMode    fs.FileMode
+	file        *os.File
+	watcher     *fsnotify.Watcher
 
 	lock sync.Mutex
 }
 
-// SetFileSharedWriter sets global file shared writer.
+// SetFileSharedWriter sets the global file shared writer, closing the current
+// one (if any). The returned error is the error from the closing operation.
 func SetFileSharedWriter(sharedWriter *FileSharedWriter) (err error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -75,19 +76,26 @@ func GetFileSharedWriter() *FileSharedWriter {
 
 // NewFileSharedWriter wraps the provided [os.File] in a writer that is thread safe,
 // with ability to enable filesystem notification watch and reopen file on specific events.
-func NewFileSharedWriter(logFile *os.File, flag int, mode fs.FileMode) (*FileSharedWriter, error) {
-	if logFile == nil {
-		return nil, trace.BadParameter("log file is not set")
+func NewFileSharedWriter(logFileName string, flag int, mode fs.FileMode) (*FileSharedWriter, error) {
+	if logFileName == "" {
+		return nil, trace.BadParameter("log file name is not set")
+	}
+	logFile, err := os.OpenFile(logFileName, flag, mode)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create the log file")
 	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sharedWriter := &FileSharedWriter{fileFlag: flag, fileMode: mode, watcher: watcher}
-	sharedWriter.logFile.Store(logFile)
-
-	return sharedWriter, nil
+	return &FileSharedWriter{
+		logFileName: logFileName,
+		fileFlag:    flag,
+		fileMode:    mode,
+		file:        logFile,
+		watcher:     watcher,
+	}, nil
 }
 
 // Write writes len(b) bytes from b to the File.
@@ -95,20 +103,19 @@ func (s *FileSharedWriter) Write(b []byte) (int, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return s.logFile.Load().Write(b)
+	return s.file.Write(b)
 }
 
 // Reopen closes the file and opens it again using APPEND mode.
-func (s *FileSharedWriter) Reopen() error {
+func (s *FileSharedWriter) Reopen() (err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	logFile, err := os.OpenFile(s.logFile.Load().Name(), s.fileFlag, s.fileMode)
-	if err != nil {
+	if err := s.file.Close(); err != nil {
 		return trace.Wrap(err)
 	}
-	prevLogFile := s.logFile.Swap(logFile)
-	if err := prevLogFile.Close(); err != nil {
+	s.file, err = os.OpenFile(s.logFileName, s.fileFlag, s.fileMode)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -137,7 +144,7 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 				if !ok {
 					return
 				}
-				if s.logFile.Load().Name() == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
+				if s.logFileName == event.Name && (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) {
 					slog.DebugContext(ctx, "Log file was moved/removed", "file", event.Name)
 					if err := action(); err != nil {
 						slog.ErrorContext(ctx, "Failed to take action", "error", err, "file", event.Name)
@@ -153,7 +160,7 @@ func (s *FileSharedWriter) runWatcherFunc(ctx context.Context, action func() err
 		}
 	}()
 
-	logDirParent := filepath.Dir(s.logFile.Load().Name())
+	logDirParent := filepath.Dir(s.logFileName)
 	if err := s.watcher.Add(logDirParent); err != nil {
 		return trace.Wrap(err)
 	}
