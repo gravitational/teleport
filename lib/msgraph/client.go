@@ -240,8 +240,6 @@ func (c *client) patch(ctx context.Context, uri string, in any) error {
 	return nil
 }
 
-// CreateFederatedIdentityCredential creates a new FederatedCredential.
-// Ref: [https://learn.microsoft.com/en-us/graph/api/application-post-federatedidentitycredentials].
 func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
 	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
 	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri.String(), cred)
@@ -251,8 +249,6 @@ func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjec
 	return out, nil
 }
 
-// CreateServicePrincipalTokenSigningCertificate generates a new token signing certificate for the given service principal.
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate].
 func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
 	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
 	in := map[string]string{"displayName": displayName}
@@ -263,9 +259,6 @@ func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Conte
 	return out, nil
 }
 
-// GetServicePrincipalByAppId returns the service principal associated with the given application.
-// Note that appID here is the app the application "client ID" ([Application.AppID]), not "object ID" ([Application.ID]).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
 func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
 	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
 	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
@@ -275,8 +268,6 @@ func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (
 	return out, nil
 }
 
-// GetServicePrincipalsByDisplayName returns the service principals that have the given display name.
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
 func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayName string) ([]*ServicePrincipal, error) {
 	filter := fmt.Sprintf("displayName eq '%s'", displayName)
 	uri := c.endpointURI("servicePrincipals")
@@ -290,9 +281,6 @@ func (c *client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
-// InstantiateApplicationTemplate instantiates an application from the Entra application Gallery,
-// creating a pair of [Application] and [ServicePrincipal].
-// Ref: [https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate].
 func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplateID string, displayName string) (*ApplicationServicePrincipal, error) {
 	uri := c.endpointURI("applicationTemplates", appTemplateID, "instantiate")
 	in := map[string]string{
@@ -305,16 +293,11 @@ func (c *client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 	return out, nil
 }
 
-// UpdateApplication issues a partial update for an [Application].
-// Note that appID here is the app the application  "object ID" ([Application.ID]), not "client ID" ([Application.AppID]).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/application-update].
 func (c *client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
 	uri := c.endpointURI("applications", appObjectID)
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
 }
 
-// UpdateServicePrincipal issues a partial update for a [ServicePrincipal].
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-update].
 func (c *client) UpdateServicePrincipal(ctx context.Context, spID string, sp *ServicePrincipal) error {
 	uri := c.endpointURI("servicePrincipals", spID)
 	return trace.Wrap(c.patch(ctx, uri.String(), sp))
