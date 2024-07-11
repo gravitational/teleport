@@ -19,7 +19,7 @@ export const Default = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
 
   return (
@@ -35,7 +35,7 @@ export const Editor = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
 
   return (
@@ -51,7 +51,7 @@ export const EditorValidation = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: 'test',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
 
   const [validator] = useState(() => new Validator());

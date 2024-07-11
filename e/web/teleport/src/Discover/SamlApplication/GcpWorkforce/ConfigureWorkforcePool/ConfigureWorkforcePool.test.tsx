@@ -25,8 +25,6 @@ import {
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
-
 describe('Configure GCP workforce pool', () => {
   const Provider = props => {
     const ctx = createTeleportContextE({ customAcl: props.customAcl });
@@ -34,12 +32,14 @@ describe('Configure GCP workforce pool', () => {
       nextStep: () => null,
       prevStep: () => null,
       agentMeta: {
-        isAutoConfig: true,
-        orgId: '',
-        poolName: '',
-        poolProviderName: '',
+        samlGcpWorkforce: {
+          isAutoConfig: true,
+          orgId: '',
+          poolName: '',
+          poolProviderName: '',
+        },
       },
-      updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
+      updateAgentMeta: AgentMeta => AgentMeta,
       resourceSpec: {
         samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
       } as ResourceSpec,
@@ -79,7 +79,7 @@ describe('Configure GCP workforce pool', () => {
     render(
       <Provider>
         <ConfigurePool
-          agentMeta={{} as SamlGcpWorkforce}
+          agentMeta={{}}
           updateAgentMeta={jest.fn()}
           resourceSpec={
             {

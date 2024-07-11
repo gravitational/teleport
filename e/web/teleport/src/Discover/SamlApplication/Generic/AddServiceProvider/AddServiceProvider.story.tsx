@@ -47,15 +47,16 @@ export const Failed = () => {
 const props: ConfigureServiceProviderProps = {
   header: 'Add Service Provider To Teleport',
   subtitle:
-    "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.",
+    "Please refer to your Service Provider's documentation for instructions on how to obtain the Entity ID and ACS URL.",
   attempt: { status: '' },
   agentMeta: {
     resourceName: 'SAML Application',
     agentMatcherLabels: [],
   } as AgentMeta,
   updateAgentMeta: () => null,
-  createSP: () => null,
+  upsertSP: () => null,
   nextStep: () => null,
   prevStep: () => null,
   SpMetadataConfigComponent: AddMetadataGeneric,
+  isUpdateFlow: false,
 };

@@ -13,14 +13,14 @@ export const Default = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
   function addAttrMap() {
     setSPConfig({
       ...spConfig,
       attributeMapping: [
         ...spConfig.attributeMapping,
-        { name: '', nameFormat: 'unspecified', value: '' },
+        { name: '', name_format: 'unspecified', value: '' },
       ],
     });
   }
@@ -44,14 +44,14 @@ export const Disabled = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
   function addAttrMap() {
     setSPConfig({
       ...spConfig,
       attributeMapping: [
         ...spConfig.attributeMapping,
-        { name: '', nameFormat: 'unspecified', value: '' },
+        { name: '', name_format: 'unspecified', value: '' },
       ],
     });
   }
@@ -75,7 +75,7 @@ export const ErrorField = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
   const [attrMapErr, setAttrMapErr] = useState({
     emptyName: true,
@@ -86,7 +86,7 @@ export const ErrorField = () => {
       ...spConfig,
       attributeMapping: [
         ...spConfig.attributeMapping,
-        { name: '', nameFormat: 'unspecified', value: '' },
+        { name: '', name_format: 'unspecified', value: '' },
       ],
     });
   }
@@ -112,7 +112,7 @@ const props = {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   },
   setSPConfig: () => null,
   attrMapErr: {

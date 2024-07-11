@@ -20,7 +20,7 @@ export const Default = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: 'test',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
   return (
     <Validation>
@@ -29,6 +29,7 @@ export const Default = () => {
         spConfig={spConfig}
         setSPConfig={setSPConfig}
         resourceSpec={{ kind: ResourceKind.SamlApplication } as ResourceSpec}
+        isUpdateFlow={false}
       />
     </Validation>
   );
@@ -40,7 +41,7 @@ export const FieldValidation = () => {
     entityID: '',
     acsURL: '',
     entityDescriptor: '',
-    attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
   });
   return (
     <Validation>
@@ -56,6 +57,7 @@ export const FieldValidation = () => {
             resourceSpec={
               { kind: ResourceKind.SamlApplication } as ResourceSpec
             }
+            isUpdateFlow={false}
           />
           <ButtonSecondary
             mt={6}

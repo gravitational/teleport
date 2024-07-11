@@ -2,33 +2,46 @@ import React from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Box, Link, Text } from 'design';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  useDiscover,
+  AgentMeta,
+  SamlMeta,
+} from 'teleport/Discover/useDiscover';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import {
   ConfigureServiceProvider,
   AddMetadataGeneric,
+  UPDATE_NOTE,
 } from '../../shared/ConfigureServiceProvider';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
-
 export function Container() {
   const { idpService } = useTeleportE();
   const { attempt, run } = useAttempt('');
-  const { prevStep, nextStep, updateAgentMeta, agentMeta, resourceSpec } =
-    useDiscover();
-  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
+  const {
+    prevStep,
+    nextStep,
+    updateAgentMeta,
+    agentMeta,
+    resourceSpec,
+    isUpdateFlow,
+  } = useDiscover();
+  const gcpWorkforceMeta: Extract<SamlMeta, AgentMeta> = agentMeta;
 
-  const createSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
+  const upsertSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
     spConfig.preset = resourceSpec.samlMeta?.preset;
-    run(() => idpService.createSamlIdpServiceProvider(spConfig));
+    run(() => idpService.upsertRequest(spConfig, isUpdateFlow));
   };
 
-  const header: React.ReactNode = 'Add Workforce Pool To Teleport';
-  const subtitle: React.ReactNode = gcpWorkforceMeta?.isAutoConfig ? (
+  const header: React.ReactNode = isUpdateFlow
+    ? 'Update Workforce Pool'
+    : 'Add Workforce Pool To Teleport';
+
+  const subtitle: React.ReactNode = gcpWorkforceMeta.samlGcpWorkforce
+    ?.isAutoConfig ? (
     <Text>
       The fields below use the values from the GCP configuration provided in the
       previous step. If you update the workforce <br />
@@ -36,6 +49,12 @@ export function Container() {
       must also update the Entity ID, ACS URL, <br />
       or attribute mapping fields in the SAML IdP service provider spec,
       respectively.
+      {isUpdateFlow && (
+        <>
+          <br />
+          <br /> {UPDATE_NOTE}
+        </>
+      )}
     </Text>
   ) : (
     <Box>
@@ -57,13 +76,14 @@ export function Container() {
       header={header}
       subtitle={subtitle}
       attempt={attempt}
-      createSP={createSP}
+      upsertSP={upsertSP}
       prevStep={prevStep}
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
       agentMeta={agentMeta}
       SpMetadataConfigComponent={AddMetadataGeneric}
       resourceSpec={resourceSpec}
+      isUpdateFlow={isUpdateFlow}
     />
   );
 }

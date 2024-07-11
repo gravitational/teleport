@@ -27,7 +27,11 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import { useAttemptNext } from 'shared/hooks';
 
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  useDiscover,
+  AgentMeta,
+  type SamlMeta,
+} from 'teleport/Discover/useDiscover';
 
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
@@ -37,20 +41,28 @@ import { ConfigureServiceProvider } from 'e-teleport/Discover/SamlApplication/Ge
 
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
-
 import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 
 export function Container() {
-  const { prevStep, nextStep, agentMeta, updateAgentMeta, resourceSpec } =
-    useDiscover();
-  const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
+  const {
+    prevStep,
+    nextStep,
+    agentMeta,
+    updateAgentMeta,
+    resourceSpec,
+    isUpdateFlow,
+  } = useDiscover();
+  const gcpWorkforceMeta: Extract<SamlMeta, AgentMeta> = agentMeta;
 
   const { idpService } = useTeleportE();
 
   return (
     <ConfigurePool
-      prevStep={prevStep}
+      /**
+       * In an update flow, user's should be prevent from navigating to
+       * the root Discover resource selection page.
+       */
+      prevStep={isUpdateFlow ? null : prevStep}
       nextStep={nextStep}
       fetchMetadata={idpService.getIdPMetadataValues}
       agentMeta={gcpWorkforceMeta}
@@ -65,8 +77,8 @@ export type ConfigurePoolProps = {
   prevStep: () => void;
   resourceSpec: ResourceSpec;
   fetchMetadata: () => Promise<SAMLIdPMetadataResponse>;
-  agentMeta?: SamlGcpWorkforce;
-  updateAgentMeta?: (meta: SamlGcpWorkforce) => void;
+  agentMeta?: SamlMeta;
+  updateAgentMeta?: (meta: AgentMeta) => void;
 };
 
 export function ConfigurePool({
@@ -86,21 +98,26 @@ export function ConfigurePool({
     });
 
   const [autoConfig, setAutoConfig] = useState<boolean>(
-    toggleInitialMode(agentMeta?.isAutoConfig)
+    toggleInitialMode(agentMeta.samlGcpWorkforce?.isAutoConfig)
   );
 
   function toggleInitialMode(configMode: boolean) {
-    if (typeof configMode === 'undefined') {
+    if (!configMode) {
       return (
-        resourceSpec?.samlMeta?.preset ===
-        SamlServiceProviderPreset.GcpWorkforce
+        resourceSpec.samlMeta?.preset === SamlServiceProviderPreset.GcpWorkforce
       );
     }
     return configMode;
   }
 
   useEffect(() => {
-    updateAgentMeta({ ...agentMeta, isAutoConfig: autoConfig });
+    updateAgentMeta({
+      ...agentMeta,
+      samlGcpWorkforce: {
+        ...agentMeta.samlGcpWorkforce,
+        isAutoConfig: autoConfig,
+      },
+    });
   }, [autoConfig]);
 
   useEffect(() => {
@@ -125,9 +142,9 @@ export function ConfigurePool({
     validator.reset();
 
     const newScriptUrl = cfg.getGcpWorkforceConfigScriptUrl({
-      orgId: agentMeta.orgId,
-      poolName: agentMeta.poolName,
-      poolProviderName: agentMeta.poolProviderName,
+      orgId: agentMeta.samlGcpWorkforce.orgId,
+      poolName: agentMeta.samlGcpWorkforce.poolName,
+      poolProviderName: agentMeta.samlGcpWorkforce.poolProviderName,
     });
 
     setScriptUrl(newScriptUrl);
@@ -135,7 +152,13 @@ export function ConfigurePool({
 
   function handleConfigModeChange() {
     setAutoConfig(!autoConfig);
-    updateAgentMeta({ ...agentMeta, isAutoConfig: !autoConfig });
+    updateAgentMeta({
+      ...agentMeta,
+      samlGcpWorkforce: {
+        ...agentMeta.samlGcpWorkforce,
+        isAutoConfig: !autoConfig,
+      },
+    });
   }
   return (
     <>
@@ -183,8 +206,8 @@ export function ConfigurePool({
 
 type ScriptGenPropTypes = {
   genWorkforceConfigScript: (validator: Validator) => void;
-  agentMeta?: SamlGcpWorkforce;
-  updateAgentMeta?: (meta: SamlGcpWorkforce) => void;
+  agentMeta?: SamlMeta;
+  updateAgentMeta?: (meta: AgentMeta) => void;
 };
 
 export function ScriptGenInput({
@@ -195,10 +218,12 @@ export function ScriptGenInput({
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     updateAgentMeta({
       ...agentMeta,
-      [e.target.name]: e.target.value,
+      samlGcpWorkforce: {
+        ...agentMeta.samlGcpWorkforce,
+        [e.target.name]: e.target.value,
+      },
     });
   }
-
   return (
     <StyledBox>
       <Validation>
@@ -217,7 +242,7 @@ export function ScriptGenInput({
               toolTipContent="Obtain organization ID from GCP console."
               autoFocus
               name="orgId"
-              value={agentMeta?.orgId || ''}
+              value={agentMeta.samlGcpWorkforce?.orgId || ''}
               placeholder="10xxxxxxxxx44"
               width="500px"
               mr="3"
@@ -233,7 +258,7 @@ export function ScriptGenInput({
               toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
               across GCP and follow GCP resource naming convention."
               name="poolName"
-              value={agentMeta?.poolName || ''}
+              value={agentMeta.samlGcpWorkforce?.poolName || ''}
               placeholder="myorg-workforce-dev-pool"
               width="500px"
               mr="3"
@@ -250,7 +275,7 @@ export function ScriptGenInput({
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
               name="poolProviderName"
-              value={agentMeta?.poolProviderName || ''}
+              value={agentMeta.samlGcpWorkforce?.poolProviderName || ''}
               placeholder="myorg-gcp-dev"
               width="500px"
               mr="3"

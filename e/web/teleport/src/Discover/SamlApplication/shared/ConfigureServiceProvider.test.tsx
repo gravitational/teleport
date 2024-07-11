@@ -70,7 +70,7 @@ describe('configure SAML service provider', () => {
       attributeMapping: [
         {
           name: 'firstname',
-          nameFormat: 'unspecified',
+          name_format: 'unspecified',
           value: 'user.spec.traits.firstname',
         },
       ],
@@ -84,7 +84,7 @@ describe('configure SAML service provider', () => {
       attributeMapping: [
         {
           name: 'groups',
-          nameFormat: 'unspecified',
+          name_format: 'unspecified',
           value: 'user.spec.traits.groups',
         },
       ],
@@ -109,10 +109,11 @@ describe('configure SAML service provider', () => {
           attempt={{ status: '' }}
           agentMeta={{} as AgentMeta}
           updateAgentMeta={jest.fn()}
-          createSP={onSubmit}
+          upsertSP={onSubmit}
           prevStep={() => null}
           nextStep={() => null}
           SpMetadataConfigComponent={AddMetadataGeneric}
+          isUpdateFlow={false}
         />
       );
 
@@ -206,7 +207,7 @@ describe('configure SAML service provider with errors', () => {
       acsURL: 'https://example.com/saml/acs',
       entityDescriptor: '',
       attributeMapping: [
-        { name: '', nameFormat: '', value: 'user.spec.traits.groups' },
+        { name: '', name_format: '', value: 'user.spec.traits.groups' },
       ],
       error: 'Attribute name cannot be empty',
     },
@@ -216,7 +217,7 @@ describe('configure SAML service provider with errors', () => {
       entityID: 'https://example.com/saml/metadata',
       acsURL: 'https://example.com/saml/acs',
       entityDescriptor: '',
-      attributeMapping: [{ name: 'firstname', nameFormat: '', value: '' }],
+      attributeMapping: [{ name: 'firstname', name_format: '', value: '' }],
       error: 'Attribute value cannot be empty',
     },
   ];
@@ -240,10 +241,11 @@ describe('configure SAML service provider with errors', () => {
           attempt={{ status: '' }}
           agentMeta={{} as AgentMeta}
           updateAgentMeta={jest.fn()}
-          createSP={onSubmit}
+          upsertSP={onSubmit}
           prevStep={() => null}
           nextStep={() => null}
           SpMetadataConfigComponent={AddMetadataGeneric}
+          isUpdateFlow={false}
         />
       );
 
@@ -299,7 +301,7 @@ describe('add another attribute mapping with errors', () => {
       attributeMapping: [
         {
           name: 'firstname',
-          nameFormat: 'unspecified',
+          name_format: 'unspecified',
           value: 'user.spec.traits.firstname',
         },
       ],
@@ -313,13 +315,13 @@ describe('add another attribute mapping with errors', () => {
     {
       name: 'do not add new attribute fields if name is missing',
       attributeMapping: [
-        { name: '', nameFormat: '', value: 'user.spec.traits.firstname' },
+        { name: '', name_format: '', value: 'user.spec.traits.firstname' },
       ],
       error: 'Attribute name cannot be empty',
     },
     {
       name: 'do not add new attribute fields if value is missing',
-      attributeMapping: [{ name: 'firstname', nameFormat: '', value: '' }],
+      attributeMapping: [{ name: 'firstname', name_format: '', value: '' }],
       error: 'Attribute value cannot be empty',
     },
   ];
@@ -334,10 +336,11 @@ describe('add another attribute mapping with errors', () => {
         attempt={{ status: '' }}
         agentMeta={{} as AgentMeta}
         updateAgentMeta={jest.fn()}
-        createSP={onSubmit}
+        upsertSP={onSubmit}
         prevStep={() => null}
         nextStep={() => null}
         SpMetadataConfigComponent={AddMetadataGeneric}
+        isUpdateFlow={false}
       />
     );
 
@@ -382,16 +385,16 @@ describe('metadada and attribute mapping renders based on resourceSpec preset', 
         header="samlAppHeader"
         subtitle="samlAppSubtitle"
         attempt={{ status: '' }}
-        agentMeta={
-          {
+        agentMeta={{
+          samlGcpWorkforce: {
             isAutoConfig: true,
             orgId: '',
             poolName: poolName,
             poolProviderName: poolProviderName,
-          } as AgentMeta
-        }
+          },
+        }}
         updateAgentMeta={jest.fn()}
-        createSP={jest.fn()}
+        upsertSP={jest.fn()}
         prevStep={() => null}
         nextStep={() => null}
         SpMetadataConfigComponent={AddMetadataGeneric}
@@ -400,6 +403,7 @@ describe('metadada and attribute mapping renders based on resourceSpec preset', 
             samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
           } as ResourceSpec
         }
+        isUpdateFlow={false}
       />
     );
   };

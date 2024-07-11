@@ -1,1 +1,1 @@
-export { Discover } from './Discover';
+export { Discover, DiscoverUpdate } from './Discover';

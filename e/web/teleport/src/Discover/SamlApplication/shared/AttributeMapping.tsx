@@ -31,7 +31,7 @@ export function AttributeMapping({
 }: AttrMapProps) {
   function handleInputChange(i: InputOption | InputElementChange) {
     let value;
-    if (i.labelField === 'nameFormat' || i.labelField === 'value') {
+    if (i.labelField === 'name_format' || i.labelField === 'value') {
       setAttrMapErr({ ...attrMapErr, emptyValue: false });
       value = i.option.value;
     }
@@ -158,17 +158,17 @@ export function AttributeMapping({
                     onChange={e =>
                       handleInputChange({
                         option: e,
-                        labelField: 'nameFormat',
+                        labelField: 'name_format',
                         index: index,
                       })
                     }
                     defaultValue={{
-                      value: attribute.nameFormat,
-                      label: attribute.nameFormat,
+                      value: urnToFriendlyName(attribute.name_format),
+                      label: urnToFriendlyName(attribute.name_format),
                     }}
                     value={{
-                      value: attribute.nameFormat,
-                      label: attribute.nameFormat,
+                      value: urnToFriendlyName(attribute.name_format),
+                      label: urnToFriendlyName(attribute.name_format),
                     }}
                     isDisabled={
                       attempt.status === 'processing' || disableInput(index)
@@ -294,6 +294,19 @@ const predicateList: Option[] = [
   },
 ];
 
+function urnToFriendlyName(nameFormat: string): string {
+  switch (nameFormat) {
+    case 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri':
+      return 'uri';
+    case 'urn:oasis:names:tc:SAML:2.0:attrname-format:basic':
+      return 'basic';
+    case 'urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified':
+      return 'unspecified';
+    default:
+      return nameFormat;
+  }
+}
+
 const StyledFieldInput = styled(FieldInput)`
   input {
     border-radius: 4px 0px 0px 4px;
@@ -322,7 +335,7 @@ type AttrMapProps = {
 };
 
 type InputOption = {
-  labelField: 'nameFormat' | 'value';
+  labelField: 'name_format' | 'value';
   option: Option;
   index: number;
 };

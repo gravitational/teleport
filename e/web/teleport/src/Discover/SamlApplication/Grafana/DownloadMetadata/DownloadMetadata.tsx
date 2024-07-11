@@ -16,9 +16,18 @@ import {
 const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
 
 export function Container() {
-  const { prevStep, nextStep } = useDiscover();
+  const { prevStep, nextStep, isUpdateFlow } = useDiscover();
 
-  return <DownloadMetadata prevStep={prevStep} nextStep={nextStep} />;
+  return (
+    <DownloadMetadata
+      /**
+       * In an update flow, user's should be prevent from navigating to
+       * the root Discover resource selection page.
+       */
+      prevStep={isUpdateFlow ? null : prevStep}
+      nextStep={nextStep}
+    />
+  );
 }
 
 export function DownloadMetadata({ prevStep, nextStep }: Props) {

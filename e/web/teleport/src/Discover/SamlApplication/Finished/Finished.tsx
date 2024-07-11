@@ -11,10 +11,12 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
 export function Finished() {
-  const { exitFlow, agentMeta } = useDiscover();
+  const { exitFlow, agentMeta, isUpdateFlow } = useDiscover();
+
+  const statusText = isUpdateFlow ? 'Updated' : 'Added';
   let resourceText;
   if (agentMeta?.resourceName) {
-    resourceText = `SAML Application [${agentMeta.resourceName}] has been successfully added to
+    resourceText = `SAML Application [${agentMeta.resourceName}] has been successfully ${statusText.toString().toLowerCase()} to
         this Teleport Cluster.`;
   }
 
@@ -30,39 +32,47 @@ export function Finished() {
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
-        SAML Application Successfully Added
+        SAML Application Successfully {statusText}.
       </Text>
-      <Text mb={3}>
-        {resourceText} You can now use Teleport as an identity provider to log
-        into it.
-      </Text>
-      <Flex>
-        <ButtonPrimary
-          width="270px"
-          size="large"
-          onClick={() =>
-            history.push(
-              encodeUrlQueryParams(
-                generatePath(cfg.routes.unifiedResources, {
-                  clusterId: cfg.proxyCluster,
-                }),
-                '' /* searchString */,
-                null /* sort */,
-                ['app'] /* kind */,
-                false /* isAdvancedSearch */,
-                false /* pinnedOnly */
-              ),
-              true
-            )
-          }
-          mr={3}
-        >
-          Browse Applications
-        </ButtonPrimary>
-        <ButtonSecondary width="270px" size="large" onClick={() => exitFlow()}>
-          Add Another Resource
-        </ButtonSecondary>
-      </Flex>
+      {!isUpdateFlow && (
+        <>
+          <Text mb={3}>
+            {resourceText} You can now use Teleport as an identity provider to
+            log into it.
+          </Text>
+          <Flex>
+            <ButtonPrimary
+              width="270px"
+              size="large"
+              onClick={() =>
+                history.push(
+                  encodeUrlQueryParams(
+                    generatePath(cfg.routes.unifiedResources, {
+                      clusterId: cfg.proxyCluster,
+                    }),
+                    '' /* searchString */,
+                    null /* sort */,
+                    ['app'] /* kind */,
+                    false /* isAdvancedSearch */,
+                    false /* pinnedOnly */
+                  ),
+                  true
+                )
+              }
+              mr={3}
+            >
+              Browse Applications
+            </ButtonPrimary>
+            <ButtonSecondary
+              width="270px"
+              size="large"
+              onClick={() => exitFlow()}
+            >
+              Add Another Resource
+            </ButtonSecondary>
+          </Flex>
+        </>
+      )}
     </Flex>
   );
 }

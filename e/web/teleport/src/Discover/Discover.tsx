@@ -1,15 +1,18 @@
 import React from 'react';
 
 import { DiscoverComponent } from 'teleport/Discover/Discover';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 
-import useTeleport from 'e-teleport/useTeleportE';
+import useTeleportE from 'e-teleport/useTeleportE';
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 
 import { resourceViewConfigs } from './resourceViewConfig';
 
+import type { ResourceSpec } from 'teleport/Discover/SelectResource';
+
 export function Discover() {
-  const ctx = useTeleport();
+  const ctx = useTeleportE();
   const { license } = useBanner();
 
   // TODO(hatch): In the near future the license warning will come over the same cluster
@@ -41,4 +44,18 @@ export function Discover() {
   }
 
   return <DiscoverComponent eViewConfigs={resourceViewConfigs} />;
+}
+
+type Props = {
+  agentMeta: AgentMeta;
+  resourceSpec: ResourceSpec;
+};
+
+export function DiscoverUpdate({ agentMeta, resourceSpec }: Props) {
+  return (
+    <DiscoverComponent
+      eViewConfigs={resourceViewConfigs}
+      updateFlow={{ resourceSpec: resourceSpec, agentMeta: agentMeta }}
+    />
+  );
 }

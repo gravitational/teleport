@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Prompt } from 'react-router';
 import { pluralize } from 'shared/utils/text';
@@ -51,6 +51,10 @@ import {
   RequestButton,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
 import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestCheckout';
+
+import { UpdateSamlApplication } from 'e-teleport/Discover/SamlApplication/shared/UpdateSamlApplication/UpdateSamlApplication';
+
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();
@@ -121,7 +125,12 @@ export function UnifiedResourcesE() {
         />
       );
     }
-    return <ResourceActionButton resource={resource} />;
+    return (
+      <ResourceActionButton
+        resource={resource}
+        setResourceSpec={setResourceSpec}
+      />
+    );
   };
 
   function bulkAdd(
@@ -151,8 +160,11 @@ export function UnifiedResourcesE() {
     cfg.ui.showResources === 'requestable'
   );
 
+  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+
   return (
     <FeatureBox px={4}>
+      <UpdateSamlApplication resourceSpec={resourceSpec} />
       <Flex gap={4}>
         <ResizingResourceWrapper showCheckout={showCheckout}>
           <ClusterResources
