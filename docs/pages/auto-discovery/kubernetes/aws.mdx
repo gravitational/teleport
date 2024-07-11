@@ -7,7 +7,7 @@ EKS Auto-Discovery can automatically
 discover any EKS cluster and enroll it in Teleport if its tags match the
 configured labels.
 
-(!docs/pages/includes/discovery/step-description.mdx!)
+(!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
 ## How it works
 
@@ -366,4 +366,6 @@ automatically.
 
 ## Troubleshooting
 
-(!docs/pages/includes/discovery/troubleshooting.mdx!)
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" !)
+
+(!docs/pages/includes/discovery/kubernetes-service-troubleshooting.mdx!)
