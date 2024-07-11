@@ -300,6 +300,18 @@ the root of this repository.
 Keep in mind that there should only be a single `yarn.lock` in this repository, here at the top level. If you add packages
 via `yarn workspace <workspace-name> add <package-name>`, it will create a `packages/<package-name>/yarn.lock` file, which should not be checked in.
 
+Dependencies should generally be added to the specific workspaces that use them. 
+For instance, if you need a new dependency for Web UI, add it to `packages/teleport/package.json`. 
+Similarly, if you're adding a new ESLint plugin, include it in `packages/build/package.json`.
+
+However, there are cases where dependencies should be added to the root `package.json`:
+
+1. Project-wide packages, such as `react`.
+2. Web UI Enterprise dependencies (these shouldn't be added to `e/web/teleport/package.json` 
+to avoid generating a different lockfile when e isn't cloned).
+3. Globally run CLI tools, like `prettier`.
+4. Dependencies imported in multiple workspaces, like `react-day-picker`.
+
 ### Adding an Audit Event
 
 When a new event is added to Teleport, the web UI has to be updated to display it correctly:
