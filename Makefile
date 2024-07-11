@@ -1270,7 +1270,7 @@ $(VERSRC): Makefile
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	@if [[ -n "$$(git status --porcelain)" && -z "$${SKIP_CLEAN_CHECK}" ]]; then \
+	@if [[ -n "$$(git status --porcelain --branch)" && -z "$${SKIP_CLEAN_CHECK}" ]]; then \
 		echo "Git state is not clean refusing to continue. If you are sure you want to continue regardless set SKIP_CLEAN_CHECK."; \
 		exit 1; \
 	fi
