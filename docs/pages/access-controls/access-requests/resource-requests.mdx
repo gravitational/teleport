@@ -586,6 +586,21 @@ the regular expression `/^dev-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resources /teleport.example.com/namespace/mycluster/^dev-[a-z0-9-]+$
 ```
 
+Using cluster-scoped resource requests requires the role under `search_as_roles` to have the correct 
+permissions for the cluster-scoped resource.  This is an example of the required permissions to
+request access only to the namespace `prod` (and all resources within it):
+
+```yaml
+kind: role
+spec:
+  allow:
+    kubernetes_resources:
+    - kind: namespace
+      name: prod
+      verbs:
+      - '*'
+```
+
 #### Search for Kubernetes resources
 
 If a user has no access to a Kubernetes cluster, they can search the list of resources
