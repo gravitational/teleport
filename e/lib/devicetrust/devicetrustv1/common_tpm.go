@@ -1,4 +1,4 @@
-package internal
+package devicetrustv1
 
 import (
 	"crypto"
@@ -12,7 +12,7 @@ import (
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
-func PlatformAttestationChallenge(
+func platformAttestationChallenge(
 	osType devicepb.OSType,
 	akPublic []byte,
 ) (
@@ -47,7 +47,7 @@ func PlatformAttestationChallenge(
 			platformParams.PCRs,
 			nonce,
 		); err != nil {
-			return nil, AuditStatusError{
+			return nil, auditStatusError{
 				Err:         trace.Wrap(err, "verifying pcrs"),
 				UserMessage: deviceAuthnFailedMessage,
 			}
@@ -65,13 +65,13 @@ func PlatformAttestationChallenge(
 		// it indicates attempted tampering.
 		eventLog, err := attest.ParseEventLog(platformParams.EventLog)
 		if err != nil {
-			return nil, AuditStatusError{
+			return nil, auditStatusError{
 				Err:         trace.Wrap(err, "parsing event log"),
 				UserMessage: "event log parsing failed",
 			}
 		}
 		if _, err := eventLog.Verify(platformParams.PCRs); err != nil {
-			return nil, AuditStatusError{
+			return nil, auditStatusError{
 				Err:         trace.Wrap(err, "verifying event log"),
 				UserMessage: "event log verification failed",
 			}
@@ -83,7 +83,7 @@ func PlatformAttestationChallenge(
 	}, nil
 }
 
-func CredentialActivationChallenge(
+func credentialActivationChallenge(
 	ek crypto.PublicKey,
 	attestationParameters attest.AttestationParameters,
 ) (

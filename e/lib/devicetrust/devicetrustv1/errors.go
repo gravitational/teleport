@@ -1,26 +1,26 @@
-package internal
+package devicetrustv1
 
 import "errors"
 
-// AuditStatusError is an error wrapper that carries a custom audit
+// auditStatusError is an error wrapper that carries a custom audit
 // Status.UserMessage.
-type AuditStatusError struct {
+type auditStatusError struct {
 	Err         error
 	UserMessage string
 }
 
 // Error implements error.
-func (e AuditStatusError) Error() string {
+func (e auditStatusError) Error() string {
 	return e.Err.Error()
 }
 
 // Unwrap adds support for errors.Unwrap (and similar methods).
-func (e AuditStatusError) Unwrap() error {
+func (e auditStatusError) Unwrap() error {
 	return e.Err
 }
 
-func GetUserMessage(err error) string {
-	var auditErr AuditStatusError
+func getUserMessage(err error) string {
+	var auditErr auditStatusError
 	if errors.As(err, &auditErr) {
 		return auditErr.UserMessage
 	}

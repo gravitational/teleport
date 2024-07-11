@@ -7,14 +7,13 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 )
 
 // assertCeremony implements [assertserver.Ceremony].
 type assertCeremony struct {
 	logger *slog.Logger
-	impl   *internal.AuthnCeremony
+	impl   *authnCeremony
 }
 
 func (c *assertCeremony) AssertDevice(

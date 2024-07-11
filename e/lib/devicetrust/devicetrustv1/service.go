@@ -26,7 +26,6 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -147,7 +146,9 @@ type AccessService interface {
 
 // UsersService represents the [local.IdentityService] methods used by
 // [Service].
-type UsersService internal.UsersService
+type UsersService interface {
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
+}
 
 // RateLimiter is a subset of [limiter.RateLimiter].
 type RateLimiter interface {
@@ -823,15 +824,15 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		return trace.Wrap(err)
 	}
 
-	c := &internal.AuthnCeremony{
-		Logger:      s.logger,
-		Storage:     s.storage,
-		CachedUsers: s.cachedUsers,
-		AugmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
+	c := &authnCeremony{
+		logger:      s.logger,
+		storage:     s.storage,
+		cachedUsers: s.cachedUsers,
+		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
-		AuditCallback: func(dev *devicepb.Device, auditData *internal.DeviceAuthnAuditData, err error) {
+		auditCallback: func(dev *devicepb.Device, auditData *deviceAuthnAuditData, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
 			userMetadata := getUserMetadata(ctx)
@@ -856,7 +857,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 				},
 				Status: apievents.Status{
 					Success:     success,
-					UserMessage: internal.GetUserMessage(err),
+					UserMessage: getUserMessage(err),
 				},
 				Device:       devMetadata,
 				UserMetadata: userMetadata,
@@ -918,7 +919,7 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 		},
 		Status: apievents.Status{
 			Success:     err == nil,
-			UserMessage: internal.GetUserMessage(err),
+			UserMessage: getUserMessage(err),
 		},
 		UserMetadata: apievents.UserMetadata{
 			User:          user,
@@ -944,7 +945,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 			"error", err,
 		)
 		// err swallowed on purpose.
-		return tokenData, nil, internal.AuditStatusError{
+		return tokenData, nil, auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
 			UserMessage: "invalid device confirmation token",
 		}
@@ -952,7 +953,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 	// Always return tokenData for audit purposes.
 
 	if req.CurrentWebSessionId != tokenData.WebSessionID {
-		return tokenData, nil, internal.AuditStatusError{
+		return tokenData, nil, auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
 			UserMessage: "token move check failed",
 		}
@@ -977,7 +978,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 			"Failed to augment WebSession certificates",
 			"error", err,
 		)
-		return tokenData, dev, internal.AuditStatusError{
+		return tokenData, dev, auditStatusError{
 			Err:         trace.Wrap(err),
 			UserMessage: "failed to issue device web certificates",
 		}
@@ -1215,12 +1216,12 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 func (s *Service) CreateAssertCeremony() (assertserver.Ceremony, error) {
 	return &assertCeremony{
 		logger: s.logger,
-		impl: &internal.AuthnCeremony{
-			Logger:            s.logger,
-			Storage:           s.storage,
-			SkipOwnerBackfill: true, // Don't backfill, caller may not be the owner.
-			AugmentCertsFunc:  nil,  // Don't issue certificates.
-			AuditCallback: func(*devicepb.Device, *internal.DeviceAuthnAuditData, error) {
+		impl: &authnCeremony{
+			logger:            s.logger,
+			storage:           s.storage,
+			skipOwnerBackfill: true, // Don't backfill, caller may not be the owner.
+			augmentCertsFunc:  nil,  // Don't issue certificates.
+			auditCallback: func(*devicepb.Device, *deviceAuthnAuditData, error) {
 				// Audit is responsibility of the caller.
 			},
 		},

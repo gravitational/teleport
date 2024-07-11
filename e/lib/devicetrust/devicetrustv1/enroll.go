@@ -11,7 +11,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
-	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
@@ -76,7 +75,7 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 
 	// ...fetch the device...
 	ctx := stream.Context()
-	dev, err := internal.FindDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
+	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +95,7 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 
 	// Run a few storage validations manually, so we catch errors and mismatches
 	// before continuing the ceremony.
-	if err := internal.ProtectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
+	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
