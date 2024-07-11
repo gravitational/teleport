@@ -22,7 +22,7 @@
       "type": "node",
       "request": "launch",
       "protocol": "inspector",
-      "runtimeExecutable": "yarn",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": ["start-electron --inspect=5858 --remote-debugging-port=9223"]
     }
   ]

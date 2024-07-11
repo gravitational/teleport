@@ -8,7 +8,7 @@ If `https://example.com:3080/web` is the URL of your teleport cluster UI
 then you can start your local development server:
 
 ```
-$ yarn run start --target=https://example.com:3080/web
+$ pnpm run start --target=https://example.com:3080/web
 ```
 
 #### wasm-pack
