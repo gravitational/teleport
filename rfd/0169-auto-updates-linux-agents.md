@@ -58,7 +58,7 @@ Rollouts are specified as interdependent groups of hosts, selected by resource l
 A host is eligible to upgrade if the label is present on any of its connected resources.
 
 At the start of a group rollout, the Teleport proxy marks a desired group of hosts to update in the backend.
-A fixed number of hosts (`max_in_flight`) are instructed to upgrade via `/v1/webapi/find`.
+An arbitrarily selected fixed number of hosts (`max_in_flight x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
 Additional hosts are instructed to update as earlier updates complete, timeout, or fail, never exceeding `max_in_flight`.
 The group rollout is halted if timeouts or failures exceed their specified thresholds.
 Group rollouts may be retried with `tctl autoupdate run`.
