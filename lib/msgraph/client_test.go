@@ -224,12 +224,13 @@ func TestIterateUsers(t *testing.T) {
 }
 
 type failingHandler struct {
-	t            *testing.T
-	timesCalled  atomic.Int32
-	timesToFail  int32
-	statusCode   int
-	expectedBody []byte
-	retryAfter   int
+	t              *testing.T
+	timesCalled    atomic.Int32
+	timesToFail    int32
+	statusCode     int
+	expectedBody   []byte
+	successPayload []byte
+	retryAfter     int
 }
 
 func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -243,10 +244,11 @@ func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if f.timesCalled.Load() < f.timesToFail {
 		w.WriteHeader(f.statusCode)
+		w.Write([]byte("{}"))
 	} else {
 		w.WriteHeader(http.StatusOK)
+		w.Write(f.successPayload)
 	}
-	w.Write([]byte("{}"))
 	f.timesCalled.Add(1)
 }
 
@@ -254,17 +256,20 @@ func TestRetry(t *testing.T) {
 	appID := uuid.NewString()
 	route := "POST /applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
-	object := &FederatedIdentityCredential{Name: &name}
+	fic := &FederatedIdentityCredential{Name: &name}
+	objPayload, err := json.Marshal(fic)
+	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()
 
 	t.Run("retriable, with retry-after", func(t *testing.T) {
 		handler := &failingHandler{
-			t:            t,
-			timesToFail:  2,
-			statusCode:   http.StatusTooManyRequests,
-			expectedBody: []byte(`{"name":"foo"}`),
-			retryAfter:   10,
+			t:              t,
+			timesToFail:    2,
+			statusCode:     http.StatusTooManyRequests,
+			expectedBody:   objPayload,
+			successPayload: objPayload,
+			retryAfter:     10,
 		}
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
@@ -284,7 +289,9 @@ func TestRetry(t *testing.T) {
 
 		ret := make(chan error, 1)
 		go func() {
-			ret <- client.CreateFederatedIdentityCredential(context.Background(), appID, object)
+			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			assert.Equal(t, fic, out)
+			ret <- err
 		}()
 
 		// Fail for the first time
@@ -307,10 +314,11 @@ func TestRetry(t *testing.T) {
 
 	t.Run("retriable, without retry-after", func(t *testing.T) {
 		handler := &failingHandler{
-			t:            t,
-			timesToFail:  2,
-			statusCode:   http.StatusTooManyRequests,
-			expectedBody: []byte(`{"name":"foo"}`),
+			t:              t,
+			timesToFail:    2,
+			statusCode:     http.StatusTooManyRequests,
+			expectedBody:   []byte(`{"name":"foo"}`),
+			successPayload: objPayload,
 		}
 		mux := http.NewServeMux()
 		mux.Handle(route, handler)
@@ -330,7 +338,9 @@ func TestRetry(t *testing.T) {
 
 		ret := make(chan error, 1)
 		go func() {
-			ret <- client.CreateFederatedIdentityCredential(context.Background(), appID, object)
+			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			assert.Equal(t, fic, out)
+			ret <- err
 		}()
 
 		// Fail for the first time
@@ -373,6 +383,7 @@ func TestRetry(t *testing.T) {
 			baseURL:       uri,
 		}
 
-		require.Error(t, client.CreateFederatedIdentityCredential(context.Background(), appID, object))
+		_, err = client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+		require.Error(t, err)
 	})
 }
