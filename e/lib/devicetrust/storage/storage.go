@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -2079,11 +2080,11 @@ func tpmPlatformAttestationFromStored(stored *tpmPlatformAttestation) *devicepb.
 }
 
 func deviceKeyStart() []byte {
-	return backend.Key("devices", "id")
+	return backend.Key(devicetrust.DevicesIDPrefix...)
 }
 
 func deviceKey(deviceID string) []byte {
-	return backend.Key("devices", "id", deviceID)
+	return backend.Key(append(devicetrust.DevicesIDPrefix, deviceID)...)
 }
 
 func deviceTokenKey(deviceID string) []byte {
