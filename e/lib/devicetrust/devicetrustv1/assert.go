@@ -1,4 +1,4 @@
-package assert
+package devicetrustv1
 
 import (
 	"context"
@@ -8,71 +8,24 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 )
 
-// AssertDeviceServerStream represents a server-side device assertion stream.
-type AssertDeviceServerStream interface {
-	Send(*devicepb.AssertDeviceResponse) error
-	Recv() (*devicepb.AssertDeviceRequest, error)
-}
-
-// Ceremony is the device assertion ceremony.
-//
-// Device assertion is a light form of device authentication where the user
-// isn't considered and no side-effects (like certificate issuance) happen.
-//
-// Assertion is meant to be embedded in RPCs or streams external to the
-// DeviceTrustService itself.
-type Ceremony struct {
+// assertCeremony implements [assertserver.Ceremony].
+type assertCeremony struct {
 	logger *slog.Logger
 	impl   *internal.AuthnCeremony
 }
 
-// NewCeremony creates a new [Ceremony].
-//
-// This method is only viable inside the devicetrustv1 package. The recommended
-// way to create a [Ceremony] is via a function pointer bound to
-// devicetrustv1.Service.CreateAssertCeremony
-func NewCeremony(params *internal.AssertParams) (*Ceremony, error) {
-	switch {
-	case params == nil:
-		return nil, trace.BadParameter("params required")
-	case params.Storage == nil:
-		return nil, trace.BadParameter("params.Storage required")
-	}
-
-	logger := params.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-
-	return &Ceremony{
-		logger: logger,
-		impl: &internal.AuthnCeremony{
-			Logger:            logger,
-			Storage:           params.Storage,
-			SkipOwnerBackfill: true, // Don't backfill, caller may not be the owner.
-			AugmentCertsFunc:  nil,  // Don't issue certificates.
-			AuditCallback: func(*devicepb.Device, *internal.DeviceAuthnAuditData, error) {
-				// Audit is responsibility of the caller.
-			},
-		},
-	}, nil
-}
-
-// AssertDevice runs the device assertion ceremonies.
-//
-// Requests and responses are consumed from the stream until the device is
-// asserted or authentication fails.
-//
-// As long as any device information is acquired from the stream, a non-nil
-// device is returned, even if the ceremony itself failed.
-func (c *Ceremony) AssertDevice(ctx context.Context, stream AssertDeviceServerStream) (*devicepb.Device, error) {
+func (c *assertCeremony) AssertDevice(
+	ctx context.Context,
+	stream assertserver.AssertDeviceServerStream,
+) (*devicepb.Device, error) {
 	if c.impl == nil {
 		return nil, trace.BadParameter("assert.Ceremony instance not properly initialized")
 	}
 
-	dev, err := c.impl.AuthenticateDevice(ctx, &streamAdapter{
+	dev, err := c.impl.AuthenticateDevice(ctx, &assertStreamAdapter{
 		logger: c.logger,
 		ctx:    ctx,
 		stream: stream,
@@ -80,13 +33,16 @@ func (c *Ceremony) AssertDevice(ctx context.Context, stream AssertDeviceServerSt
 	return dev, trace.Wrap(err)
 }
 
-type streamAdapter struct {
+// assertStreamAdapter adapts an [assertserver.AssertDeviceServerStream] to an
+// [internal.AuthenticateDeviceStream].
+type assertStreamAdapter struct {
 	logger *slog.Logger
 	ctx    context.Context // Typically part of the stream.
-	stream AssertDeviceServerStream
+
+	stream assertserver.AssertDeviceServerStream
 }
 
-func (s *streamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error) {
+func (s *assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error) {
 	req, err := s.stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,7 +77,7 @@ func (s *streamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error) {
 	return authnReq, nil
 }
 
-func (s *streamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse) error {
+func (s *assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse) error {
 	if authnResp == nil || authnResp.Payload == nil {
 		return trace.BadParameter("authenticate response payload required")
 	}

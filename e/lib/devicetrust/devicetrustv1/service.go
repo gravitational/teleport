@@ -26,7 +26,6 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/assert"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1/internal"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -1212,12 +1212,19 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 
 // CreateAssertCeremony creates a new [assert.Ceremony] backed by this
 // [Service].
-func (s *Service) CreateAssertCeremony() (*assert.Ceremony, error) {
-	c, err := assert.NewCeremony(&internal.AssertParams{
-		Logger:  s.logger,
-		Storage: s.storage,
-	})
-	return c, trace.Wrap(err)
+func (s *Service) CreateAssertCeremony() (assertserver.Ceremony, error) {
+	return &assertCeremony{
+		logger: s.logger,
+		impl: &internal.AuthnCeremony{
+			Logger:            s.logger,
+			Storage:           s.storage,
+			SkipOwnerBackfill: true, // Don't backfill, caller may not be the owner.
+			AugmentCertsFunc:  nil,  // Don't issue certificates.
+			AuditCallback: func(*devicepb.Device, *internal.DeviceAuthnAuditData, error) {
+				// Audit is responsibility of the caller.
+			},
+		},
+	}, nil
 }
 
 // getDevicesByID reads devices from storage concurrently.
