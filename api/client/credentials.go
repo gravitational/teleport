@@ -41,6 +41,10 @@ import (
 // also provide other functionality, such as automatic address discovery and
 // ssh connectivity.
 //
+// Note: starting with v17, all Credentials must have an Expiry method.
+// For compatibility guarantees, the future interface is optional and called
+// CredentialsWithExpiry.
+//
 // See the examples below for an example of each loader.
 type Credentials interface {
 	// TLSConfig returns TLS configuration used to authenticate the client.
@@ -48,6 +52,14 @@ type Credentials interface {
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+}
+
+// CredentialsWithExpiry are credentials implementing the Expiry() function.
+// This interface is here to avoid breaking changes in v15 and v16. Starting with
+// v17, Expiry() will be part of the Credentials interface.
+type CredentialsWithExpiry interface {
+	Credentials
+
 	// Expiry returns the Credentials expiry if it's possible to know its expiry.
 	// When expiry can be determined returns true, else returns false.
 	// If the Credentials don't expire, returns the zero time.

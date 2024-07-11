@@ -33,8 +33,8 @@ import (
 const UnstableClientCredentialOutputType = "unstable_client_credential"
 
 var (
-	_ ServiceConfig      = &UnstableClientCredentialOutput{}
-	_ client.Credentials = &UnstableClientCredentialOutput{}
+	_ ServiceConfig                = &UnstableClientCredentialOutput{}
+	_ client.CredentialsWithExpiry = &UnstableClientCredentialOutput{}
 )
 
 // UnstableClientCredentialOutput is an experimental tbot output which is
