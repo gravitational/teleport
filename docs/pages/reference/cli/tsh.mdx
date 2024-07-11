@@ -648,7 +648,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../../application-access/cloud-apis/azure.mdx).
+Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).
 
 ### Arguments
 
@@ -759,7 +759,7 @@ $ gsutil ls
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
 This is typically used as part of the SSH client configuration to use `ssh` as a client
-through Teleport.  See the [OpenSSH Guide](../../server-access/guides/openssh.mdx) guide
+through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
 

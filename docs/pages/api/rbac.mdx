@@ -318,7 +318,7 @@ authorizing them. While this step is not strictly necessary with a local
 `minikube` cluster, it demonstrates one way to use Teleport to securely access
 your external RBAC system's API.
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
@@ -937,11 +937,11 @@ infrastructure resources you want to manage access to.
 See the links below for guides to fields related to different infrastructure
 resources:
 
-- [Servers](../server-access/rbac.mdx)
-- [Databases](../database-access/rbac.mdx)
-- [Kubernetes clusters](../kubernetes-access/manage-access/rbac.mdx)
-- [Windows Desktops](../desktop-access/rbac.mdx)
-- [Applications](../application-access/controls.mdx)
+- [Servers](../enroll-resources/server-access/rbac.mdx)
+- [Databases](../enroll-resources/database-access/rbac.mdx)
+- [Kubernetes clusters](../enroll-resources/kubernetes-access/manage-access/rbac.mdx)
+- [Windows Desktops](../enroll-resources/desktop-access/rbac.mdx)
+- [Applications](../enroll-resources/application-access/controls.mdx)
 
 For general guidance, read our [Access Controls
 Reference](../access-controls/reference.mdx).
@@ -956,9 +956,9 @@ based on your cloud provider's RBAC solution.
 Read our guides for how to set up the Teleport Application Service for cloud
 provider APIs:
 
-- [AWS](../application-access/cloud-apis/aws-console.mdx)
-- [Google Cloud](../application-access/cloud-apis/google-cloud.mdx)
-- [Azure](../application-access/cloud-apis/azure.mdx)
+- [AWS](../enroll-resources/application-access/cloud-apis/aws-console.mdx)
+- [Google Cloud](../enroll-resources/application-access/cloud-apis/google-cloud.mdx)
+- [Azure](../enroll-resources/application-access/cloud-apis/azure.mdx)
 
 ### Consult examples
 
@@ -975,4 +975,4 @@ In this example, we used the `tctl auth sign` command to fetch credentials for
 the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
-documentation](../machine-id/introduction.mdx) to learn more.
+documentation](../enroll-resources/machine-id/introduction.mdx) to learn more.
