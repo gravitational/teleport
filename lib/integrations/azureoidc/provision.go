@@ -28,33 +28,21 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
-	auth "github.com/microsoft/kiota-authentication-azure-go"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 // createGraphClient creates a new graph client from ambient credentials (Azure CLI credentials cache).
-func createGraphClient() (*msgraphsdk.GraphServiceClient, error) {
+func createGraphClient() (msgraph.Client, error) {
 	credential, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create an auth provider using the credential
-	authProvider, err := auth.NewAzureIdentityAuthenticationProviderWithScopes(credential, []string{
-		"https://graph.microsoft.com/.default",
+	client, err := msgraph.NewClient(msgraph.Config{
+		TokenProvider: credential,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a request adapter using the auth provider
-	adapter, err := msgraphsdk.NewGraphRequestAdapter(authProvider)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a Graph client using request adapter
-	return msgraphsdk.NewGraphServiceClient(adapter), nil
+	return client, trace.Wrap(err)
 }
 
 // EnsureAZLogin invokes `az login` and waits for the command to successfully complete.

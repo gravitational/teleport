@@ -28,9 +28,9 @@ import (
 	"path"
 
 	"github.com/gravitational/trace"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 var errNonSSOApp = errors.New("app does not have SSO set up")
@@ -72,12 +72,12 @@ func getSingleSignOn(ctx context.Context, token string, servicePrincipalID strin
 
 // getFederatedSSOV2Compressed retrieves the FederatedSsoV2 payload for the given AppId
 // and returns it as gzipped bytes.
-func getFederatedSSOV2Compressed(ctx context.Context, graphClient *msgraphsdk.GraphServiceClient, appID string, token string) ([]byte, error) {
-	sp, err := graphClient.ServicePrincipalsWithAppId(&appID).Get(ctx, nil)
+func getFederatedSSOV2Compressed(ctx context.Context, graphClient msgraph.Client, appID string, token string) ([]byte, error) {
+	sp, err := graphClient.GetServicePrincipalByAppId(ctx, appID)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not retrieve service principal")
 	}
-	spID := sp.GetId()
+	spID := sp.ID
 	if spID == nil {
 		return nil, trace.BadParameter("service principal ID is nil")
 	}
@@ -106,7 +106,11 @@ func CreateTAGCacheFile(ctx context.Context) error {
 	}
 
 	// Get information about enterprise apps
-	appResp, err := graphClient.Applications().Get(ctx, nil)
+	var apps []*msgraph.Application
+	err = graphClient.IterateApplications(ctx, func(app *msgraph.Application) bool {
+		apps = append(apps, app)
+		return true
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,8 +127,8 @@ func CreateTAGCacheFile(ctx context.Context) error {
 
 	cache := &TAGInfoCache{}
 
-	for _, app := range appResp.GetValue() {
-		appID := app.GetAppId()
+	for _, app := range apps {
+		appID := app.AppID
 		if appID == nil {
 			slog.WarnContext(ctx, "app ID is nil", "app", app)
 			continue
