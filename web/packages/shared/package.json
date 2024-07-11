@@ -13,8 +13,5 @@
     "@gravitational/design": "1.0.0",
     "ace-builds": "1.35.2",
     "highlight-words-core": "^1.2.2"
-  },
-  "devDependencies": {
-    "jest-fail-on-console": "^3.3.0"
   }
 }

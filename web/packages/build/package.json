@@ -35,6 +35,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-testing-library": "^6.2.2",
     "jest-environment-jsdom": "^29.7.0",
+    "jest-fail-on-console": "^3.3.0",
     "jest-styled-components": "^7.2.0",
     "jsdom": "^21.1.0",
     "rollup-plugin-visualizer": "^5.12.0",
