@@ -803,34 +803,34 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
-	// private keys for kube credentials (if possible)
-	rsaKeyPEM, err := key.PrivateKey.RSAPrivateKeyPEM()
+	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
+	// hardware private keys for kube credentials (if possible)
+	keyPEM, err := key.PrivateKey.SoftwarePrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.writeResponse(output, key.KubeTLSCerts[kubeClusterName], rsaKeyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, key.KubeTLSCerts[kubeClusterName], keyPEM, expiry))
 }
 
 // writeByteResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
 	// Indicate slightly earlier expiration to avoid the cert expiring
 	// mid-request, if possible.
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	return trace.Wrap(c.writeResponse(output, kubeTLSCert, rsaKeyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, kubeTLSCert, keyPEM, expiry))
 }
 
 // writeResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(kubeTLSCert),
-			ClientKeyData:         string(rsaKeyPEM),
+			ClientKeyData:         string(keyPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)

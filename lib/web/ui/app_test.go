@@ -231,19 +231,29 @@ func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 		expected         App
 	}{
 		{
-			name: "empty",
+			name: "saml service provider with empty preset returns unspecified",
+			sp: types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test_app",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					Preset: "",
+				},
+			},
 			expected: App{
 				Kind:          types.KindApp,
-				Name:          "",
+				Name:          "test_app",
 				Description:   "SAML Application",
 				PublicAddr:    "",
 				Labels:        []Label{},
 				SAMLApp:       true,
-				SAMLAppPreset: "",
+				SAMLAppPreset: "unspecified",
 			},
 		},
 		{
-			name: "saml idp service provider",
+			name: "saml service provider with preset",
 			sp: types.SAMLIdPServiceProviderV1{
 				ResourceHeader: types.ResourceHeader{
 					Metadata: types.Metadata{

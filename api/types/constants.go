@@ -521,6 +521,14 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 

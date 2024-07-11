@@ -770,6 +770,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
+	h.PUT("/webapi/token/yaml", h.WithAuth(h.upsertTokenContent))
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
@@ -1099,7 +1100,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	features := pingResp.GetServerFeatures()
 	entitlement := modules.GetProtoEntitlement(features, entitlements.AccessMonitoring)
 	// ensure entitlement is set & feature is configured
-	accessMonitoringEnabled := entitlement.Enabled && features.AccessMonitoringConfigured
+	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
 
 	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
@@ -1658,11 +1659,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		// TODO(mcbattirola): remove isTeam when it is no longer used
-		IsTeam: clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
+		Entitlements:                   GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 
-		// todo (michellescripts) entitlements phase 3: update webCfg to have entitlements field
-		// Cloud Entitlements
+		// Set legacy fields
+		// TODO(mcbattirola): remove isTeam when it is no longer used
+		IsTeam:                   clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
 		AccessRequests:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Enabled,
 		ExternalAuditStorage:     modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled,
 		HideInaccessibleFeatures: modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled,
@@ -1694,6 +1695,27 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
+}
+
+// GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set
+func GetWebCfgEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]webclient.EntitlementInfo {
+	all := entitlements.AllEntitlements
+	result := make(map[string]webclient.EntitlementInfo, len(all))
+
+	for _, e := range all {
+		al, ok := protoEntitlements[string(e)]
+		if !ok {
+			result[string(e)] = webclient.EntitlementInfo{}
+			continue
+		}
+
+		result[string(e)] = webclient.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
+	}
+
+	return result
 }
 
 type JWKSResponse struct {
