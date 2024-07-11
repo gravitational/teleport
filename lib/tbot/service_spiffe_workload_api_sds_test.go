@@ -20,16 +20,18 @@ package tbot
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
-	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	tlsv3pb "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discoveryv3pb "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/google/go-cmp/cmp"
@@ -43,6 +45,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -237,9 +240,9 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	}
 }
 
-// TestBotSPIFFEWorkloadAPI_SDS is an end-to-end test of Workload ID's ability
+// Test_E2E_SPIFFE_SDS is an end-to-end test of Workload ID's ability
 // to issue a SPIFFE SVID to a workload connecting via the SDS API
-func TestSPIFFEWorkloadAPIService_SDS_E2E(t *testing.T) {
+func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}
@@ -274,7 +277,7 @@ func TestSPIFFEWorkloadAPIService_SDS_E2E(t *testing.T) {
 	pid := os.Getpid()
 
 	tempDir := t.TempDir()
-	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
+	socketPath := "unix://" + path.Join(tempDir, "sock")
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
@@ -340,14 +343,15 @@ func TestSPIFFEWorkloadAPIService_SDS_E2E(t *testing.T) {
 		wg.Wait()
 	})
 
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
+	// Wait for the socket to come up.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := os.Stat(filepath.Join(tempDir, "sock"))
+		assert.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
 	conn, err := grpc.NewClient(
-		"",
+		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return net.Dial("unix", socketPath)
-		}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -371,6 +375,39 @@ func TestSPIFFEWorkloadAPIService_SDS_E2E(t *testing.T) {
 	assert.NotEmpty(t, resp.VersionInfo)
 	assert.NotEmpty(t, resp.Nonce)
 	assert.Equal(t, typeUrl, resp.TypeUrl)
+	// We should expect to find two resources within the response
+	assert.Len(t, resp.Resources, 2)
+	// There's no specific order we should expect, so we'll need to assert that
+	// each actually exists
+
+	// First check we got our certificate...
+	checkSVID := func(secret *tlsv3pb.Secret) {
+		tlsCert := secret.GetTlsCertificate()
+		require.NotNil(t, tlsCert)
+		require.NotNil(t, tlsCert.CertificateChain)
+		tlsCertBytes := tlsCert.CertificateChain.GetInlineBytes()
+		require.NotEmpty(t, tlsCertBytes)
+		require.NotNil(t, tlsCert.PrivateKey)
+		privateKeyBytes := tlsCert.PrivateKey.GetInlineBytes()
+		require.NotEmpty(t, privateKeyBytes)
+		_, err = tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
+		require.NoError(t, err)
+	}
+	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
+
+	// Now check we got the CA
+	caSecret := findSecret(t, resp.Resources, "spiffe://root")
+	validationContext := caSecret.GetValidationContext()
+	require.NotNil(t, validationContext.CustomValidatorConfig)
+	require.Equal(t, envoySPIFFECertValidator, validationContext.CustomValidatorConfig.Name)
+	spiffeValidatorConfig := &tlsv3pb.SPIFFECertValidatorConfig{}
+	require.NoError(t, validationContext.CustomValidatorConfig.TypedConfig.UnmarshalTo(spiffeValidatorConfig))
+	require.Len(t, spiffeValidatorConfig.TrustDomains, 1)
+	require.Equal(t, "root", spiffeValidatorConfig.TrustDomains[0].Name)
+	block, _ := pem.Decode(spiffeValidatorConfig.TrustDomains[0].TrustBundle.GetInlineBytes())
+	require.Equal(t, "CERTIFICATE", block.Type)
+	_, err = x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
 
 	// We should send the response ACK we expect envoy to send.
 	err = stream.Send(&discoveryv3pb.DiscoveryRequest{
@@ -396,4 +433,17 @@ func TestSPIFFEWorkloadAPIService_SDS_E2E(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.VersionInfo)
 	assert.NotEmpty(t, resp.Nonce)
+	assert.Len(t, resp.Resources, 1)
+	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
+}
+
+func findSecret(t *testing.T, resources []*anypb.Any, name string) *tlsv3pb.Secret {
+	for _, a := range resources {
+		secret := &tlsv3pb.Secret{}
+		require.NoError(t, a.UnmarshalTo(secret))
+		if secret.Name == name {
+			return secret
+		}
+	}
+	return nil
 }

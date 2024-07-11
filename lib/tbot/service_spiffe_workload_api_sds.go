@@ -473,7 +473,6 @@ func newTLSV3Certificate(
 
 	// https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#envoy-v3-api-msg-extensions-transport-sockets-tls-v3-tlscertificate
 	secret := &tlsv3pb.Secret{
-		// Must be SPIFFE ID
 		Name: svid.SpiffeId,
 		Type: &tlsv3pb.Secret_TlsCertificate{
 			TlsCertificate: &tlsv3pb.TlsCertificate{
