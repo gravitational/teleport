@@ -9,7 +9,7 @@ import (
 
 const msGraphErrorPayload = `{
   "error": {
-    "code": "badRequest",
+    "code": "Error_BadRequest",
     "message": "Uploaded fragment overlaps with existing data.",
     "innerError": {
       "code": "invalidRange",
@@ -26,6 +26,14 @@ func TestUnmarshalGraphError(t *testing.T) {
 		graphError, err := readError(strings.NewReader(msGraphErrorPayload))
 		require.NoError(t, err)
 		require.NotNil(t, graphError)
+		expected := &GraphError{
+			Code:    "Error_BadRequest",
+			Message: "Uploaded fragment overlaps with existing data.",
+			InnerError: &GraphError{
+				Code: "invalidRange",
+			},
+		}
+		require.Equal(t, expected, graphError)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
