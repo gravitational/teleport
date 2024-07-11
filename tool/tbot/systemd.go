@@ -179,6 +179,7 @@ func onInstallSystemdCmd(
 		"Wrote systemd unit file. Reload systemd with 'systemctl daemon-reload' and then enable and start the service with 'systemctl enable --now %s'",
 		unitName,
 	)
+	//nolint:sloglint // This is intended to be a human-readable message which will be clearer with string formatting.
 	log.InfoContext(
 		ctx,
 		msg,
