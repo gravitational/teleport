@@ -39,7 +39,11 @@ export function newYamlRuleFromTemplate(
   );
   template = template.replace(
     '{{rule.condition}}',
-    convertRuleConditionToPredicateExpression(ruleCondition)
+    // The single quote is required to represent condition
+    // as a string. Normally the yaml library we use will insert
+    // single quotes if required, but for new yamls we don't require
+    // the yaml lib since we use a pre-defined template.
+    `'${convertRuleConditionToPredicateExpression(ruleCondition)}'`
   );
   template = template.replace(
     '{{rule.notification.name}}',

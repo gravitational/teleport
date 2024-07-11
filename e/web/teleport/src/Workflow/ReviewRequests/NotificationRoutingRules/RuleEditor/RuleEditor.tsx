@@ -183,8 +183,10 @@ export const RuleEditor = ({
     setSelectedEditorTab(activeIndex);
   }
 
+  const isCreating = !selectedRule?.object;
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().read;
-  const requiresEnrollingPlugins = hasPluginAccess && plugins.length === 0;
+  const requiresEnrollingPlugins =
+    hasPluginAccess && isCreating && plugins.length === 0;
   return (
     <Sidebar p={4}>
       <EditorHeader

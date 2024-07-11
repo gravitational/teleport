@@ -82,10 +82,7 @@ export default function Workflow() {
               ) : (
                 <HoverTooltip
                   tipContent={
-                    cfg.oss.isIgsEnabled
-                      ? 'You do not have access to read/list Notification Routing Rules'
-                      : // TODO(lisa): add CTA?
-                        'Notification Routing Rule requires Access Monitoring feature'
+                    'You do not have access to read/list Notification Routing Rules'
                   }
                 >
                   {ViewRulesButton}
