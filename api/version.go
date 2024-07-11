@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.0.0-dev.gzdunek.9"
+const Version = "17.0.0-dev.gzdunek.10"
 
 var SemVersion = semver.New(Version)
