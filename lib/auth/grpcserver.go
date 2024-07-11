@@ -4479,7 +4479,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	if err != nil {
 		if trace.IsNotFound(err) {
 			switch req.Name {
-			case types.DefaultInstallerScriptName:
+			case installers.InstallerScriptName:
 				return installer.DefaultInstaller, nil
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
