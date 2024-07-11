@@ -104,33 +104,14 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 		PrivateKey: signer,
 	}
 
-	var skippedBlockTypes []string
-	for {
-		var certDERBlock *pem.Block
-		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
-		if certDERBlock == nil {
-			break
-		}
-		if certDERBlock.Type == "CERTIFICATE" {
-			cert.Certificate = append(cert.Certificate, certDERBlock.Bytes)
-		} else {
-			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
-		}
-	}
-
-	if len(cert.Certificate) == 0 {
-		if len(skippedBlockTypes) == 0 {
-			return tls.Certificate{}, trace.BadParameter("tls: failed to find any PEM data in certificate input")
-		}
-		return tls.Certificate{}, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
-	}
-
-	// Check that the certificate's public key matches this private key.
-	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+	// Parse the certificate and verify it is valid.
+	x509Cert, rawCerts, err := X509Certificate(certPEMBlock)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
+	cert.Certificate = rawCerts
 
+	// Check that the certificate's public key matches this private key.
 	if keyPub, ok := signer.Public().(cryptoPublicKeyI); !ok {
 		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
 	} else if !keyPub.Equal(x509Cert.PublicKey) {
@@ -336,4 +317,37 @@ func AssertSoftwarePrivateKey(privKey []byte) error {
 	}
 	return trace.BadParameter("found PEM block with type %q, only the following types are supported: %v",
 		block.Type, []string{PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType})
+}
+
+// X509Certificate takes a PEM-encoded file containing one or more certificates, extracts all certificates, and parses
+// the Leaf certificate (the first one in the chain). If you are loading both a certificate and a private key, you
+// should use X509KeyPair instead.
+func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
+	var skippedBlockTypes []string
+	var rawCerts [][]byte
+	for {
+		var certDERBlock *pem.Block
+		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
+		if certDERBlock == nil {
+			break
+		}
+		if certDERBlock.Type == "CERTIFICATE" {
+			rawCerts = append(rawCerts, certDERBlock.Bytes)
+		} else {
+			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
+		}
+	}
+
+	if len(rawCerts) == 0 {
+		if len(skippedBlockTypes) == 0 {
+			return nil, nil, trace.BadParameter("tls: failed to find any PEM data in certificate input")
+		}
+		return nil, nil, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
+	}
+
+	x509Cert, err := x509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return nil, rawCerts, trace.Wrap(err, "failed to parse certificate")
+	}
+	return x509Cert, rawCerts, nil
 }
