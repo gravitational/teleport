@@ -44,7 +44,7 @@ func TestGetObjectFetcher(t *testing.T) {
 				require.NoError(t, err)
 				rulesFetcher, ok := fetcher.(*applyRulesFetcher)
 				require.True(t, ok)
-				require.IsType(t, rulesFetcher.innerFetcher, &dummyObjectFetcher{})
+				require.IsType(t, &dummyObjectFetcher{}, rulesFetcher.innerFetcher)
 			},
 		},
 		{
