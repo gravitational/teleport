@@ -117,7 +117,7 @@ on:
         default: |
           arm64
           amd64
-        
+
       should-download-teleport-packages:
         description: |
           True if the build process should pull in the built Teleport packages,
@@ -186,8 +186,8 @@ jobs:
               exit 1
               ;;
           esac
-          echo "DEB_RELEASE_INFIX=$DEB_RELEASE_INFIX" >> $GITHUB_ENV
-          echo "DEB_FIPS_INFIX=$DEB_FIPS_INFIX" >> $GITHUB_ENV
+          echo "DEB_RELEASE_INFIX=$DEB_RELEASE_INFIX" >> "$GITHUB_ENV"
+          echo "DEB_FIPS_INFIX=$DEB_FIPS_INFIX" >> "$GITHUB_ENV"
 
       - name: Set up Docker QEMU integration
         uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
@@ -268,8 +268,8 @@ jobs:
           CERT_IDENTITY: "keyless@distroless.iam.gserviceaccount.com"
           CERT_OIDC_ISSUER: "https://accounts.google.com"
         run: |
-          cosign verify ${BASE_IMAGE} --certificate-oidc-issuer="${CERT_OIDC_ISSUER}" --certificate-identity="${CERT_IDENTITY}" > validated-image.json
-          BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
+          cosign verify "${BASE_IMAGE}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}" --certificate-identity="${CERT_IDENTITY}" > validated-image.json
+          BASE_IMAGE_HASH="$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)"
           # Pin base image to verified hash
           echo "BASE_IMAGE=${BASE_IMAGE}@${BASE_IMAGE_HASH}" >> "$GITHUB_ENV"
 
@@ -279,11 +279,11 @@ jobs:
           ARCHITECTURES: ${{ inputs.architectures }}
         run: |
           EOF=END_OF_PLATFORMS
-          echo "platforms<<$EOF" >> $GITHUB_OUTPUT
+          echo "platforms<<$EOF" >> "$GITHUB_OUTPUT"
           for a in $ARCHITECTURES; do
-            echo "linux/$a" >> $GITHUB_OUTPUT
+            echo "linux/$a" >> "$GITHUB_OUTPUT"
           done
-          echo $EOF >> $GITHUB_OUTPUT
+          echo "$EOF" >> "$GITHUB_OUTPUT"
 
       - name: Expand image tags
         id: expand
@@ -292,11 +292,11 @@ jobs:
           DST_IMAGE_REPO: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}"
         run: |
           EOF=END_OF_TAGS
-          echo "tags<<$EOF" >> $GITHUB_OUTPUT
+          echo "tags<<$EOF" >> "$GITHUB_OUTPUT"
           for TAG in ${DST_IMAGE_TAGS}; do
-            echo "${DST_IMAGE_REPO}:${TAG}" >> $GITHUB_OUTPUT
+            echo "${DST_IMAGE_REPO}:${TAG}" >> "$GITHUB_OUTPUT"
           done
-          echo $EOF >> $GITHUB_OUTPUT
+          echo "$EOF" >> "$GITHUB_OUTPUT"
 
       - name: Assume Build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -325,14 +325,14 @@ jobs:
           else
               for tag in ${TAGS}; do
                   echo "Checking for: ${tag}"
-                  if docker buildx imagetools inspect ${tag} > /dev/null ; then
+                  if docker buildx imagetools inspect "${tag}" > /dev/null ; then
                       echo "found"
                       build_image=false
                       break
                   fi
               done
           fi
-          echo build_image=${build_image} >> $GITHUB_OUTPUT
+          echo build_image=${build_image} >> "$GITHUB_OUTPUT"
 
       - name: Build Docker image
         uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
@@ -356,8 +356,8 @@ jobs:
           SIGNING_KEY_ARN: ${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}
           DST_IMAGE: "${{ vars.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |
-          cosign sign --yes --key awskms:///${SIGNING_KEY_ARN} --recursive ${DST_IMAGE}
-          cosign sign --yes --upload=false --recursive ${DST_IMAGE}
+          cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE}"
+          cosign sign --yes --upload=false --recursive "${DST_IMAGE}"
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy
