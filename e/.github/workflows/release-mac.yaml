@@ -27,13 +27,6 @@ on:
         type: boolean
         default: false
 
-      release-artifacts:
-        description: |
-          Should the workflow upload the resulting artifacts to the Release
-          server?
-        type: boolean
-        default: false
-
       release-version:
         description: |
           Override the default release version tag when uploading the build
@@ -68,9 +61,6 @@ on:
       build-packages:
         type: boolean
         default: false
-      release-artifacts:
-        type: boolean
-        default: false
       release-version:
         type: string
       environment:
@@ -103,11 +93,14 @@ jobs:
           # the version from that.
           TELEPORT_VERSION: ${{ inputs.release-version || inputs.oss-teleport-ref }}
         run: |
-          echo "teleport-version=${TELEPORT_VERSION#v}" >> $GITHUB_OUTPUT
+          echo "teleport-version=${TELEPORT_VERSION#v}" >> "$GITHUB_OUTPUT"
 
   build-artifacts:
     uses: ./.github/workflows/build-mac.yaml
     secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       # Turn off fail-fast so we don't terminate a working build if another fails
       # for transient reasons. We can re-run the failed jobs to move forward.
@@ -127,6 +120,9 @@ jobs:
     uses: ./.github/workflows/build-mac-universal.yaml
     needs: [ build-artifacts ]
     secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
+    permissions:
+      contents: read
+      id-token: write
     with:
       release: "enterprise"
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
