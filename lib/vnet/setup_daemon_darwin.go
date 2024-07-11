@@ -14,42 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin
-// +build !darwin
+//go:build vnetdaemon
+// +build vnetdaemon
 
 package vnet
 
 import (
 	"context"
-	"net"
 	"os"
-	"runtime"
 
 	"github.com/gravitational/trace"
-	"golang.zx2c4.com/wireguard/tun"
+
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
-
-var (
-	// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-	ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-)
-
-func createUnixSocket() (*net.UnixListener, string, error) {
-	return nil, "", trace.Wrap(ErrVnetNotImplemented)
-}
-
-func sendTUNNameAndFd(socketPath, tunName string, tunFile *os.File) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-func receiveTUNDevice(socket *net.UnixListener) (tun.Device, error) {
-	return nil, trace.Wrap(ErrVnetNotImplemented)
-}
-
-func configureOS(ctx context.Context, cfg *osConfig) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
 
 func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	return trace.Wrap(ErrVnetNotImplemented)
+	// TODO(ravicious): Remove the feature env var after the daemon gets implemented.
+	if os.Getenv("VNETDAEMON") == "yes" {
+		return trace.Wrap(daemon.RegisterAndCall(ctx, socketPath, ipv6Prefix, dnsAddr))
+	}
+
+	return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
 }
