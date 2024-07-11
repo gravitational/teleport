@@ -51,7 +51,6 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(wantStatus)
 		w.Write(wantBody)
-		return
 	}))
 	t.Cleanup(httpSrv.Close)
 
