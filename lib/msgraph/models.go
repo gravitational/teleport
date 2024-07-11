@@ -69,6 +69,13 @@ type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
 }
 
+type AppRoleAssignment struct {
+	ID          *string `json:"id,omitempty"`
+	AppRoleID   *string `json:"appRoleId,omitempty"`
+	PrincipalID *string `json:"principalId,omitempty"`
+	ResourceID  *string `json:"resourceId,omitempty"`
+}
+
 func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	var temp struct {
 		Type string `json:"@odata.type"`

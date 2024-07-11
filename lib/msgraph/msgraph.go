@@ -37,6 +37,9 @@ type Client interface {
 	// GetServicePrincipalsByDisplayName returns the service principals that have the given display name.
 	// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list].
 	GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error)
+	// GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
+	// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignedto]
+	GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error)
 	// InstantiateApplicationTemplate instantiates an application from the Entra application Gallery,
 	// creating a pair of [Application] and [ServicePrincipal].
 	// Ref: [https://learn.microsoft.com/en-us/graph/api/applicationtemplate-instantiate].
