@@ -532,10 +532,7 @@ const cfg = {
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
-    let path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    if (p.s3Bucket && p.s3Prefix) {
-      path += '&s3Bucket=:s3Bucket&s3Prefix=:s3Prefix';
-    }
+    const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
     return cfg.baseUrl + generatePath(path, { ...p });
   },
 
