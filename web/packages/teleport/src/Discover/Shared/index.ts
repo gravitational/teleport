@@ -20,7 +20,6 @@ export { ActionButtons, AlternateInstructionButton } from './ActionButtons';
 export { ButtonBlueText } from './ButtonBlueText';
 export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
-export { Mark } from './Mark';
 export { PermissionsErrorMessage } from '../SelectResource/PermissionsErrorMessage';
 export { ResourceKind } from './ResourceKind';
 export { Step, StepContainer } from './Step';
