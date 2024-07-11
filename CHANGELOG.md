@@ -1,6 +1,6 @@
 # Changelog
 
-## 15.4.8 (07/11/24)
+## 15.4.9 (07/11/24)
 
 * Honor proxy templates in tsh ssh. [#44027](https://github.com/gravitational/teleport/pull/44027)
 * Fixed Redshift auto-user deactivation/deletion failure that occurs when a user is created or deleted and another user is deactivated concurrently. [#43975](https://github.com/gravitational/teleport/pull/43975)
