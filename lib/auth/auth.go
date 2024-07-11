@@ -4230,7 +4230,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	// Create a new web session with the same private key. This way, if the
 	// original session was an attested web session, the extended session will
 	// also be an attested web session.
-	prevKey, err := keys.ParsePrivateKey(prevSession.GetPriv())
+	prevSSHKey, err := keys.ParsePrivateKey(prevSession.GetSSHPriv())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	prevTLSKey, err := keys.ParsePrivateKey(prevSession.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4254,7 +4258,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		SessionTTL:           sessionTTL,
 		AccessRequests:       accessRequests,
 		RequestedResourceIDs: allowedResourceIDs,
-		PrivateKey:           prevKey,
+		SSHPrivateKey:        prevSSHKey,
+		TLSPrivateKey:        prevTLSKey,
 	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

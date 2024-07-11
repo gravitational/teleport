@@ -235,29 +235,96 @@ func TestSessions(t *testing.T) {
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
-		Username: user,
-		Pass:     &authclient.PassCreds{Password: pass},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, ws)
-
-	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.NoError(t, err)
-	ws.SetPriv(nil)
-	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
-		User:      user,
-		SessionID: ws.GetName(),
-	})
+	authPref, err := s.a.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	_, err = s.a.GetWebSession(ctx, types.GetWebSessionRequest{
-		User:      user,
-		SessionID: ws.GetName(),
-	})
-	require.True(t, trace.IsNotFound(err), "%#v", err)
+	for _, tc := range []struct {
+		desc                string
+		suite               types.SignatureAlgorithmSuite
+		expectSSHPubKeyType string
+		expectTLSPubKeyAlgo x509.PublicKeyAlgorithm
+		expectKeysToMatch   bool
+	}{
+		{
+			desc:                "unspecified",
+			suite:               types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+			expectSSHPubKeyType: "ssh-rsa-cert-v01@openssh.com",
+			expectTLSPubKeyAlgo: x509.RSA,
+			expectKeysToMatch:   true,
+		},
+		{
+			desc:                "legacy",
+			suite:               types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+			expectSSHPubKeyType: "ssh-rsa-cert-v01@openssh.com",
+			expectTLSPubKeyAlgo: x509.RSA,
+			expectKeysToMatch:   true,
+		},
+		{
+			desc:                "balanced-v1",
+			suite:               types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			expectSSHPubKeyType: "ssh-ed25519-cert-v01@openssh.com",
+			expectTLSPubKeyAlgo: x509.ECDSA,
+		},
+		{
+			desc:                "fips-v1",
+			suite:               types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+			expectSSHPubKeyType: "ecdsa-sha2-nistp256-cert-v01@openssh.com",
+			expectTLSPubKeyAlgo: x509.ECDSA,
+		},
+		{
+			desc:                "hsm-v1",
+			suite:               types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			expectSSHPubKeyType: "ssh-ed25519-cert-v01@openssh.com",
+			expectTLSPubKeyAlgo: x509.ECDSA,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			authPref.SetSignatureAlgorithmSuite(tc.suite)
+			_, err := s.a.UpsertAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			ws, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
+				Username: user,
+				Pass:     &authclient.PassCreds{Password: pass},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, ws)
+
+			if tc.expectKeysToMatch {
+				assert.Equal(t, ws.GetSSHPriv(), ws.GetTLSPriv())
+			} else {
+				assert.NotEqual(t, ws.GetSSHPriv(), ws.GetTLSPriv())
+			}
+
+			pub, _, _, _, err := ssh.ParseAuthorizedKey(ws.GetPub())
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectSSHPubKeyType, pub.Type())
+
+			tlsCert, _ := parseX509PEMAndIdentity(t, ws.GetTLSCert())
+			assert.Equal(t, tc.expectTLSPubKeyAlgo, tlsCert.PublicKeyAlgorithm)
+
+			// GetWebSessionInfo and make sure it matches, with private keys removed.
+			out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
+			require.NoError(t, err)
+			assert.Empty(t, out.GetSSHPriv())
+			assert.Empty(t, out.GetTLSPriv())
+			assert.Empty(t, cmp.Diff(ws, out,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+				cmpopts.IgnoreFields(types.WebSessionSpecV2{}, "Priv", "TLSPriv")))
+
+			err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
+				User:      user,
+				SessionID: ws.GetName(),
+			})
+			require.NoError(t, err)
+
+			_, err = s.a.GetWebSession(ctx, types.GetWebSessionRequest{
+				User:      user,
+				SessionID: ws.GetName(),
+			})
+			assert.True(t, trace.IsNotFound(err), "%#v", err)
+		})
+	}
 }
 
 func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
@@ -3068,7 +3135,8 @@ func TestNewWebSession(t *testing.T) {
 	require.Equal(t, req.LoginTime.UTC().Add(req.SessionTTL), ws.GetExpiryTime())
 	require.Equal(t, req.LoginTime.UTC().Add(bearerTokenTTL), ws.GetBearerTokenExpiryTime())
 	require.NotEmpty(t, ws.GetBearerToken())
-	require.NotEmpty(t, ws.GetPriv())
+	require.NotEmpty(t, ws.GetSSHPriv())
+	require.NotEmpty(t, ws.GetTLSPriv())
 	require.NotEmpty(t, ws.GetPub())
 	require.NotEmpty(t, ws.GetTLSCert())
 }
