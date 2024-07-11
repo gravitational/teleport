@@ -568,7 +568,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
-	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
@@ -586,62 +585,14 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
-
-		pamEnvironment = pamContext.Environment()
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
 	// and gid to the requested user. This way, the user's networking requests will be
 	// done with the user's permissions.
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
+	if _, err := user.Lookup(c.Login); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
-
-	cred, err := getCmdCredential(localUser)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-	if !cred.NoSetGroups {
-		groups := make([]int, len(cred.Groups))
-		for i, g := range cred.Groups {
-			groups[i] = int(g)
-		}
-		if err := unix.Setgroups(groups); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
-		}
-	}
-	if err := unix.Setgid(int(cred.Gid)); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
-	}
-	if err := unix.Setuid(int(cred.Uid)); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
-	}
-
-	// Create a minimal default environment for the user.
-	homeDir := localUser.HomeDir
-	if !utils.IsDir(homeDir) {
-		homeDir = "/"
-	}
-	os.Setenv("HOME", localUser.HomeDir)
-	os.Setenv("USER", c.Login)
-
-	// Apply any additional environment variables from PAM.
-	for _, kv := range pamEnvironment {
-		kvSplit := strings.SplitN(strings.TrimSpace(kv), "=", 2)
-		if len(kvSplit) != 2 {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
-		}
-		if err := os.Setenv(kvSplit[0], kvSplit[1]); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-	}
-
-	// Ensure that the working directory is one that the local user has access to.
-	if err := unix.Chdir(homeDir); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process")
-	}
-
 	// build forwarder from first extra file that was passed to command
 	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
@@ -656,11 +607,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	// Unlock OS thread (if locked by PAM) so that goroutines below inherit
-	// thread-state related to PAM, e.g. pam_namespace. See lib/pam/pam.go
-	// for details on why we lock the OS thread on init.
-	runtime.UnlockOSThread()
 
 	for {
 		buf := make([]byte, 1024)
@@ -685,17 +631,94 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			continue
 		}
 
-		go handleNetworkingRequest(ctx, controlConn, buf[:n])
+		go handleNetworkingRequest(ctx, controlConn, buf[:n], c)
 	}
 }
 
-func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, payload []byte) {
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, payload []byte, c ExecCommand) {
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	go func() {
 		defer cancel()
 		_, _ = conn.Read(make([]byte, 1))
 	}()
+
+	// If PAM is enabled, open a PAM context. This has to be done before anything
+	// else because PAM is sometimes used to create the local user used to
+	// launch the shell under.
+	var pamEnvironment []string
+	if c.PAMConfig != nil {
+		// Open the PAM context.
+		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+			ServiceName: c.PAMConfig.ServiceName,
+			Login:       c.Login,
+			Stdin:       os.Stdin,
+			Stdout:      io.Discard,
+			Stderr:      io.Discard,
+			// Set Teleport specific environment variables that PAM modules
+			// like pam_script.so can pick up to potentially customize the
+			// account/session.
+			Env: c.PAMConfig.Environment,
+		})
+		if err != nil {
+			return
+		}
+		defer pamContext.Close()
+
+		pamEnvironment = pamContext.Environment()
+	}
+
+	// Once the PAM stack is called with parent process permissions, set the process uid
+	// and gid to the requested user. This way, the user's networking requests will be
+	// done with the user's permissions.
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return
+	}
+
+	cred, err := getCmdCredential(localUser)
+	if err != nil {
+		return
+	}
+	if !cred.NoSetGroups {
+		groups := make([]int, len(cred.Groups))
+		for i, g := range cred.Groups {
+			groups[i] = int(g)
+		}
+		if err := unix.Setgroups(groups); err != nil {
+			return
+		}
+	}
+	if err := unix.Setgid(int(cred.Gid)); err != nil {
+		return
+	}
+	if err := unix.Setuid(int(cred.Uid)); err != nil {
+		return
+	}
+
+	// Create a minimal default environment for the user.
+	homeDir := localUser.HomeDir
+	if !utils.IsDir(homeDir) {
+		homeDir = "/"
+	}
+	os.Setenv("HOME", localUser.HomeDir)
+	os.Setenv("USER", c.Login)
+
+	// Apply any additional environment variables from PAM.
+	for _, kv := range pamEnvironment {
+		kvSplit := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+		if len(kvSplit) != 2 {
+			return
+		}
+		if err := os.Setenv(kvSplit[0], kvSplit[1]); err != nil {
+			return
+		}
+	}
+
+	// Ensure that the working directory is one that the local user has access to.
+	if err := unix.Chdir(homeDir); err != nil {
+		return
+	}
 
 	var req networking.Request
 	if err := json.Unmarshal(payload, &req); err != nil {
@@ -775,12 +798,6 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 			return nil, trace.Wrap(err)
 		}
 		defer listener.Close()
-
-		// Setup the user's local xauth file to interface with the local x11 listener.
-		// We Lock the OS thread before running the xauth commands in order to inherit
-		// any thread-state related to PAM.
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
 
 		removeCmd := x11.NewXAuthCommand(ctx, "")
 		if err := removeCmd.RemoveEntries(display); err != nil {
