@@ -2,7 +2,6 @@ package msgraph
 
 import "context"
 
-// TODO: split into smaller interfaces
 type Client interface {
 	IterateUsers(ctx context.Context, f func(*User) bool) error
 	IterateGroups(ctx context.Context, f func(*Group) bool) error

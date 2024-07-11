@@ -2,16 +2,28 @@ package msgraph
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
 
+// unsupportedGroupMember is an internal error to indicate that
+// the `groupmembers` endpoint has returned a member of type that we do not support (yet).
+type unsupportedGroupMember struct {
+	Type string
+}
+
+func (u *unsupportedGroupMember) Error() string {
+	return fmt.Sprintf("Unsupported group member: %q", u.Type)
+}
+
 type graphErrorResponse struct {
 	Error *GraphError `json:"error,omitempty"`
 }
 
+// GraphError defines the structure of errors returned from MS Graph API.
 type GraphError struct {
 	Code       string       `json:"code,omitempty"`
 	Message    string       `json:"message,omitempty"`
