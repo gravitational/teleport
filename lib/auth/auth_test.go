@@ -223,14 +223,11 @@ func TestSessions(t *testing.T) {
 	user := "user1"
 	pass := []byte("abcdef123456")
 
-	_, err := s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
-		Username: user,
-		Pass:     &authclient.PassCreds{Password: pass},
-	})
-	require.Error(t, err)
-
-	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, _, err := CreateUserAndRole(s.a, user, []string{user}, nil)
 	require.NoError(t, err)
+
+	// This uses a lower bcrypt cost to speed up the test.
+	s.a.Services.Identity = local.NewTestIdentityService(s.a.bk)
 
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
