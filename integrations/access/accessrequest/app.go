@@ -156,20 +156,9 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	r, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: time.Second,
-		Max:  watchInitTimeout,
-	})
-	if err != nil {
-		return trace.Wrap(err, "getting watch kinds")
+	if len(acceptedWatchKinds) == 0 {
+		return errors.New("no acceptedWatchKinds returned")
 	}
-	r.For(ctx, func() error {
-		if len(acceptedWatchKinds) == 0 {
-			return errors.New("no acceptedWatchKinds returned")
-		}
-		return nil
-	})
 	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
 		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
