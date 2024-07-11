@@ -275,8 +275,8 @@ func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster,
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if ok := keys.IsRSAPrivateKey(privKey); !ok {
-		return nil, nil, trace.BadParameter("unsupported private key type")
+	if err := keys.AssertSoftwarePrivateKey(privKey); err != nil {
+		return nil, nil, trace.Wrap(err, "unsupported private key type")
 	}
 	return kubeCert, privKey, nil
 }
