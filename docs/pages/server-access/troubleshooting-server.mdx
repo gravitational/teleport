@@ -6,7 +6,27 @@ description: Describes common issues and solutions for access to servers.
 This section describes common issues that you might encounter in managing access to servers
 with Teleport and how to work around or resolve them.
 
-## Starting SSH sessions fails
+## Starting SSH sessions fails with expired certificates
+
+A ssh session fails to start on certain SSH servers with the error message
+of expired certificates. If a server's date and time is off enough that can
+result in not accepting certificates.
+
+### Symptom
+
+A user attempts to connect to a machine and can receive a message including the following.
+
+```text
+[ssh: cert has expired]
+```
+
+### Solution
+
+Check the system date and time on the target machine (ex: `date`). Often the 
+server is not running or having an issue with NTP (Network Time Protocol). Set
+the time or enable the NTP service, confirm the date/time and try again.
+
+## Starting SSH sessions fails with permission denied
 
 When you start a new SSH session, Teleport forks itself and the child process
 runs as the OS user who is attempting to connect. If the file system permissions
