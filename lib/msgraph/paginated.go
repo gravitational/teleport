@@ -61,34 +61,18 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 	return nil
 }
 
-// IterateApplications lists all applications in the Entra ID directory using pagination.
-// `f` will be called for each object in the result set.
-// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/application-list].
 func (c *client) IterateApplications(ctx context.Context, f func(*Application) bool) error {
 	return iterateSimple(c, ctx, "applications", f)
 }
 
-// IterateGroups lists all groups in the Entra ID directory using pagination.
-// `f` will be called for each object in the result set.
-// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list].
 func (c *client) IterateGroups(ctx context.Context, f func(*Group) bool) error {
 	return iterateSimple(c, ctx, "groups", f)
 }
 
-// IterateUsers lists all users in the Entra ID directory using pagination.
-// `f` will be called for each object in the result set.
-// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/user-list].
 func (c *client) IterateUsers(ctx context.Context, f func(*User) bool) error {
 	return iterateSimple(c, ctx, "users", f)
 }
 
-// IterateGroupMembers lists all members for the given Entra ID group using pagination.
-// `f` will be called for each object in the result set.
-// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
-// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-members].
 func (c *client) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool) error {
 	var err error
 	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
