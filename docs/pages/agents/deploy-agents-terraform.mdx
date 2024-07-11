@@ -63,87 +63,85 @@ a demo cluster using:
 
 ## Step 1/6. Set up a module for deploying Agents
 
-1. Navigate to the directory for the root Terraform module that manages Teleport
-   resources.
-1. Create a directory in the root directory called `agents`.
-1. In `agents`, create a file called `main.tf` with the following content:
+1. Navigate to a directory where you would like to place the root Terraform
+   module that manages Teleport resources.
+1. Create a file called `main.tf` with the following content:
 
-   {/*TODO: Edit the main.tf file so it doesn't just show Azure*/}
+   <Tabs>
+   <TabItem label="AWS">
+   
+   ```hcl
+   module "teleport" {
+     source                = "${module.root}/teleport"
+     agent_count           = 2
+     agent_roles           = ["Node"]
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "oss"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agents" {
+     region           = ""
+     source           = "${module.root}/cloud"
+     subnet_id        = ""
+     userdata_scripts = module.teleport.userdata_scripts
+   }
+   ```
+   
+   </TabItem>
+   <TabItem label="Google Cloud">
+   
+   ```hcl
+   module "teleport" {
+     source                = "${module.root}/teleport"
+     agent_count           = 2
+     agent_roles           = ["Node"]
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "oss"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agents" {
+     gcp_zone         = "us-east1-b"
+     google_project   = ""
+     source           = "${module.root}/cloud"
+     subnet_id        = ""
+     userdata_scripts = module.teleport.userdata_scripts
+   }
+   ```
+   
+   </TabItem>
+   <TabItem label="Azure">
+   
+   ```hcl
+   module "teleport" {
+     source                = "${module.root}/teleport"
+     agent_count           = 2
+     agent_roles           = ["Node"]
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "oss"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agents" {
+     azure_resource_group = ""
+     public_key_path      = ""
+     region               = "East US"
+     source               = "${module.root}/cloud"
+     subnet_id            = ""
+     userdata_scripts     = module.teleport.userdata_scripts
+   }
+   ```
+   
+   </TabItem>
+   </Tabs>
 
-1. Create a file called `main.tf` with the following content, which imports the
-   `agent-pool-terraform` module for your cloud provider:
+1. Create two directories inside your root module directory:
 
-<Tabs>
-<TabItem label="AWS">
-
-```hcl
-module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
-  agent_count           = 2
-  agent_roles           = ["Node"]
-  proxy_service_address = "teleport.example.com:443"
-  teleport_edition      = "oss"
-  teleport_version      = "(=teleport.version=)"
-}
-
-module "agents" {
-  region           = ""
-  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/aws"
-  subnet_id        = ""
-  userdata_scripts = module.teleport.userdata_scripts
-}
-```
-
-</TabItem>
-<TabItem label="Google Cloud">
-
-```hcl
-module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
-  agent_count           = 2
-  agent_roles           = ["Node"]
-  proxy_service_address = "teleport.example.com:443"
-  teleport_edition      = "oss"
-  teleport_version      = "(=teleport.version=)"
-}
-
-module "agents" {
-  gcp_zone         = "us-east1-b"
-  google_project   = ""
-  source           = "github.com/gravitational/teleport/examples/agent-pool-terraform/gcp"
-  subnet_id        = ""
-  userdata_scripts = module.teleport.userdata_scripts
-}
-```
-
-</TabItem>
-<TabItem label="Azure">
-
-```hcl
-module "teleport" {
-  source                = "github.com/gravitational/teleport/examples/agent-pool-terraform/teleport"
-  agent_count           = 2
-  agent_roles           = ["Node"]
-  proxy_service_address = "teleport.example.com:443"
-  teleport_edition      = "oss"
-  teleport_version      = "(=teleport.version=)"
-}
-
-module "agents" {
-  azure_resource_group = ""
-  public_key_path      = ""
-  region               = "East US"
-  source               = "github.com/gravitational/teleport/examples/agent-pool-terraform/azure"
-  subnet_id            = ""
-  userdata_scripts     = module.teleport.userdata_scripts
-}
-```
-
-</TabItem>
-</Tabs>
-
-When we apply the `teleport_provision_token` resources, the Teleport Terraform
-provider creates them on the Teleport Auth Service backend. 
+   |Directory|Purpose|
+   |---|---|
+   |`teleport`|Dynamic Teleport resources to apply against the Teleport Auth Service using the Teleport Terraform provider.|
+   |`cloud`|Resources required to run your Teleport Agents as Linux servers using your cloud provider.| 
 
 ## Step 3/6. Create resources for your cloud provider
 
@@ -152,8 +150,7 @@ Linux servers using the Terraform provider for your cloud.
 
 ### Configure the Terraform provider for your cloud
 
-1. In your root Terraform module, create a directory called `cloud` for
-   resources to deploy to your cloud provider.
+1. Navigate to the `cloud` dorectory you created in the previous step.
 
 1. Follow the remaining instructions in this section based on your cloud
    provider. In the `cloud` directory, create a file called
@@ -182,8 +179,6 @@ Linux servers using the Terraform provider for your cloud.
 
   </TabItem>
   </Tabs>
-
-{/* TODO: declare the join token before declaring the Linux servers*/}
 
 ### Configure Linux servers to run Agents
 
@@ -226,8 +221,8 @@ Declare Google Compute Engine instances that use the
 
 The configuration you created runs a user data script on each agent instance.
 The services enabled by the configuration file depend on the value of the
-`agent_roles` input variable. Create a file called `userdata` with the following
-content:
+`agent_roles` input variable. In the `teleport` directory, create a file called
+`userdata` with the following content:
 
 ```hcl
 (!examples/agent-pool-terraform/teleport/userdata!)
@@ -262,7 +257,51 @@ editable:
 </TabItem>
 </Tabs>
 
+{/*TODO: Explain the input variables.*/}
+
 ## Step 4/6. Define dynamic resources
+
+{/* TODO: Explain how the module works, e.g., it creates join tokens and
+userdata scripts that include those join tokens*/}
+
+### Make join tokens available to Teleport Agents
+
+1. From your Terraform root module directory, navigate to the `teleport`
+   directory.
+
+1. Create a file called `required_providers.tf` with the following content,
+   which requires the Teleport Terraform provider:
+
+   ```hcl
+   (!examples/agent-pool-terraform/teleport/required_providers.tf!)
+   ```
+
+1. Define input variables. These enable you to reconfigure the module at a high
+   level, which we did earlier in this guide using `module` blocks:
+
+   ```hcl
+   (!examples/agent-pool-terraform/teleport/inputs.tf!)
+   ```
+
+   {/*TODO: Explain the input variables*/}
+
+1. Declare a join token to create for each instance of the module. The compute
+   instances declared earlier run a userdata script that makes this token
+   available to each agent: 
+
+   ```hcl
+   (!examples/agent-pool-terraform/teleport/token.tf!)
+   ```
+
+1. Declare a userdata script that runs a new Teleport Agent using the join token
+   created by each instance of the module. Make this an output so we can pass it
+   to the `cloud` module:
+
+   ```hcl
+   (!examples/agent-pool-terraform/teleport/outputs.tf!)
+   ```
+
+### Enroll dynamic infrastructure resources
 
 You can declare Terraform resources that enroll your infrastructure with
 Teleport. The Teleport Terraform provider currently supports the following:
@@ -327,27 +366,7 @@ resource "teleport_database" "example" {
 </TabItem>
 </Tabs>
 
-## Step 5/6. Define static resources
-
-Each Teleport service reads its local configuration file (`/etc/teleport.yaml`
-by default) to determine which infrastructure resources to proxy. You can edit
-this configuration file to enroll resources with Teleport.
-
-In the setup we explored in this guide, you can edit the user data script for
-each instance to add configuration settings to, for example, the
-`database_service` or `kubernetes_service` sections.
-
-To see how to configure each service, read its section of the documentation:
-
-- [SSH Service](../server-access/introduction.mdx)
-- [Database Service](../database-access/introduction.mdx)
-- [Kubernetes Service](../kubernetes-access/introduction.mdx)
-- [Windows Desktop Service](../desktop-access/introduction.mdx)
-- [Application Service](../application-access/introduction.mdx)
-
-
-
-## Step 6/6. Verify the deployment
+## Step 5/5. Verify the deployment
 
 Make sure your cloud provider credentials are available to Terraform using the
 standard approach for your organization.
@@ -372,4 +391,21 @@ ip-10-1-1-187.ec2.internal ⟵ Tunnel   role=agent-pool
 ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
 ```
 
+## Next step: Define static resources
+
+Each Teleport service reads its local configuration file (`/etc/teleport.yaml`
+by default) to determine which infrastructure resources to proxy. You can edit
+this configuration file to enroll resources with Teleport.
+
+In the setup we explored in this guide, you can edit the user data script for
+each instance to add configuration settings to, for example, the
+`database_service` or `kubernetes_service` sections.
+
+To see how to configure each service, read its section of the documentation:
+
+- [SSH Service](../server-access/introduction.mdx)
+- [Database Service](../database-access/introduction.mdx)
+- [Kubernetes Service](../kubernetes-access/introduction.mdx)
+- [Windows Desktop Service](../desktop-access/introduction.mdx)
+- [Application Service](../application-access/introduction.mdx)
 
