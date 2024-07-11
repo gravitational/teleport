@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"path"
 	"strconv"
@@ -39,7 +40,7 @@ func (c *client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 	uri.RawQuery = url.Values{"$top": {strconv.Itoa(c.pageSize)}}.Encode()
 	uriString := uri.String()
 	for uriString != "" {
-		resp, err := c.get(ctx, uriString)
+		resp, err := c.request(ctx, http.MethodGet, uriString, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}

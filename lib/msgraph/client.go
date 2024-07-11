@@ -175,38 +175,66 @@ func (c *client) request(ctx context.Context, method string, uri string, payload
 	return nil, trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path)
 }
 
-func (c *client) get(ctx context.Context, uri string) (*http.Response, error) {
-	return c.request(ctx, http.MethodGet, uri, nil)
+func (c *client) endpointURI(segments ...string) string {
+	uri := *c.baseURL
+	uri.Path = path.Join(append([]string{uri.Path}, segments...)...)
+	return uri.String()
 }
 
-func (c *client) post(ctx context.Context, uri string, body []byte) (*http.Response, error) {
-	return c.request(ctx, http.MethodPost, uri, body)
+// roundtrip makes a request to the API,
+// serializing `in` as a JSON body, and deserializing the response as the given type `T`.
+func roundtrip[T any](ctx context.Context, c *client, method string, uri string, in any) (T, error) {
+	var zero T
+	var body []byte
+	var err error
+	if in != nil {
+		body, err = json.Marshal(in)
+		if err != nil {
+			return zero, trace.Wrap(err)
+		}
+	}
+	resp, err := c.request(ctx, method, uri, body)
+	if err != nil {
+		return zero, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	var out T
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return zero, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // CreateFederatedIdentityCredential implements Client.
-func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) error {
-	uri := *c.baseURL
-	uri.Path = path.Join(uri.Path, "applications", appObjectID, "federatedIdentityCredentials")
-	body, err := json.Marshal(cred)
+func (c *client) CreateFederatedIdentityCredential(ctx context.Context, appObjectID string, cred *FederatedIdentityCredential) (*FederatedIdentityCredential, error) {
+	uri := c.endpointURI("applications", appObjectID, "federatedIdentityCredentials")
+	out, err := roundtrip[*FederatedIdentityCredential](ctx, c, http.MethodPost, uri, cred)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	resp, err := c.post(ctx, uri.String(), body)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	resp.Body.Close()
-	return nil
+	return out, nil
 }
 
 // CreateServicePrincipalTokenSigningCertificate implements Client.
 func (c *client) CreateServicePrincipalTokenSigningCertificate(ctx context.Context, spID string, displayName string) (*SelfSignedCertificate, error) {
-	panic("unimplemented")
+	uri := c.endpointURI("servicePrincipals", spID, "addTokenSigningCertificate")
+	object := map[string]string{"displayName": displayName}
+	out, err := roundtrip[*SelfSignedCertificate](ctx, c, http.MethodPost, uri, object)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // GetServicePrincipalsByAppId implements Client.
-func (c *client) GetServicePrincipalsByAppId(ctx context.Context, appID string) ([]*ServicePrincipal, error) {
-	panic("unimplemented")
+func (c *client) GetServicePrincipalByAppId(ctx context.Context, appID string) (*ServicePrincipal, error) {
+	uri := c.endpointURI(fmt.Sprintf("servicePrincipals(appId='%s')", appID))
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // GetServicePrincipalsByDisplayName implements Client.
