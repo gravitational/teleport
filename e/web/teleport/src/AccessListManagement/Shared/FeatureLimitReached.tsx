@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { Box, Card, Flex, Text } from 'design';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
+import { pluralize } from 'shared/utils/text';
 
 export function FeatureLimitReached() {
   return (
@@ -42,7 +43,17 @@ export const featureLimitReachedBlurCss: React.CSSProperties = {
   position: 'relative',
 };
 
-export function FeatureLimitBlurb() {
+type FeatureLimitBlurbProps = {
+  limit?: number;
+};
+
+export function FeatureLimitBlurb({ limit = 1 }: FeatureLimitBlurbProps) {
+  if (limit === 0) {
+    // unlimited access
+    return null;
+  }
+
+  const listText = pluralize(limit, 'List');
   return (
     <Box
       mt={4}
@@ -51,7 +62,9 @@ export function FeatureLimitBlurb() {
       `}
     >
       <Text color="text.slightlyMuted">
-        <i>Your current plan supports 1 free Access List.</i>
+        <i>
+          Your current plan supports {limit} free Access {listText}.
+        </i>
       </Text>
       <Text typography="paragraph">
         Want additional Access Lists?{' '}

@@ -261,7 +261,9 @@ export function AccessLists() {
     MainContent = (
       <>
         <EmptyState />
-        {!cfg.oss.isIgsEnabled && <FeatureLimitBlurb />}
+        {cfg.oss.entitlements.accessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.accessLists.limit} />
+        )}
       </>
     );
     showCreateBtn = false;
@@ -291,7 +293,9 @@ export function AccessLists() {
               ))
             : 'No Access Lists Found'}
         </AccessListContainer>
-        {!cfg.oss.isIgsEnabled && <FeatureLimitBlurb />}
+        {cfg.oss.entitlements.accessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.accessLists.limit} />
+        )}
       </>
     );
   }

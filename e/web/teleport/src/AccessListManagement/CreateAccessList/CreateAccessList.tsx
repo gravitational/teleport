@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import {
-  ButtonPrimary,
-  ButtonSecondary,
   Alert,
   Box,
-  Text,
+  ButtonPrimary,
+  ButtonSecondary,
   Flex,
   Indicator,
+  Text,
 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -23,21 +23,21 @@ import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
 
 import {
-  ReviewDayOfMonth,
-  ReviewFrequency,
   accessManagementService,
   convertReviewFrequencyIntoBackendParsableValue,
+  ReviewDayOfMonth,
+  ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
 import {
   HybridUserOption,
-  UserOption,
   matchRoles,
   matchTraits,
+  UserOption,
 } from '../Shared/Shared';
-import { reviewFrequencyOpts, reviewDayOfMonthOpts } from '../Shared/Audit';
+import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
 import {
@@ -107,7 +107,10 @@ export function CreateAccessList() {
   });
 
   useEffect(() => {
-    if (cfg.oss.isIgsEnabled) {
+    if (
+      cfg.oss.entitlements.accessLists.enabled &&
+      cfg.oss.entitlements.accessLists.limit === 0
+    ) {
       fetchUsersAndRoles();
       return;
     }
@@ -118,7 +121,7 @@ export function CreateAccessList() {
       .then(resp => {
         if (
           resp.length &&
-          resp.length >= cfg.oss.featureLimits.accessListCreateLimit
+          resp.length >= cfg.oss.entitlements.accessLists.limit
         ) {
           setFeatureLimitReached(true);
           setInitAttempt({ status: 'success' });

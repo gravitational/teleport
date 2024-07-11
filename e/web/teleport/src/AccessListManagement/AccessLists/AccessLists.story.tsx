@@ -5,7 +5,6 @@ import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-
 import cfg from 'e-teleport/config';
 
 import { AccessLists } from './AccessLists';
@@ -13,7 +12,7 @@ import { AccessLists } from './AccessLists';
 const { worker, rest } = window.msw;
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
+const defaultAccessListEntitlement = cfg.oss.entitlements.accessLists;
 
 export default {
   title: 'Teleport/AccessLists/List',
@@ -26,7 +25,7 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
+          cfg.oss.entitlements.accessLists = defaultAccessListEntitlement;
         };
       }, []);
       return <Story />;
@@ -60,8 +59,12 @@ export const NoAccess = () => {
   );
 };
 
-export const EmptyWithIgs = () => {
-  cfg.oss.isIgsEnabled = true;
+export const EmptyUnlimitedAccess = () => {
+  cfg.oss.entitlements.accessLists = {
+    enabled: true,
+    limit: 0,
+  };
+
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -74,7 +77,9 @@ export const EmptyWithIgs = () => {
   );
 };
 
-export const EmptyWithCta = () => {
+export const EmptyLimitedAccessCta = () => {
+  cfg.oss.entitlements.accessLists = { enabled: true, limit: 4 };
+
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -87,8 +92,23 @@ export const EmptyWithCta = () => {
   );
 };
 
-export const ListWithIgs = () => {
-  cfg.oss.isIgsEnabled = true;
+export const ListUnlimited = () => {
+  cfg.oss.entitlements.accessLists = { enabled: true, limit: 0 };
+
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ accessLists: mockAccessLists }));
+    })
+  );
+  return (
+    <Provider>
+      <AccessLists />
+    </Provider>
+  );
+};
+
+export const ListLimitedAccessCta = () => {
+  cfg.oss.entitlements.accessLists = { enabled: true, limit: 45 };
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {

@@ -36,7 +36,7 @@ import TeleportEContext from 'e-teleport/teleportContextE';
 import { AccessLists } from './AccessLists';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
-const defaultIgsFlag = cfg.isIgsEnabled;
+const defaultAccessListEntitlement = cfg.entitlements.accessLists;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
@@ -53,7 +53,7 @@ describe('upsell links', () => {
     jest.resetAllMocks();
 
     cfg.isEnterprise = defaultIsEnterpriseFlag;
-    cfg.isIgsEnabled = defaultIgsFlag;
+    cfg.entitlements.accessLists = defaultAccessListEntitlement;
   });
 
   test('no access should not render cta', async () => {
@@ -63,7 +63,10 @@ describe('upsell links', () => {
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockRejectedValue(error);
 
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
 
     const ctx = createTeleportContextE({
       customAcl: getAcl({ noAccess: true }),
@@ -80,8 +83,11 @@ describe('upsell links', () => {
     );
   });
 
-  test('eub with igs enabled renders no cta', async () => {
-    ecfg.oss.isIgsEnabled = true;
+  test('unlimited access renders no cta', async () => {
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
 
     renderComponent(ctx);
 
@@ -89,8 +95,11 @@ describe('upsell links', () => {
     expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 
-  test('eub WITHOUT igs renders cta', async () => {
-    ecfg.oss.isIgsEnabled = false;
+  test('limited access renders cta', async () => {
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 1,
+    };
 
     renderComponent(ctx);
 
@@ -100,7 +109,10 @@ describe('upsell links', () => {
   });
 
   test('if router state contains newly created access list, it is added to the items list', async () => {
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([mockAccessListApple]);
@@ -123,7 +135,10 @@ describe('upsell links', () => {
   });
 
   test('if router state contains newly created access list, is is NOT duplicated if it already exists in items list', async () => {
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);
@@ -146,7 +161,10 @@ describe('upsell links', () => {
   });
 
   test('if router state contains deleted access list ID, it is removed from the items list', async () => {
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);
@@ -168,10 +186,13 @@ describe('upsell links', () => {
     expect(screen.queryByText(/banana/i)).not.toBeInTheDocument();
   });
 
-  test('if router state contains reviewed access list, notication item is rendered and review by badage is not rendered', async () => {
+  test('if router state contains reviewed access list, notification item is rendered and review by badge is not rendered', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2023-01-20'));
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
     jest.spyOn(accessManagementService, 'fetchAccessLists').mockResolvedValue([
       {
         ...mockAccessListApple,
@@ -227,7 +248,10 @@ describe('upsell links', () => {
   });
 
   test('search param is respected', async () => {
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([mockAccessListApple, mockAccessListBanana]);

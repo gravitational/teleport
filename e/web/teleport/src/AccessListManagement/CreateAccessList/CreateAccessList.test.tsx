@@ -13,14 +13,13 @@ import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
 
 import {
+  CreateAccessList,
   getEligibleUsers,
   getEligibleUsersAmongSelectedUsers,
-  CreateAccessList,
 } from './CreateAccessList';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
-const defaultIgsFlag = cfg.isIgsEnabled;
-const defaultCreateLimit = cfg.featureLimits.accessListCreateLimit;
+const defaultAccessListentitlement = cfg.entitlements.accessLists;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
@@ -44,12 +43,15 @@ describe('upsell links', () => {
     jest.resetAllMocks();
 
     cfg.isEnterprise = defaultIsEnterpriseFlag;
-    cfg.isIgsEnabled = defaultIgsFlag;
-    cfg.featureLimits.accessListCreateLimit = defaultCreateLimit;
+    cfg.entitlements.accessLists = defaultAccessListentitlement;
   });
 
   test('no access should not render cta', async () => {
-    ecfg.oss.isIgsEnabled = true;
+    ecfg.oss.entitlements.accessLists = {
+      // access denied via ACL
+      enabled: true,
+      limit: 0,
+    };
 
     const ctx = createTeleportContextE({
       customAcl: getAcl({ noAccess: true }),
@@ -63,8 +65,11 @@ describe('upsell links', () => {
     expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 
-  test('eub with igs enabled renders no cta', async () => {
-    ecfg.oss.isIgsEnabled = true;
+  test('unlimited & enabled entitlement renders no cta', async () => {
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 0,
+    };
 
     renderComponent(ctx);
 
@@ -73,8 +78,11 @@ describe('upsell links', () => {
     expect(screen.queryByText(/contact sales/i)).not.toBeInTheDocument();
   });
 
-  test('eub WITHOUT igs renders cta', async () => {
-    ecfg.oss.isIgsEnabled = false;
+  test('limited entitlement renders cta', async () => {
+    ecfg.oss.entitlements.accessLists = {
+      enabled: true,
+      limit: 1,
+    };
 
     renderComponent(ctx);
 

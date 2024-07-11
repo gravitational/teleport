@@ -10,8 +10,7 @@ import { CreateAccessList } from './CreateAccessList';
 const { worker, rest } = window.msw;
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
-const defaultCreateLimit = cfg.oss.featureLimits.accessListCreateLimit;
+const defaultAccessListEntitlement = cfg.oss.entitlements.accessLists;
 
 export default {
   title: 'Teleport/AccessLists/Create',
@@ -24,8 +23,7 @@ export default {
         // Clean up
         return () => {
           cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
-          cfg.oss.featureLimits.accessListCreateLimit = defaultCreateLimit;
+          cfg.oss.entitlements.accessLists = defaultAccessListEntitlement;
         };
       }, []);
       return <Story />;
@@ -62,8 +60,9 @@ export const NoAccess = () => {
   );
 };
 
-export const LoadedWithIgs = () => {
-  cfg.oss.isIgsEnabled = true;
+export const LoadedUnlimited = () => {
+  cfg.oss.entitlements.accessLists = { enabled: true, limit: 0 };
+
   worker.use(
     rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ items: [], startKey: '' }));
@@ -82,8 +81,9 @@ export const LoadedWithIgs = () => {
   );
 };
 
-export const LoadedReachedLimit = () => {
-  cfg.oss.featureLimits.accessListCreateLimit = 1;
+export const LoadedLimitedReachedLimit = () => {
+  cfg.oss.entitlements.accessLists = { enabled: true, limit: 1 };
+
   worker.use(
     rest.get(cfg.oss.getListRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ items: [], startKey: '' }));
