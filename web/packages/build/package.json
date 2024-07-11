@@ -18,7 +18,7 @@
     "@babel/preset-env": "^7.24.7",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
-    "@storybook/addon-toolbars": "^6.5.16",
+    "@storybook/addon-toolbars": "^8.1.11",
     "@storybook/builder-webpack5": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
     "@swc/plugin-styled-components": "^1.5.122",
