@@ -238,6 +238,7 @@ func (f *failingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		assert.NoError(f.t, err)
 		assert.Equal(f.t, f.expectedBody, body)
+		r.Body.Close()
 	}
 	if f.retryAfter != 0 {
 		w.Header().Add("Retry-After", strconv.Itoa(f.retryAfter))
