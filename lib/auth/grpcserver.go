@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -4478,8 +4479,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	if err != nil {
 		if trace.IsNotFound(err) {
 			switch req.Name {
-			case installers.InstallerScriptName:
-				return installers.DefaultInstaller, nil
+			case types.DefaultInstallerScriptName:
+				return installer.DefaultInstaller, nil
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -4505,7 +4506,7 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 	defaultInstallers := map[string]*types.InstallerV1{
-		installers.InstallerScriptName:          installers.DefaultInstaller,
+		types.DefaultInstallerScriptName:        installer.DefaultInstaller,
 		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
 	}
 
