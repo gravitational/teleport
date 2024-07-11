@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -206,6 +207,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessMonitoringRuleParser()
 		case types.KindInstance:
 			parser = newInstanceParser()
+		case types.KindDevice:
+			parser = newDeviceParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2170,6 +2173,50 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 		case <-tick.Chan():
 			return nil, trace.LimitExceeded("timed out waiting for event")
 		}
+	}
+}
+
+func newDeviceParser() *deviceParser {
+	return &deviceParser{
+		baseParser: newBaseParser(backend.Key(devicetrust.DevicesIDPrefix...)),
+	}
+}
+
+type deviceParser struct {
+	baseParser
+}
+
+func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name, err := base(event.Item.Key, 0 /* offset */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		device := &types.DeviceV1{
+			ResourceHeader: types.ResourceHeader{
+				Kind:    types.KindDevice,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: string(name),
+				},
+			},
+		}
+		return device, nil
+	case types.OpPut:
+		device, err := services.UnmarshalDeviceFromBackendItem(event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// [devicepb.Device] doesn't satisfy types.Resource interface or Resource153 interface,
+		// so we need to convert it to types.DeviceV1 so it satisfy types.Resource interface.
+		dev := types.DeviceToResource(device)
+		// Set the expires and revision fields.
+		dev.SetExpiry(event.Item.Expires)
+		dev.SetRevision(event.Item.Revision)
+		return dev, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
 
