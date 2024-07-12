@@ -45,6 +45,18 @@ let ctx: TeleportContext;
 
 const mio = mockIntersectionObserver();
 
+beforeEach(() => {
+  class ResizeObserver {
+    observe() {}
+
+    unobserve() {}
+
+    disconnect() {}
+  }
+
+  global.ResizeObserver = ResizeObserver;
+  jest.resetAllMocks();
+});
 beforeEach(() => jest.resetAllMocks());
 
 function setup(): void {

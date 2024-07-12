@@ -206,7 +206,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	google.golang.org/api v0.177.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240429193739-8cf5692501f6
-	google.golang.org/grpc v1.64.0
+	google.golang.org/grpc v1.64.1
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/protobuf v1.34.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c

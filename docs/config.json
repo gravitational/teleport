@@ -101,11 +101,9 @@
               ]
             },
             {
-              "title": "Downloads",
-              "slug": "/choose-an-edition/teleport-cloud/downloads/",
-              "forScopes": [
-                "cloud"
-              ]
+              "title": "Public IP Allowlist",
+              "slug": "/choose-an-edition/teleport-cloud/ips/",
+              "forScopes": ["cloud"]
             },
             {
               "title": "FAQ",
@@ -1027,6 +1025,10 @@
             {
               "title": "AWS OIDC Integration",
               "slug": "/management/guides/awsoidc-integration/"
+            },
+            {
+              "title": "Datadog Integration",
+              "slug": "/management/guides/datadog/"
             }
           ]
         },
@@ -1079,10 +1081,6 @@
             {
               "title": "Export Audit Events to Fluentd",
               "slug": "/management/export-audit-events/fluentd/"
-            },
-            {
-              "title": "Export Audit Events to Datadog",
-              "slug": "/management/export-audit-events/datadog/"
             },
             {
               "title": "Export Audit Events to the Elastic Stack",
@@ -1228,7 +1226,13 @@
         },
         {
           "title": "Databases",
-          "slug": "/auto-discovery/databases/"
+          "slug": "/auto-discovery/databases/",
+          "entries": [
+            {
+              "title": "AWS",
+              "slug": "/auto-discovery/databases/aws/"
+            }
+          ]
         },
         {
           "title": "Kubernetes Applications",
@@ -2806,11 +2810,6 @@
       "permanent": true
     },
     {
-      "source": "/cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
-      "permanent": true
-    },
-    {
       "source": "/cloud/faq/",
       "destination": "/choose-an-edition/teleport-cloud/faq/",
       "permanent": true
@@ -3071,8 +3070,8 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
-      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "source": "/choose-an-edition/teleport-cloud/downloads/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -3723,6 +3722,11 @@
     {
       "source": "/database-access/guides/vitess/",
       "destination": "/database-access/enroll-self-hosted-databases/vitess/",
+      "permanent": true
+    },
+    {
+      "source": "/management/export-audit-events/datadog/",
+      "destination": "/management/guides/datadog/",
       "permanent": true
     }
   ]

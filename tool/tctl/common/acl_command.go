@@ -81,6 +81,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 
 	c.usersList = users.Command("ls", "List users that are members of an access list.")
 	c.usersList.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
+	c.usersList.Flag("format", "Output format 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
@@ -190,33 +191,34 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client)
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
-	members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(members) == 0 {
-		fmt.Printf("No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
-		return nil
-	}
-
-	fmt.Printf("Members of %s:\n", c.accessListName)
+	var allMembers []*accesslist.AccessListMember
+	var nextToken string
 	for {
-		for _, member := range members {
-			fmt.Printf("- %s\n", member.Spec.Name)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		members, nextToken, err = client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
+		members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		allMembers = append(allMembers, members...)
+		if nextToken == "" {
+			break
+		}
 	}
-
-	return nil
+	switch c.format {
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, allMembers))
+	case teleport.Text:
+		if len(allMembers) == 0 {
+			fmt.Printf("No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
+			return nil
+		}
+		fmt.Printf("Members of %s:\n", c.accessListName)
+		for _, member := range allMembers {
+			fmt.Printf("- %s\n", member.Spec.Name)
+		}
+		return nil
+	default:
+		return trace.BadParameter("unsupported output format %q", c.format)
+	}
 }
 
 func displayAccessLists(format string, accessLists ...*accesslist.AccessList) error {
