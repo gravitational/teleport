@@ -213,8 +213,9 @@ func bundlePath() (string, error) {
 
 	const appBundleSuffix = "/Contents/MacOS"
 	if !strings.HasSuffix(dir, appBundleSuffix) {
+		exeName := filepath.Base(exe)
 		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
-		return "", trace.NotFound("the current executable is not in an app bundle")
+		return "", trace.NotFound("%s is not in an app bundle", exeName)
 	}
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
