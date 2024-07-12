@@ -46,15 +46,16 @@ const defaultPageSize = 500
 // scopes defines OAuth scopes the client authenticates for.
 var scopes = []string{"https://graph.microsoft.com/.default"}
 
-type azureTokenProvider interface {
+// AzureTokenProvider defines a method to get an authorization token from the Entra STS.
+// Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
+type AzureTokenProvider interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
 // Config defines configuration options for [client].
 type Config struct {
 	// TokenProvider provides tokens to authorize to MS Graph API.
-	// Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
-	TokenProvider azureTokenProvider
+	TokenProvider AzureTokenProvider
 	// HTTPClient is the HTTP client to use for calls to the API.
 	// If not specified, [http.DefaultClient] is used.
 	HTTPClient *http.Client
@@ -98,7 +99,7 @@ func (cfg *Config) Validate() error {
 
 type client struct {
 	httpClient    *http.Client
-	tokenProvider azureTokenProvider
+	tokenProvider AzureTokenProvider
 	clock         clockwork.Clock
 	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
