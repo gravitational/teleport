@@ -25,6 +25,7 @@ import makeJoinToken from './makeJoinToken';
 import { JoinToken, JoinRule, JoinTokenRequest } from './types';
 
 class JoinTokenService {
+  // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinToken(
     req: JoinTokenRequest,
     signal: AbortSignal = null
@@ -43,6 +44,32 @@ class JoinTokenService {
         signal
       )
       .then(makeJoinToken);
+  }
+
+  // TODO (avatus) for the first iteration, we will create tokens using only yaml and
+  // slowly create a form for each token type.
+  upsertJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+    return api
+      .put(cfg.getJoinTokenYamlUrl(), {
+        content: req.content,
+      })
+      .then(makeJoinToken);
+  }
+
+  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
+    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
+      return {
+        items: resp.items.map(makeJoinToken),
+      };
+    });
+  }
+
+  deleteJoinToken(id: string, signal: AbortSignal = null) {
+    return api.deleteWithHeaders(
+      cfg.getJoinTokensUrl(),
+      { 'X-Teleport-TokenName': id },
+      signal
+    );
   }
 }
 

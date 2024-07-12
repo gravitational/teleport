@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -88,7 +89,9 @@ var (
 
 func fakeClusterFeatures() proto.Features {
 	return proto.Features{
-		Kubernetes: true,
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.K8s): {Enabled: true},
+		},
 	}
 }
 
@@ -1487,14 +1490,18 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 		{
 			name: "kubernetes agent is licensed",
 			features: proto.Features{
-				Kubernetes: true,
+				Entitlements: map[string]*proto.EntitlementInfo{
+					string(entitlements.K8s): {Enabled: true},
+				},
 			},
 			assertErrFunc: require.NoError,
 		},
 		{
 			name: "kubernetes isn't licensed",
 			features: proto.Features{
-				Kubernetes: false,
+				Entitlements: map[string]*proto.EntitlementInfo{
+					string(entitlements.K8s): {Enabled: false},
+				},
 			},
 			assertErrFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)

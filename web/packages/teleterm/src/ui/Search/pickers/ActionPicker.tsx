@@ -1126,7 +1126,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
           cursor: pointer;
           border-radius: ${props => props.theme.radii[1]}px;
 
-          :hover {
+          &:hover {
             background: ${props => props.theme.colors.spotBackground[1]};
           }
 

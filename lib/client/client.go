@@ -208,13 +208,13 @@ const (
 func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
+		keyPEM, err := pk.PrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
-			return append(cert, rsaKeyPEM...), nil
+			return append(cert, keyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a hardware private key.")
 	}
 	return cert, nil
 }

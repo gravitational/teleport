@@ -199,17 +199,23 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 		return nil
 	}
 
-	// req.PublicKey is in SSH Authorized Keys format. For consistency, we
-	// only store public keys in PEM wrapped PKIX, DER format within
-	// BotInstances.
-	pkixPEM, err := sshPublicKeyToPKIXPEM(req.publicKey)
-	if err != nil {
-		return trace.Wrap(err, "converting key")
+	// TODO(nklaassen): consider recording both public keys once they are
+	// actually separated.
+	var publicKeyPEM []byte
+	if req.tlsPublicKey != nil {
+		publicKeyPEM = req.tlsPublicKey
+	} else {
+		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
+		var err error
+		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.authServer.GetClock().Now()),
-		PublicKey:       pkixPEM,
+		PublicKey:       publicKeyPEM,
 
 		// TODO: for now, this copy of the certificate generation only is
 		// informational. Future changes will transition to trusting (and
@@ -252,7 +258,7 @@ func (a *ServerWithRoles) updateBotInstance(ctx context.Context, req *certReques
 		return nil
 	}
 
-	_, err = a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err := a.authServer.BotInstance.PatchBotInstance(ctx, ident.BotName, ident.BotInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
@@ -380,11 +386,23 @@ func (a *Server) generateInitialBotCerts(
 		botInstanceID = uuid.String()
 	}
 
+	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
+	sshPublicKey := pubKey
+	cryptoPublicKey, err := sshutils.CryptoPublicKey(pubKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Generate certificate
 	certReq := certRequest{
 		user:          userState,
 		ttl:           expires.Sub(a.GetClock().Now()),
-		publicKey:     pubKey,
+		sshPublicKey:  sshPublicKey,
+		tlsPublicKey:  tlsPublicKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,

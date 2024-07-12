@@ -45,12 +45,14 @@ export type SamlIdpServiceProviderSpec = {
 
 /**
  * AttributeMapping defines SAML service provider
- * attribute mapping fields.
+ * attribute mapping fields. Field names are exactly
+ * defined as they are avaiable in the SAMLAttributeMapping
+ * proto in the backend.
  */
 export type AttributeMapping = {
   name: string;
   value: string;
-  nameFormat?: string;
+  name_format?: string;
 };
 
 /**

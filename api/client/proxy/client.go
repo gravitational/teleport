@@ -147,6 +147,11 @@ func (mc insecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+// Expiry returns the credential expiry. insecureCredentials never expire.
+func (mc insecureCredentials) Expiry() (time.Time, bool) {
+	return time.Time{}, true
+}
+
 // Client is a client to the Teleport Proxy SSH server on behalf of a user.
 // The Proxy SSH port used to serve only SSH, however portions of the api are
 // being migrated to gRPC to reduce latency. The Client is capable of communicating

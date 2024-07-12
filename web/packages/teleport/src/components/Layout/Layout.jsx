@@ -62,7 +62,7 @@ const FeatureBox = styled(Flex)`
     Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.
     It works in all major browsers.
   */
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

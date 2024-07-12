@@ -74,7 +74,7 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  border-color: rgba(255, 255, 255, 0.54);
 }
 
 .c39 {
@@ -111,8 +111,8 @@ exports[`failed state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -125,8 +125,8 @@ exports[`failed state 1`] = `
 .c21:focus-visible,
 .teleport-button__force-focus-visible .c21 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -148,7 +148,7 @@ exports[`failed state 1`] = `
 
 .c21:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -200,7 +200,7 @@ exports[`failed state 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c45:active,
@@ -212,7 +212,7 @@ exports[`failed state 1`] = `
 
 .c45:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -238,7 +238,7 @@ exports[`failed state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -253,8 +253,8 @@ exports[`failed state 1`] = `
 .c46:focus-visible,
 .teleport-button__force-focus-visible .c46 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -276,7 +276,7 @@ exports[`failed state 1`] = `
 
 .c46:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -303,7 +303,7 @@ exports[`failed state 1`] = `
 }
 
 .c41:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -417,39 +417,39 @@ exports[`failed state 1`] = `
   width: 100%;
 }
 
-.c9 > thead > tr > th,
-.c9 > tbody > tr > th,
-.c9 > tfoot > tr > th,
-.c9 > thead > tr > td,
-.c9 > tbody > tr > td,
-.c9 > tfoot > tr > td {
+.c9>thead>tr>th,
+.c9>tbody>tr>th,
+.c9>tfoot>tr>th,
+.c9>thead>tr>td,
+.c9>tbody>tr>td,
+.c9>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th:first-child,
-.c9 > tbody > tr > th:first-child,
-.c9 > tfoot > tr > th:first-child,
-.c9 > thead > tr > td:first-child,
-.c9 > tbody > tr > td:first-child,
-.c9 > tfoot > tr > td:first-child {
+.c9>thead>tr>th:first-child,
+.c9>tbody>tr>th:first-child,
+.c9>tfoot>tr>th:first-child,
+.c9>thead>tr>td:first-child,
+.c9>tbody>tr>td:first-child,
+.c9>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c9 > thead > tr > th:last-child,
-.c9 > tbody > tr > th:last-child,
-.c9 > tfoot > tr > th:last-child,
-.c9 > thead > tr > td:last-child,
-.c9 > tbody > tr > td:last-child,
-.c9 > tfoot > tr > td:last-child {
+.c9>thead>tr>th:last-child,
+.c9>tbody>tr>th:last-child,
+.c9>tfoot>tr>th:last-child,
+.c9>thead>tr>td:last-child,
+.c9>tbody>tr>td:last-child,
+.c9>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th {
+.c9>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -461,11 +461,11 @@ exports[`failed state 1`] = `
   white-space: nowrap;
 }
 
-.c9 > thead > tr > th svg {
+.c9>thead>tr>th svg {
   height: 12px;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -485,7 +485,7 @@ exports[`failed state 1`] = `
 }
 
 .c9 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -495,7 +495,7 @@ exports[`failed state 1`] = `
   height: 100%;
 }
 
-.c9 tbody tr:hover + tr {
+.c9 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -515,20 +515,20 @@ exports[`failed state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c36 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c36 .react-select__control:hover,
 .c36 .react-select__control:focus,
 .c36 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -549,7 +549,7 @@ exports[`failed state 1`] = `
 }
 
 .c36 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -563,7 +563,7 @@ exports[`failed state 1`] = `
 }
 
 .c36 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c36 .react-select__multi-value {
@@ -609,7 +609,7 @@ exports[`failed state 1`] = `
 }
 
 .c36 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c36 .react-select__clear-indicator:hover,
@@ -625,7 +625,7 @@ exports[`failed state 1`] = `
 .c36 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c36 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -642,17 +642,17 @@ exports[`failed state 1`] = `
 }
 
 .c36 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c36 .react-select__control--is-disabled .react-select__single-value,
 .c36 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c36 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c36 .react-select__input {
@@ -677,7 +677,7 @@ exports[`failed state 1`] = `
 
 .c30 {
   height: 40px;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   padding: 0 8px;
   align-items: center;
@@ -687,7 +687,7 @@ exports[`failed state 1`] = `
 
 .c30:hover {
   background-color: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c27 {
@@ -862,15 +862,15 @@ exports[`failed state 1`] = `
 
 .c10 {
   border-radius: 8px;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.c10 > tbody > tr > td {
+.c10>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c10 > thead > tr > th {
+.c10>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -885,12 +885,12 @@ exports[`failed state 1`] = `
 
 .c12 {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255, 255, 255, 0.07);
   border-radius: 2px;
 }
 
 .c12:hover {
-  background-color: rgba(255,255,255,0.13);
+  background-color: rgba(255, 255, 255, 0.13);
 }
 
 .c44 {
@@ -906,13 +906,13 @@ exports[`failed state 1`] = `
 }
 
 .c38::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c38:hover,
 .c38:focus,
 .c38:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 <div>
@@ -1544,7 +1544,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  border-color: rgba(255, 255, 255, 0.54);
 }
 
 .c46 {
@@ -1581,8 +1581,8 @@ exports[`loaded state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
@@ -1595,8 +1595,8 @@ exports[`loaded state 1`] = `
 .c24:focus-visible,
 .teleport-button__force-focus-visible .c24 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1618,7 +1618,7 @@ exports[`loaded state 1`] = `
 
 .c24:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1670,7 +1670,7 @@ exports[`loaded state 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c51:active,
@@ -1682,7 +1682,7 @@ exports[`loaded state 1`] = `
 
 .c51:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1708,7 +1708,7 @@ exports[`loaded state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -1723,8 +1723,8 @@ exports[`loaded state 1`] = `
 .c52:focus-visible,
 .teleport-button__force-focus-visible .c52 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1746,7 +1746,7 @@ exports[`loaded state 1`] = `
 
 .c52:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1773,7 +1773,7 @@ exports[`loaded state 1`] = `
 }
 
 .c25:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1807,7 +1807,7 @@ exports[`loaded state 1`] = `
 }
 
 .c29:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -1944,39 +1944,39 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c8 > thead > tr > th,
-.c8 > tbody > tr > th,
-.c8 > tfoot > tr > th,
-.c8 > thead > tr > td,
-.c8 > tbody > tr > td,
-.c8 > tfoot > tr > td {
+.c8>thead>tr>th,
+.c8>tbody>tr>th,
+.c8>tfoot>tr>th,
+.c8>thead>tr>td,
+.c8>tbody>tr>td,
+.c8>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c8 > thead > tr > th:first-child,
-.c8 > tbody > tr > th:first-child,
-.c8 > tfoot > tr > th:first-child,
-.c8 > thead > tr > td:first-child,
-.c8 > tbody > tr > td:first-child,
-.c8 > tfoot > tr > td:first-child {
+.c8>thead>tr>th:first-child,
+.c8>tbody>tr>th:first-child,
+.c8>tfoot>tr>th:first-child,
+.c8>thead>tr>td:first-child,
+.c8>tbody>tr>td:first-child,
+.c8>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c8 > thead > tr > th:last-child,
-.c8 > tbody > tr > th:last-child,
-.c8 > tfoot > tr > th:last-child,
-.c8 > thead > tr > td:last-child,
-.c8 > tbody > tr > td:last-child,
-.c8 > tfoot > tr > td:last-child {
+.c8>thead>tr>th:last-child,
+.c8>tbody>tr>th:last-child,
+.c8>tfoot>tr>th:last-child,
+.c8>thead>tr>td:last-child,
+.c8>tbody>tr>td:last-child,
+.c8>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c8 > tbody > tr > td {
+.c8>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c8 > thead > tr > th {
+.c8>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -1988,11 +1988,11 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c8 > thead > tr > th svg {
+.c8>thead>tr>th svg {
   height: 12px;
 }
 
-.c8 > tbody > tr > td {
+.c8>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
@@ -2012,7 +2012,7 @@ exports[`loaded state 1`] = `
 }
 
 .c8 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -2022,7 +2022,7 @@ exports[`loaded state 1`] = `
   height: 100%;
 }
 
-.c8 tbody tr:hover + tr {
+.c8 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
@@ -2042,20 +2042,20 @@ exports[`loaded state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c43 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c43 .react-select__control:hover,
 .c43 .react-select__control:focus,
 .c43 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2076,7 +2076,7 @@ exports[`loaded state 1`] = `
 }
 
 .c43 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2090,7 +2090,7 @@ exports[`loaded state 1`] = `
 }
 
 .c43 .react-select__placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c43 .react-select__multi-value {
@@ -2136,7 +2136,7 @@ exports[`loaded state 1`] = `
 }
 
 .c43 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c43 .react-select__clear-indicator:hover,
@@ -2152,7 +2152,7 @@ exports[`loaded state 1`] = `
 .c43 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+  box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),0px 8px 10px 1px rgba(0, 0, 0, 0.14),0px 3px 14px 2px rgba(0, 0, 0, 0.12);
 }
 
 .c43 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
@@ -2169,17 +2169,17 @@ exports[`loaded state 1`] = `
 }
 
 .c43 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.36);
-  border: 1px solid rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.36);
 }
 
 .c43 .react-select__control--is-disabled .react-select__single-value,
 .c43 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c43 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .c43 .react-select__input {
@@ -2204,7 +2204,7 @@ exports[`loaded state 1`] = `
 
 .c38 {
   height: 40px;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   padding: 0 8px;
   align-items: center;
@@ -2214,7 +2214,7 @@ exports[`loaded state 1`] = `
 
 .c38:hover {
   background-color: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c35 {
@@ -2393,15 +2393,15 @@ exports[`loaded state 1`] = `
 
 .c9 {
   border-radius: 8px;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.c9 > tbody > tr > td {
+.c9>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c9 > thead > tr > th {
+.c9>thead>tr>th {
   background: rgba(255,255,255,0.13);
 }
 
@@ -2416,12 +2416,12 @@ exports[`loaded state 1`] = `
 
 .c11 {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: rgba(255, 255, 255, 0.07);
   border-radius: 2px;
 }
 
 .c11:hover {
-  background-color: rgba(255,255,255,0.13);
+  background-color: rgba(255, 255, 255, 0.13);
 }
 
 .c50 {
@@ -2437,13 +2437,13 @@ exports[`loaded state 1`] = `
 }
 
 .c45::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .c45:hover,
 .c45:focus,
 .c45:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 <div>
@@ -3356,7 +3356,7 @@ exports[`success state 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c11:active,
@@ -3368,7 +3368,7 @@ exports[`success state 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -3394,7 +3394,7 @@ exports[`success state 1`] = `
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
@@ -3407,8 +3407,8 @@ exports[`success state 1`] = `
 .c12:focus-visible,
 .teleport-button__force-focus-visible .c12 {
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -3417,7 +3417,7 @@ exports[`success state 1`] = `
 .teleport-button__force-hover .c12 {
   background-color: rgba(255,255,255,0.07);
   border-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   box-shadow: none;
 }
 
@@ -3430,7 +3430,7 @@ exports[`success state 1`] = `
 
 .c12:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -3453,7 +3453,7 @@ exports[`success state 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c9 {

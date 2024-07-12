@@ -205,7 +205,7 @@ const Input = styled.input`
   border-radius: ${props => props.theme.radii[2]}px;
   padding-inline: ${props => props.theme.space[2]}px;
 
-  ::placeholder {
+  &::placeholder {
     color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;
