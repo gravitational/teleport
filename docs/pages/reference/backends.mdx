@@ -1,5 +1,5 @@
 ---
-title: Storage backends
+title: Storage Backends
 description: How to configure Teleport deployment for high-availability using storage backends
 ---
 
@@ -81,7 +81,7 @@ load balancer you'll need to run Teleport with `--insecure-no-tls`
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on
+`/readyz` [diagnostics endpoint](../admin-guides/management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
 `--diag-addr` flag to teleport start:
 
