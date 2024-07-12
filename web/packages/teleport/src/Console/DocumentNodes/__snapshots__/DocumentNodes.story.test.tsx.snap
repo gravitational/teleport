@@ -10,8 +10,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c2 {
   box-sizing: border-box;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
 }
 
@@ -55,17 +53,8 @@ exports[`render DocumentNodes 1`] = `
 .c8 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -77,30 +66,25 @@ exports[`render DocumentNodes 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c8:focus-visible,
 .teleport-button__force-focus-visible .c8 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -122,7 +106,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -131,17 +115,8 @@ exports[`render DocumentNodes 1`] = `
 .c39 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -153,30 +128,25 @@ exports[`render DocumentNodes 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c39:focus-visible,
 .teleport-button__force-focus-visible .c39 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -198,37 +168,25 @@ exports[`render DocumentNodes 1`] = `
 
 .c39:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
 }
 
 .c32 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 16px;
@@ -239,7 +197,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c32:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -253,30 +211,18 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c34 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 16px;
@@ -286,7 +232,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c34:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -300,51 +246,24 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c9 {
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 8px;
 }
 
 .c26 {
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
 }
 
 .c40 {
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   margin-left: 4px;
 }
 
@@ -384,80 +303,39 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c1 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
 .c6 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
 }
 
 .c12 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
   justify-content: space-between;
 }
 
 .c19 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   gap: 8px;
 }
 
 .c29 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-pack: end;
-  -webkit-justify-content: flex-end;
-  -ms-flex-pack: end;
   justify-content: flex-end;
 }
 
 .c36 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-wrap: wrap;
-  -ms-flex-wrap: wrap;
   flex-wrap: wrap;
 }
 
 .c20 {
   position: relative;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   cursor: pointer;
 }
@@ -471,11 +349,8 @@ exports[`render DocumentNodes 1`] = `
   height: 16px;
   border-radius: 10px;
   cursor: inherit;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
   flex-shrink: 0;
   background: rgba(255,255,255,0.07);
-  -webkit-transition: background 0.15s ease-in-out;
   transition: background 0.15s ease-in-out;
 }
 
@@ -493,14 +368,10 @@ exports[`render DocumentNodes 1`] = `
   top: 50%;
   width: 12px;
   height: 12px;
-  -webkit-transform: translate(2px,-50%);
-  -ms-transform: translate(2px,-50%);
-  transform: translate(2px,-50%);
+  transform: translate(2px, -50%);
   border-radius: 14px;
   background: #FFFFFF;
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  -webkit-transition: -webkit-transform 0.05s ease-in;
-  -webkit-transition: transform 0.05s ease-in;
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),0px 1px 1px rgba(0, 0, 0, 0.14),0px 1px 3px rgba(0, 0, 0, 0.12);
   transition: transform 0.05s ease-in;
 }
 
@@ -511,35 +382,33 @@ exports[`render DocumentNodes 1`] = `
   z-index: -1;
 }
 
-.c21:checked + .c22:before {
-  -webkit-transform: translate(18px,-50%);
-  -ms-transform: translate(18px,-50%);
-  transform: translate(18px,-50%);
+.c21:checked+.c22:before {
+  transform: translate(18px, -50%);
 }
 
-.c21:enabled:checked + .c22 {
+.c21:enabled:checked+.c22 {
   background: #00BFA6;
 }
 
-.c21:enabled:checked + .c22:hover {
+.c21:enabled:checked+.c22:hover {
   background: #33CCB8;
 }
 
-.c21:enabled:checked + .c22:active {
+.c21:enabled:checked+.c22:active {
   background: #66D9CA;
 }
 
-.c21:disabled + .c22 {
+.c21:disabled+.c22 {
   background: rgba(255,255,255,0.07);
 }
 
-.c21:disabled + .c22:before {
+.c21:disabled+.c22:before {
   opacity: 0.36;
   box-shadow: none;
 }
 
-.c21:disabled:checked + .c22 {
-  background: rgba(0,191,166,0.25);
+.c21:disabled:checked+.c22 {
+  background: rgba(0, 191, 166, 0.25);
 }
 
 .c27 {
@@ -566,39 +435,39 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
 }
 
-.c35 > thead > tr > th,
-.c35 > tbody > tr > th,
-.c35 > tfoot > tr > th,
-.c35 > thead > tr > td,
-.c35 > tbody > tr > td,
-.c35 > tfoot > tr > td {
+.c35>thead>tr>th,
+.c35>tbody>tr>th,
+.c35>tfoot>tr>th,
+.c35>thead>tr>td,
+.c35>tbody>tr>td,
+.c35>tfoot>tr>td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c35 > thead > tr > th:first-child,
-.c35 > tbody > tr > th:first-child,
-.c35 > tfoot > tr > th:first-child,
-.c35 > thead > tr > td:first-child,
-.c35 > tbody > tr > td:first-child,
-.c35 > tfoot > tr > td:first-child {
+.c35>thead>tr>th:first-child,
+.c35>tbody>tr>th:first-child,
+.c35>tfoot>tr>th:first-child,
+.c35>thead>tr>td:first-child,
+.c35>tbody>tr>td:first-child,
+.c35>tfoot>tr>td:first-child {
   padding-left: 24px;
 }
 
-.c35 > thead > tr > th:last-child,
-.c35 > tbody > tr > th:last-child,
-.c35 > tfoot > tr > th:last-child,
-.c35 > thead > tr > td:last-child,
-.c35 > tbody > tr > td:last-child,
-.c35 > tfoot > tr > td:last-child {
+.c35>thead>tr>th:last-child,
+.c35>tbody>tr>th:last-child,
+.c35>tfoot>tr>th:last-child,
+.c35>thead>tr>td:last-child,
+.c35>tbody>tr>td:last-child,
+.c35>tfoot>tr>td:last-child {
   padding-right: 24px;
 }
 
-.c35 > tbody > tr > td {
+.c35>tbody>tr>td {
   vertical-align: middle;
 }
 
-.c35 > thead > tr > th {
+.c35>thead>tr>th {
   color: #FFFFFF;
   font-weight: 600;
   font-size: 14px;
@@ -610,23 +479,19 @@ exports[`render DocumentNodes 1`] = `
   white-space: nowrap;
 }
 
-.c35 > thead > tr > th svg {
+.c35>thead>tr>th svg {
   height: 12px;
 }
 
-.c35 > tbody > tr > td {
+.c35>tbody>tr>td {
   color: #FFFFFF;
   font-weight: 300;
   font-size: 14px;
   line-height: 20px;
-  -webkit-letter-spacing: 0.035px;
-  -moz-letter-spacing: 0.035px;
-  -ms-letter-spacing: 0.035px;
   letter-spacing: 0.035px;
 }
 
 .c35 tbody tr {
-  -webkit-transition: all 150ms;
   transition: all 150ms;
   position: relative;
   border-top: 2px solid rgba(255,255,255,0.07);
@@ -638,7 +503,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c35 tbody tr:hover:after {
-  box-shadow: 0px 1px 10px 0px rgba(0,0,0,0.12),0px 4px 5px 0px rgba(0,0,0,0.14),0px 2px 4px -1px rgba(0,0,0,0.20);
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),0px 4px 5px 0px rgba(0, 0, 0, 0.14),0px 2px 4px -1px rgba(0, 0, 0, 0.20);
   content: '';
   position: absolute;
   top: 0;
@@ -648,25 +513,14 @@ exports[`render DocumentNodes 1`] = `
   height: 100%;
 }
 
-.c35 tbody tr:hover + tr {
+.c35 tbody tr:hover +tr {
   border-top: 2px solid rgba(0,0,0,0);
 }
 
 .c10 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex-shrink: 0;
-  -ms-flex-negative: 0;
   flex-shrink: 0;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: justify;
-  -webkit-justify-content: space-between;
-  -ms-flex-pack: justify;
   justify-content: space-between;
   padding: 0 0 16px 0;
   max-height: 40px;
@@ -690,15 +544,8 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c31 {
-  -webkit-flex-shrink: 1;
-  -ms-flex-negative: 1;
   flex-shrink: 1;
-  -webkit-box-flex: 0;
-  -webkit-flex-grow: 0;
-  -ms-flex-positive: 0;
   flex-grow: 0;
-  -webkit-flex-basis: 0;
-  -ms-flex-preferred-size: 0;
   flex-basis: 0;
 }
 
@@ -706,17 +553,8 @@ exports[`render DocumentNodes 1`] = `
   position: relative;
   height: 100%;
   right: 0;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   border-radius: 0 200px 200px 0;
 }
@@ -725,17 +563,8 @@ exports[`render DocumentNodes 1`] = `
   position: absolute;
   height: 100%;
   right: 0;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   border-left: 1px solid rgba(255,255,255,0.07);
   border-radius: 0 200px 200px 0;
@@ -743,9 +572,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c14 {
   position: relative;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   overflow: hidden;
   border-radius: 200px;
@@ -766,7 +592,6 @@ exports[`render DocumentNodes 1`] = `
   box-sizing: border-box;
   font-size: 16px;
   width: 100%;
-  -webkit-transition: all 0.2s;
   transition: all 0.2s;
   padding-left: 16px;
   padding-right: 16px;
@@ -777,19 +602,10 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c4 {
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-flex: 1;
-  -ms-flex: 1;
   flex: 1;
   max-width: 1024px;
-  height: -webkit-fit-content;
-  height: -moz-fit-content;
   height: fit-content;
 }
 
@@ -884,7 +700,6 @@ exports[`render DocumentNodes 1`] = `
                     </label>
                     <div
                       class="c24"
-                      m="0"
                     >
                       Advanced
                     </div>
@@ -926,8 +741,6 @@ exports[`render DocumentNodes 1`] = `
             <div
               class="c30"
               font-weight="500"
-              m="0"
-              mr="1"
               style="white-space: nowrap; letter-spacing: 0.15px;"
             >
               Showing 

@@ -8,17 +8,8 @@ exports[`buttons 1`] = `
 .c3 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -30,30 +21,25 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c3:focus-visible,
 .teleport-button__force-focus-visible .c3 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -75,7 +61,7 @@ exports[`buttons 1`] = `
 
 .c3:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -84,17 +70,8 @@ exports[`buttons 1`] = `
 .c4 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -106,9 +83,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -119,9 +94,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -139,7 +111,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c4:active,
@@ -151,7 +123,7 @@ exports[`buttons 1`] = `
 
 .c4:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -160,17 +132,8 @@ exports[`buttons 1`] = `
 .c5 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -182,9 +145,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #FF6257;
@@ -195,9 +156,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -215,7 +173,7 @@ exports[`buttons 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c5:active,
@@ -227,7 +185,7 @@ exports[`buttons 1`] = `
 
 .c5:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -236,17 +194,8 @@ exports[`buttons 1`] = `
 .c6 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -258,9 +207,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #00BFA6;
@@ -271,9 +218,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -291,7 +235,7 @@ exports[`buttons 1`] = `
   background-color: #33CCB8;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c6:active,
@@ -303,7 +247,7 @@ exports[`buttons 1`] = `
 
 .c6:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -312,17 +256,8 @@ exports[`buttons 1`] = `
 .c7 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -334,30 +269,25 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   border-color: transparent;
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c7:focus-visible,
 .teleport-button__force-focus-visible .c7 {
   background-color: transparent;
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -366,7 +296,7 @@ exports[`buttons 1`] = `
 .teleport-button__force-hover .c7 {
   background-color: rgba(255,255,255,0.07);
   border-color: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
   box-shadow: none;
 }
 
@@ -379,7 +309,7 @@ exports[`buttons 1`] = `
 
 .c7:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -388,17 +318,8 @@ exports[`buttons 1`] = `
 .c8 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -410,9 +331,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -423,9 +342,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -440,7 +356,7 @@ exports[`buttons 1`] = `
 
 .c8:hover,
 .teleport-button__force-hover .c8 {
-  background-color: rgba(159,133,255,0.1);
+  background-color: rgba(159,133,255, 0.1);
   border-color: transparent;
   color: #B29DFF;
   box-shadow: none;
@@ -448,14 +364,14 @@ exports[`buttons 1`] = `
 
 .c8:active,
 .teleport-button__force-active .c8 {
-  background-color: rgba(159,133,255,0.18);
+  background-color: rgba(159,133,255, 0.18);
   border-color: transparent;
   color: #C5B6FF;
 }
 
 .c8:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -464,17 +380,8 @@ exports[`buttons 1`] = `
 .c9 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -486,9 +393,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -499,9 +404,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -516,7 +418,7 @@ exports[`buttons 1`] = `
 
 .c9:hover,
 .teleport-button__force-hover .c9 {
-  background-color: rgba(255,98,87,0.1);
+  background-color: rgba(255, 98, 87, 0.1);
   border-color: transparent;
   color: #FF8179;
   box-shadow: none;
@@ -524,14 +426,14 @@ exports[`buttons 1`] = `
 
 .c9:active,
 .teleport-button__force-active .c9 {
-  background-color: rgba(255,98,87,0.18);
+  background-color: rgba(255, 98, 87, 0.18);
   border-color: transparent;
   color: #FF8179;
 }
 
 .c9:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -540,17 +442,8 @@ exports[`buttons 1`] = `
 .c10 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -562,9 +455,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -575,9 +466,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -592,7 +480,7 @@ exports[`buttons 1`] = `
 
 .c10:hover,
 .teleport-button__force-hover .c10 {
-  background-color: rgba(0,191,166,0.1);
+  background-color: rgba(0, 191, 166, 0.1);
   border-color: transparent;
   color: #33CCB8;
   box-shadow: none;
@@ -600,14 +488,14 @@ exports[`buttons 1`] = `
 
 .c10:active,
 .teleport-button__force-active .c10 {
-  background-color: rgba(0,191,166,0.18);
+  background-color: rgba(0, 191, 166, 0.18);
   border-color: transparent;
   color: #33CCB8;
 }
 
 .c10:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -616,17 +504,8 @@ exports[`buttons 1`] = `
 .c11 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -638,30 +517,25 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c11:focus-visible,
 .teleport-button__force-focus-visible .c11 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -683,7 +557,7 @@ exports[`buttons 1`] = `
 
 .c11:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -692,17 +566,8 @@ exports[`buttons 1`] = `
 .c12 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -714,9 +579,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -727,9 +590,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -747,7 +607,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c12:active,
@@ -759,7 +619,7 @@ exports[`buttons 1`] = `
 
 .c12:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -768,17 +628,8 @@ exports[`buttons 1`] = `
 .c13 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -790,9 +641,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -803,9 +652,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -823,7 +669,7 @@ exports[`buttons 1`] = `
   background-color: #FF8179;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c13:active,
@@ -835,7 +681,7 @@ exports[`buttons 1`] = `
 
 .c13:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -844,17 +690,8 @@ exports[`buttons 1`] = `
 .c14 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -866,9 +703,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
@@ -879,9 +714,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -899,7 +731,7 @@ exports[`buttons 1`] = `
   background-color: #33CCB8;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c14:active,
@@ -911,7 +743,7 @@ exports[`buttons 1`] = `
 
 .c14:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -920,17 +752,8 @@ exports[`buttons 1`] = `
 .c17 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -942,9 +765,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -955,9 +776,6 @@ exports[`buttons 1`] = `
   min-height: 44px;
   font-size: 16px;
   line-height: 24px;
-  -webkit-letter-spacing: 0.2px;
-  -moz-letter-spacing: 0.2px;
-  -ms-letter-spacing: 0.2px;
   letter-spacing: 0.2px;
 }
 
@@ -975,7 +793,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c17:active,
@@ -987,7 +805,7 @@ exports[`buttons 1`] = `
 
 .c17:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -996,17 +814,8 @@ exports[`buttons 1`] = `
 .c18 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1018,9 +827,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1031,9 +838,6 @@ exports[`buttons 1`] = `
   min-height: 40px;
   font-size: 14px;
   line-height: 20px;
-  -webkit-letter-spacing: 0.175px;
-  -moz-letter-spacing: 0.175px;
-  -ms-letter-spacing: 0.175px;
   letter-spacing: 0.175px;
 }
 
@@ -1051,7 +855,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c18:active,
@@ -1063,7 +867,7 @@ exports[`buttons 1`] = `
 
 .c18:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1072,17 +876,8 @@ exports[`buttons 1`] = `
 .c19 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1094,9 +889,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1107,9 +900,6 @@ exports[`buttons 1`] = `
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -1127,7 +917,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c19:active,
@@ -1139,7 +929,7 @@ exports[`buttons 1`] = `
 
 .c19:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1148,17 +938,8 @@ exports[`buttons 1`] = `
 .c22 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1170,9 +951,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1183,9 +962,6 @@ exports[`buttons 1`] = `
   min-height: 44px;
   font-size: 16px;
   line-height: 24px;
-  -webkit-letter-spacing: 0.2px;
-  -moz-letter-spacing: 0.2px;
-  -ms-letter-spacing: 0.2px;
   letter-spacing: 0.2px;
 }
 
@@ -1203,7 +979,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c22:active,
@@ -1215,7 +991,7 @@ exports[`buttons 1`] = `
 
 .c22:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1224,17 +1000,8 @@ exports[`buttons 1`] = `
 .c23 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1246,9 +1013,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1259,9 +1024,6 @@ exports[`buttons 1`] = `
   min-height: 40px;
   font-size: 14px;
   line-height: 20px;
-  -webkit-letter-spacing: 0.175px;
-  -moz-letter-spacing: 0.175px;
-  -ms-letter-spacing: 0.175px;
   letter-spacing: 0.175px;
 }
 
@@ -1279,7 +1041,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c23:active,
@@ -1291,7 +1053,7 @@ exports[`buttons 1`] = `
 
 .c23:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1300,17 +1062,8 @@ exports[`buttons 1`] = `
 .c24 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1322,9 +1075,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1335,9 +1086,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -1355,7 +1103,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c24:active,
@@ -1367,7 +1115,7 @@ exports[`buttons 1`] = `
 
 .c24:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1376,17 +1124,8 @@ exports[`buttons 1`] = `
 .c25 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1398,9 +1137,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1411,9 +1148,6 @@ exports[`buttons 1`] = `
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -1431,7 +1165,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c25:active,
@@ -1443,7 +1177,7 @@ exports[`buttons 1`] = `
 
 .c25:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1452,17 +1186,8 @@ exports[`buttons 1`] = `
 .c26 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1474,9 +1199,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1487,9 +1210,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
   width: 100%;
 }
@@ -1508,7 +1228,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c26:active,
@@ -1520,7 +1240,7 @@ exports[`buttons 1`] = `
 
 .c26:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1529,17 +1249,8 @@ exports[`buttons 1`] = `
 .c27 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1551,9 +1262,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -1564,9 +1273,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
   gap: 8px;
 }
@@ -1585,7 +1291,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c27:active,
@@ -1597,7 +1303,7 @@ exports[`buttons 1`] = `
 
 .c27:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1606,17 +1312,8 @@ exports[`buttons 1`] = `
 .c31 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1628,22 +1325,17 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
   padding-left: 4px;
   padding-right: 4px;
@@ -1652,8 +1344,8 @@ exports[`buttons 1`] = `
 .c31:focus-visible,
 .teleport-button__force-focus-visible .c31 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1675,7 +1367,7 @@ exports[`buttons 1`] = `
 
 .c31:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1684,17 +1376,8 @@ exports[`buttons 1`] = `
 .c34 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1706,30 +1389,25 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 40px;
   font-size: 14px;
   line-height: 20px;
-  -webkit-letter-spacing: 0.175px;
-  -moz-letter-spacing: 0.175px;
-  -ms-letter-spacing: 0.175px;
   letter-spacing: 0.175px;
 }
 
 .c34:focus-visible,
 .teleport-button__force-focus-visible .c34 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1751,7 +1429,7 @@ exports[`buttons 1`] = `
 
 .c34:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1760,17 +1438,8 @@ exports[`buttons 1`] = `
 .c35 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1782,22 +1451,17 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 30.5px;
   min-height: 40px;
   font-size: 14px;
   line-height: 20px;
-  -webkit-letter-spacing: 0.175px;
-  -moz-letter-spacing: 0.175px;
-  -ms-letter-spacing: 0.175px;
   letter-spacing: 0.175px;
   padding-left: 4px;
   padding-right: 4px;
@@ -1806,8 +1470,8 @@ exports[`buttons 1`] = `
 .c35:focus-visible,
 .teleport-button__force-focus-visible .c35 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1829,7 +1493,7 @@ exports[`buttons 1`] = `
 
 .c35:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1838,17 +1502,8 @@ exports[`buttons 1`] = `
 .c36 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1860,30 +1515,25 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
 .c36:focus-visible,
 .teleport-button__force-focus-visible .c36 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1905,7 +1555,7 @@ exports[`buttons 1`] = `
 
 .c36:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1914,17 +1564,8 @@ exports[`buttons 1`] = `
 .c37 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -1936,22 +1577,17 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: transparent;
-  color: rgba(255,255,255,0.54);
-  border-color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
+  border-color: rgba(255, 255, 255, 0.54);
   border-width: 1.5px;
   padding: 0 6.5px;
   min-height: 24px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
   padding-left: 4px;
   padding-right: 4px;
@@ -1960,8 +1596,8 @@ exports[`buttons 1`] = `
 .c37:focus-visible,
 .teleport-button__force-focus-visible .c37 {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.72);
-  border-color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.72);
   border-radius: 4px;
   outline: none;
 }
@@ -1983,7 +1619,7 @@ exports[`buttons 1`] = `
 
 .c37:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -1992,17 +1628,8 @@ exports[`buttons 1`] = `
 .c38 {
   line-height: 1.5;
   margin: 0;
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   box-sizing: border-box;
   border-style: solid;
@@ -2014,9 +1641,7 @@ exports[`buttons 1`] = `
   outline: none;
   position: relative;
   text-align: center;
-  -webkit-text-decoration: none;
   text-decoration: none;
-  -webkit-transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   transition: background-color 0.1s,border-color 0.1s,outline-color 0.1s,box-shadow 0.1s;
   -webkit-font-smoothing: antialiased;
   background-color: #9F85FF;
@@ -2027,9 +1652,6 @@ exports[`buttons 1`] = `
   min-height: 32px;
   font-size: 12px;
   line-height: 16px;
-  -webkit-letter-spacing: 0.15px;
-  -moz-letter-spacing: 0.15px;
-  -ms-letter-spacing: 0.15px;
   letter-spacing: 0.15px;
 }
 
@@ -2047,7 +1669,7 @@ exports[`buttons 1`] = `
   background-color: #B29DFF;
   border-color: transparent;
   color: #000000;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.20), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12);
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.20),0px 5px 8px 0px rgba(0, 0, 0, 0.14),0px 1px 14px 0px rgba(0, 0, 0, 0.12);
 }
 
 .c38:active,
@@ -2059,7 +1681,7 @@ exports[`buttons 1`] = `
 
 .c38:disabled {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2068,7 +1690,7 @@ exports[`buttons 1`] = `
 
 .c38[disabled] {
   background-color: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3);
   border-color: transparent;
   box-shadow: none;
   cursor: auto;
@@ -2076,30 +1698,18 @@ exports[`buttons 1`] = `
 }
 
 .c39 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 16px;
@@ -2108,7 +1718,7 @@ exports[`buttons 1`] = `
 }
 
 .c39:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2122,30 +1732,18 @@ exports[`buttons 1`] = `
 }
 
 .c41 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 24px;
@@ -2154,7 +1752,7 @@ exports[`buttons 1`] = `
 }
 
 .c41:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2168,30 +1766,18 @@ exports[`buttons 1`] = `
 }
 
 .c42 {
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   border: none;
   cursor: pointer;
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   outline: none;
   border-radius: 50%;
   overflow: visible;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
   text-align: center;
-  -webkit-flex: 0 0 auto;
-  -ms-flex: 0 0 auto;
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  -webkit-transition: all 0.3s;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 12px;
@@ -2200,7 +1786,7 @@ exports[`buttons 1`] = `
 }
 
 .c42:disabled {
-  color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
   cursor: default;
 }
 
@@ -2217,7 +1803,6 @@ exports[`buttons 1`] = `
   color: #009EFF;
   font-weight: normal;
   background: none;
-  -webkit-text-decoration: underline;
   text-decoration: underline;
   text-transform: none;
   padding: 0 8px;
@@ -2240,34 +1825,16 @@ exports[`buttons 1`] = `
 }
 
 .c28 {
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
 }
 
 .c33 {
-  display: -webkit-inline-box;
-  display: -webkit-inline-flex;
-  display: -ms-inline-flexbox;
   display: inline-flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  -webkit-box-pack: center;
-  -webkit-justify-content: center;
-  -ms-flex-pack: center;
   justify-content: center;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .c30 {
@@ -2282,10 +1849,8 @@ exports[`buttons 1`] = `
 }
 
 .c21 {
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.54);
+  border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2302,35 +1867,16 @@ exports[`buttons 1`] = `
 .c21:hover,
 .c21:focus,
 .c21:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  border: 1px solid rgba(255, 255, 255, 0.72);
 }
 
 .c21::-ms-clear {
   display: none;
 }
 
-.c21::-webkit-input-placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c21::-moz-placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
-.c21:-ms-input-placeholder {
-  color: rgba(255,255,255,0.54);
-  opacity: 1;
-}
-
 .c21::placeholder {
-  color: rgba(255,255,255,0.54);
+  color: rgba(255, 255, 255, 0.54);
   opacity: 1;
-}
-
-.c21:-moz-read-only {
-  cursor: not-allowed;
 }
 
 .c21:read-only {
@@ -2338,64 +1884,36 @@ exports[`buttons 1`] = `
 }
 
 .c21:disabled {
-  color: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.36);
+  color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.36);
 }
 
 .c1 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: flex-start;
-  -webkit-box-align: flex-start;
-  -ms-flex-align: flex-start;
   align-items: flex-start;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
   gap: 32px;
 }
 
 .c15 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
   gap: 16px;
 }
 
 .c16 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: center;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
   gap: 16px;
 }
 
 .c20 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-align-items: flex-start;
-  -webkit-box-align: flex-start;
-  -ms-flex-align: flex-start;
   align-items: flex-start;
-  -webkit-flex-direction: column;
-  -ms-flex-direction: column;
   flex-direction: column;
   gap: 16px;
 }
 
 .c29 {
-  display: -webkit-box;
-  display: -webkit-flex;
-  display: -ms-flexbox;
   display: flex;
 }
 
