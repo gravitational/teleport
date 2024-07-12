@@ -1174,6 +1174,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		StartupParameters:  make(map[string]string),
 		Log:                s.log.With("id", id, "db", database.GetName()),
 		LockTargets:        authContext.LockTargets(),
+		StartTime:          s.cfg.Clock.Now(),
 	}
 
 	s.log.DebugContext(ctx, "Created session context.", "session", sessionCtx)
