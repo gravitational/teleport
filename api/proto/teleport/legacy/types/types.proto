@@ -6567,7 +6567,15 @@ message AWSOIDCIntegrationSpecV1 {
   // > .well-known/jwks
   // Format: s3://<bucket>/<prefix>
   // Optional. The proxy's endpoint is used if it is not specified.
-  string IssuerS3URI = 2 [(gogoproto.jsontag) = "issuer_s3_uri,omitempty"];
+  //
+  // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
+  // Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list.
+  // Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
+  // DELETE IN 18.0.
+  string IssuerS3URI = 2 [
+    (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
+    deprecated = true
+  ];
 }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
