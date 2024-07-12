@@ -33,9 +33,9 @@
     "winston": "^3.13.0"
   },
   "devDependencies": {
-    "@gravitational/build": "^1.0.0",
-    "@gravitational/design": "1.0.0",
-    "@gravitational/shared": "1.0.0",
+    "@gravitational/build": "workspace:*",
+    "@gravitational/design": "workspace:*",
+    "@gravitational/shared": "workspace:*",
     "@protobuf-ts/grpc-transport": "^2.9.4",
     "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
