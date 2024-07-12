@@ -15,7 +15,7 @@ version of the Helm charts.
 
 If you are already running Teleport on another platform, you can use your
 existing Teleport deployment to access your Kubernetes cluster. [Follow our
-guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+guide](../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
 cluster to Teleport.
 
 ## Prerequisites
@@ -26,11 +26,11 @@ If you are running an older Teleport version, use the version selector at the to
 of this page to choose the correct version.
 </Admonition>
 
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 
 ## Step 1/3. Add the Teleport Helm chart repository
 
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 ## Step 2/3. Setting up a Teleport cluster with Helm using a custom config
 
@@ -235,7 +235,7 @@ If you didn't set up DNS for your hostname earlier, remember to replace
 `teleport.example.com` with the external IP or hostname of the Kubernetes load
 balancer.
 
-(!docs/pages/kubernetes-access/helm/includes/kubernetes-externaladdress.mdx!)
+(!docs/pages/includes/kubernetes-access/helm/kubernetes-externaladdress.mdx!)
 
 You should modify your command accordingly and replace `teleport.example.com` with
 either the IP or hostname depending on which you have available. You may need
